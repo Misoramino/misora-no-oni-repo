@@ -39,7 +39,7 @@ class GameMapScreen extends StatefulWidget {
 const _kTrajectoryConsentPrefKey = 'trajectory_consent_default';
 
 class _GameMapScreenState extends State<GameMapScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final LocationService _locationService = LocationService();
   final PlayAreaStore _areaStore = PlayAreaStore();
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
@@ -124,12 +124,21 @@ class _GameMapScreenState extends State<GameMapScreen>
   double _estimatedBatteryScore = 0;
   int _offlineQueueCount = 0;
   String _proximityText = 'BLE: --';
+  ProximityBand _latestProximityBand = ProximityBand.none;
+  final int _mockPlayerCount = 6;
+  bool _syncInFlight = false;
+  bool _oniRoleEnabled = false;
+  bool _oniNotifyVibration = true;
+  bool _oniNotifySound = true;
+  bool _oniNotifyAggressive = false;
+  bool _ghostMode = false;
 
   late final AnimationController _dangerPulseController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _activeProfile = widget.profile;
     _dangerPulseController = AnimationController(
       vsync: this,
@@ -143,6 +152,19 @@ class _GameMapScreenState extends State<GameMapScreen>
       _pulseVisualSmoothing();
     });
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _logDebug('lifecycle:resumed');
+      _setupLocation();
+      if (_testMode) {
+        _simulateOfflineFlush();
+      }
+    } else if (state == AppLifecycleState.paused) {
+      _logDebug('lifecycle:paused');
+    }
   }
 
   void _onFrameTimings(List<FrameTiming> timings) {
@@ -177,6 +199,37 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
+  Future<void> _simulateOfflineFlush() async {
+    if (_syncInFlight) return;
+    _syncInFlight = true;
+    _logDebug('sync:flush_start');
+    final pending = await _offlineQueue.load();
+    if (pending.isEmpty) {
+      _syncInFlight = false;
+      _logDebug('sync:empty');
+      await _refreshOfflineQueueCount();
+      return;
+    }
+
+    // 擬似送信: 80%成功として成功IDだけキューから削除。
+    final okIds = <String>{};
+    for (final item in pending) {
+      final r = (item.id.hashCode & 0x7fffffff) % 10;
+      if (r <= 7) {
+        okIds.add(item.id);
+      }
+    }
+    if (okIds.isNotEmpty) {
+      await _offlineQueue.removeByIds(okIds);
+    }
+    await _refreshOfflineQueueCount();
+    _logDebug('sync:flush_done ok=${okIds.length} all=${pending.length}');
+    _syncInFlight = false;
+    if (mounted && _testMode) {
+      _toast('オフライン復帰: ${okIds.length}/${pending.length} 件を送信');
+    }
+  }
+
   Future<void> _setupProximity() async {
     await _proximityService.start();
     _proximitySubscription?.cancel();
@@ -185,6 +238,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       setState(() {
         _proximityText =
             'BLE: ${signal.band.name} (${(signal.confidence * 100).toStringAsFixed(0)}%)';
+        _latestProximityBand = signal.band;
       });
       _logDebug('ble:${signal.band.name}:${signal.confidence.toStringAsFixed(2)}');
     });
@@ -395,6 +449,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _retuneGpsIfNeeded();
     setState(() {
       _gameState = GameState.running;
+      _ghostMode = false;
       _remainingSeconds = GameConfig.matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
@@ -421,6 +476,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
     });
     _logDebug('match_start scale=${_timeScale}x');
+    HapticFeedback.selectionClick();
+    SystemSound.play(SystemSoundType.click);
 
     _matchTimer?.cancel();
     _matchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -443,6 +500,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _retuneGpsIfNeeded();
     setState(() {
       _gameState = GameState.waiting;
+      _ghostMode = false;
       _remainingSeconds = GameConfig.matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
@@ -470,11 +528,74 @@ class _GameMapScreenState extends State<GameMapScreen>
     _logDebug('match_reset');
   }
 
+  Future<void> _requestAbortByVote() async {
+    if (_gameState != GameState.running) {
+      _toast('ゲーム中のみ中止提案できます');
+      return;
+    }
+    final approved = await _showAbortVoteDialog();
+    if (!mounted || approved == null) return;
+    if (approved) {
+      _toast('過半数同意で中止しました');
+      _logDebug('abort_vote:approved');
+      _resetGame();
+    } else {
+      _toast('中止提案は否決されました');
+      _logDebug('abort_vote:rejected');
+    }
+  }
+
+  Future<bool?> _showAbortVoteDialog() async {
+    final requiredYes = (_mockPlayerCount ~/ 2) + 1;
+    int yesVotes = requiredYes;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          title: const Text('試合中止の投票'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('参加者: $_mockPlayerCount人 / 必要同意: $requiredYes票'),
+              const SizedBox(height: 8),
+              Text('同意票(テスト): $yesVotes'),
+              Slider(
+                min: 0,
+                max: _mockPlayerCount.toDouble(),
+                divisions: _mockPlayerCount,
+                value: yesVotes.toDouble(),
+                onChanged: (v) {
+                  setModalState(() => yesVotes = v.round());
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('キャンセル'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('否決'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, yesVotes >= requiredYes),
+              child: const Text('投票確定'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _endGame(GameState result, String message) {
     _matchTimer?.cancel();
     final outcome = result;
     if (result == GameState.caughtByOni) {
       _tracePoints.add(_currentPosition);
+      _ghostMode = true;
       _emitMatchEvent(
         type: 'trace_drop',
         message: '痕跡が残った',
@@ -485,6 +606,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       _gameState = result;
       _statusMessage = message;
     });
+    HapticFeedback.mediumImpact();
+    SystemSound.play(SystemSoundType.alert);
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
     Future<void>.microtask(() => _finalizeMatchRecording(outcome));
@@ -497,13 +620,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     _refreshPointRespawns();
     _evaluateFakeSkillTimer();
-    _evaluateInfection(distance);
+    _evaluateInfection(_effectiveInfectionDistance(distance));
     _evaluateCameraTriggers();
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
     _evaluatePeriodicReveal();
 
-    if (distance <= GameConfig.captureDistanceMeters) {
+    if (_isCaptureTriggered(distance)) {
       _endGame(GameState.caughtByOni, '鬼に捕まりました。');
       HapticFeedback.heavyImpact();
       return;
@@ -753,6 +876,22 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool get _isInfectedNow =>
       _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
 
+  bool _isCaptureTriggered(double gpsDistance) {
+    if (_latestProximityBand == ProximityBand.contact) return true;
+    final bonus = _latestProximityBand == ProximityBand.near ? 14.0 : 0.0;
+    return gpsDistance <= (GameConfig.captureDistanceMeters + bonus);
+  }
+
+  double _effectiveInfectionDistance(double gpsDistance) {
+    if (_latestProximityBand == ProximityBand.contact) {
+      return 0;
+    }
+    if (_latestProximityBand == ProximityBand.near) {
+      return gpsDistance - 10;
+    }
+    return gpsDistance;
+  }
+
   void _evaluateInfection(double distanceToOni) {
     if (_isInfectedNow) {
       final now = DateTime.now();
@@ -931,16 +1070,38 @@ class _GameMapScreenState extends State<GameMapScreen>
     final isDanger = currentDistance <= GameConfig.dangerDistanceMeters;
 
     if (wasSafe && isWarning) {
-      HapticFeedback.selectionClick();
-      SystemSound.play(SystemSoundType.click);
+      _emitOniCue(level: 'warning');
       _logDebug('danger_warning_enter');
     }
     if (_lastDistance! > GameConfig.dangerDistanceMeters && isDanger) {
-      HapticFeedback.mediumImpact();
-      SystemSound.play(SystemSoundType.alert);
+      _emitOniCue(level: 'danger');
       _logDebug('danger_close_enter');
     }
     _lastDistance = currentDistance;
+  }
+
+  void _emitOniCue({required String level}) {
+    if (!_oniRoleEnabled) {
+      if (level == 'danger') {
+        HapticFeedback.mediumImpact();
+        SystemSound.play(SystemSoundType.alert);
+      } else {
+        HapticFeedback.selectionClick();
+        SystemSound.play(SystemSoundType.click);
+      }
+      return;
+    }
+    final aggressive = _oniNotifyAggressive;
+    if (_oniNotifyVibration) {
+      if (level == 'danger' || aggressive) {
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.selectionClick();
+      }
+    }
+    if (_oniNotifySound) {
+      SystemSound.play(level == 'danger' ? SystemSoundType.alert : SystemSoundType.click);
+    }
   }
 
   double _distanceToOni() {
@@ -1217,6 +1378,20 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
     }
 
+    if (_ghostMode) {
+      final rough = _buildGhostRoughPositions();
+      for (var i = 0; i < rough.length; i++) {
+        markers.add(
+          Marker(
+            markerId: MarkerId('ghost_rough_$i'),
+            position: rough[i],
+            infoWindow: const InfoWindow(title: '幽霊視点', snippet: 'ざっくり位置'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          ),
+        );
+      }
+    }
+
     if (_editingArea && !_editCircleMode) {
       for (var i = 0; i < _polygonDraft.length; i++) {
         markers.add(
@@ -1242,6 +1417,23 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
 
     return markers;
+  }
+
+  List<LatLng> _buildGhostRoughPositions() {
+    final base = [
+      _currentPosition,
+      _oniPosition,
+      for (final p in _cameraPositions) p,
+    ];
+    return base
+        .asMap()
+        .entries
+        .map((e) {
+          final p = e.value;
+          final shift = (e.key + 1) * 0.0006;
+          return LatLng(p.latitude + shift, p.longitude - shift);
+        })
+        .toList();
   }
 
   Set<Polyline> _buildPolylines() {
@@ -1363,6 +1555,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     WorldProfile selectedProfile = _activeProfile;
     OniIntelMode selectedIntel = _oniIntelMode;
     bool selectedConsent = _trajectoryConsent;
+    bool selectedOniRole = _oniRoleEnabled;
+    bool selectedVib = _oniNotifyVibration;
+    bool selectedSound = _oniNotifySound;
+    bool selectedAgg = _oniNotifyAggressive;
 
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -1418,6 +1614,32 @@ class _GameMapScreenState extends State<GameMapScreen>
                     value: selectedConsent,
                     onChanged: (v) => setModalState(() => selectedConsent = v),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('鬼ロール設定（通知調整を有効化）'),
+                    value: selectedOniRole,
+                    onChanged: (v) => setModalState(() => selectedOniRole = v),
+                  ),
+                  if (selectedOniRole) ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('鬼向けバイブ通知'),
+                      value: selectedVib,
+                      onChanged: (v) => setModalState(() => selectedVib = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('鬼向けサウンド通知'),
+                      value: selectedSound,
+                      onChanged: (v) => setModalState(() => selectedSound = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('通知を高頻度化（接近時）'),
+                      value: selectedAgg,
+                      onChanged: (v) => setModalState(() => selectedAgg = v),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
@@ -1468,6 +1690,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _activeProfile = selectedProfile;
       _oniIntelMode = selectedIntel;
+      _oniRoleEnabled = selectedOniRole;
+      _oniNotifyVibration = selectedVib;
+      _oniNotifySound = selectedSound;
+      _oniNotifyAggressive = selectedAgg;
     });
     if (_trajectoryConsent != selectedConsent) {
       await _setTrajectoryConsent(selectedConsent);
@@ -1497,6 +1723,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   @override
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_onFrameTimings);
+    WidgetsBinding.instance.removeObserver(this);
     _positionSubscription?.cancel();
     _proximitySubscription?.cancel();
     _matchTimer?.cancel();
@@ -1651,9 +1878,11 @@ class _GameMapScreenState extends State<GameMapScreen>
                 batteryScore: _estimatedBatteryScore,
                 timeScale: _timeScale,
                 onCycleTimeScale: _cycleTimeScale,
+                onFlushSync: _simulateOfflineFlush,
                 debugLogs: _debugLogs,
                 queueCount: _offlineQueueCount,
                 proximityText: _proximityText,
+                syncInFlight: _syncInFlight,
               ),
             ),
           Positioned(
@@ -1677,6 +1906,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               infectionText: _isInfectedNow
                   ? '感染中 (${_secondsUntil(_infectionEndsAt)}秒)'
                   : '感染なし',
+              ghostMode: _ghostMode,
             ),
           ),
           if (_editingArea)
@@ -1737,6 +1967,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onStart: _startGame,
                   onReset: _resetGame,
                   onFakeSkill: _activateFakeSkill,
+                  onAbortVote: _requestAbortByVote,
                   onToggleAreaEdit: _toggleAreaEditor,
                   onToggleCollapsed: _toggleMenuCollapsed,
                   onOpenCustomMenu: _openCustomMenu,
@@ -1768,6 +1999,7 @@ class _InfoPanel extends StatelessWidget {
     required this.editing,
     required this.safeZoneCharges,
     required this.infectionText,
+    required this.ghostMode,
   });
 
   final String distanceText;
@@ -1782,6 +2014,7 @@ class _InfoPanel extends StatelessWidget {
   final bool editing;
   final int safeZoneCharges;
   final String infectionText;
+  final bool ghostMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1815,6 +2048,10 @@ class _InfoPanel extends StatelessWidget {
           Text('残り時間 $timerText / 位置暴露 $revealCount 回 / ステルス $safeZoneCharges'),
           const SizedBox(height: 4),
           Text(infectionText),
+          if (ghostMode) ...[
+            const SizedBox(height: 4),
+            const Text('幽霊モード: 全員のざっくり位置を表示中'),
+          ],
           const SizedBox(height: 4),
           Text(statusText),
           const SizedBox(height: 8),
@@ -1980,6 +2217,7 @@ class _ControlPanel extends StatelessWidget {
     required this.onStart,
     required this.onReset,
     required this.onFakeSkill,
+    required this.onAbortVote,
     required this.onToggleAreaEdit,
     required this.onToggleCollapsed,
     required this.onOpenCustomMenu,
@@ -1992,6 +2230,7 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onReset;
   final VoidCallback onFakeSkill;
+  final VoidCallback onAbortVote;
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onToggleCollapsed;
   final VoidCallback onOpenCustomMenu;
@@ -2024,36 +2263,60 @@ class _ControlPanel extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             ),
           ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.icon(
-                onPressed: isRunning || isEditing ? null : onStart,
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('開始'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onReset,
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('リセット'),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: isRunning && !isEditing ? onFakeSkill : null,
-                icon: const Icon(Icons.flare),
-                label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置スキル'),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: isRunning ? null : onToggleAreaEdit,
-                icon: Icon(isEditing ? Icons.check_circle : Icons.map_outlined),
-                label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: isRunning ? null : onOpenCustomMenu,
-                icon: const Icon(Icons.settings),
-                label: const Text('カスタム設定'),
-              ),
-            ],
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: isRunning
+                ? Wrap(
+                    key: const ValueKey('in_game_controls'),
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: !isEditing ? onFakeSkill : null,
+                        icon: const Icon(Icons.flare),
+                        label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置スキル'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onAbortVote,
+                        icon: const Icon(Icons.how_to_vote_outlined),
+                        label: const Text('中止提案'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onReset,
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        label: const Text('強制リセット'),
+                      ),
+                    ],
+                  )
+                : Wrap(
+                    key: const ValueKey('pre_game_controls'),
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: isEditing ? null : onStart,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('開始'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onReset,
+                        icon: const Icon(Icons.restart_alt),
+                        label: const Text('リセット'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: onToggleAreaEdit,
+                        icon: Icon(isEditing ? Icons.check_circle : Icons.map_outlined),
+                        label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: onOpenCustomMenu,
+                        icon: const Icon(Icons.settings),
+                        label: const Text('カスタム設定'),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -2070,9 +2333,11 @@ class _DiagnosticsCard extends StatelessWidget {
     required this.batteryScore,
     required this.timeScale,
     required this.onCycleTimeScale,
+    required this.onFlushSync,
     required this.debugLogs,
     required this.queueCount,
     required this.proximityText,
+    required this.syncInFlight,
   });
 
   final double fps;
@@ -2082,9 +2347,11 @@ class _DiagnosticsCard extends StatelessWidget {
   final double batteryScore;
   final int timeScale;
   final VoidCallback onCycleTimeScale;
+  final VoidCallback onFlushSync;
   final List<String> debugLogs;
   final int queueCount;
   final String proximityText;
+  final bool syncInFlight;
 
   @override
   Widget build(BuildContext context) {
@@ -2111,6 +2378,11 @@ class _DiagnosticsCard extends StatelessWidget {
                   TextButton(
                     onPressed: onCycleTimeScale,
                     child: Text('${timeScale}x'),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: syncInFlight ? null : onFlushSync,
+                    child: Text(syncInFlight ? 'Sync...' : 'Sync'),
                   ),
                 ],
               ),
