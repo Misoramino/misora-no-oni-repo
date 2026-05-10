@@ -30,4 +30,10 @@ class GameConfig {
   static const double cameraTriggerRadiusMeters = 28;
   static const int fakeSkillCooldownSeconds = 45;
   static const int fakeSkillDurationSeconds = 14;
+
+  // Phase 2.5: infection and trace
+  static const double infectionTriggerDistanceMeters = 38;
+  static const int infectionExposureSeconds = 6;
+  static const int infectionDurationSeconds = 22;
+  static const int infectionRevealIntervalSeconds = 7;
 }

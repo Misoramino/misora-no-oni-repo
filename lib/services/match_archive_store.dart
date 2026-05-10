@@ -72,4 +72,15 @@ class MatchArchiveStore {
     }
     return sum;
   }
+
+  Future<void> clearAll() async {
+    final dir = await _directory();
+    await for (final entity in dir.list(recursive: false)) {
+      if (entity is File && entity.path.endsWith('.json')) {
+        try {
+          await entity.delete();
+        } catch (_) {}
+      }
+    }
+  }
 }

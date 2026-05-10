@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:oni_game/game/game_state.dart';
 import 'package:oni_game/game/location_reveal_event.dart';
+import 'package:oni_game/game/match_event.dart';
 import 'package:oni_game/game/match_record.dart';
 import 'package:oni_game/game/play_area.dart';
 
@@ -39,6 +40,14 @@ void main() {
           overflowMeters: 30,
         ),
       ],
+      events: [
+        MatchEvent(
+          type: 'camera_spotted',
+          atUtc: t0.add(const Duration(minutes: 2)),
+          message: '監視カメラ: spotted',
+          position: const LatLng(35.5006, 139.7504),
+        ),
+      ],
     );
 
     final back = SavedMatchRecord.fromJson(original.toJson());
@@ -46,6 +55,7 @@ void main() {
     expect(back.tracks.length, 2);
     expect(back.tracks['runner_local']!.length, 2);
     expect(back.reveals.length, 1);
+    expect(back.events.length, 1);
     expect(back.outcome, GameState.runnerWin);
   });
 }

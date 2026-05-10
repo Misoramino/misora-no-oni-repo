@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -14,13 +15,17 @@ import '../game/oni_intel_mode.dart';
 import '../game/play_area.dart';
 import '../game/sampling_tier.dart';
 import '../map/runner_display_smooth.dart';
+import '../proximity/proximity_service.dart';
+import '../proximity/proximity_signal.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
 import '../services/play_area_store.dart';
+import '../sync/offline_sync_queue.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import 'match_gallery_screen.dart';
+import 'privacy_control_screen.dart';
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, super.key});
@@ -33,13 +38,17 @@ class GameMapScreen extends StatefulWidget {
 
 const _kTrajectoryConsentPrefKey = 'trajectory_consent_default';
 
-class _GameMapScreenState extends State<GameMapScreen> {
+class _GameMapScreenState extends State<GameMapScreen>
+    with SingleTickerProviderStateMixin {
   final LocationService _locationService = LocationService();
   final PlayAreaStore _areaStore = PlayAreaStore();
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
+  final OfflineSyncQueue _offlineQueue = OfflineSyncQueue();
+  final ProximityService _proximityService = MockProximityService();
 
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionSubscription;
+  StreamSubscription<ProximitySignal>? _proximitySubscription;
   Timer? _matchTimer;
   Timer? _renderPump;
 
@@ -96,18 +105,54 @@ class _GameMapScreenState extends State<GameMapScreen> {
   DateTime? _fakePositionEndsAt;
   DateTime? _lastFakeSkillAt;
   LatLng? _fakePositionLatLng;
+  int _infectionExposureSeconds = 0;
+  DateTime? _infectionEndsAt;
+  DateTime? _lastInfectionRevealAt;
+  final List<LatLng> _tracePoints = [];
 
   MatchRecorder? _matchRecorder;
   bool _trajectoryConsent = false;
+  late WorldProfile _activeProfile;
+  bool _menuCollapsed = false;
+  bool _testMode = false;
+  int _timeScale = 1;
+  final List<String> _debugLogs = [];
+  double _fps = 60;
+  double? _lastGpsAccuracyMeters;
+  double _avgGpsAccuracyMeters = 0;
+  int _gpsAccuracyCount = 0;
+  double _estimatedBatteryScore = 0;
+  int _offlineQueueCount = 0;
+  String _proximityText = 'BLE: --';
+
+  late final AnimationController _dangerPulseController;
 
   @override
   void initState() {
     super.initState();
+    _activeProfile = widget.profile;
+    _dangerPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
     _setupLocation();
     Future<void>.microtask(_loadTrajectoryConsent);
+    Future<void>.microtask(_setupProximity);
+    Future<void>.microtask(_refreshOfflineQueueCount);
     _renderPump = Timer.periodic(const Duration(milliseconds: 52), (_) {
       _pulseVisualSmoothing();
     });
+    SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
+  }
+
+  void _onFrameTimings(List<FrameTiming> timings) {
+    if (timings.isEmpty) return;
+    final totalMs = timings
+        .map((t) => t.totalSpan.inMicroseconds / 1000.0)
+        .fold<double>(0, (a, b) => a + b);
+    final avgMs = totalMs / timings.length;
+    if (avgMs <= 0) return;
+    _fps = 1000 / avgMs;
   }
 
   Future<void> _loadTrajectoryConsent() async {
@@ -122,6 +167,27 @@ class _GameMapScreenState extends State<GameMapScreen> {
     setState(() => _trajectoryConsent = value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kTrajectoryConsentPrefKey, value);
+  }
+
+  Future<void> _refreshOfflineQueueCount() async {
+    final list = await _offlineQueue.load();
+    if (!mounted) return;
+    setState(() {
+      _offlineQueueCount = list.length;
+    });
+  }
+
+  Future<void> _setupProximity() async {
+    await _proximityService.start();
+    _proximitySubscription?.cancel();
+    _proximitySubscription = _proximityService.watch().listen((signal) {
+      if (!mounted) return;
+      setState(() {
+        _proximityText =
+            'BLE: ${signal.band.name} (${(signal.confidence * 100).toStringAsFixed(0)}%)';
+      });
+      _logDebug('ble:${signal.band.name}:${signal.confidence.toStringAsFixed(2)}');
+    });
   }
 
   Future<void> _loadSavedArea() async {
@@ -251,6 +317,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
         _statusMessage = '追跡中（GPS更新あり）';
       }
       _lastAcceptedPositionAt = now;
+      _updateGpsAccuracy(position.accuracy);
     });
 
     _runnerSmooth ??= RunnerDisplaySmoothing(initial: next);
@@ -268,6 +335,14 @@ class _GameMapScreenState extends State<GameMapScreen> {
     _retuneGpsIfNeeded();
   }
 
+  void _updateGpsAccuracy(double accuracy) {
+    _lastGpsAccuracyMeters = accuracy;
+    _gpsAccuracyCount += 1;
+    _avgGpsAccuracyMeters =
+        ((_avgGpsAccuracyMeters * (_gpsAccuracyCount - 1)) + accuracy) /
+            _gpsAccuracyCount;
+  }
+
   Future<void> _finalizeMatchRecording(GameState outcome) async {
     final rec = _matchRecorder?.finalize(
       outcome: outcome,
@@ -278,6 +353,19 @@ class _GameMapScreenState extends State<GameMapScreen> {
     if (rec == null) return;
     try {
       await _matchArchive.save(rec);
+      await _offlineQueue.push(
+        OfflineSyncItem(
+          id: 'rec_${rec.id}',
+          kind: 'match_record',
+          createdAtUtc: DateTime.now().toUtc().toIso8601String(),
+          payload: {
+            'matchId': rec.id,
+            'outcome': rec.outcome.name,
+            'endedAtUtc': rec.endedAtUtc.toIso8601String(),
+          },
+        ),
+      );
+      await _refreshOfflineQueueCount();
       if (mounted) {
         _toast('軌跡を端末に保存しました（試合ギャラリーで再生）');
       }
@@ -327,16 +415,21 @@ class _GameMapScreenState extends State<GameMapScreen> {
       _fakePositionEndsAt = null;
       _lastFakeSkillAt = null;
       _fakePositionLatLng = null;
+      _infectionExposureSeconds = 0;
+      _infectionEndsAt = null;
+      _lastInfectionRevealAt = null;
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
     });
+    _logDebug('match_start scale=${_timeScale}x');
 
     _matchTimer?.cancel();
     _matchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _gameState != GameState.running) return;
       _matchRecorder?.tryAppendOni(_oniPosition);
       setState(() {
-        _remainingSeconds -= 1;
-        _elapsedSeconds += 1;
+        _remainingSeconds -= _timeScale;
+        _elapsedSeconds += _timeScale;
+        _estimatedBatteryScore += _batteryCostPerSecond() * _timeScale;
       });
       _evaluateGame();
       _retuneGpsIfNeeded();
@@ -369,17 +462,30 @@ class _GameMapScreenState extends State<GameMapScreen> {
       _fakePositionActive = false;
       _fakePositionEndsAt = null;
       _fakePositionLatLng = null;
+      _infectionExposureSeconds = 0;
+      _infectionEndsAt = null;
+      _lastInfectionRevealAt = null;
       _statusMessage = 'リセットしました。開始ボタンでゲーム開始。';
     });
+    _logDebug('match_reset');
   }
 
   void _endGame(GameState result, String message) {
     _matchTimer?.cancel();
     final outcome = result;
+    if (result == GameState.caughtByOni) {
+      _tracePoints.add(_currentPosition);
+      _emitMatchEvent(
+        type: 'trace_drop',
+        message: '痕跡が残った',
+        position: _currentPosition,
+      );
+    }
     setState(() {
       _gameState = result;
       _statusMessage = message;
     });
+    _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
     Future<void>.microtask(() => _finalizeMatchRecording(outcome));
   }
@@ -391,6 +497,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     _refreshPointRespawns();
     _evaluateFakeSkillTimer();
+    _evaluateInfection(distance);
     _evaluateCameraTriggers();
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
@@ -431,6 +538,21 @@ class _GameMapScreenState extends State<GameMapScreen> {
     }
 
     _maybeTriggerDangerFeedback(distance);
+    _updateDangerPulse(distance);
+  }
+
+  void _updateDangerPulse(double distanceToOni) {
+    final shouldPulse = distanceToOni <= GameConfig.warningDistanceMeters || _isInfectedNow;
+    if (shouldPulse) {
+      if (!_dangerPulseController.isAnimating) {
+        _dangerPulseController.repeat(reverse: true);
+      }
+    } else {
+      if (_dangerPulseController.isAnimating) {
+        _dangerPulseController.stop();
+        _dangerPulseController.value = 0;
+      }
+    }
   }
 
   void _triggerLocationReveal(double overflowMeters) {
@@ -628,6 +750,59 @@ class _GameMapScreenState extends State<GameMapScreen> {
     }
   }
 
+  bool get _isInfectedNow =>
+      _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
+
+  void _evaluateInfection(double distanceToOni) {
+    if (_isInfectedNow) {
+      final now = DateTime.now();
+      if (_lastInfectionRevealAt == null ||
+          now.difference(_lastInfectionRevealAt!).inSeconds >=
+              GameConfig.infectionRevealIntervalSeconds) {
+        _lastInfectionRevealAt = now;
+        final ev = LocationRevealEvent(
+          sequence: _revealCount + 1,
+          timestamp: now,
+          position: _positionForReveal,
+          overflowMeters: 0,
+        );
+        _revealCount += 1;
+        _revealLog.insert(0, ev);
+        if (_revealLog.length > 50) _revealLog.removeLast();
+        _emitMatchEvent(
+          type: 'infection_reveal',
+          message: '感染露出パルス',
+          position: _positionForReveal,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')),
+        );
+      }
+      return;
+    }
+
+    if (distanceToOni <= GameConfig.infectionTriggerDistanceMeters) {
+      _infectionExposureSeconds += 1;
+      if (_infectionExposureSeconds >= GameConfig.infectionExposureSeconds) {
+        _infectionEndsAt = DateTime.now().add(
+          const Duration(seconds: GameConfig.infectionDurationSeconds),
+        );
+        _infectionExposureSeconds = 0;
+        _lastInfectionRevealAt = null;
+        _emitMatchEvent(
+          type: 'infection_start',
+          message: '感染状態に入った',
+          position: _currentPosition,
+        );
+        setState(() {
+          _statusMessage = '感染状態: 一時的に位置露出が増加';
+        });
+      }
+    } else {
+      _infectionExposureSeconds = 0;
+    }
+  }
+
   void _activateFakeSkill() {
     if (_gameState != GameState.running) {
       _toast('ゲーム中のみ使えます');
@@ -675,6 +850,25 @@ class _GameMapScreenState extends State<GameMapScreen> {
     if (_matchEvents.length > 120) {
       _matchEvents.removeLast();
     }
+    _offlineQueue.push(
+      OfflineSyncItem(
+        id: 'ev_${event.atUtc.microsecondsSinceEpoch}_${event.type}',
+        kind: 'match_event',
+        createdAtUtc: event.atUtc.toIso8601String(),
+        payload: event.toJson(),
+      ),
+    ).then((_) => _refreshOfflineQueueCount());
+  }
+
+  void _clearTracePoints() {
+    if (_tracePoints.isEmpty) {
+      _toast('痕跡はありません');
+      return;
+    }
+    setState(() {
+      _tracePoints.clear();
+      _statusMessage = '痕跡をクリアしました';
+    });
   }
 
   String _bearingToDirection(double bearing) {
@@ -727,18 +921,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
     }
   }
 
-  void _cycleOniIntelMode() {
-    if (_gameState == GameState.running) {
-      _toast('ゲーム中は情報モードを変更できません');
-      return;
-    }
-    setState(() {
-      final nextIndex = (_oniIntelMode.index + 1) % OniIntelMode.values.length;
-      _oniIntelMode = OniIntelMode.values[nextIndex];
-      _statusMessage = '鬼情報モード: ${_oniIntelMode.label}';
-    });
-  }
-
   void _maybeTriggerDangerFeedback(double currentDistance) {
     if (_lastDistance == null) {
       _lastDistance = currentDistance;
@@ -750,9 +932,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
 
     if (wasSafe && isWarning) {
       HapticFeedback.selectionClick();
+      SystemSound.play(SystemSoundType.click);
+      _logDebug('danger_warning_enter');
     }
     if (_lastDistance! > GameConfig.dangerDistanceMeters && isDanger) {
       HapticFeedback.mediumImpact();
+      SystemSound.play(SystemSoundType.alert);
+      _logDebug('danger_close_enter');
     }
     _lastDistance = currentDistance;
   }
@@ -792,6 +978,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
 
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    _logDebug('toast:$msg');
   }
 
   void _toggleAreaEditor() {
@@ -1000,6 +1187,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
         infoWindow: const InfoWindow(title: '通信障害地帯', snippet: '情報が断片化する'),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
       ),
+      for (var i = 0; i < _tracePoints.length; i++)
+        Marker(
+          markerId: MarkerId('trace_$i'),
+          position: _tracePoints[i],
+          infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+        ),
       for (var i = 0; i < _cameraPositions.length; i++)
         Marker(
           markerId: MarkerId('camera_$i'),
@@ -1094,6 +1288,15 @@ class _GameMapScreenState extends State<GameMapScreen> {
         fillColor: Colors.orange.withValues(alpha: 0.12),
         strokeColor: Colors.orange.shade700,
       ),
+      for (var i = 0; i < _tracePoints.length; i++)
+        Circle(
+          circleId: CircleId('trace_circle_$i'),
+          center: _tracePoints[i],
+          radius: 18,
+          strokeWidth: 1,
+          fillColor: Colors.cyan.withValues(alpha: 0.2),
+          strokeColor: Colors.cyan.shade700,
+        ),
     };
 
     if (_editingArea && _editCircleMode) {
@@ -1131,18 +1334,182 @@ class _GameMapScreenState extends State<GameMapScreen> {
     return diff < 0 ? 0 : diff;
   }
 
+  void _logDebug(String line) {
+    final stamp = DateTime.now().toIso8601String().substring(11, 19);
+    _debugLogs.insert(0, '[$stamp] $line');
+    if (_debugLogs.length > 120) {
+      _debugLogs.removeLast();
+    }
+  }
+
+  void _toggleTestMode() {
+    setState(() {
+      _testMode = !_testMode;
+    });
+    _logDebug('test_mode=${_testMode ? 'on' : 'off'}');
+  }
+
+  void _toggleMenuCollapsed() {
+    setState(() {
+      _menuCollapsed = !_menuCollapsed;
+    });
+  }
+
+  Future<void> _openCustomMenu() async {
+    if (_gameState == GameState.running) {
+      _toast('ゲーム中はカスタム設定を変更できません');
+      return;
+    }
+    WorldProfile selectedProfile = _activeProfile;
+    OniIntelMode selectedIntel = _oniIntelMode;
+    bool selectedConsent = _trajectoryConsent;
+
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<WorldProfile>(
+                    initialValue: selectedProfile,
+                    decoration: const InputDecoration(labelText: '世界観'),
+                    items: WorldProfile.values
+                        .map(
+                          (p) => DropdownMenuItem(
+                            value: p,
+                            child: Text(p.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setModalState(() => selectedProfile = v);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<OniIntelMode>(
+                    initialValue: selectedIntel,
+                    decoration: const InputDecoration(labelText: '鬼情報モード'),
+                    items: OniIntelMode.values
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(m.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setModalState(() => selectedIntel = v);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('軌跡を端末保存（同意）'),
+                    value: selectedConsent,
+                    onChanged: (v) => setModalState(() => selectedConsent = v),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx, false);
+                          _setupLocation();
+                        },
+                        icon: const Icon(Icons.gps_fixed),
+                        label: const Text('現在地更新'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx, false);
+                          _moveOniForTest();
+                        },
+                        icon: const Icon(Icons.directions_run),
+                        label: const Text('鬼移動(テスト)'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx, false);
+                          _clearTracePoints();
+                        },
+                        icon: const Icon(Icons.cleaning_services),
+                        label: const Text('痕跡クリア'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('適用'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (ok != true) return;
+    setState(() {
+      _activeProfile = selectedProfile;
+      _oniIntelMode = selectedIntel;
+    });
+    if (_trajectoryConsent != selectedConsent) {
+      await _setTrajectoryConsent(selectedConsent);
+    }
+    _toast('カスタム設定を適用しました');
+  }
+
+  void _cycleTimeScale() {
+    setState(() {
+      const scales = [1, 2, 4, 8];
+      final idx = scales.indexOf(_timeScale);
+      _timeScale = scales[(idx + 1) % scales.length];
+    });
+    _logDebug('time_scale=${_timeScale}x');
+  }
+
+  double _batteryCostPerSecond() {
+    final tierBase = switch (_gpsTier) {
+      LocationSamplingTier.relaxed => 0.25,
+      LocationSamplingTier.standard => 0.55,
+      LocationSamplingTier.chase => 0.95,
+    };
+    final pulse = _isInfectedNow ? 0.25 : 0.0;
+    return tierBase + pulse;
+  }
+
   @override
   void dispose() {
+    SchedulerBinding.instance.removeTimingsCallback(_onFrameTimings);
     _positionSubscription?.cancel();
+    _proximitySubscription?.cancel();
     _matchTimer?.cancel();
     _renderPump?.cancel();
+    _dangerPulseController.dispose();
+    _proximityService.stop();
     _mapController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final tokens = WorldProfileTokenFactory.of(widget.profile);
+    final tokens = WorldProfileTokenFactory.of(_activeProfile);
     final distance = _distanceToOni();
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     final bool isOutBeyondGrace = overflowMeters > GameConfig.outsideAreaGraceMeters;
@@ -1164,6 +1531,22 @@ class _GameMapScreenState extends State<GameMapScreen> {
       appBar: AppBar(
         title: const Text('Oni Game Map'),
         actions: [
+          IconButton(
+            tooltip: 'テストモード',
+            onPressed: _toggleTestMode,
+            icon: Icon(_testMode ? Icons.bug_report : Icons.bug_report_outlined),
+          ),
+          IconButton(
+            tooltip: 'プライバシー管理',
+            onPressed: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PrivacyControlScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.privacy_tip_outlined),
+          ),
           IconButton(
             tooltip: '試合ギャラリー（タイムラプス再生）',
             onPressed: () {
@@ -1232,6 +1615,47 @@ class _GameMapScreenState extends State<GameMapScreen> {
               _mapController = controller;
             },
           ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _dangerPulseController,
+                builder: (_, child) {
+                  final level = (_dangerPulseController.value * 0.35) +
+                      (_isInfectedNow ? 0.20 : 0.0);
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(0, -0.2),
+                        radius: 1.0,
+                        colors: [
+                          Colors.red.withValues(alpha: level),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  child: child,
+                  );
+                },
+              ),
+            ),
+          ),
+          if (_testMode)
+            Positioned(
+              top: 120,
+              right: 12,
+              child: _DiagnosticsCard(
+                fps: _fps,
+                gpsTier: _gpsTier.name,
+                gpsAccuracyLast: _lastGpsAccuracyMeters,
+                gpsAccuracyAvg: _avgGpsAccuracyMeters,
+                batteryScore: _estimatedBatteryScore,
+                timeScale: _timeScale,
+                onCycleTimeScale: _cycleTimeScale,
+                debugLogs: _debugLogs,
+                queueCount: _offlineQueueCount,
+                proximityText: _proximityText,
+              ),
+            ),
           Positioned(
             top: 18,
             left: 16,
@@ -1250,6 +1674,9 @@ class _GameMapScreenState extends State<GameMapScreen> {
               revealCount: _revealCount,
               editing: _editingArea,
               safeZoneCharges: _safeZoneCharges,
+              infectionText: _isInfectedNow
+                  ? '感染中 (${_secondsUntil(_infectionEndsAt)}秒)'
+                  : '感染なし',
             ),
           ),
           if (_editingArea)
@@ -1294,20 +1721,31 @@ class _GameMapScreenState extends State<GameMapScreen> {
             bottom: 16,
             left: 16,
             right: 16,
-            child: _ControlPanel(
-              onRefresh: () async => _setupLocation(),
-              onStart: _startGame,
-              onReset: _resetGame,
-              onMoveOni: _moveOniForTest,
-              onFakeSkill: _activateFakeSkill,
-              onToggleAreaEdit: _toggleAreaEditor,
-              isRunning: _gameState == GameState.running,
-              isEditing: _editingArea,
-              fakeSkillActive: _fakePositionActive,
-              trajectoryConsent: _trajectoryConsent,
-              onTrajectoryConsentChanged: _setTrajectoryConsent,
-              oniIntelModeLabel: _oniIntelMode.label,
-              onCycleOniIntelMode: _cycleOniIntelMode,
+            child: GestureDetector(
+              onVerticalDragEnd: (details) {
+                if (details.primaryVelocity == null) return;
+                if (details.primaryVelocity! > 180) {
+                  if (!_menuCollapsed) _toggleMenuCollapsed();
+                } else if (details.primaryVelocity! < -180) {
+                  if (_menuCollapsed) _toggleMenuCollapsed();
+                }
+              },
+              child: AnimatedSlide(
+                duration: const Duration(milliseconds: 220),
+                offset: _menuCollapsed ? const Offset(0, 0.74) : Offset.zero,
+                child: _ControlPanel(
+                  onStart: _startGame,
+                  onReset: _resetGame,
+                  onFakeSkill: _activateFakeSkill,
+                  onToggleAreaEdit: _toggleAreaEditor,
+                  onToggleCollapsed: _toggleMenuCollapsed,
+                  onOpenCustomMenu: _openCustomMenu,
+                  isRunning: _gameState == GameState.running,
+                  isEditing: _editingArea,
+                  fakeSkillActive: _fakePositionActive,
+                  menuCollapsed: _menuCollapsed,
+                ),
+              ),
             ),
           ),
         ],
@@ -1329,6 +1767,7 @@ class _InfoPanel extends StatelessWidget {
     required this.revealCount,
     required this.editing,
     required this.safeZoneCharges,
+    required this.infectionText,
   });
 
   final String distanceText;
@@ -1342,6 +1781,7 @@ class _InfoPanel extends StatelessWidget {
   final int revealCount;
   final bool editing;
   final int safeZoneCharges;
+  final String infectionText;
 
   @override
   Widget build(BuildContext context) {
@@ -1373,6 +1813,8 @@ class _InfoPanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text('残り時間 $timerText / 位置暴露 $revealCount 回 / ステルス $safeZoneCharges'),
+          const SizedBox(height: 4),
+          Text(infectionText),
           const SizedBox(height: 4),
           Text(statusText),
           const SizedBox(height: 8),
@@ -1535,34 +1977,28 @@ class _AreaEditorCard extends StatelessWidget {
 
 class _ControlPanel extends StatelessWidget {
   const _ControlPanel({
-    required this.onRefresh,
     required this.onStart,
     required this.onReset,
-    required this.onMoveOni,
     required this.onFakeSkill,
     required this.onToggleAreaEdit,
+    required this.onToggleCollapsed,
+    required this.onOpenCustomMenu,
     required this.isRunning,
     required this.isEditing,
     required this.fakeSkillActive,
-    required this.trajectoryConsent,
-    required this.onTrajectoryConsentChanged,
-    required this.oniIntelModeLabel,
-    required this.onCycleOniIntelMode,
+    required this.menuCollapsed,
   });
 
-  final VoidCallback onRefresh;
   final VoidCallback onStart;
   final VoidCallback onReset;
-  final VoidCallback onMoveOni;
   final VoidCallback onFakeSkill;
   final VoidCallback onToggleAreaEdit;
+  final VoidCallback onToggleCollapsed;
+  final VoidCallback onOpenCustomMenu;
   final bool isRunning;
   final bool isEditing;
   final bool fakeSkillActive;
-  final bool trajectoryConsent;
-  final ValueChanged<bool> onTrajectoryConsentChanged;
-  final String oniIntelModeLabel;
-  final VoidCallback onCycleOniIntelMode;
+  final bool menuCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -1579,25 +2015,14 @@ class _ControlPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: trajectoryConsent,
-                onChanged: isRunning
-                    ? null
-                    : (v) => onTrajectoryConsentChanged(v ?? false),
+          Center(
+            child: IconButton(
+              onPressed: onToggleCollapsed,
+              icon: Icon(
+                menuCollapsed ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    '同意: 試合後に端末内だけで軌跡を保存し、タイムラプスで再生できるようにする（共有・クラウド送信は別途）',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ),
-            ],
+              visualDensity: VisualDensity.compact,
+            ),
           ),
           Wrap(
             spacing: 8,
@@ -1613,16 +2038,6 @@ class _ControlPanel extends StatelessWidget {
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('リセット'),
               ),
-              OutlinedButton.icon(
-                onPressed: isEditing ? null : onRefresh,
-                icon: const Icon(Icons.gps_fixed),
-                label: const Text('現在地更新'),
-              ),
-              OutlinedButton.icon(
-                onPressed: isEditing ? null : onMoveOni,
-                icon: const Icon(Icons.directions_run),
-                label: const Text('鬼移動(テスト)'),
-              ),
               FilledButton.tonalIcon(
                 onPressed: isRunning && !isEditing ? onFakeSkill : null,
                 icon: const Icon(Icons.flare),
@@ -1634,13 +2049,105 @@ class _ControlPanel extends StatelessWidget {
                 label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
               ),
               FilledButton.tonalIcon(
-                onPressed: isRunning ? null : onCycleOniIntelMode,
-                icon: const Icon(Icons.tune),
-                label: Text('鬼情報: $oniIntelModeLabel'),
+                onPressed: isRunning ? null : onOpenCustomMenu,
+                icon: const Icon(Icons.settings),
+                label: const Text('カスタム設定'),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DiagnosticsCard extends StatelessWidget {
+  const _DiagnosticsCard({
+    required this.fps,
+    required this.gpsTier,
+    required this.gpsAccuracyLast,
+    required this.gpsAccuracyAvg,
+    required this.batteryScore,
+    required this.timeScale,
+    required this.onCycleTimeScale,
+    required this.debugLogs,
+    required this.queueCount,
+    required this.proximityText,
+  });
+
+  final double fps;
+  final String gpsTier;
+  final double? gpsAccuracyLast;
+  final double gpsAccuracyAvg;
+  final double batteryScore;
+  final int timeScale;
+  final VoidCallback onCycleTimeScale;
+  final List<String> debugLogs;
+  final int queueCount;
+  final String proximityText;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.speed, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Test Mode',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: onCycleTimeScale,
+                    child: Text('${timeScale}x'),
+                  ),
+                ],
+              ),
+              Text('FPS: ${fps.toStringAsFixed(1)}',
+                  style: const TextStyle(color: Colors.white)),
+              Text('GPS tier: $gpsTier',
+                  style: const TextStyle(color: Colors.white)),
+              Text(
+                'GPS精度: last=${gpsAccuracyLast?.toStringAsFixed(1) ?? '-'}m / avg=${gpsAccuracyAvg.toStringAsFixed(1)}m',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'Battery score(est): ${batteryScore.toStringAsFixed(1)}',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'Offline queue: $queueCount',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                proximityText,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 6),
+              const Text('Logs',
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
+              ...debugLogs.take(4).map(
+                    (e) => Text(
+                      e,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white60, fontSize: 11),
+                    ),
+                  ),
+            ],
+          ),
+        ),
       ),
     );
   }
