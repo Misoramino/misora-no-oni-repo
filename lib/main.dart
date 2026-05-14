@@ -1,7 +1,10 @@
 import 'package:flutter/widgets.dart';
 
 import 'app.dart';
+import 'sync/firebase_bootstrap.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseBootstrap.tryInit();
   runApp(const OniGameApp());
 }

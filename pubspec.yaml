@@ -39,6 +39,13 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_blue_plus: ^2.3.2
+  # Windows 向けフェデレート実装（ホストが Windows でも pub / プラグイン解決で警告が出ないようにする）
+  flutter_blue_plus_winrt: ^0.0.20
+  firebase_core: ^4.8.0
+  cloud_firestore: ^6.4.0
+  firebase_auth: ^6.5.0
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:

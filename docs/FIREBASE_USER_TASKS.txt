@@ -1,0 +1,80 @@
+================================================================================
+GPT への依頼用テンプレ（コピーして使う）
+================================================================================
+
+以下をそのまま GPT に貼り、「私が Firebase / Flutter 側でやるべき作業を手順付きで教えて」と依頼してください。
+
+--- ここからコピー ---------------------------------------------------------
+
+【状況】
+Flutter プロジェクト oni_game では次が実装済みです。
+- main.dart で FirebaseBootstrap.tryInit() を実行
+- dart-define で FIREBASE_API_KEY 等を渡すか、Android に google-services.json を置いて Firebase.initializeApp() のデフォルト初期化
+- FirestoreRoomSession: 匿名認証後に rooms/{roomId}/members/{uid} にプレゼンスを書く
+- リポジトリに firestore.rules（開発向け例）と firebase.json がある
+
+【私が Firebase Console で済ませたこと】
+- Firestore を有効化した
+- Anonymous Authentication を有効化した
+
+【まだやっていないこと】
+- iOS の GoogleService-Info.plist と Xcode 設定（後回しでよい）
+
+【してほしいこと】
+1) Android で確実に Firebase が初期化されるまでのチェックリスト（google-services.json の配置場所、パッケージ名 com.example.oni_game の一致確認、ビルド確認コマンド）
+2) Firestore ルールを Console にデプロイする手順（CLI が無い場合はエディタ貼り付け）
+3) 匿名認証が有効か・Firestore が拒否していないかの切り分け（よくあるエラーと対処）
+4) 任意: dart-define での flutter run 例を、機密を伏せた形のテンプレで書いてほしい
+
+【制約】
+- 秘密鍵や API キーの実値は書かない。プレースホルダのみ。
+
+--- ここまでコピー ---------------------------------------------------------
+
+================================================================================
+あなた（開発者）が手でやる最短チェックリスト（Android）
+================================================================================
+
+[ ] Firebase Console → プロジェクト設定 → マイアプリ → Android アプリを登録
+    アプリのパッケージ名: com.example.oni_game（build.gradle.kts の applicationId と一致）
+
+[ ] google-services.json をダウンロードし、次に置く（git には含めない・既に .gitignore 済み）
+    ファイル: android/app/google-services.json
+
+[ ] Firestore → ルールタブで、リポジトリの firestore.rules の内容を貼り「公開」する
+    （または Firebase CLI: firebase deploy --only firestore:rules）
+
+[ ] Authentication → Sign-in method → 匿名 が「有効」
+
+[ ] 実機またはエミュレータでアプリを起動し、カスタム設定から
+    ルームID・表示名を入れ「ルーム参加」→ 失敗時はログ / Snackbar の文言で切り分け
+
+[ ] Firestore データタブで rooms/{ルームID}/members にドキュメントができるか確認
+
+================================================================================
+dart-define で初期化する場合（google-services.json が無くても試せる）
+================================================================================
+
+flutter run ^
+  --dart-define=FIREBASE_API_KEY=（ウェブAPIキー等） ^
+  --dart-define=FIREBASE_APP_ID=mobilesdk_app_id ^
+  --dart-define=FIREBASE_SENDER_ID=プロジェクト番号 ^
+  --dart-define=FIREBASE_PROJECT_ID=プロジェクトID ^
+  --dart-define=FIREBASE_STORAGE_BUCKET=（任意）
+
+※ 値は Firebase Console の「アプリを追加」後の構成から取得。共有しないこと。
+
+================================================================================
+iOS を後でやるとき（メモのみ）
+================================================================================
+
+[ ] GoogleService-Info.plist を ios/Runner/ に配置（.gitignore 済みのため手元のみ）
+[ ] Xcode で Runner の Bundle ID を Firebase に登録したアプリと一致させる
+[ ] 必要なら CocoaPods の pod install
+
+================================================================================
+アプリ側の挙動（2026-05 時点）
+================================================================================
+- カスタム設定を開くと FirebaseBootstrap.tryInit() が再度走ります（初回失敗後に json を置いた場合など）。
+- 「ルーム参加」は常に押せます。押下時にも tryInit し、失敗時は SnackBar と lastErrorBrief で理由を表示します。
+- google-services.json 配置後はフル再ビルド（ホットリロードだけでは不十分なことがあります）。

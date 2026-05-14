@@ -1,0 +1,12 @@
+rules_version = '2';
+// 開発・少人数テスト向け。本番ではルーム参加の検証・レート制限・課金監視と合わせて強化してください。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId}/members/{memberId} {
+      // プレゼンス同期: 自分のドキュメントだけ書き換え、ルーム内メンバーは全員読める想定
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == memberId;
+      allow update, delete: if request.auth != null && request.auth.uid == memberId;
+    }
+  }
+}

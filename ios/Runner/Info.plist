@@ -47,6 +47,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

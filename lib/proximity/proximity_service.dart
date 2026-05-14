@@ -7,10 +7,13 @@ abstract class ProximityService {
   Stream<ProximitySignal> watch();
   Future<void> start();
   Future<void> stop();
+
+  /// 鬼までのGPS距離（m）を近接サービスへ渡す。未対応の実装は何もしない。
+  void ingestGpsDistanceMeters(double distanceToOniMeters) {}
 }
 
 /// BLE導入前のモック。後で flutter_blue_plus 等へ差し替え可能。
-class MockProximityService implements ProximityService {
+class MockProximityService extends ProximityService {
   StreamController<ProximitySignal>? _controller;
   Timer? _timer;
 

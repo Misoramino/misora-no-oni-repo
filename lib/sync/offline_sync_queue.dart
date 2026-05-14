@@ -40,14 +40,14 @@ class OfflineSyncQueue {
   Future<List<OfflineSyncItem>> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(storageKey);
-    if (raw == null || raw.isEmpty) return const [];
+    if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List<dynamic>;
       return list
           .map((e) => OfflineSyncItem.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
-      return const [];
+      return [];
     }
   }
 

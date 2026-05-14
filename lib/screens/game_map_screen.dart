@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
 import '../game/game_state.dart';
 import '../game/location_reveal_event.dart';
@@ -15,12 +16,18 @@ import '../game/oni_intel_mode.dart';
 import '../game/play_area.dart';
 import '../game/sampling_tier.dart';
 import '../map/runner_display_smooth.dart';
+import '../proximity/ble_scan_proximity_service.dart';
+import '../proximity/hybrid_proximity_service.dart';
 import '../proximity/proximity_service.dart';
 import '../proximity/proximity_signal.dart';
+import '../sync/firebase_bootstrap.dart';
+import '../sync/firestore_room_session.dart';
+import '../sync/remote_member_snapshot.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
 import '../services/play_area_store.dart';
+import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
@@ -37,14 +44,21 @@ class GameMapScreen extends StatefulWidget {
 }
 
 const _kTrajectoryConsentPrefKey = 'trajectory_consent_default';
+const _kEliminationAftermathPrefKey = 'elimination_aftermath_rule_v1';
+const _kUseBleScanPrefKey = 'use_ble_scan_proximity_v1';
 
 class _GameMapScreenState extends State<GameMapScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const LatLng _defaultOniPosition = LatLng(35.6805, 139.7690);
+
   final LocationService _locationService = LocationService();
   final PlayAreaStore _areaStore = PlayAreaStore();
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
   final OfflineSyncQueue _offlineQueue = OfflineSyncQueue();
-  final ProximityService _proximityService = MockProximityService();
+  late HybridProximityService _proximityService = HybridProximityService(
+    bleDelegate: MockProximityService(),
+  );
+  RoomSessionPort _roomSession = LocalOnlyRoomSession();
 
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionSubscription;
@@ -56,7 +70,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   RunnerDisplaySmoothing? _runnerSmooth;
 
   LatLng _currentPosition = const LatLng(35.681236, 139.767125);
-  LatLng _oniPosition = const LatLng(35.6805, 139.7690);
+  LatLng _oniPosition = _defaultOniPosition;
 
   PlayArea _playArea = const PlayArea.circle(
     center: LatLng(35.681236, 139.767125),
@@ -70,6 +84,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   LatLng _circleDraftCenter = const LatLng(35.681236, 139.767125);
   double _circleDraftRadiusMeters = GameConfig.playAreaRadiusMeters;
   bool _waitingCircleCenterTap = false;
+
+  /// 待機中は地図を隠してロビー表示。エリア編集・試合中・試合終了後は地図を表示する。
+  bool _mapVisibleInLobby = false;
 
   GameState _gameState = GameState.waiting;
   int _remainingSeconds = GameConfig.matchDurationSeconds;
@@ -114,6 +131,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
   bool _menuCollapsed = false;
+
+  /// 準備・試合結果中は操作パネルを隠し、FAB「操作」で開く。
+  bool _prepControlSheetOpen = false;
   bool _testMode = false;
   int _timeScale = 1;
   final List<String> _debugLogs = [];
@@ -123,15 +143,19 @@ class _GameMapScreenState extends State<GameMapScreen>
   int _gpsAccuracyCount = 0;
   double _estimatedBatteryScore = 0;
   int _offlineQueueCount = 0;
-  String _proximityText = 'BLE: --';
+  String _proximityText = '近接: --';
   ProximityBand _latestProximityBand = ProximityBand.none;
   final int _mockPlayerCount = 6;
   bool _syncInFlight = false;
+  Map<String, RemoteMemberSnapshot> _remoteMembers = {};
+  StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
   bool _oniRoleEnabled = false;
   bool _oniNotifyVibration = true;
   bool _oniNotifySound = true;
   bool _oniNotifyAggressive = false;
-  bool _ghostMode = false;
+  EliminationAftermathRule _eliminationAftermathRule =
+      EliminationAftermathRule.ghostSpectator;
+  EliminationAftermathRule? _afterCatchRule;
 
   late final AnimationController _dangerPulseController;
 
@@ -146,7 +170,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     _setupLocation();
     Future<void>.microtask(_loadTrajectoryConsent);
-    Future<void>.microtask(_setupProximity);
+    Future<void>.microtask(_loadEliminationAftermathRule);
+    Future<void>.microtask(_initProximityStack);
+    Future<void>.microtask(() async {
+      await _roomSession.connectLocalDemo();
+    });
     Future<void>.microtask(_refreshOfflineQueueCount);
     _renderPump = Timer.periodic(const Duration(milliseconds: 52), (_) {
       _pulseVisualSmoothing();
@@ -183,6 +211,17 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _trajectoryConsent = prefs.getBool(_kTrajectoryConsentPrefKey) ?? false;
     });
+  }
+
+  Future<void> _loadEliminationAftermathRule() async {
+    final prefs = await SharedPreferences.getInstance();
+    final parsed = EliminationAftermathRuleX.tryParseName(
+      prefs.getString(_kEliminationAftermathPrefKey),
+    );
+    if (!mounted) return;
+    if (parsed != null) {
+      setState(() => _eliminationAftermathRule = parsed);
+    }
   }
 
   Future<void> _setTrajectoryConsent(bool value) async {
@@ -230,6 +269,74 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
+  Future<void> _initProximityStack() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final useBle = prefs.getBool(_kUseBleScanPrefKey) ?? false;
+    await _proximitySubscription?.cancel();
+    await _proximityService.stop();
+    _proximityService = HybridProximityService(
+      bleDelegate: useBle ? BleScanProximityService() : MockProximityService(),
+    );
+    await _setupProximity();
+  }
+
+  Future<void> _reloadProximityStackFromPrefs() async {
+    await _initProximityStack();
+  }
+
+  Future<void> _leaveFirestoreRoom() async {
+    _remoteMembersSub?.cancel();
+    _remoteMembersSub = null;
+    if (_roomSession is FirestoreRoomSession) {
+      await (_roomSession as FirestoreRoomSession).disconnect();
+    }
+    if (!mounted) return;
+    setState(() {
+      _roomSession = LocalOnlyRoomSession();
+      _remoteMembers = {};
+      _oniPosition = _defaultOniPosition;
+    });
+  }
+
+  Future<String?> _joinFirestoreRoom({
+    required String roomId,
+    required String nickname,
+    required String role,
+  }) async {
+    if (!FirebaseBootstrap.isReady) {
+      return 'Firebase が初期化されていません。android/app/google-services.json または dart-define（FIREBASE_*）を確認してください。';
+    }
+    await _leaveFirestoreRoom();
+    final fs = FirestoreRoomSession();
+    final err = await fs.join(roomId: roomId, nickname: nickname, role: role);
+    if (err != null) return err;
+    if (!mounted) return '中断されました';
+    setState(() => _roomSession = fs);
+    _bindRemoteMembers(fs);
+    return null;
+  }
+
+  void _bindRemoteMembers(FirestoreRoomSession session) {
+    _remoteMembersSub?.cancel();
+    _remoteMembersSub = session.remoteMembers.listen((map) {
+      if (!mounted) return;
+      setState(() {
+        _remoteMembers = map;
+        _applyRemoteOniPosition(map);
+      });
+    });
+  }
+
+  void _applyRemoteOniPosition(Map<String, RemoteMemberSnapshot> map) {
+    for (final m in map.values) {
+      if (m.role == 'oni') {
+        _oniPosition = LatLng(m.lat, m.lng);
+        return;
+      }
+    }
+  }
+
   Future<void> _setupProximity() async {
     await _proximityService.start();
     _proximitySubscription?.cancel();
@@ -237,10 +344,12 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (!mounted) return;
       setState(() {
         _proximityText =
-            'BLE: ${signal.band.name} (${(signal.confidence * 100).toStringAsFixed(0)}%)';
+            '近接: ${signal.band.name} (${(signal.confidence * 100).toStringAsFixed(0)}%)';
         _latestProximityBand = signal.band;
       });
-      _logDebug('ble:${signal.band.name}:${signal.confidence.toStringAsFixed(2)}');
+      _logDebug(
+        'proximity:${signal.band.name}:${signal.confidence.toStringAsFixed(2)}',
+      );
     });
   }
 
@@ -284,9 +393,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     _positionSubscription?.cancel();
     _gpsTier = nextTier;
-    _positionSubscription = _locationService.watchPosition(_gpsTier).listen(
-      (pos) => _acceptPosition(pos, animateCamera: false),
-    );
+    _positionSubscription = _locationService
+        .watchPosition(_gpsTier)
+        .listen((pos) => _acceptPosition(pos, animateCamera: false));
   }
 
   LocationSamplingTier _resolveGpsTier() {
@@ -316,7 +425,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     s.stepTowardTarget(blend);
     final after = s.residualMeters;
     final running = _gameState == GameState.running;
-    final shouldRepaint = running || (before - after).abs() > 0.25 || !s.isNearlyThere;
+    final shouldRepaint =
+        running || (before - after).abs() > 0.25 || !s.isNearlyThere;
     if (shouldRepaint && (running || after > 1.2 || !s.isNearlyThere)) {
       setState(() {});
     }
@@ -341,11 +451,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     return 0.11;
   }
 
-  LatLng get _playerMarkerPosition => _runnerSmooth?.display ?? _currentPosition;
+  LatLng get _playerMarkerPosition =>
+      _runnerSmooth?.display ?? _currentPosition;
   LatLng get _positionForReveal =>
       _fakePositionActive && _fakePositionLatLng != null
-          ? _fakePositionLatLng!
-          : _currentPosition;
+      ? _fakePositionLatLng!
+      : _currentPosition;
 
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
@@ -385,6 +496,23 @@ class _GameMapScreenState extends State<GameMapScreen>
 
     if (_gameState == GameState.running) {
       _matchRecorder?.tryAppendRunner(next);
+      if (_roomSession is FirestoreRoomSession) {
+        final dist = Geolocator.distanceBetween(
+          next.latitude,
+          next.longitude,
+          _oniPosition.latitude,
+          _oniPosition.longitude,
+        );
+        final fs = _roomSession as FirestoreRoomSession;
+        unawaited(
+          fs.publishPresence(
+            lat: next.latitude,
+            lng: next.longitude,
+            tension: dist <= GameConfig.warningDistanceMeters,
+            proximityBandName: _latestProximityBand.name,
+          ),
+        );
+      }
     }
     _retuneGpsIfNeeded();
   }
@@ -394,7 +522,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _gpsAccuracyCount += 1;
     _avgGpsAccuracyMeters =
         ((_avgGpsAccuracyMeters * (_gpsAccuracyCount - 1)) + accuracy) /
-            _gpsAccuracyCount;
+        _gpsAccuracyCount;
   }
 
   Future<void> _finalizeMatchRecording(GameState outcome) async {
@@ -431,7 +559,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _startGame() {
-    if (_gameState == GameState.running) return;
+    if (_gameState != GameState.waiting) {
+      if (_gameState == GameState.running) return;
+      _toast('新しい試合を始めるには「リセット」で結果を閉じてからにしてください');
+      return;
+    }
     if (_editingArea) {
       _toast('エリア編集中は開始できません');
       return;
@@ -449,7 +581,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _retuneGpsIfNeeded();
     setState(() {
       _gameState = GameState.running;
-      _ghostMode = false;
+      _afterCatchRule = null;
       _remainingSeconds = GameConfig.matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
@@ -500,7 +632,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     _retuneGpsIfNeeded();
     setState(() {
       _gameState = GameState.waiting;
-      _ghostMode = false;
+      _mapVisibleInLobby = false;
+      _afterCatchRule = null;
       _remainingSeconds = GameConfig.matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
@@ -524,6 +657,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _infectionEndsAt = null;
       _lastInfectionRevealAt = null;
       _statusMessage = 'リセットしました。開始ボタンでゲーム開始。';
+      _prepControlSheetOpen = false;
     });
     _logDebug('match_reset');
   }
@@ -595,16 +729,24 @@ class _GameMapScreenState extends State<GameMapScreen>
     final outcome = result;
     if (result == GameState.caughtByOni) {
       _tracePoints.add(_currentPosition);
-      _ghostMode = true;
+      _afterCatchRule = _eliminationAftermathRule;
       _emitMatchEvent(
         type: 'trace_drop',
         message: '痕跡が残った',
         position: _currentPosition,
       );
+      _emitMatchEvent(
+        type: 'after_catch_rule',
+        message: '脱落後ルール: ${_eliminationAftermathRule.label}',
+        position: _currentPosition,
+      );
+    } else {
+      _afterCatchRule = null;
     }
     setState(() {
       _gameState = result;
       _statusMessage = message;
+      _prepControlSheetOpen = false;
     });
     HapticFeedback.mediumImpact();
     SystemSound.play(SystemSoundType.alert);
@@ -617,6 +759,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return;
 
     final distance = _distanceToOni();
+    _proximityService.ingestGpsDistanceMeters(distance);
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     _refreshPointRespawns();
     _evaluateFakeSkillTimer();
@@ -641,7 +784,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     final isOutBeyondGrace = overflowMeters > GameConfig.outsideAreaGraceMeters;
     if (isOutBeyondGrace) {
       _outsideAreaSince ??= DateTime.now();
-      final outsideSec = DateTime.now().difference(_outsideAreaSince!).inSeconds;
+      final outsideSec = DateTime.now()
+          .difference(_outsideAreaSince!)
+          .inSeconds;
       if (!_revealedInCurrentOutside &&
           outsideSec >= GameConfig.outsideAreaGraceSeconds) {
         if (_safeZoneCharges > 0) {
@@ -665,7 +810,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _updateDangerPulse(double distanceToOni) {
-    final shouldPulse = distanceToOni <= GameConfig.warningDistanceMeters || _isInfectedNow;
+    final shouldPulse =
+        distanceToOni <= GameConfig.warningDistanceMeters || _isInfectedNow;
     if (shouldPulse) {
       if (!_dangerPulseController.isAnimating) {
         _dangerPulseController.repeat(reverse: true);
@@ -697,11 +843,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '位置暴露: 全員に現在位置が通知されました（$_revealCount回目）',
-        ),
-      ),
+      SnackBar(content: Text('位置暴露: 全員に現在位置が通知されました（$_revealCount回目）')),
     );
     _emitMatchEvent(
       type: 'area_reveal',
@@ -715,7 +857,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!_safeZoneAvailable) return;
     if (_safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
     final now = DateTime.now();
-    final inside = Geolocator.distanceBetween(
+    final inside =
+        Geolocator.distanceBetween(
           _currentPosition.latitude,
           _currentPosition.longitude,
           _safeZonePosition.latitude,
@@ -747,7 +890,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _evaluateInfoBroker(double distanceToOni) {
     if (!_infoBrokerAvailable) return;
     final now = DateTime.now();
-    final inside = Geolocator.distanceBetween(
+    final inside =
+        Geolocator.distanceBetween(
           _currentPosition.latitude,
           _currentPosition.longitude,
           _infoBrokerPosition.latitude,
@@ -775,8 +919,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     final distBand = distanceToOni <= GameConfig.dangerDistanceMeters
         ? '至近'
         : distanceToOni <= GameConfig.warningDistanceMeters
-            ? '中距離'
-            : '遠距離';
+        ? '中距離'
+        : '遠距離';
     final intel = _buildOniIntel(direction: direction, distanceBand: distBand);
     setState(() {
       _statusMessage = '情報屋: $intel';
@@ -821,11 +965,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
     _lastPeriodicRevealAt = now;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('定期暴露: いまの位置が短時間通知されました'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('定期暴露: いまの位置が短時間通知されました')));
     _emitMatchEvent(
       type: 'periodic_reveal',
       message: '定期暴露',
@@ -846,12 +988,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (d <= GameConfig.cameraTriggerRadiusMeters) {
         _triggeredCameras.add(i);
         final msg = '監視カメラ: プレイヤーが監視地点${i + 1}に現れた';
-        _emitMatchEvent(
-          type: 'camera_spotted',
-          message: msg,
-          position: p,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        _emitMatchEvent(type: 'camera_spotted', message: msg, position: p);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
   }
@@ -913,9 +1053,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           message: '感染露出パルス',
           position: _positionForReveal,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')));
       }
       return;
     }
@@ -952,14 +1092,16 @@ class _GameMapScreenState extends State<GameMapScreen>
         now.difference(_lastFakeSkillAt!).inSeconds <
             GameConfig.fakeSkillCooldownSeconds) {
       final remain =
-          GameConfig.fakeSkillCooldownSeconds - now.difference(_lastFakeSkillAt!).inSeconds;
+          GameConfig.fakeSkillCooldownSeconds -
+          now.difference(_lastFakeSkillAt!).inSeconds;
       _toast('偽位置スキル再使用まで $remain 秒');
       return;
     }
     _lastFakeSkillAt = now;
     _fakePositionActive = true;
-    _fakePositionEndsAt =
-        now.add(const Duration(seconds: GameConfig.fakeSkillDurationSeconds));
+    _fakePositionEndsAt = now.add(
+      const Duration(seconds: GameConfig.fakeSkillDurationSeconds),
+    );
     _fakePositionLatLng = LatLng(
       _currentPosition.latitude + 0.0012,
       _currentPosition.longitude - 0.0011,
@@ -989,14 +1131,16 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_matchEvents.length > 120) {
       _matchEvents.removeLast();
     }
-    _offlineQueue.push(
-      OfflineSyncItem(
-        id: 'ev_${event.atUtc.microsecondsSinceEpoch}_${event.type}',
-        kind: 'match_event',
-        createdAtUtc: event.atUtc.toIso8601String(),
-        payload: event.toJson(),
-      ),
-    ).then((_) => _refreshOfflineQueueCount());
+    _offlineQueue
+        .push(
+          OfflineSyncItem(
+            id: 'ev_${event.atUtc.microsecondsSinceEpoch}_${event.type}',
+            kind: 'match_event',
+            createdAtUtc: event.atUtc.toIso8601String(),
+            payload: event.toJson(),
+          ),
+        )
+        .then((_) => _refreshOfflineQueueCount());
   }
 
   void _clearTracePoints() {
@@ -1034,9 +1178,25 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   bool _isCommJammingOpenNow() {
     if (!_isInsideCommJammingZone()) return true;
-    final bucket =
-        (_elapsedSeconds ~/ GameConfig.commJammingCycleSeconds) % 2;
+    final bucket = (_elapsedSeconds ~/ GameConfig.commJammingCycleSeconds) % 2;
     return bucket == 0;
+  }
+
+  String _currentOniIntelHeadline() {
+    final d = _distanceToOni();
+    final bearing = Geolocator.bearingBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      _oniPosition.latitude,
+      _oniPosition.longitude,
+    );
+    final direction = _bearingToDirection(bearing);
+    final distBand = d <= GameConfig.dangerDistanceMeters
+        ? '至近'
+        : d <= GameConfig.warningDistanceMeters
+        ? '中距離'
+        : '遠距離';
+    return _buildOniIntel(direction: direction, distanceBand: distBand);
   }
 
   String _buildOniIntel({
@@ -1081,7 +1241,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _emitOniCue({required String level}) {
-    if (!_oniRoleEnabled) {
+    final useAdvanced =
+        _oniRoleEnabled || _afterCatchRule == EliminationAftermathRule.joinOni;
+    if (!useAdvanced) {
       if (level == 'danger') {
         HapticFeedback.mediumImpact();
         SystemSound.play(SystemSoundType.alert);
@@ -1100,7 +1262,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     }
     if (_oniNotifySound) {
-      SystemSound.play(level == 'danger' ? SystemSoundType.alert : SystemSoundType.click);
+      SystemSound.play(
+        level == 'danger' ? SystemSoundType.alert : SystemSoundType.click,
+      );
     }
   }
 
@@ -1142,6 +1306,15 @@ class _GameMapScreenState extends State<GameMapScreen>
     _logDebug('toast:$msg');
   }
 
+  String _playAreaSummary() {
+    switch (_playArea.type) {
+      case PlayAreaType.circle:
+        return '円エリア · 半径 ${_playArea.radiusMeters.toStringAsFixed(0)} m';
+      case PlayAreaType.polygon:
+        return '多角形エリア · ${_playArea.points.length} 頂点';
+    }
+  }
+
   void _toggleAreaEditor() {
     if (_gameState == GameState.running) {
       _toast('ゲーム中はエリアを編集できません');
@@ -1151,6 +1324,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       final opening = !_editingArea;
       _editingArea = opening;
       if (opening) {
+        _mapVisibleInLobby = true;
+        _prepControlSheetOpen = true;
         _polygonDraft.clear();
         _waitingCircleCenterTap = false;
         _editCircleMode = _playArea.type == PlayAreaType.circle;
@@ -1243,8 +1418,14 @@ class _GameMapScreenState extends State<GameMapScreen>
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('取り込み')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('取り込み'),
+          ),
         ],
       ),
     );
@@ -1290,17 +1471,21 @@ class _GameMapScreenState extends State<GameMapScreen>
       builder: (ctx) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('位置暴露ログ（ローカル・最大50件・将来はクラウド同期）',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            '位置暴露ログ（ローカル・最大50件・将来はクラウド同期）',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
-          if (_revealLog.isEmpty)
-            const Text('まだありません'),
+          if (_revealLog.isEmpty) const Text('まだありません'),
           for (final e in _revealLog)
             ListTile(
               dense: true,
-              title: Text('#${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m'),
+              title: Text(
+                '#${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m',
+              ),
               subtitle: Text(
-                  '${e.timestamp.toIso8601String()}\n${e.position.latitude.toStringAsFixed(5)}, ${e.position.longitude.toStringAsFixed(5)}'),
+                '${e.timestamp.toIso8601String()}\n${e.position.latitude.toStringAsFixed(5)}, ${e.position.longitude.toStringAsFixed(5)}',
+              ),
             ),
         ],
       ),
@@ -1320,6 +1505,20 @@ class _GameMapScreenState extends State<GameMapScreen>
         position: _oniPosition,
         infoWindow: const InfoWindow(title: '鬼', snippet: 'ここに鬼がいる'),
       ),
+      for (final e in _remoteMembers.entries)
+        Marker(
+          markerId: MarkerId('remote_${e.key}'),
+          position: LatLng(e.value.lat, e.value.lng),
+          infoWindow: InfoWindow(
+            title: e.value.nickname.isEmpty ? '参加者' : e.value.nickname,
+            snippet: '${e.value.role} (online)',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(switch (e.value.role) {
+            'oni' => BitmapDescriptor.hueRose,
+            'spectator' => BitmapDescriptor.hueAzure,
+            _ => BitmapDescriptor.hueMagenta,
+          }),
+        ),
       Marker(
         markerId: const MarkerId('safe_zone_marker'),
         position: _safeZonePosition,
@@ -1363,7 +1562,9 @@ class _GameMapScreenState extends State<GameMapScreen>
             title: '監視カメラ ${i + 1}',
             snippet: _triggeredCameras.contains(i) ? '作動済み' : '未作動',
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueYellow,
+          ),
         ),
     };
 
@@ -1378,15 +1579,23 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
     }
 
-    if (_ghostMode) {
+    if (_afterCatchRule != null) {
       final rough = _buildGhostRoughPositions();
+      final rule = _afterCatchRule!;
+      final hue = rule == EliminationAftermathRule.joinOni
+          ? BitmapDescriptor.hueRed
+          : BitmapDescriptor.hueAzure;
+      final title = rule == EliminationAftermathRule.joinOni ? '鬼側索敵' : '幽霊視点';
+      final snippet = rule == EliminationAftermathRule.joinOni
+          ? 'ざっくり位置（鬼合流）'
+          : 'ざっくり位置（中立）';
       for (var i = 0; i < rough.length; i++) {
         markers.add(
           Marker(
-            markerId: MarkerId('ghost_rough_$i'),
+            markerId: MarkerId('spectator_rough_$i'),
             position: rough[i],
-            infoWindow: const InfoWindow(title: '幽霊視点', snippet: 'ざっくり位置'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+            infoWindow: InfoWindow(title: title, snippet: snippet),
+            icon: BitmapDescriptor.defaultMarkerWithHue(hue),
           ),
         );
       }
@@ -1399,7 +1608,9 @@ class _GameMapScreenState extends State<GameMapScreen>
             markerId: MarkerId('draft_v_$i'),
             position: _polygonDraft[i],
             infoWindow: InfoWindow(title: '頂点', snippet: '${i + 1}'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           ),
         );
       }
@@ -1411,7 +1622,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           markerId: const MarkerId('circle_center'),
           position: _circleDraftCenter,
           infoWindow: const InfoWindow(title: '円の中心', snippet: '編集中'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueViolet,
+          ),
         ),
       );
     }
@@ -1425,15 +1638,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       _oniPosition,
       for (final p in _cameraPositions) p,
     ];
-    return base
-        .asMap()
-        .entries
-        .map((e) {
-          final p = e.value;
-          final shift = (e.key + 1) * 0.0006;
-          return LatLng(p.latitude + shift, p.longitude - shift);
-        })
-        .toList();
+    return base.asMap().entries.map((e) {
+      final p = e.value;
+      final shift = (e.key + 1) * 0.0006;
+      return LatLng(p.latitude + shift, p.longitude - shift);
+    }).toList();
   }
 
   Set<Polyline> _buildPolylines() {
@@ -1559,132 +1768,490 @@ class _GameMapScreenState extends State<GameMapScreen>
     bool selectedVib = _oniNotifyVibration;
     bool selectedSound = _oniNotifySound;
     bool selectedAgg = _oniNotifyAggressive;
+    EliminationAftermathRule selectedElimination = _eliminationAftermathRule;
+    final prefs0 = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    var selectedUseBle = prefs0.getBool(_kUseBleScanPrefKey) ?? false;
+    final roomController = TextEditingController();
+    final nickController = TextEditingController(text: 'player1');
+    var onlineRole = 'runner';
+    var firebaseWarmScheduled = false;
 
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<WorldProfile>(
-                    initialValue: selectedProfile,
-                    decoration: const InputDecoration(labelText: '世界観'),
-                    items: WorldProfile.values
-                        .map(
-                          (p) => DropdownMenuItem(
-                            value: p,
-                            child: Text(p.label),
+    bool? ok;
+    try {
+      ok = await showModalBottomSheet<bool>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setModalState) {
+              final screenH = MediaQuery.sizeOf(ctx).height;
+              final kb = MediaQuery.viewInsetsOf(ctx).bottom;
+              final sheetH = (screenH * 0.86 - kb).clamp(280.0, screenH * 0.92);
+              if (!firebaseWarmScheduled) {
+                firebaseWarmScheduled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  unawaited(
+                    FirebaseBootstrap.tryInit().then((_) {
+                      if (ctx.mounted) setModalState(() {});
+                    }),
+                  );
+                });
+              }
+              return Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: 16 + kb,
+                ),
+                child: SizedBox(
+                  height: sheetH,
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'カスタム設定',
+                          style: Theme.of(ctx).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+
+                        DropdownButtonFormField<WorldProfile>(
+                          initialValue: selectedProfile,
+                          decoration: const InputDecoration(labelText: '世界観'),
+                          items: WorldProfile.values
+                              .map(
+                                (p) => DropdownMenuItem(
+                                  value: p,
+                                  child: Text(p.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setModalState(() => selectedProfile = v);
+                          },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        DropdownButtonFormField<OniIntelMode>(
+                          initialValue: selectedIntel,
+                          decoration: const InputDecoration(
+                            labelText: '鬼情報モード',
                           ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setModalState(() => selectedProfile = v);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<OniIntelMode>(
-                    initialValue: selectedIntel,
-                    decoration: const InputDecoration(labelText: '鬼情報モード'),
-                    items: OniIntelMode.values
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(m.label),
+                          items: OniIntelMode.values
+                              .map(
+                                (m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(m.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setModalState(() => selectedIntel = v);
+                          },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        DropdownButtonFormField<EliminationAftermathRule>(
+                          initialValue: selectedElimination,
+                          decoration: const InputDecoration(
+                            labelText: '脱落後ルール（ルーム設定）',
                           ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setModalState(() => selectedIntel = v);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('軌跡を端末保存（同意）'),
-                    value: selectedConsent,
-                    onChanged: (v) => setModalState(() => selectedConsent = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('鬼ロール設定（通知調整を有効化）'),
-                    value: selectedOniRole,
-                    onChanged: (v) => setModalState(() => selectedOniRole = v),
-                  ),
-                  if (selectedOniRole) ...[
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('鬼向けバイブ通知'),
-                      value: selectedVib,
-                      onChanged: (v) => setModalState(() => selectedVib = v),
+                          items: EliminationAftermathRule.values
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r,
+                                  child: Text(r.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setModalState(() => selectedElimination = v);
+                          },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('実機 BLE スキャン（近接推定）'),
+                          subtitle: const Text(
+                            'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
+                          ),
+                          value: selectedUseBle,
+                          onChanged: (v) =>
+                              setModalState(() => selectedUseBle = v),
+                        ),
+
+                        ExpansionTile(
+                          initiallyExpanded: true,
+                          tilePadding: EdgeInsets.zero,
+                          title: const Text('オンラインルーム（Firestore）'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                FirebaseBootstrap.isReady
+                                    ? '接続済み · 下のボタンでルームに参加できます'
+                                    : '未接続 · 「参加」で Firebase を再初期化します',
+                                style: Theme.of(ctx).textTheme.bodySmall,
+                              ),
+                              Text(
+                                'まだ誰も使っていないルームIDで参加すると、Firestore に rooms と members が作成されます。',
+                                style: Theme.of(ctx).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontSize: 11,
+                                      color: Theme.of(
+                                        ctx,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          children: [
+                            if (!FirebaseBootstrap.isReady &&
+                                FirebaseBootstrap.lastErrorBrief != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: SelectableText(
+                                  FirebaseBootstrap.lastErrorBrief!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(ctx).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            TextField(
+                              controller: roomController,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'ルームID',
+                                hintText: '例: demo-room-1',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: nickController,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                labelText: '表示名',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              key: ValueKey(onlineRole),
+                              initialValue: onlineRole,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'ロール',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'runner',
+                                  child: Text('runner'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'oni',
+                                  child: Text('oni'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'spectator',
+                                  child: Text('spectator'),
+                                ),
+                              ],
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setModalState(() => onlineRole = v);
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      FocusScope.of(ctx).unfocus();
+                                      await FirebaseBootstrap.tryInit();
+                                      if (!ctx.mounted) return;
+                                      setModalState(() {});
+                                      if (!FirebaseBootstrap.isReady) {
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Firebase に接続できません。\n\n'
+                                              '1) android/app/google-services.json を配置してフル再ビルド\n'
+                                              '2) または dart-define で FIREBASE_* を指定\n\n'
+                                              '${FirebaseBootstrap.lastErrorBrief ?? ""}',
+                                            ),
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: const EdgeInsets.fromLTRB(
+                                              16,
+                                              0,
+                                              16,
+                                              220,
+                                            ),
+                                            duration: const Duration(
+                                              seconds: 10,
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      final rid = roomController.text.trim();
+                                      final nick = nickController.text.trim();
+                                      if (rid.isEmpty || nick.isEmpty) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: EdgeInsets.fromLTRB(
+                                              16,
+                                              0,
+                                              16,
+                                              220,
+                                            ),
+                                            content: Text('ルームIDと表示名を入力してください'),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      showDialog<void>(
+                                        context: ctx,
+                                        barrierDismissible: false,
+                                        useRootNavigator: true,
+                                        builder: (dCtx) => const AlertDialog(
+                                          content: Row(
+                                            children: [
+                                              CircularProgressIndicator(),
+                                              SizedBox(width: 16),
+                                              Expanded(
+                                                child: Text('ルームに参加しています…'),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                      String? err;
+                                      try {
+                                        err = await _joinFirestoreRoom(
+                                          roomId: rid,
+                                          nickname: nick,
+                                          role: onlineRole,
+                                        );
+                                      } finally {
+                                        if (ctx.mounted) {
+                                          Navigator.of(
+                                            ctx,
+                                            rootNavigator: true,
+                                          ).pop();
+                                        }
+                                      }
+                                      if (!ctx.mounted) return;
+                                      if (err != null) {
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Text(err),
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: const EdgeInsets.fromLTRB(
+                                              16,
+                                              0,
+                                              16,
+                                              220,
+                                            ),
+                                            duration: const Duration(
+                                              seconds: 10,
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        await showDialog<void>(
+                                          context: ctx,
+                                          builder: (dCtx) => AlertDialog(
+                                            icon: Icon(
+                                              Icons.check_circle,
+                                              color: Theme.of(
+                                                dCtx,
+                                              ).colorScheme.primary,
+                                              size: 40,
+                                            ),
+                                            title: const Text('ルームに接続しました'),
+                                            content: SingleChildScrollView(
+                                              child: Text(
+                                                'ルームID「$rid」への参加が完了しました。\n\n'
+                                                'Firestore では次のパスにメンバーが作成されています。\n'
+                                                'rooms / $rid / members / （あなたの UID）\n\n'
+                                                'このシートの「適用」で閉じたあと、地図画面で「開始」から鬼ごっこを始められます。',
+                                              ),
+                                            ),
+                                            actions: [
+                                              FilledButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(dCtx),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                      if (ctx.mounted) setModalState(() {});
+                                    },
+                                    child: const Text('ルームに参加'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      FocusScope.of(ctx).unfocus();
+                                      await _leaveFirestoreRoom();
+                                      if (!ctx.mounted) return;
+                                      setModalState(() {});
+                                      messenger.showSnackBar(
+                                        const SnackBar(
+                                          behavior: SnackBarBehavior.floating,
+                                          margin: EdgeInsets.fromLTRB(
+                                            16,
+                                            0,
+                                            16,
+                                            220,
+                                          ),
+                                          content: Text('オフラインに戻しました'),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text('退出'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('軌跡を端末保存（同意）'),
+                          value: selectedConsent,
+                          onChanged: (v) =>
+                              setModalState(() => selectedConsent = v),
+                        ),
+
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('鬼ロール設定（通知調整を有効化）'),
+                          value: selectedOniRole,
+                          onChanged: (v) =>
+                              setModalState(() => selectedOniRole = v),
+                        ),
+
+                        if (selectedOniRole) ...[
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('鬼向けバイブ通知'),
+                            value: selectedVib,
+                            onChanged: (v) =>
+                                setModalState(() => selectedVib = v),
+                          ),
+
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('鬼向けサウンド通知'),
+                            value: selectedSound,
+                            onChanged: (v) =>
+                                setModalState(() => selectedSound = v),
+                          ),
+
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('通知を高頻度化（接近時）'),
+                            value: selectedAgg,
+                            onChanged: (v) =>
+                                setModalState(() => selectedAgg = v),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(ctx, false);
+                                _setupLocation();
+                              },
+                              icon: const Icon(Icons.gps_fixed),
+                              label: const Text('現在地更新'),
+                            ),
+
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(ctx, false);
+                                _moveOniForTest();
+                              },
+                              icon: const Icon(Icons.directions_run),
+                              label: const Text('鬼移動(テスト)'),
+                            ),
+
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(ctx, false);
+                                _clearTracePoints();
+                              },
+                              icon: const Icon(Icons.cleaning_services),
+                              label: const Text('痕跡クリア'),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('適用'),
+                          ),
+                        ),
+                      ],
                     ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('鬼向けサウンド通知'),
-                      value: selectedSound,
-                      onChanged: (v) => setModalState(() => selectedSound = v),
-                    ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('通知を高頻度化（接近時）'),
-                      value: selectedAgg,
-                      onChanged: (v) => setModalState(() => selectedAgg = v),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx, false);
-                          _setupLocation();
-                        },
-                        icon: const Icon(Icons.gps_fixed),
-                        label: const Text('現在地更新'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx, false);
-                          _moveOniForTest();
-                        },
-                        icon: const Icon(Icons.directions_run),
-                        label: const Text('鬼移動(テスト)'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx, false);
-                          _clearTracePoints();
-                        },
-                        icon: const Icon(Icons.cleaning_services),
-                        label: const Text('痕跡クリア'),
-                      ),
-                    ],
                   ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('適用'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      roomController.dispose();
+      nickController.dispose();
+    }
 
     if (ok != true) return;
     setState(() {
@@ -1694,7 +2261,15 @@ class _GameMapScreenState extends State<GameMapScreen>
       _oniNotifyVibration = selectedVib;
       _oniNotifySound = selectedSound;
       _oniNotifyAggressive = selectedAgg;
+      _eliminationAftermathRule = selectedElimination;
     });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kEliminationAftermathPrefKey,
+      selectedElimination.name,
+    );
+    await prefs.setBool(_kUseBleScanPrefKey, selectedUseBle);
+    await _reloadProximityStackFromPrefs();
     if (_trajectoryConsent != selectedConsent) {
       await _setTrajectoryConsent(selectedConsent);
     }
@@ -1726,10 +2301,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     WidgetsBinding.instance.removeObserver(this);
     _positionSubscription?.cancel();
     _proximitySubscription?.cancel();
+    _remoteMembersSub?.cancel();
     _matchTimer?.cancel();
     _renderPump?.cancel();
     _dangerPulseController.dispose();
     _proximityService.stop();
+    _roomSession.disconnect();
     _mapController?.dispose();
     super.dispose();
   }
@@ -1739,29 +2316,59 @@ class _GameMapScreenState extends State<GameMapScreen>
     final tokens = WorldProfileTokenFactory.of(_activeProfile);
     final distance = _distanceToOni();
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
-    final bool isOutBeyondGrace = overflowMeters > GameConfig.outsideAreaGraceMeters;
+    final bool isOutBeyondGrace =
+        overflowMeters > GameConfig.outsideAreaGraceMeters;
     final bool isDanger = distance <= GameConfig.dangerDistanceMeters;
     final bool isWarning = distance <= GameConfig.warningDistanceMeters;
 
     final Color alertColor = isDanger
         ? tokens.alertColor
         : isWarning
-            ? Colors.orange.shade700
-            : Colors.black87;
+        ? Colors.orange.shade700
+        : Colors.black87;
     final String alertText = isDanger
         ? '${tokens.dangerTextPrefix}: 鬼がすぐ近くにいます'
         : isWarning
-            ? '${tokens.warningTextPrefix}: 鬼が近づいています'
-            : '${tokens.safeTextPrefix}: 鬼との距離あり';
+        ? '${tokens.warningTextPrefix}: 鬼が近づいています'
+        : '${tokens.safeTextPrefix}: 鬼との距離あり';
+
+    final running = _gameState == GameState.running;
+    final ended =
+        _gameState == GameState.runnerWin ||
+        _gameState == GameState.caughtByOni;
+    final showHudPanel = running;
+    final showBottomControlSheet =
+        running || _prepControlSheetOpen || _editingArea;
+    final showGameMap =
+        _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
+    final appTitle = switch (_gameState) {
+      GameState.waiting => 'Oni Game · 準備',
+      GameState.running => 'Oni Game · プレイ中',
+      GameState.runnerWin => 'Oni Game · 逃走成功',
+      GameState.caughtByOni => 'Oni Game · 捕獲',
+    };
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Oni Game Map'),
+        title: Text(appTitle),
         actions: [
+          if (_gameState == GameState.waiting &&
+              !_editingArea &&
+              _mapVisibleInLobby)
+            IconButton(
+              tooltip: '準備画面（地図を隠す）',
+              onPressed: () => setState(() {
+                _mapVisibleInLobby = false;
+                _statusMessage = '準備画面に切り替えました';
+              }),
+              icon: const Icon(Icons.dashboard_outlined),
+            ),
           IconButton(
             tooltip: 'テストモード',
             onPressed: _toggleTestMode,
-            icon: Icon(_testMode ? Icons.bug_report : Icons.bug_report_outlined),
+            icon: Icon(
+              _testMode ? Icons.bug_report : Icons.bug_report_outlined,
+            ),
           ),
           IconButton(
             tooltip: 'プライバシー管理',
@@ -1792,7 +2399,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           ),
           IconButton(
             tooltip: 'GeoJSON インポート',
-            onPressed: _gameState == GameState.running ? null : _showImportGeoJsonDialog,
+            onPressed: _gameState == GameState.running
+                ? null
+                : _showImportGeoJsonDialog,
             icon: const Icon(Icons.upload_file_outlined),
           ),
           IconButton(
@@ -1804,68 +2413,80 @@ class _GameMapScreenState extends State<GameMapScreen>
       ),
       body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: _currentPosition,
-              zoom: 16,
-            ),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: !_editingArea,
-            markers: _buildMarkers(),
-            polylines: _buildPolylines(),
-            circles: _buildCircles(tokens),
-            polygons: !_editingArea && _playArea.type == PlayAreaType.polygon
-                ? {
-                    Polygon(
-                      polygonId: const PolygonId('play-area-poly'),
-                      points: _playArea.points,
-                      strokeWidth: 2,
-                      strokeColor: Colors.blue.shade400,
-                      fillColor: Colors.blue.withValues(alpha: 0.08),
-                    ),
-                  }
-                : _editingArea &&
+          if (showGameMap)
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: _currentPosition,
+                zoom: 16,
+              ),
+              myLocationEnabled: true,
+              myLocationButtonEnabled: !_editingArea,
+              markers: _buildMarkers(),
+              polylines: _buildPolylines(),
+              circles: _buildCircles(tokens),
+              polygons: !_editingArea && _playArea.type == PlayAreaType.polygon
+                  ? {
+                      Polygon(
+                        polygonId: const PolygonId('play-area-poly'),
+                        points: _playArea.points,
+                        strokeWidth: 2,
+                        strokeColor: Colors.blue.shade400,
+                        fillColor: Colors.blue.withValues(alpha: 0.08),
+                      ),
+                    }
+                  : _editingArea &&
                         !_editCircleMode &&
                         _polygonDraft.length >= 3
-                    ? {
-                        Polygon(
-                          polygonId: const PolygonId('draft-poly-preview'),
-                          points: _polygonDraft,
-                          strokeWidth: 2,
-                          strokeColor: Colors.deepOrange.shade400,
-                          fillColor: Colors.deepOrange.withValues(alpha: 0.1),
-                        ),
-                      }
-                    : {},
-            onTap: _onMapTap,
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _dangerPulseController,
-                builder: (_, child) {
-                  final level = (_dangerPulseController.value * 0.35) +
-                      (_isInfectedNow ? 0.20 : 0.0);
-                  return Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: const Alignment(0, -0.2),
-                        radius: 1.0,
-                        colors: [
-                          Colors.red.withValues(alpha: level),
-                          Colors.transparent,
-                        ],
+                  ? {
+                      Polygon(
+                        polygonId: const PolygonId('draft-poly-preview'),
+                        points: _polygonDraft,
+                        strokeWidth: 2,
+                        strokeColor: Colors.deepOrange.shade400,
+                        fillColor: Colors.deepOrange.withValues(alpha: 0.1),
                       ),
-                    ),
-                  child: child,
-                  );
-                },
+                    }
+                  : {},
+              onTap: _onMapTap,
+              onMapCreated: (controller) {
+                _mapController = controller;
+              },
+            )
+          else
+            _PrepLobbyPanel(
+              roomLabel: _roomSession.modeLabel,
+              playAreaLabel: _playAreaSummary(),
+              onShowMap: () => setState(() {
+                _mapVisibleInLobby = true;
+                _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
+              }),
+            ),
+          if (showGameMap && _gameState == GameState.running)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _dangerPulseController,
+                  builder: (_, child) {
+                    final level =
+                        (_dangerPulseController.value * 0.35) +
+                        (_isInfectedNow ? 0.20 : 0.0);
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: const Alignment(0, -0.2),
+                          radius: 1.0,
+                          colors: [
+                            Colors.red.withValues(alpha: level),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: child,
+                    );
+                  },
+                ),
               ),
             ),
-          ),
           if (_testMode)
             Positioned(
               top: 120,
@@ -1882,33 +2503,79 @@ class _GameMapScreenState extends State<GameMapScreen>
                 debugLogs: _debugLogs,
                 queueCount: _offlineQueueCount,
                 proximityText: _proximityText,
+                roomSessionText: _roomSession.modeLabel,
                 syncInFlight: _syncInFlight,
               ),
             ),
-          Positioned(
-            top: 18,
-            left: 16,
-            right: 16,
-            child: _InfoPanel(
-              distanceText: '鬼まで ${distance.toStringAsFixed(0)} m',
-              timerText: _formatTime(_remainingSeconds),
-              gameStateText: _gameState.label,
-              statusText: _statusMessage,
-              alertText: alertText,
-              alertColor: alertColor,
-              areaText: isOutBeyondGrace
-                  ? '猶予超過: +${overflowMeters.toStringAsFixed(0)}m'
-                  : 'エリア内（またはGPS猶予内）',
-              areaColor: isOutBeyondGrace ? Colors.red.shade700 : Colors.green.shade700,
-              revealCount: _revealCount,
-              editing: _editingArea,
-              safeZoneCharges: _safeZoneCharges,
-              infectionText: _isInfectedNow
-                  ? '感染中 (${_secondsUntil(_infectionEndsAt)}秒)'
-                  : '感染なし',
-              ghostMode: _ghostMode,
+          if (ended)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: _MatchOutcomeBanner(
+                outcome: _gameState,
+                detail: _statusMessage,
+                onPrepareNext: _resetGame,
+              ),
             ),
-          ),
+          if (_editingArea && !running && !ended)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(10),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.edit_location_alt_outlined,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('エリア編集中 — 下部のカードと地図タップで形状を指定'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (showHudPanel)
+            Positioned(
+              top: 18,
+              left: 16,
+              right: 16,
+              child: _InfoPanel(
+                headline: _currentOniIntelHeadline(),
+                intelModeLabel: _oniIntelMode.label,
+                timerText: _formatTime(_remainingSeconds),
+                gameStateText: _gameState.label,
+                statusText: _statusMessage,
+                alertText: alertText,
+                alertColor: alertColor,
+                areaText: isOutBeyondGrace
+                    ? '猶予超過: +${overflowMeters.toStringAsFixed(0)}m'
+                    : 'エリア内（またはGPS猶予内）',
+                areaColor: isOutBeyondGrace
+                    ? Colors.red.shade700
+                    : Colors.green.shade700,
+                revealCount: _revealCount,
+                editing: _editingArea,
+                safeZoneCharges: _safeZoneCharges,
+                infectionText: _isInfectedNow
+                    ? '感染中 (${_secondsUntil(_infectionEndsAt)}秒)'
+                    : '感染なし',
+                spectatorLine: _afterCatchRule?.infoPanelLine,
+              ),
+            ),
           if (_editingArea)
             Positioned(
               left: 12,
@@ -1947,39 +2614,207 @@ class _GameMapScreenState extends State<GameMapScreen>
                 }),
               ),
             ),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            right: 16,
-            child: GestureDetector(
-              onVerticalDragEnd: (details) {
-                if (details.primaryVelocity == null) return;
-                if (details.primaryVelocity! > 180) {
-                  if (!_menuCollapsed) _toggleMenuCollapsed();
-                } else if (details.primaryVelocity! < -180) {
-                  if (_menuCollapsed) _toggleMenuCollapsed();
-                }
-              },
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                offset: _menuCollapsed ? const Offset(0, 0.74) : Offset.zero,
-                child: _ControlPanel(
-                  onStart: _startGame,
-                  onReset: _resetGame,
-                  onFakeSkill: _activateFakeSkill,
-                  onAbortVote: _requestAbortByVote,
-                  onToggleAreaEdit: _toggleAreaEditor,
-                  onToggleCollapsed: _toggleMenuCollapsed,
-                  onOpenCustomMenu: _openCustomMenu,
-                  isRunning: _gameState == GameState.running,
-                  isEditing: _editingArea,
-                  fakeSkillActive: _fakePositionActive,
-                  menuCollapsed: _menuCollapsed,
+          if (showBottomControlSheet)
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: GestureDetector(
+                onVerticalDragEnd: (details) {
+                  if (details.primaryVelocity == null) return;
+                  if (details.primaryVelocity! > 180) {
+                    if (!_menuCollapsed) _toggleMenuCollapsed();
+                  } else if (details.primaryVelocity! < -180) {
+                    if (_menuCollapsed) _toggleMenuCollapsed();
+                  }
+                },
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 220),
+                  offset: _menuCollapsed ? const Offset(0, 0.74) : Offset.zero,
+                  child: _ControlPanel(
+                    onStart: _startGame,
+                    onReset: _resetGame,
+                    onFakeSkill: _activateFakeSkill,
+                    onAbortVote: _requestAbortByVote,
+                    onToggleAreaEdit: _toggleAreaEditor,
+                    onToggleCollapsed: _toggleMenuCollapsed,
+                    onOpenCustomMenu: _openCustomMenu,
+                    onDismissPrepSheet: () => setState(() {
+                      _prepControlSheetOpen = false;
+                    }),
+                    isRunning: running,
+                    canStartMatch: _gameState == GameState.waiting,
+                    isEditing: _editingArea,
+                    fakeSkillActive: _fakePositionActive,
+                    menuCollapsed: _menuCollapsed,
+                    prepLobbyMapHidden:
+                        _gameState == GameState.waiting && !showGameMap,
+                  ),
+                ),
+              ),
+            )
+          else
+            Positioned(
+              right: 16,
+              bottom: _editingArea ? 220 : 28,
+              child: SafeArea(
+                child: FloatingActionButton.extended(
+                  onPressed: () => setState(() => _prepControlSheetOpen = true),
+                  icon: const Icon(Icons.tune),
+                  label: const Text('操作'),
                 ),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _MatchOutcomeBanner extends StatelessWidget {
+  const _MatchOutcomeBanner({
+    required this.outcome,
+    required this.detail,
+    required this.onPrepareNext,
+  });
+
+  final GameState outcome;
+  final String detail;
+  final VoidCallback onPrepareNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (IconData icon, String title) = switch (outcome) {
+      GameState.runnerWin => (Icons.emoji_events_outlined, '逃走成功'),
+      GameState.caughtByOni => (Icons.front_hand_outlined, '捕獲'),
+      _ => (Icons.flag_outlined, '試合終了'),
+    };
+
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 32, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(detail, style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 8),
+                  Text(
+                    '次の試合に進むには「次の準備へ」を押してください。試合中は新しい「開始」はできません。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FilledButton(onPressed: onPrepareNext, child: const Text('次の準備へ')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrepLobbyPanel extends StatelessWidget {
+  const _PrepLobbyPanel({
+    required this.roomLabel,
+    required this.playAreaLabel,
+    required this.onShowMap,
+  });
+
+  final String roomLabel;
+  final String playAreaLabel;
+  final VoidCallback onShowMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: 52,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '準備（地図は非表示）',
+                    style: theme.textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'ルーム参加やカスタム設定はこのまま下部パネルから行えます。鬼ごっこを始めると地図が表示されます。',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.groups_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    title: const Text('オンライン'),
+                    subtitle: Text(roomLabel),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.crop_free,
+                      color: theme.colorScheme.primary,
+                    ),
+                    title: const Text('プレイエリア'),
+                    subtitle: Text(playAreaLabel),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: onShowMap,
+                    icon: const Icon(Icons.map),
+                    label: const Text('地図を表示する'),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '位置確認・エリア編集・GeoJSON インポートには地図が必要です。下部の「エリア編集」を押しても地図が開きます。',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1987,7 +2822,8 @@ class _GameMapScreenState extends State<GameMapScreen>
 
 class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
-    required this.distanceText,
+    required this.headline,
+    required this.intelModeLabel,
     required this.timerText,
     required this.gameStateText,
     required this.statusText,
@@ -1999,10 +2835,11 @@ class _InfoPanel extends StatelessWidget {
     required this.editing,
     required this.safeZoneCharges,
     required this.infectionText,
-    required this.ghostMode,
+    required this.spectatorLine,
   });
 
-  final String distanceText;
+  final String headline;
+  final String intelModeLabel;
   final String timerText;
   final String gameStateText;
   final String statusText;
@@ -2014,7 +2851,7 @@ class _InfoPanel extends StatelessWidget {
   final bool editing;
   final int safeZoneCharges;
   final String infectionText;
-  final bool ghostMode;
+  final String? spectatorLine;
 
   @override
   Widget build(BuildContext context) {
@@ -2032,11 +2869,28 @@ class _InfoPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                distanceText,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      headline,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
+                    ),
+                    Text(
+                      '鬼情報モード: $intelModeLabel（正確な距離[m]は表示しません）',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Chip(
                 label: Text(editing ? 'エリア編集中' : gameStateText),
@@ -2048,9 +2902,9 @@ class _InfoPanel extends StatelessWidget {
           Text('残り時間 $timerText / 位置暴露 $revealCount 回 / ステルス $safeZoneCharges'),
           const SizedBox(height: 4),
           Text(infectionText),
-          if (ghostMode) ...[
+          if (spectatorLine != null) ...[
             const SizedBox(height: 4),
-            const Text('幽霊モード: 全員のざっくり位置を表示中'),
+            Text(spectatorLine!),
           ],
           const SizedBox(height: 4),
           Text(statusText),
@@ -2064,7 +2918,10 @@ class _InfoPanel extends StatelessWidget {
             ),
             child: Text(
               areaText,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -2077,7 +2934,10 @@ class _InfoPanel extends StatelessWidget {
             ),
             child: Text(
               alertText,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -2126,10 +2986,7 @@ class _AreaEditorCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'プレイエリア編集',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text('プレイエリア編集', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
               segments: const [
@@ -2221,10 +3078,13 @@ class _ControlPanel extends StatelessWidget {
     required this.onToggleAreaEdit,
     required this.onToggleCollapsed,
     required this.onOpenCustomMenu,
+    required this.onDismissPrepSheet,
     required this.isRunning,
+    required this.canStartMatch,
     required this.isEditing,
     required this.fakeSkillActive,
     required this.menuCollapsed,
+    required this.prepLobbyMapHidden,
   });
 
   final VoidCallback onStart;
@@ -2234,10 +3094,13 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onToggleCollapsed;
   final VoidCallback onOpenCustomMenu;
+  final VoidCallback onDismissPrepSheet;
   final bool isRunning;
+  final bool canStartMatch;
   final bool isEditing;
   final bool fakeSkillActive;
   final bool menuCollapsed;
+  final bool prepLobbyMapHidden;
 
   @override
   Widget build(BuildContext context) {
@@ -2254,15 +3117,36 @@ class _ControlPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (!isRunning)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onDismissPrepSheet,
+                icon: const Icon(Icons.expand_more, size: 20),
+                label: const Text('操作パネルを閉じる'),
+              ),
+            ),
           Center(
             child: IconButton(
               onPressed: onToggleCollapsed,
               icon: Icon(
-                menuCollapsed ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                menuCollapsed
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
               ),
               visualDensity: VisualDensity.compact,
             ),
           ),
+          if (prepLobbyMapHidden) ...[
+            Text(
+              '準備フェーズ（地図はオフ）',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+          ],
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             switchInCurve: Curves.easeOutCubic,
@@ -2296,7 +3180,9 @@ class _ControlPanel extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       FilledButton.icon(
-                        onPressed: isEditing ? null : onStart,
+                        onPressed: (isEditing || !canStartMatch)
+                            ? null
+                            : onStart,
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('開始'),
                       ),
@@ -2307,7 +3193,9 @@ class _ControlPanel extends StatelessWidget {
                       ),
                       FilledButton.tonalIcon(
                         onPressed: onToggleAreaEdit,
-                        icon: Icon(isEditing ? Icons.check_circle : Icons.map_outlined),
+                        icon: Icon(
+                          isEditing ? Icons.check_circle : Icons.map_outlined,
+                        ),
                         label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
                       ),
                       FilledButton.tonalIcon(
@@ -2337,6 +3225,7 @@ class _DiagnosticsCard extends StatelessWidget {
     required this.debugLogs,
     required this.queueCount,
     required this.proximityText,
+    required this.roomSessionText,
     required this.syncInFlight,
   });
 
@@ -2351,6 +3240,7 @@ class _DiagnosticsCard extends StatelessWidget {
   final List<String> debugLogs;
   final int queueCount;
   final String proximityText;
+  final String roomSessionText;
   final bool syncInFlight;
 
   @override
@@ -2372,7 +3262,10 @@ class _DiagnosticsCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   const Text(
                     'Test Mode',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const Spacer(),
                   TextButton(
@@ -2386,10 +3279,14 @@ class _DiagnosticsCard extends StatelessWidget {
                   ),
                 ],
               ),
-              Text('FPS: ${fps.toStringAsFixed(1)}',
-                  style: const TextStyle(color: Colors.white)),
-              Text('GPS tier: $gpsTier',
-                  style: const TextStyle(color: Colors.white)),
+              Text(
+                'FPS: ${fps.toStringAsFixed(1)}',
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                'GPS tier: $gpsTier',
+                style: const TextStyle(color: Colors.white),
+              ),
               Text(
                 'GPS精度: last=${gpsAccuracyLast?.toStringAsFixed(1) ?? '-'}m / avg=${gpsAccuracyAvg.toStringAsFixed(1)}m',
                 style: const TextStyle(color: Colors.white),
@@ -2402,19 +3299,27 @@ class _DiagnosticsCard extends StatelessWidget {
                 'Offline queue: $queueCount',
                 style: const TextStyle(color: Colors.white),
               ),
+              Text(proximityText, style: const TextStyle(color: Colors.white)),
               Text(
-                proximityText,
-                style: const TextStyle(color: Colors.white),
+                'Room: $roomSessionText',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
               const SizedBox(height: 6),
-              const Text('Logs',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-              ...debugLogs.take(4).map(
+              const Text(
+                'Logs',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              ...debugLogs
+                  .take(4)
+                  .map(
                     (e) => Text(
                       e,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white60, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
             ],
