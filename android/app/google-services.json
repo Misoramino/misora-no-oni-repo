@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "2077354830",
+    "project_id": "onigame-ee930",
+    "storage_bucket": "onigame-ee930.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:2077354830:android:87239803b59cc2d2cf0c1f",
+        "android_client_info": {
+          "package_name": "com.example.oni_game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBekN2c9EqPZPGzWhgTbvbb__nXeI82MDg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
