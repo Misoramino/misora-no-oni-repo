@@ -65,12 +65,15 @@ flutter run ^
 ※ 値は Firebase Console の「アプリを追加」後の構成から取得。共有しないこと。
 
 ================================================================================
-iOS を後でやるとき（メモのみ）
+iOS（マップ・Firebase）
 ================================================================================
 
 [ ] GoogleService-Info.plist を ios/Runner/ に配置（.gitignore 済みのため手元のみ）
 [ ] Xcode で Runner の Bundle ID を Firebase に登録したアプリと一致させる
-[ ] 必要なら CocoaPods の pod install
+[ ] ios/Runner/Info.plist の GMSApiKey に Google Maps API キー（iOS 用）を記入
+    （空のままだと地図タイルが表示されないことがあります）
+[ ] 初回: cd ios && pod install のあと flutter run -d <iOSデバイス>
+[ ] 位置情報ダイアログ用の文言は Info.plist に追加済み（NSLocationWhenInUse...）
 
 ================================================================================
 アプリ側の挙動（2026-05 時点）

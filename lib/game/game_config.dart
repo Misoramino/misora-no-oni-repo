@@ -27,6 +27,9 @@ class GameConfig {
   // Phase 2: info-war tuning
   static const double commJammingZoneRadiusMeters = 75;
   static const int commJammingCycleSeconds = 18;
+
+  /// 「断片」鬼情報モードのフェーズ長（秒）。短すぎると情報が忙しく切り替わる。
+  static const int fragmentedPhaseSeconds = 12;
   static const double cameraTriggerRadiusMeters = 28;
   static const int fakeSkillCooldownSeconds = 45;
   static const int fakeSkillDurationSeconds = 14;

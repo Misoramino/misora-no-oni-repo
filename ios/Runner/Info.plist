@@ -47,10 +47,18 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>鬼ごっこ中に現在地を表示し、プレイエリア内かどうかを判定するために位置情報を使用します。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>鬼ごっこ中に現在地を表示し、プレイエリア内かどうかを判定するために位置情報を使用します。</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
+	<key>AIzaSyBzrG-yVM9dzZ1XAtGOY1yjSM8qya6yWrs</key>
+	<string></string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

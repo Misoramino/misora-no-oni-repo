@@ -18,6 +18,7 @@ import '../game/sampling_tier.dart';
 import '../map/runner_display_smooth.dart';
 import '../proximity/ble_scan_proximity_service.dart';
 import '../proximity/hybrid_proximity_service.dart';
+import '../proximity/idle_proximity_service.dart';
 import '../proximity/proximity_service.dart';
 import '../proximity/proximity_signal.dart';
 import '../sync/firebase_bootstrap.dart';
@@ -31,13 +32,23 @@ import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
+import '../settings/oni_operator_prefs.dart';
 import 'match_gallery_screen.dart';
+import 'oni_operator_screen.dart';
 import 'privacy_control_screen.dart';
+import 'room_lobby_screen.dart';
 
 class GameMapScreen extends StatefulWidget {
-  const GameMapScreen({required this.profile, super.key});
+  const GameMapScreen({
+    required this.profile,
+    this.onlineSession,
+    super.key,
+  });
 
   final WorldProfile profile;
+
+  /// ロビーで参加済みの Firestore セッション（本番マルチプレイ用）。
+  final FirestoreRoomSession? onlineSession;
 
   @override
   State<GameMapScreen> createState() => _GameMapScreenState();
@@ -56,7 +67,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
   final OfflineSyncQueue _offlineQueue = OfflineSyncQueue();
   late HybridProximityService _proximityService = HybridProximityService(
-    bleDelegate: MockProximityService(),
+    bleDelegate: IdleProximityService(),
   );
   RoomSessionPort _roomSession = LocalOnlyRoomSession();
 
@@ -149,6 +160,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
+  /// オンラインで鬼役の位置が members に載っている。
+  bool _remoteOniKnown = false;
   bool _oniRoleEnabled = false;
   bool _oniNotifyVibration = true;
   bool _oniNotifySound = true;
@@ -172,10 +185,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     Future<void>.microtask(_loadTrajectoryConsent);
     Future<void>.microtask(_loadEliminationAftermathRule);
     Future<void>.microtask(_initProximityStack);
-    Future<void>.microtask(() async {
-      await _roomSession.connectLocalDemo();
-    });
     Future<void>.microtask(_refreshOfflineQueueCount);
+    if (widget.onlineSession != null) {
+      Future<void>.microtask(_attachOnlineSession);
+    }
+    Future<void>.microtask(_loadOniOperatorPrefs);
     _renderPump = Timer.periodic(const Duration(milliseconds: 52), (_) {
       _pulseVisualSmoothing();
     });
@@ -275,9 +289,15 @@ class _GameMapScreenState extends State<GameMapScreen>
     final useBle = prefs.getBool(_kUseBleScanPrefKey) ?? false;
     await _proximitySubscription?.cancel();
     await _proximityService.stop();
-    _proximityService = HybridProximityService(
-      bleDelegate: useBle ? BleScanProximityService() : MockProximityService(),
-    );
+    final ProximityService bleDelegate;
+    if (useBle) {
+      bleDelegate = BleScanProximityService();
+    } else if (_testMode) {
+      bleDelegate = MockProximityService();
+    } else {
+      bleDelegate = IdleProximityService();
+    }
+    _proximityService = HybridProximityService(bleDelegate: bleDelegate);
     await _setupProximity();
   }
 
@@ -295,8 +315,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _roomSession = LocalOnlyRoomSession();
       _remoteMembers = {};
+      _remoteOniKnown = false;
       _oniPosition = _defaultOniPosition;
     });
+  }
+
+  Future<void> _attachOnlineSession() async {
+    final fs = widget.onlineSession;
+    if (fs == null || fs.roomId == null) return;
+    if (!mounted) return;
+    setState(() => _roomSession = fs);
+    _bindRemoteMembers(fs);
+    _statusMessage = 'ルーム ${fs.roomId} に接続済み';
   }
 
   Future<String?> _joinFirestoreRoom({
@@ -329,9 +359,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _applyRemoteOniPosition(Map<String, RemoteMemberSnapshot> map) {
+    _remoteOniKnown = false;
     for (final m in map.values) {
       if (m.role == 'oni') {
         _oniPosition = LatLng(m.lat, m.lng);
+        _remoteOniKnown = true;
         return;
       }
     }
@@ -921,7 +953,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         : distanceToOni <= GameConfig.warningDistanceMeters
         ? '中距離'
         : '遠距離';
-    final intel = _buildOniIntel(direction: direction, distanceBand: distBand);
+    final intel = _buildOniIntel(
+      direction: direction,
+      distanceBand: distBand,
+      bearingDegrees: bearing,
+    );
     setState(() {
       _statusMessage = '情報屋: $intel';
     });
@@ -1017,10 +1053,29 @@ class _GameMapScreenState extends State<GameMapScreen>
       _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
 
   bool _isCaptureTriggered(double gpsDistance) {
+    if (_gameState != GameState.running) return false;
+    if (!_testMode && !_remoteOniKnown) return false;
     if (_latestProximityBand == ProximityBand.contact) return true;
     final bonus = _latestProximityBand == ProximityBand.near ? 14.0 : 0.0;
     return gpsDistance <= (GameConfig.captureDistanceMeters + bonus);
   }
+
+  double _distanceToOni() {
+    if (!_testMode && !_remoteOniKnown) {
+      return double.infinity;
+    }
+    return Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      _oniPosition.latitude,
+      _oniPosition.longitude,
+    );
+  }
+
+  bool get _showGimmickMapMarkers =>
+      _testMode || _gameState == GameState.running;
+
+  bool get _showOniMarker => _testMode || _remoteOniKnown;
 
   double _effectiveInfectionDistance(double gpsDistance) {
     if (_latestProximityBand == ProximityBand.contact) {
@@ -1183,6 +1238,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   String _currentOniIntelHeadline() {
+    if (!_testMode && !_remoteOniKnown && _gameState == GameState.running) {
+      return '鬼の位置は未同期 — 鬼役端末の参加と位置報告を待っています';
+    }
     final d = _distanceToOni();
     final bearing = Geolocator.bearingBetween(
       _currentPosition.latitude,
@@ -1196,12 +1254,26 @@ class _GameMapScreenState extends State<GameMapScreen>
         : d <= GameConfig.warningDistanceMeters
         ? '中距離'
         : '遠距離';
-    return _buildOniIntel(direction: direction, distanceBand: distBand);
+    return _buildOniIntel(
+      direction: direction,
+      distanceBand: distBand,
+      bearingDegrees: bearing,
+    );
+  }
+
+  /// 断片モード用。16 方位ではなく大まかな寄りだけに落とす。
+  String _fragmentedCoarseCardinal(double bearingDegrees) {
+    final b = (bearingDegrees + 360) % 360;
+    if (b >= 315 || b < 45) return '北寄り';
+    if (b < 135) return '東寄り';
+    if (b < 225) return '南寄り';
+    return '西寄り';
   }
 
   String _buildOniIntel({
     required String direction,
     required String distanceBand,
+    required double bearingDegrees,
   }) {
     if (!_isCommJammingOpenNow()) {
       return '通信障害: ノイズ混入（情報欠落）';
@@ -1213,11 +1285,35 @@ class _GameMapScreenState extends State<GameMapScreen>
       case OniIntelMode.distanceBandOnly:
         return '鬼の距離帯: $distanceBand';
       case OniIntelMode.fragmented:
-        final fragmentPick = _elapsedSeconds % 3;
-        if (fragmentPick == 0) return '断片: 方角 $direction';
-        if (fragmentPick == 1) return '断片: 距離帯 $distanceBand';
-        return '断片: 最近10秒は追跡途切れ';
+        final phase =
+            (_elapsedSeconds ~/ GameConfig.fragmentedPhaseSeconds) % 5;
+        final coarse = _fragmentedCoarseCardinal(bearingDegrees);
+        switch (phase) {
+          case 0:
+            return '断片: 信号途切れ — 方角・距離とも取得不能';
+          case 1:
+            return '断片: 粗い方角のみ — $coarse（精密方位は非表示）';
+          case 2:
+            return '断片: ノイズ帯 — このウィンドウは情報ロック';
+          case 3:
+            return '断片: 距離帯のみ — $distanceBand（方角は伏せられています）';
+          case 4:
+          default:
+            return '断片: 同期ズレ — 次のウィンドウまで欠落';
+        }
     }
+  }
+
+  Future<void> _loadOniOperatorPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final s = OniOperatorPrefs.fromPrefs(prefs);
+    if (!mounted) return;
+    setState(() {
+      _oniRoleEnabled = s.roleEnabled;
+      _oniNotifyVibration = s.notifyVibration;
+      _oniNotifySound = s.notifySound;
+      _oniNotifyAggressive = s.notifyAggressive;
+    });
   }
 
   void _maybeTriggerDangerFeedback(double currentDistance) {
@@ -1266,15 +1362,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         level == 'danger' ? SystemSoundType.alert : SystemSoundType.click,
       );
     }
-  }
-
-  double _distanceToOni() {
-    return Geolocator.distanceBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _oniPosition.latitude,
-      _oniPosition.longitude,
-    );
   }
 
   String _formatTime(int seconds) {
@@ -1500,11 +1587,15 @@ class _GameMapScreenState extends State<GameMapScreen>
         infoWindow: const InfoWindow(title: 'あなた', snippet: '現在地'),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
       ),
-      Marker(
-        markerId: const MarkerId('oni'),
-        position: _oniPosition,
-        infoWindow: const InfoWindow(title: '鬼', snippet: 'ここに鬼がいる'),
-      ),
+      if (_showOniMarker)
+        Marker(
+          markerId: const MarkerId('oni'),
+          position: _oniPosition,
+          infoWindow: InfoWindow(
+            title: '鬼',
+            snippet: _remoteOniKnown ? 'オンライン同期' : 'テスト／デモ',
+          ),
+        ),
       for (final e in _remoteMembers.entries)
         Marker(
           markerId: MarkerId('remote_${e.key}'),
@@ -1519,54 +1610,59 @@ class _GameMapScreenState extends State<GameMapScreen>
             _ => BitmapDescriptor.hueMagenta,
           }),
         ),
-      Marker(
-        markerId: const MarkerId('safe_zone_marker'),
-        position: _safeZonePosition,
-        infoWindow: InfoWindow(
-          title: '安全地帯',
-          snippet: _safeZoneAvailable
-              ? 'チャージ獲得地点'
-              : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ),
-      Marker(
-        markerId: const MarkerId('info_broker_marker'),
-        position: _infoBrokerPosition,
-        infoWindow: InfoWindow(
-          title: '情報屋',
-          snippet: _infoBrokerAvailable
-              ? '鬼の方角ヒント'
-              : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
-      ),
-      Marker(
-        markerId: const MarkerId('comm_jamming_zone_marker'),
-        position: _commJammingZonePosition,
-        infoWindow: const InfoWindow(title: '通信障害地帯', snippet: '情報が断片化する'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-      ),
-      for (var i = 0; i < _tracePoints.length; i++)
-        Marker(
-          markerId: MarkerId('trace_$i'),
-          position: _tracePoints[i],
-          infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
-        ),
-      for (var i = 0; i < _cameraPositions.length; i++)
-        Marker(
-          markerId: MarkerId('camera_$i'),
-          position: _cameraPositions[i],
-          infoWindow: InfoWindow(
-            title: '監視カメラ ${i + 1}',
-            snippet: _triggeredCameras.contains(i) ? '作動済み' : '未作動',
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueYellow,
-          ),
-        ),
     };
+
+    if (_showGimmickMapMarkers) {
+      markers.addAll({
+        Marker(
+          markerId: const MarkerId('safe_zone_marker'),
+          position: _safeZonePosition,
+          infoWindow: InfoWindow(
+            title: '安全地帯',
+            snippet: _safeZoneAvailable
+                ? 'チャージ獲得地点'
+                : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        ),
+        Marker(
+          markerId: const MarkerId('info_broker_marker'),
+          position: _infoBrokerPosition,
+          infoWindow: InfoWindow(
+            title: '情報屋',
+            snippet: _infoBrokerAvailable
+                ? '鬼の方角ヒント'
+                : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+        ),
+        Marker(
+          markerId: const MarkerId('comm_jamming_zone_marker'),
+          position: _commJammingZonePosition,
+          infoWindow: const InfoWindow(title: '通信障害地帯', snippet: '情報が断片化する'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        ),
+        for (var i = 0; i < _tracePoints.length; i++)
+          Marker(
+            markerId: MarkerId('trace_$i'),
+            position: _tracePoints[i],
+            infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+          ),
+        for (var i = 0; i < _cameraPositions.length; i++)
+          Marker(
+            markerId: MarkerId('camera_$i'),
+            position: _cameraPositions[i],
+            infoWindow: InfoWindow(
+              title: '監視カメラ ${i + 1}',
+              snippet: _triggeredCameras.contains(i) ? '作動済み' : '未作動',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueYellow,
+            ),
+          ),
+      });
+    }
 
     if (_fakePositionActive && _fakePositionLatLng != null) {
       markers.add(
@@ -1748,6 +1844,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _testMode = !_testMode;
     });
     _logDebug('test_mode=${_testMode ? 'on' : 'off'}');
+    unawaited(_reloadProximityStackFromPrefs());
   }
 
   void _toggleMenuCollapsed() {
@@ -1764,10 +1861,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     WorldProfile selectedProfile = _activeProfile;
     OniIntelMode selectedIntel = _oniIntelMode;
     bool selectedConsent = _trajectoryConsent;
-    bool selectedOniRole = _oniRoleEnabled;
-    bool selectedVib = _oniNotifyVibration;
-    bool selectedSound = _oniNotifySound;
-    bool selectedAgg = _oniNotifyAggressive;
     EliminationAftermathRule selectedElimination = _eliminationAftermathRule;
     final prefs0 = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -1842,8 +1935,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
                         DropdownButtonFormField<OniIntelMode>(
                           initialValue: selectedIntel,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: '鬼情報モード',
+                            helperText:
+                                '「断片」は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが変わり、方位・距離が周期欠落します。',
+                            helperMaxLines: 3,
                           ),
                           items: OniIntelMode.values
                               .map(
@@ -2162,39 +2258,17 @@ class _GameMapScreenState extends State<GameMapScreen>
                               setModalState(() => selectedConsent = v),
                         ),
 
-                        SwitchListTile(
+                        ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('鬼ロール設定（通知調整を有効化）'),
-                          value: selectedOniRole,
-                          onChanged: (v) =>
-                              setModalState(() => selectedOniRole = v),
+                          leading: Icon(
+                            Icons.nightlight_round,
+                            color: Theme.of(ctx).colorScheme.primary,
+                          ),
+                          title: const Text('鬼ロール・鬼向け通知'),
+                          subtitle: const Text(
+                            'AppBar の「鬼コンソール」アイコンから設定します（バイブ・サウンド等）。',
+                          ),
                         ),
-
-                        if (selectedOniRole) ...[
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('鬼向けバイブ通知'),
-                            value: selectedVib,
-                            onChanged: (v) =>
-                                setModalState(() => selectedVib = v),
-                          ),
-
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('鬼向けサウンド通知'),
-                            value: selectedSound,
-                            onChanged: (v) =>
-                                setModalState(() => selectedSound = v),
-                          ),
-
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('通知を高頻度化（接近時）'),
-                            value: selectedAgg,
-                            onChanged: (v) =>
-                                setModalState(() => selectedAgg = v),
-                          ),
-                        ],
 
                         const SizedBox(height: 10),
 
@@ -2257,10 +2331,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _activeProfile = selectedProfile;
       _oniIntelMode = selectedIntel;
-      _oniRoleEnabled = selectedOniRole;
-      _oniNotifyVibration = selectedVib;
-      _oniNotifySound = selectedSound;
-      _oniNotifyAggressive = selectedAgg;
       _eliminationAftermathRule = selectedElimination;
     });
     final prefs = await SharedPreferences.getInstance();
@@ -2337,8 +2407,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         _gameState == GameState.runnerWin ||
         _gameState == GameState.caughtByOni;
     final showHudPanel = running;
-    final showBottomControlSheet =
-        running || _prepControlSheetOpen || _editingArea;
+    final showBottomControlSheet = running || _prepControlSheetOpen;
     final showGameMap =
         _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
     final appTitle = switch (_gameState) {
@@ -2352,6 +2421,45 @@ class _GameMapScreenState extends State<GameMapScreen>
       appBar: AppBar(
         title: Text(appTitle),
         actions: [
+          IconButton(
+            tooltip: 'ルームロビー',
+            onPressed: () async {
+              final fs = _roomSession is FirestoreRoomSession
+                  ? _roomSession as FirestoreRoomSession
+                  : null;
+              final returned = await Navigator.of(context).push<FirestoreRoomSession?>(
+                MaterialPageRoute<FirestoreRoomSession?>(
+                  builder: (_) => RoomLobbyScreen(existingSession: fs),
+                ),
+              );
+              if (!mounted) return;
+              if (returned != null && returned.roomId != null) {
+                setState(() => _roomSession = returned);
+                _bindRemoteMembers(returned);
+                _statusMessage = 'ルーム ${returned.roomId} に接続済み';
+              } else if (_roomSession is FirestoreRoomSession &&
+                  (_roomSession as FirestoreRoomSession).roomId == null) {
+                setState(() {
+                  _roomSession = LocalOnlyRoomSession();
+                  _remoteMembers = {};
+                  _remoteOniKnown = false;
+                });
+              }
+            },
+            icon: const Icon(Icons.groups_outlined),
+          ),
+          IconButton(
+            tooltip: '鬼コンソール（鬼向け通知など）',
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => const OniOperatorScreen(),
+                ),
+              );
+              await _loadOniOperatorPrefs();
+            },
+            icon: const Icon(Icons.nightlight_round),
+          ),
           if (_gameState == GameState.waiting &&
               !_editingArea &&
               _mapVisibleInLobby)
@@ -2460,6 +2568,23 @@ class _GameMapScreenState extends State<GameMapScreen>
                 _mapVisibleInLobby = true;
                 _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
               }),
+              onOpenLobby: () async {
+                final fs = _roomSession is FirestoreRoomSession
+                    ? _roomSession as FirestoreRoomSession
+                    : null;
+                final returned =
+                    await Navigator.of(context).push<FirestoreRoomSession?>(
+                  MaterialPageRoute<FirestoreRoomSession?>(
+                    builder: (_) => RoomLobbyScreen(existingSession: fs),
+                  ),
+                );
+                if (!mounted) return;
+                if (returned != null && returned.roomId != null) {
+                  setState(() => _roomSession = returned);
+                  _bindRemoteMembers(returned);
+                  _statusMessage = 'ルーム ${returned.roomId} に接続済み';
+                }
+              },
             ),
           if (showGameMap && _gameState == GameState.running)
             Positioned.fill(
@@ -2738,11 +2863,13 @@ class _PrepLobbyPanel extends StatelessWidget {
     required this.roomLabel,
     required this.playAreaLabel,
     required this.onShowMap,
+    required this.onOpenLobby,
   });
 
   final String roomLabel;
   final String playAreaLabel;
   final VoidCallback onShowMap;
+  final VoidCallback onOpenLobby;
 
   @override
   Widget build(BuildContext context) {
@@ -2798,6 +2925,12 @@ class _PrepLobbyPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   FilledButton.icon(
+                    onPressed: onOpenLobby,
+                    icon: const Icon(Icons.groups_outlined),
+                    label: const Text('ルームロビーを開く'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
                     onPressed: onShowMap,
                     icon: const Icon(Icons.map),
                     label: const Text('地図を表示する'),
@@ -2883,7 +3016,7 @@ class _InfoPanel extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '鬼情報モード: $intelModeLabel（正確な距離[m]は表示しません）',
+                      '鬼情報: $intelModeLabel（距離[m]・精密方角はモードにより伏せます。断片は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが切り替わります）',
                       style: TextStyle(
                         fontSize: 11,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,

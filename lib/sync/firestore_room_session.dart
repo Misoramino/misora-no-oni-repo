@@ -7,6 +7,7 @@ import 'firebase_bootstrap.dart';
 import 'firestore_room_blueprint.dart';
 import 'presence_throttle.dart';
 import 'remote_member_snapshot.dart';
+import 'room_member_view.dart';
 import 'room_session_port.dart';
 
 /// Firestore ルームの最小プレゼンス同期（匿名 UID + members ドキュメント）。
@@ -27,9 +28,17 @@ class FirestoreRoomSession implements RoomSessionPort {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   final StreamController<Map<String, RemoteMemberSnapshot>> _remoteCtrl =
       StreamController<Map<String, RemoteMemberSnapshot>>.broadcast();
+  final StreamController<List<RoomMemberView>> _lobbyCtrl =
+      StreamController<List<RoomMemberView>>.broadcast();
 
   Stream<Map<String, RemoteMemberSnapshot>> get remoteMembers =>
       _remoteCtrl.stream;
+
+  /// ルーム内の全メンバー（自分を含む）。ロビー UI 用。
+  Stream<List<RoomMemberView>> get lobbyMembers => _lobbyCtrl.stream;
+
+  String? get nickname => _nickname;
+  String get role => _role;
 
   @override
   String? get roomId => _roomId;
@@ -81,14 +90,24 @@ class FirestoreRoomSession implements RoomSessionPort {
           .snapshots()
           .listen((snap) {
         final out = <String, RemoteMemberSnapshot>{};
+        final lobby = <RoomMemberView>[];
         for (final d in snap.docs) {
-          if (d.id == _uid) continue;
           final m = RemoteMemberSnapshot.tryParse(d.id, d.data());
-          if (m != null) out[d.id] = m;
+          if (m == null) continue;
+          final isSelf = d.id == _uid;
+          lobby.add(RoomMemberView(member: m, isSelf: isSelf));
+          if (!isSelf) out[d.id] = m;
         }
-        if (!_remoteCtrl.isClosed) {
-          _remoteCtrl.add(out);
-        }
+        lobby.sort((a, b) {
+          if (a.isSelf != b.isSelf) return a.isSelf ? -1 : 1;
+          final ar = a.member.role;
+          final br = b.member.role;
+          if (ar == 'oni' && br != 'oni') return -1;
+          if (br == 'oni' && ar != 'oni') return 1;
+          return a.member.nickname.compareTo(b.member.nickname);
+        });
+        if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
+        if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(lobby);
       });
       return null;
     } on FirebaseAuthException catch (e) {
@@ -128,6 +147,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   Future<void> disconnect() async {
     await _membersSub?.cancel();
     _membersSub = null;
+    if (!_lobbyCtrl.isClosed) _lobbyCtrl.add([]);
     final rid = _roomId;
     final uid = _uid;
     _roomId = null;
