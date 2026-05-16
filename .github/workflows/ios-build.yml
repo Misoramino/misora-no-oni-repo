@@ -1,0 +1,47 @@
+name: iOS IPA Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+        working-directory: temp ios fix
+
+      - name: Install CocoaPods
+        run: pod install
+        working-directory: temp ios fix/ios
+
+      - name: Build iOS
+        run: flutter build ios --release --no-codesign
+        working-directory: temp ios fix
+
+      - name: Create Payload Folder
+        run: mkdir Payload
+        working-directory: temp ios fix/build/ios/iphoneos
+
+      - name: Move Runner.app
+        run: mv Runner.app Payload
+        working-directory: temp ios fix/build/ios/iphoneos
+
+      - name: Create IPA
+        run: zip -r app.ipa Payload
+        working-directory: temp ios fix/build/ios/iphoneos
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: temp ios fix/build/ios/iphoneos/app.ipa
