@@ -1759,6 +1759,16 @@ class _GameMapScreenState extends State<GameMapScreen>
     };
   }
 
+  List<LatLng> _closedPolygonPoints(List<LatLng> points) {
+    if (points.length < 3) return points;
+    final first = points.first;
+    final last = points.last;
+    if (first.latitude == last.latitude && first.longitude == last.longitude) {
+      return points;
+    }
+    return [...points, first];
+  }
+
   Set<Circle> _buildCircles(WorldProfileTokens tokens) {
     final circles = <Circle>{
       Circle(
@@ -1770,6 +1780,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           alpha: _safeZoneAvailable ? 0.12 : 0.04,
         ),
         strokeColor: tokens.safeColor,
+        zIndex: 1,
       ),
       Circle(
         circleId: const CircleId('info-broker'),
@@ -1780,6 +1791,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           alpha: _infoBrokerAvailable ? 0.12 : 0.04,
         ),
         strokeColor: tokens.infoColor,
+        zIndex: 1,
       ),
       Circle(
         circleId: const CircleId('comm-jamming-zone'),
@@ -1788,6 +1800,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         strokeWidth: 2,
         fillColor: Colors.orange.withValues(alpha: 0.12),
         strokeColor: Colors.orange.shade700,
+        zIndex: 1,
       ),
       for (var i = 0; i < _tracePoints.length; i++)
         Circle(
@@ -1797,22 +1810,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           strokeWidth: 1,
           fillColor: Colors.cyan.withValues(alpha: 0.2),
           strokeColor: Colors.cyan.shade700,
+          zIndex: 2,
         ),
     };
-
-    if (_editingArea && _editCircleMode) {
-      circles.add(
-        Circle(
-          circleId: const CircleId('draft-circle'),
-          center: _circleDraftCenter,
-          radius: _circleDraftRadiusMeters,
-          strokeWidth: 3,
-          fillColor: Colors.purple.withValues(alpha: 0.12),
-          strokeColor: Colors.purple.shade600,
-        ),
-      );
-      return circles;
-    }
 
     if (_playArea.type == PlayAreaType.circle && !_editingArea) {
       circles.add(
@@ -1820,13 +1820,56 @@ class _GameMapScreenState extends State<GameMapScreen>
           circleId: const CircleId('play-area'),
           center: _playArea.center,
           radius: _playArea.radiusMeters,
-          strokeWidth: 2,
-          fillColor: Colors.blue.withValues(alpha: 0.08),
-          strokeColor: Colors.blue.shade400,
+          strokeWidth: 4,
+          fillColor: Colors.blue.withValues(alpha: 0.16),
+          strokeColor: Colors.blue.shade600,
+          zIndex: 10,
+        ),
+      );
+    }
+
+    if (_editingArea && _editCircleMode) {
+      circles.add(
+        Circle(
+          circleId: const CircleId('draft-circle'),
+          center: _circleDraftCenter,
+          radius: _circleDraftRadiusMeters,
+          strokeWidth: 4,
+          fillColor: Colors.purple.withValues(alpha: 0.22),
+          strokeColor: Colors.purple.shade700,
+          zIndex: 20,
         ),
       );
     }
     return circles;
+  }
+
+  Set<Polygon> _buildPolygons() {
+    if (!_editingArea && _playArea.type == PlayAreaType.polygon) {
+      return {
+        Polygon(
+          polygonId: const PolygonId('play-area-poly'),
+          points: _closedPolygonPoints(_playArea.points),
+          strokeWidth: 4,
+          strokeColor: Colors.blue.shade600,
+          fillColor: Colors.blue.withValues(alpha: 0.16),
+          zIndex: 10,
+        ),
+      };
+    }
+    if (_editingArea && !_editCircleMode && _polygonDraft.length >= 3) {
+      return {
+        Polygon(
+          polygonId: const PolygonId('draft-poly-preview'),
+          points: _closedPolygonPoints(_polygonDraft),
+          strokeWidth: 4,
+          strokeColor: Colors.deepOrange.shade600,
+          fillColor: Colors.deepOrange.withValues(alpha: 0.22),
+          zIndex: 20,
+        ),
+      };
+    }
+    return {};
   }
 
   int _secondsUntil(DateTime? target) {
@@ -2537,29 +2580,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               markers: _buildMarkers(),
               polylines: _buildPolylines(),
               circles: _buildCircles(tokens),
-              polygons: !_editingArea && _playArea.type == PlayAreaType.polygon
-                  ? {
-                      Polygon(
-                        polygonId: const PolygonId('play-area-poly'),
-                        points: _playArea.points,
-                        strokeWidth: 2,
-                        strokeColor: Colors.blue.shade400,
-                        fillColor: Colors.blue.withValues(alpha: 0.08),
-                      ),
-                    }
-                  : _editingArea &&
-                        !_editCircleMode &&
-                        _polygonDraft.length >= 3
-                  ? {
-                      Polygon(
-                        polygonId: const PolygonId('draft-poly-preview'),
-                        points: _polygonDraft,
-                        strokeWidth: 2,
-                        strokeColor: Colors.deepOrange.shade400,
-                        fillColor: Colors.deepOrange.withValues(alpha: 0.1),
-                      ),
-                    }
-                  : {},
+              polygons: _buildPolygons(),
               onTap: _onMapTap,
               onMapCreated: (controller) {
                 _mapController = controller;
