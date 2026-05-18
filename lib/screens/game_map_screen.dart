@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -48,6 +49,163 @@ class GameMapScreen extends StatefulWidget {
 
   @override
   State<GameMapScreen> createState() => _GameMapScreenState();
+}
+
+class _GeneratedGimmicks {
+  const _GeneratedGimmicks({
+    required this.safeZones,
+    required this.infoBrokers,
+    required this.cameras,
+    required this.eventAreas,
+  });
+
+  final List<LatLng> safeZones;
+  final List<LatLng> infoBrokers;
+  final List<LatLng> cameras;
+  final List<LatLng> eventAreas;
+
+  factory _GeneratedGimmicks.create(PlayArea area) {
+    final center = _centerOf(area);
+    final radius = _effectiveRadiusMeters(area, center).clamp(180.0, 2400.0);
+    final safeCount = _scaledCount(
+      radius,
+      GameConfig.safeZoneMinCount,
+      GameConfig.safeZoneMaxCount,
+    );
+    final brokerCount = _scaledCount(
+      radius,
+      GameConfig.infoBrokerMinCount,
+      GameConfig.infoBrokerMaxCount,
+    );
+    final cameraCount = _scaledCount(
+      radius,
+      GameConfig.cameraMinCount,
+      GameConfig.cameraMaxCount,
+    );
+    final eventCount = _scaledCount(
+      radius,
+      GameConfig.commJammingZoneMinCount,
+      GameConfig.commJammingZoneMaxCount,
+    );
+    final minGap = (radius * 0.18).clamp(60.0, 180.0);
+
+    final used = <LatLng>[];
+    List<LatLng> group({
+      required int count,
+      required double angleSeed,
+      required double radiusFactor,
+    }) {
+      final out = <LatLng>[];
+      for (var i = 0; i < count; i++) {
+        final angle = angleSeed + i * (360 / math.max(1, count));
+        final dist = radius * (radiusFactor + 0.08 * (i % 2));
+        final p = _pointInArea(
+          area: area,
+          center: center,
+          angleDegrees: angle,
+          distanceMeters: dist,
+          avoid: used,
+          minGapMeters: minGap,
+        );
+        out.add(p);
+        used.add(p);
+      }
+      return out;
+    }
+
+    return _GeneratedGimmicks(
+      safeZones: group(count: safeCount, angleSeed: 35, radiusFactor: 0.42),
+      infoBrokers: group(
+        count: brokerCount,
+        angleSeed: 150,
+        radiusFactor: 0.58,
+      ),
+      cameras: group(count: cameraCount, angleSeed: 245, radiusFactor: 0.72),
+      eventAreas: group(count: eventCount, angleSeed: 315, radiusFactor: 0.50),
+    );
+  }
+
+  static int _scaledCount(double radius, int min, int max) {
+    final extra = ((radius - 300) / 450).floor();
+    return (min + extra).clamp(min, max).toInt();
+  }
+
+  static LatLng _centerOf(PlayArea area) {
+    switch (area.type) {
+      case PlayAreaType.circle:
+        return area.center;
+      case PlayAreaType.polygon:
+        if (area.points.isEmpty) return const LatLng(35.681236, 139.767125);
+        final lat =
+            area.points.map((p) => p.latitude).reduce((a, b) => a + b) /
+            area.points.length;
+        final lng =
+            area.points.map((p) => p.longitude).reduce((a, b) => a + b) /
+            area.points.length;
+        final center = LatLng(lat, lng);
+        return area.contains(center) ? center : area.points.first;
+    }
+  }
+
+  static double _effectiveRadiusMeters(PlayArea area, LatLng center) {
+    switch (area.type) {
+      case PlayAreaType.circle:
+        return area.radiusMeters;
+      case PlayAreaType.polygon:
+        var maxDistance = 240.0;
+        for (final p in area.points) {
+          maxDistance = math.max(
+            maxDistance,
+            Geolocator.distanceBetween(
+              center.latitude,
+              center.longitude,
+              p.latitude,
+              p.longitude,
+            ),
+          );
+        }
+        return maxDistance;
+    }
+  }
+
+  static LatLng _pointInArea({
+    required PlayArea area,
+    required LatLng center,
+    required double angleDegrees,
+    required double distanceMeters,
+    required List<LatLng> avoid,
+    required double minGapMeters,
+  }) {
+    for (final scale in const [1.0, 0.75, 0.55, 0.35]) {
+      final p = _offset(center, angleDegrees, distanceMeters * scale);
+      if (area.contains(p) && _farEnough(p, avoid, minGapMeters)) return p;
+    }
+    return center;
+  }
+
+  static bool _farEnough(LatLng p, List<LatLng> avoid, double minGapMeters) {
+    for (final other in avoid) {
+      final d = Geolocator.distanceBetween(
+        p.latitude,
+        p.longitude,
+        other.latitude,
+        other.longitude,
+      );
+      if (d < minGapMeters) return false;
+    }
+    return true;
+  }
+
+  static LatLng _offset(LatLng origin, double angleDegrees, double meters) {
+    final rad = angleDegrees * math.pi / 180;
+    final north = math.cos(rad) * meters;
+    final east = math.sin(rad) * meters;
+    final lat = origin.latitude + north / 111111;
+    final lng =
+        origin.longitude +
+        east / (111111 * math.cos(origin.latitude * math.pi / 180));
+    return LatLng(lat, lng);
+  }
 }
 
 const _kTrajectoryConsentPrefKey = 'trajectory_consent_default';
@@ -108,9 +266,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   double? _lastDistance;
   int _elapsedSeconds = 0;
 
-  final LatLng _safeZonePosition = const LatLng(35.6822, 139.7682);
-  final LatLng _infoBrokerPosition = const LatLng(35.6804, 139.7657);
-  final LatLng _commJammingZonePosition = const LatLng(35.6796, 139.7689);
+  List<LatLng> _safeZonePositions = const [LatLng(35.6822, 139.7682)];
+  List<LatLng> _infoBrokerPositions = const [LatLng(35.6804, 139.7657)];
+  List<LatLng> _commJammingZonePositions = const [LatLng(35.6796, 139.7689)];
   int _safeZoneCharges = 0;
   DateTime? _lastSafeChargeAt;
   DateTime? _lastInfoBrokerAt;
@@ -119,7 +277,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _infoBrokerAvailable = true;
   DateTime? _safeZoneRespawnAt;
   DateTime? _infoBrokerRespawnAt;
-  final List<LatLng> _cameraPositions = const [
+  List<LatLng> _cameraPositions = const [
     LatLng(35.6817, 139.7661),
     LatLng(35.6800, 139.7696),
   ];
@@ -613,8 +771,13 @@ class _GameMapScreenState extends State<GameMapScreen>
         initialOni: _oniPosition,
       );
     }
+    final gimmicks = _GeneratedGimmicks.create(_playArea);
     _retuneGpsIfNeeded();
     setState(() {
+      _safeZonePositions = gimmicks.safeZones;
+      _infoBrokerPositions = gimmicks.infoBrokers;
+      _commJammingZonePositions = gimmicks.eventAreas;
+      _cameraPositions = gimmicks.cameras;
       _gameState = GameState.running;
       _afterCatchRule = null;
       _remainingSeconds = GameConfig.matchDurationSeconds;
@@ -641,6 +804,12 @@ class _GameMapScreenState extends State<GameMapScreen>
       _lastInfectionRevealAt = null;
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
     });
+    _emitMatchEvent(
+      type: 'gimmicks_generated',
+      message:
+          'ギミック生成: 安全地帯${_safeZonePositions.length} / 情報屋${_infoBrokerPositions.length} / 監視カメラ${_cameraPositions.length} / イベントエリア${_commJammingZonePositions.length}',
+      position: _playAreaAnchor,
+    );
     _logDebug('match_start scale=${_timeScale}x');
     HapticFeedback.selectionClick();
     SystemSound.play(SystemSoundType.click);
@@ -693,6 +862,17 @@ class _GameMapScreenState extends State<GameMapScreen>
       _prepControlSheetOpen = false;
     });
     _logDebug('match_reset');
+  }
+
+  LatLng get _playAreaAnchor {
+    switch (_playArea.type) {
+      case PlayAreaType.circle:
+        return _playArea.center;
+      case PlayAreaType.polygon:
+        return _playArea.points.isEmpty
+            ? _currentPosition
+            : _playArea.points.first;
+    }
   }
 
   Future<void> _requestAbortByVote() async {
@@ -889,15 +1069,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!_safeZoneAvailable) return;
     if (_safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
     final now = DateTime.now();
-    final inside =
-        Geolocator.distanceBetween(
-          _currentPosition.latitude,
-          _currentPosition.longitude,
-          _safeZonePosition.latitude,
-          _safeZonePosition.longitude,
-        ) <=
-        GameConfig.safeZoneRadiusMeters;
-    if (!inside) return;
+    final hit = _firstPointWithin(
+      _safeZonePositions,
+      GameConfig.safeZoneRadiusMeters,
+    );
+    if (hit == null) return;
     if (_lastSafeChargeAt != null &&
         now.difference(_lastSafeChargeAt!).inSeconds <
             GameConfig.safeZoneChargeCooldownSeconds) {
@@ -912,25 +1088,17 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _statusMessage = '安全地帯でステルスチャージを獲得（$_safeZoneCharges）';
     });
-    _emitMatchEvent(
-      type: 'safe_charge',
-      message: '安全地帯でチャージ獲得',
-      position: _safeZonePosition,
-    );
+    _emitMatchEvent(type: 'safe_charge', message: '安全地帯でチャージ獲得', position: hit);
   }
 
   void _evaluateInfoBroker(double distanceToOni) {
     if (!_infoBrokerAvailable) return;
     final now = DateTime.now();
-    final inside =
-        Geolocator.distanceBetween(
-          _currentPosition.latitude,
-          _currentPosition.longitude,
-          _infoBrokerPosition.latitude,
-          _infoBrokerPosition.longitude,
-        ) <=
-        GameConfig.infoBrokerRadiusMeters;
-    if (!inside) return;
+    final hit = _firstPointWithin(
+      _infoBrokerPositions,
+      GameConfig.infoBrokerRadiusMeters,
+    );
+    if (hit == null) return;
     if (_lastInfoBrokerAt != null &&
         now.difference(_lastInfoBrokerAt!).inSeconds <
             GameConfig.infoBrokerCooldownSeconds) {
@@ -964,8 +1132,21 @@ class _GameMapScreenState extends State<GameMapScreen>
     _emitMatchEvent(
       type: 'info_broker',
       message: '情報屋を利用: $intel',
-      position: _infoBrokerPosition,
+      position: hit,
     );
+  }
+
+  LatLng? _firstPointWithin(List<LatLng> points, double radiusMeters) {
+    for (final p in points) {
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (d <= radiusMeters) return p;
+    }
+    return null;
   }
 
   void _refreshPointRespawns() {
@@ -1201,13 +1382,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   bool _isInsideCommJammingZone() {
-    final d = Geolocator.distanceBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _commJammingZonePosition.latitude,
-      _commJammingZonePosition.longitude,
-    );
-    return d <= GameConfig.commJammingZoneRadiusMeters;
+    return _firstPointWithin(
+          _commJammingZonePositions,
+          GameConfig.commJammingZoneRadiusMeters,
+        ) !=
+        null;
   }
 
   bool _isCommJammingOpenNow() {
@@ -1593,40 +1772,46 @@ class _GameMapScreenState extends State<GameMapScreen>
 
     if (_showGimmickMapMarkers) {
       markers.addAll({
-        Marker(
-          markerId: const MarkerId('safe_zone_marker'),
-          position: _safeZonePosition,
-          infoWindow: InfoWindow(
-            title: '安全地帯',
-            snippet: _safeZoneAvailable
-                ? 'チャージ獲得地点'
-                : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
+        for (var i = 0; i < _safeZonePositions.length; i++)
+          Marker(
+            markerId: MarkerId('safe_zone_marker_$i'),
+            position: _safeZonePositions[i],
+            infoWindow: InfoWindow(
+              title: '安全地帯 ${i + 1}',
+              snippet: _safeZoneAvailable
+                  ? 'チャージ獲得地点'
+                  : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
+        for (var i = 0; i < _infoBrokerPositions.length; i++)
+          Marker(
+            markerId: MarkerId('info_broker_marker_$i'),
+            position: _infoBrokerPositions[i],
+            infoWindow: InfoWindow(
+              title: '情報屋 ${i + 1}',
+              snippet: _infoBrokerAvailable
+                  ? '鬼の方角ヒント'
+                  : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueViolet,
+            ),
           ),
-        ),
-        Marker(
-          markerId: const MarkerId('info_broker_marker'),
-          position: _infoBrokerPosition,
-          infoWindow: InfoWindow(
-            title: '情報屋',
-            snippet: _infoBrokerAvailable
-                ? '鬼の方角ヒント'
-                : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
+        for (var i = 0; i < _commJammingZonePositions.length; i++)
+          Marker(
+            markerId: MarkerId('comm_jamming_zone_marker_$i'),
+            position: _commJammingZonePositions[i],
+            infoWindow: InfoWindow(
+              title: '通信障害地帯 ${i + 1}',
+              snippet: '情報が断片化する',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueOrange,
+            ),
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueViolet,
-          ),
-        ),
-        Marker(
-          markerId: const MarkerId('comm_jamming_zone_marker'),
-          position: _commJammingZonePosition,
-          infoWindow: const InfoWindow(title: '通信障害地帯', snippet: '情報が断片化する'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
-        ),
         for (var i = 0; i < _tracePoints.length; i++)
           Marker(
             markerId: MarkerId('trace_$i'),
@@ -1754,37 +1939,40 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Set<Circle> _buildCircles(WorldProfileTokens tokens) {
     final circles = <Circle>{
-      Circle(
-        circleId: const CircleId('safe-zone'),
-        center: _safeZonePosition,
-        radius: GameConfig.safeZoneRadiusMeters,
-        strokeWidth: 2,
-        fillColor: tokens.safeColor.withValues(
-          alpha: _safeZoneAvailable ? 0.12 : 0.04,
+      for (var i = 0; i < _safeZonePositions.length; i++)
+        Circle(
+          circleId: CircleId('safe-zone-$i'),
+          center: _safeZonePositions[i],
+          radius: GameConfig.safeZoneRadiusMeters,
+          strokeWidth: 2,
+          fillColor: tokens.safeColor.withValues(
+            alpha: _safeZoneAvailable ? 0.12 : 0.04,
+          ),
+          strokeColor: tokens.safeColor,
+          zIndex: 1,
         ),
-        strokeColor: tokens.safeColor,
-        zIndex: 1,
-      ),
-      Circle(
-        circleId: const CircleId('info-broker'),
-        center: _infoBrokerPosition,
-        radius: GameConfig.infoBrokerRadiusMeters,
-        strokeWidth: 2,
-        fillColor: tokens.infoColor.withValues(
-          alpha: _infoBrokerAvailable ? 0.12 : 0.04,
+      for (var i = 0; i < _infoBrokerPositions.length; i++)
+        Circle(
+          circleId: CircleId('info-broker-$i'),
+          center: _infoBrokerPositions[i],
+          radius: GameConfig.infoBrokerRadiusMeters,
+          strokeWidth: 2,
+          fillColor: tokens.infoColor.withValues(
+            alpha: _infoBrokerAvailable ? 0.12 : 0.04,
+          ),
+          strokeColor: tokens.infoColor,
+          zIndex: 1,
         ),
-        strokeColor: tokens.infoColor,
-        zIndex: 1,
-      ),
-      Circle(
-        circleId: const CircleId('comm-jamming-zone'),
-        center: _commJammingZonePosition,
-        radius: GameConfig.commJammingZoneRadiusMeters,
-        strokeWidth: 2,
-        fillColor: Colors.orange.withValues(alpha: 0.12),
-        strokeColor: Colors.orange.shade700,
-        zIndex: 1,
-      ),
+      for (var i = 0; i < _commJammingZonePositions.length; i++)
+        Circle(
+          circleId: CircleId('comm-jamming-zone-$i'),
+          center: _commJammingZonePositions[i],
+          radius: GameConfig.commJammingZoneRadiusMeters,
+          strokeWidth: 2,
+          fillColor: Colors.orange.withValues(alpha: 0.12),
+          strokeColor: Colors.orange.shade700,
+          zIndex: 1,
+        ),
       for (var i = 0; i < _tracePoints.length; i++)
         Circle(
           circleId: CircleId('trace_circle_$i'),
