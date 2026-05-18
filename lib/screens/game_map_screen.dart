@@ -39,11 +39,7 @@ import 'privacy_control_screen.dart';
 import 'room_lobby_screen.dart';
 
 class GameMapScreen extends StatefulWidget {
-  const GameMapScreen({
-    required this.profile,
-    this.onlineSession,
-    super.key,
-  });
+  const GameMapScreen({required this.profile, this.onlineSession, super.key});
 
   final WorldProfile profile;
 
@@ -160,6 +156,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
+
   /// オンラインで鬼役の位置が members に載っている。
   bool _remoteOniKnown = false;
   bool _oniRoleEnabled = false;
@@ -538,9 +535,8 @@ class _GameMapScreenState extends State<GameMapScreen>
         final fs = _roomSession as FirestoreRoomSession;
         unawaited(
           fs.publishPresence(
-            lat: next.latitude,
-            lng: next.longitude,
-            tension: dist <= GameConfig.warningDistanceMeters,
+            tension:
+                _remoteOniKnown && dist <= GameConfig.warningDistanceMeters,
             proximityBandName: _latestProximityBand.name,
           ),
         );
@@ -1623,7 +1619,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                 ? 'チャージ獲得地点'
                 : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
         ),
         Marker(
           markerId: const MarkerId('info_broker_marker'),
@@ -1634,20 +1632,26 @@ class _GameMapScreenState extends State<GameMapScreen>
                 ? '鬼の方角ヒント'
                 : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueViolet,
+          ),
         ),
         Marker(
           markerId: const MarkerId('comm_jamming_zone_marker'),
           position: _commJammingZonePosition,
           infoWindow: const InfoWindow(title: '通信障害地帯', snippet: '情報が断片化する'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
         ),
         for (var i = 0; i < _tracePoints.length; i++)
           Marker(
             markerId: MarkerId('trace_$i'),
             position: _tracePoints[i],
             infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueCyan,
+            ),
           ),
         for (var i = 0; i < _cameraPositions.length; i++)
           Marker(
@@ -2427,11 +2431,12 @@ class _GameMapScreenState extends State<GameMapScreen>
               final fs = _roomSession is FirestoreRoomSession
                   ? _roomSession as FirestoreRoomSession
                   : null;
-              final returned = await Navigator.of(context).push<FirestoreRoomSession?>(
-                MaterialPageRoute<FirestoreRoomSession?>(
-                  builder: (_) => RoomLobbyScreen(existingSession: fs),
-                ),
-              );
+              final returned = await Navigator.of(context)
+                  .push<FirestoreRoomSession?>(
+                    MaterialPageRoute<FirestoreRoomSession?>(
+                      builder: (_) => RoomLobbyScreen(existingSession: fs),
+                    ),
+                  );
               if (!mounted) return;
               if (returned != null && returned.roomId != null) {
                 setState(() => _roomSession = returned);
@@ -2572,12 +2577,12 @@ class _GameMapScreenState extends State<GameMapScreen>
                 final fs = _roomSession is FirestoreRoomSession
                     ? _roomSession as FirestoreRoomSession
                     : null;
-                final returned =
-                    await Navigator.of(context).push<FirestoreRoomSession?>(
-                  MaterialPageRoute<FirestoreRoomSession?>(
-                    builder: (_) => RoomLobbyScreen(existingSession: fs),
-                  ),
-                );
+                final returned = await Navigator.of(context)
+                    .push<FirestoreRoomSession?>(
+                      MaterialPageRoute<FirestoreRoomSession?>(
+                        builder: (_) => RoomLobbyScreen(existingSession: fs),
+                      ),
+                    );
                 if (!mounted) return;
                 if (returned != null && returned.roomId != null) {
                   setState(() => _roomSession = returned);

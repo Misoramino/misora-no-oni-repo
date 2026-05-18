@@ -5,6 +5,7 @@ import 'package:oni_game/game/location_reveal_event.dart';
 import 'package:oni_game/game/match_event.dart';
 import 'package:oni_game/game/match_record.dart';
 import 'package:oni_game/game/play_area.dart';
+import 'package:oni_game/services/match_recorder.dart';
 
 void main() {
   test('SavedMatchRecord encode/decode roundtrip', () {
@@ -58,4 +59,51 @@ void main() {
     expect(back.events.length, 1);
     expect(back.outcome, GameState.runnerWin);
   });
+
+  test(
+    'MatchRecorder keeps local replay data independent from Firestore presence',
+    () {
+      final recorder = MatchRecorder(
+        playAreaSnapshot: const PlayArea.circle(
+          center: LatLng(35.5, 139.75),
+          radiusMeters: 400,
+        ),
+        consentedToTrajectory: true,
+        initialRunner: const LatLng(35.5001, 139.7501),
+        initialOni: const LatLng(35.4991, 139.7491),
+      );
+
+      final revealAt = DateTime.utc(2026, 1, 10, 10, 1);
+      final eventAt = DateTime.utc(2026, 1, 10, 10, 2);
+      final record = recorder.finalize(
+        outcome: GameState.caughtByOni,
+        reveals: [
+          LocationRevealEvent(
+            sequence: 1,
+            timestamp: revealAt,
+            position: const LatLng(35.5002, 139.7502),
+            overflowMeters: 24,
+          ),
+        ],
+        events: [
+          MatchEvent(
+            type: 'capture',
+            atUtc: eventAt,
+            message: '捕獲',
+            position: const LatLng(35.5003, 139.7503),
+          ),
+        ],
+      );
+
+      expect(record, isNotNull);
+      expect(
+        record!.tracks.keys,
+        containsAll([MatchTrackIds.runnerLocal, MatchTrackIds.oniLocal]),
+      );
+      expect(record.tracks[MatchTrackIds.runnerLocal], isNotEmpty);
+      expect(record.tracks[MatchTrackIds.oniLocal], isNotEmpty);
+      expect(record.reveals.single.position.latitude, 35.5002);
+      expect(record.events.single.type, 'capture');
+    },
+  );
 }

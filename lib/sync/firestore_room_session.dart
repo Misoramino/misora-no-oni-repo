@@ -72,15 +72,16 @@ class FirestoreRoomSession implements RoomSessionPort {
       _nickname = nickname.trim();
       _role = role.trim().isEmpty ? 'runner' : role.trim();
 
-      final memberRef =
-          _db.collection('rooms').doc(_roomId).collection('members').doc(_uid!);
-      await memberRef.set(
-        {
-          MemberPresenceFields.nickname: _nickname,
-          MemberPresenceFields.role: _role,
-        },
-        SetOptions(merge: true),
-      );
+      final memberRef = _db
+          .collection('rooms')
+          .doc(_roomId)
+          .collection('members')
+          .doc(_uid!);
+      await memberRef.set({
+        MemberPresenceFields.nickname: _nickname,
+        MemberPresenceFields.role: _role,
+        MemberPresenceFields.locationVisibility: 'hidden',
+      });
 
       await _membersSub?.cancel();
       _membersSub = _db
@@ -89,26 +90,27 @@ class FirestoreRoomSession implements RoomSessionPort {
           .collection('members')
           .snapshots()
           .listen((snap) {
-        final out = <String, RemoteMemberSnapshot>{};
-        final lobby = <RoomMemberView>[];
-        for (final d in snap.docs) {
-          final m = RemoteMemberSnapshot.tryParse(d.id, d.data());
-          if (m == null) continue;
-          final isSelf = d.id == _uid;
-          lobby.add(RoomMemberView(member: m, isSelf: isSelf));
-          if (!isSelf) out[d.id] = m;
-        }
-        lobby.sort((a, b) {
-          if (a.isSelf != b.isSelf) return a.isSelf ? -1 : 1;
-          final ar = a.member.role;
-          final br = b.member.role;
-          if (ar == 'oni' && br != 'oni') return -1;
-          if (br == 'oni' && ar != 'oni') return 1;
-          return a.member.nickname.compareTo(b.member.nickname);
-        });
-        if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
-        if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(lobby);
-      });
+            final out = <String, RemoteMemberSnapshot>{};
+            final lobby = <RoomMemberView>[];
+            for (final d in snap.docs) {
+              final isSelf = d.id == _uid;
+              lobby.add(
+                RoomMemberView.parse(uid: d.id, data: d.data(), isSelf: isSelf),
+              );
+              final remote = RemoteMemberSnapshot.tryParse(d.id, d.data());
+              if (!isSelf && remote != null) out[d.id] = remote;
+            }
+            lobby.sort((a, b) {
+              if (a.isSelf != b.isSelf) return a.isSelf ? -1 : 1;
+              final ar = a.role;
+              final br = b.role;
+              if (ar == 'oni' && br != 'oni') return -1;
+              if (br == 'oni' && ar != 'oni') return 1;
+              return a.nickname.compareTo(b.nickname);
+            });
+            if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
+            if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(lobby);
+          });
       return null;
     } on FirebaseAuthException catch (e) {
       return '認証エラー: ${e.message ?? e.code}';
@@ -120,27 +122,29 @@ class FirestoreRoomSession implements RoomSessionPort {
   }
 
   Future<void> publishPresence({
-    required double lat,
-    required double lng,
     required bool tension,
     String? proximityBandName,
   }) async {
     if (_roomId == null || _uid == null) return;
     final throttle = tension ? _tense : _calm;
     if (!throttle.requestSlot()) return;
-    final ref =
-        _db.collection('rooms').doc(_roomId).collection('members').doc(_uid!);
+    final ref = _db
+        .collection('rooms')
+        .doc(_roomId)
+        .collection('members')
+        .doc(_uid!);
     final payload = <String, dynamic>{
-      MemberPresenceFields.lastLat: lat,
-      MemberPresenceFields.lastLng: lng,
-      MemberPresenceFields.reportedAtUtc: DateTime.now().toUtc().toIso8601String(),
+      MemberPresenceFields.reportedAtUtc: DateTime.now()
+          .toUtc()
+          .toIso8601String(),
       MemberPresenceFields.role: _role,
       MemberPresenceFields.nickname: _nickname,
+      MemberPresenceFields.locationVisibility: 'hidden',
     };
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
     }
-    await ref.set(payload, SetOptions(merge: true));
+    await ref.set(payload);
   }
 
   @override
@@ -156,7 +160,12 @@ class FirestoreRoomSession implements RoomSessionPort {
     _role = 'runner';
     try {
       if (rid != null && uid != null) {
-        await _db.collection('rooms').doc(rid).collection('members').doc(uid).delete();
+        await _db
+            .collection('rooms')
+            .doc(rid)
+            .collection('members')
+            .doc(uid)
+            .delete();
       }
     } catch (_) {}
     try {

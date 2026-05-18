@@ -55,6 +55,11 @@
 	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>鬼ごっこ中の近接・緊張感の演出のために Bluetooth を使用します。</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>bluetooth-central</string>
+	</array>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 	<key>GMSApiKey</key>

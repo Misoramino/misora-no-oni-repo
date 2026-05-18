@@ -39,6 +39,13 @@ the current design intent.
 - Prefer event-driven sync (capture/reveal/end) over constant full-state writes.
 - Keep replay data compact (simplified and bounded point count).
 
+## Online Visibility Rules
+
+- Do not store live player coordinates in `rooms/{roomId}/members/{uid}`.
+- `members` is for lightweight presence only: nickname, role, heartbeat, proximity band.
+- Position disclosure should move through explicit reveal/event documents so the app can decide who is allowed to see each clue.
+- Default gameplay should preserve uncertainty: neither oni nor runners get full live positions by joining a room.
+
 ## Planned Next Steps
 
 1. BLE proximity band integration (near-distance confidence boost)

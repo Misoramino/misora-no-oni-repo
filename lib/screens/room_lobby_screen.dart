@@ -70,7 +70,8 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!FirebaseBootstrap.isReady) {
       setState(() {
         _joining = false;
-        _error = FirebaseBootstrap.lastErrorBrief ??
+        _error =
+            FirebaseBootstrap.lastErrorBrief ??
             'Firebase に接続できません。設定ファイルを確認してください。';
       });
       return;
@@ -84,11 +85,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       });
       return;
     }
-    await SessionPrefs.saveForm(
-      nickname: nick,
-      roomId: rid,
-      role: _role,
-    );
+    await SessionPrefs.saveForm(nickname: nick, roomId: rid, role: _role);
     final fs = _session ?? FirestoreRoomSession();
     final err = await fs.join(roomId: rid, nickname: nick, role: _role);
     if (!mounted) return;
@@ -118,10 +115,8 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => GameMapScreen(
-          profile: WorldProfile.horror,
-          onlineSession: fs,
-        ),
+        builder: (_) =>
+            GameMapScreen(profile: WorldProfile.horror, onlineSession: fs),
       ),
     );
     if (!mounted) return;
@@ -142,9 +137,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ルームロビー'),
-        leading: BackButton(
-          onPressed: () => Navigator.pop(context, _session),
-        ),
+        leading: BackButton(onPressed: () => Navigator.pop(context, _session)),
       ),
       body: ResponsivePage(
         child: Column(
@@ -249,10 +242,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
             ),
             const SizedBox(height: 8),
             if (!_joined)
-              Text(
-                '参加するとメンバー一覧が表示されます',
-                style: theme.textTheme.bodySmall,
-              )
+              Text('参加するとメンバー一覧が表示されます', style: theme.textTheme.bodySmall)
             else if (_members.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
@@ -283,17 +273,15 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final m = view.member;
     final theme = Theme.of(context);
-    final roleLabel = switch (m.role) {
+    final roleLabel = switch (view.role) {
       'oni' => '鬼',
       'spectator' => '観戦',
       _ => '逃走',
     };
-    final hasPos = m.reportedAtUtc != null;
-    final subtitle = hasPos
-        ? '位置報告あり · ${m.proximityBand ?? "帯未設定"}'
-        : '位置未報告（ゲーム画面で更新）';
+    final subtitle = view.hasHeartbeat
+        ? 'オンライン · 位置は秘匿 · ${view.proximityBand ?? "近接帯未設定"}'
+        : 'オンライン · 位置は秘匿（ゲーム画面で心拍更新）';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -303,12 +291,12 @@ class _MemberTile extends StatelessWidget {
               ? theme.colorScheme.primaryContainer
               : theme.colorScheme.surfaceContainerHighest,
           child: Icon(
-            m.role == 'oni' ? Icons.front_hand : Icons.directions_run,
+            view.role == 'oni' ? Icons.front_hand : Icons.directions_run,
             size: 20,
           ),
         ),
         title: Text(
-          '${m.nickname.isEmpty ? "(名前なし)" : m.nickname}'
+          '${view.nickname.isEmpty ? "(名前なし)" : view.nickname}'
           '${view.isSelf ? "（あなた）" : ""}',
         ),
         subtitle: Text('$roleLabel · $subtitle'),

@@ -21,20 +21,25 @@ abstract final class RoomDocFields {
   static const rulesVersion = 'rulesVersion'; // アプリ側ルールセットの整数
 }
 
-/// メンバー文書：`members/{uid}`。位置は低密度で十分。
+/// メンバー文書：`members/{uid}`。live 位置は置かず、接続状態だけを軽く同期する。
 abstract final class MemberPresenceFields {
   static const nickname = 'nickname';
+
   /// 'runner'|'oni'|'spectator'
   static const role = 'role';
 
-  /// 最後にサーバへ届いた生のGPS（許容するときだけ）
+  /// reveal / event 系コレクションでのみ使う予定。members には保存しない。
   static const lastLat = 'lat';
   static const lastLng = 'lng';
+
   /// クライアントが付けた送信時のUTCタイムスタンプ（ISOまたはms）
   static const reportedAtUtc = 'reportedAtUtc';
 
   /// 近傍「帯」（例: zone_0〜3）。BLE側と合わせると転送コスト最小。
   static const proximityBand = 'proximityBand'; // optional
+
+  /// live 位置は原則 members に載せない。reveal/event 経由だけに寄せるための明示フラグ。
+  static const locationVisibility = 'locationVisibility'; // 'hidden'
 
   /// クライアントがセッション開始時のみ送る細かいログを貯めず、イベントとして送りたい場合
   static const lastEventHint = 'lastEventHint';
