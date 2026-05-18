@@ -42,6 +42,15 @@ class GameConfig {
   static const int fakeSkillCooldownSeconds = 45;
   static const int fakeSkillDurationSeconds = 14;
 
+  static const int werewolfHunterDurationSeconds = 20;
+  static const int werewolfHunterCooldownSeconds = 60;
+  static const double captureZoneRadiusMeters = 55;
+  static const int captureZoneDurationSeconds = 16;
+  static const int captureZoneCooldownSeconds = 50;
+  static const double bodyThrowDistanceMeters = 90;
+  static const int bodyThrowDurationSeconds = 12;
+  static const int bodyThrowCooldownSeconds = 45;
+
   // Phase 2.5: infection and trace
   static const double infectionTriggerDistanceMeters = 38;
   static const int infectionExposureSeconds = 6;

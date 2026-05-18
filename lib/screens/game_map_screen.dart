@@ -51,6 +51,15 @@ class GameMapScreen extends StatefulWidget {
   State<GameMapScreen> createState() => _GameMapScreenState();
 }
 
+enum PlayerRole {
+  runner('runner'),
+  hunter('hunter'),
+  werewolf('werewolf');
+
+  const PlayerRole(this.label);
+  final String label;
+}
+
 class _GeneratedGimmicks {
   const _GeneratedGimmicks({
     required this.safeZones,
@@ -286,6 +295,15 @@ class _GameMapScreenState extends State<GameMapScreen>
   DateTime? _fakePositionEndsAt;
   DateTime? _lastFakeSkillAt;
   LatLng? _fakePositionLatLng;
+  PlayerRole _localRole = PlayerRole.runner;
+  DateTime? _werewolfHunterEndsAt;
+  DateTime? _lastWerewolfSkillAt;
+  LatLng? _captureZoneCenter;
+  DateTime? _captureZoneEndsAt;
+  DateTime? _lastCaptureZoneAt;
+  LatLng? _bodyThrowPosition;
+  DateTime? _bodyThrowEndsAt;
+  DateTime? _lastBodyThrowAt;
   int _infectionExposureSeconds = 0;
   DateTime? _infectionEndsAt;
   DateTime? _lastInfectionRevealAt;
@@ -648,9 +666,15 @@ class _GameMapScreenState extends State<GameMapScreen>
   LatLng get _playerMarkerPosition =>
       _runnerSmooth?.display ?? _currentPosition;
   LatLng get _positionForReveal =>
-      _fakePositionActive && _fakePositionLatLng != null
-      ? _fakePositionLatLng!
-      : _currentPosition;
+      _bodyThrowPosition ??
+      (_fakePositionActive && _fakePositionLatLng != null
+          ? _fakePositionLatLng!
+          : _currentPosition);
+
+  bool get _isHunterNow =>
+      _localRole == PlayerRole.hunter ||
+      (_werewolfHunterEndsAt != null &&
+          DateTime.now().isBefore(_werewolfHunterEndsAt!));
 
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
@@ -799,6 +823,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       _fakePositionEndsAt = null;
       _lastFakeSkillAt = null;
       _fakePositionLatLng = null;
+      _werewolfHunterEndsAt = null;
+      _captureZoneCenter = null;
+      _captureZoneEndsAt = null;
+      _bodyThrowPosition = null;
+      _bodyThrowEndsAt = null;
       _infectionExposureSeconds = 0;
       _infectionEndsAt = null;
       _lastInfectionRevealAt = null;
@@ -855,6 +884,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       _fakePositionActive = false;
       _fakePositionEndsAt = null;
       _fakePositionLatLng = null;
+      _werewolfHunterEndsAt = null;
+      _captureZoneCenter = null;
+      _captureZoneEndsAt = null;
+      _bodyThrowPosition = null;
+      _bodyThrowEndsAt = null;
       _infectionExposureSeconds = 0;
       _infectionEndsAt = null;
       _lastInfectionRevealAt = null;
@@ -976,6 +1010,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     _refreshPointRespawns();
     _evaluateFakeSkillTimer();
+    _evaluateSkillTimers();
     _evaluateInfection(_effectiveInfectionDistance(distance));
     _evaluateCameraTriggers();
     _evaluateSafeZone();
@@ -1063,6 +1098,22 @@ class _GameMapScreenState extends State<GameMapScreen>
       position: _positionForReveal,
     );
     _retuneGpsIfNeeded();
+  }
+
+  void _emitLocationReveal({required String type, required String message}) {
+    _revealCount += 1;
+    final ev = LocationRevealEvent(
+      sequence: _revealCount,
+      timestamp: DateTime.now(),
+      position: _positionForReveal,
+      overflowMeters: 0,
+    );
+    setState(() {
+      _revealLog.insert(0, ev);
+      if (_revealLog.length > 50) _revealLog.removeLast();
+      _statusMessage = message;
+    });
+    _emitMatchEvent(type: type, message: message, position: _positionForReveal);
   }
 
   void _evaluateSafeZone() {
@@ -1209,12 +1260,47 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
+  void _evaluateSkillTimers() {
+    final now = DateTime.now();
+    if (_werewolfHunterEndsAt != null && now.isAfter(_werewolfHunterEndsAt!)) {
+      _werewolfHunterEndsAt = null;
+      _emitMatchEvent(
+        type: 'werewolf_hunter_end',
+        message: '人狼の一時鬼化が終了',
+        position: _currentPosition,
+      );
+    }
+    if (_captureZoneEndsAt != null && now.isAfter(_captureZoneEndsAt!)) {
+      _captureZoneCenter = null;
+      _captureZoneEndsAt = null;
+      _emitMatchEvent(
+        type: 'capture_zone_end',
+        message: '捕獲結界が終了',
+        position: _currentPosition,
+      );
+    }
+    if (_bodyThrowEndsAt != null && now.isAfter(_bodyThrowEndsAt!)) {
+      _emitLocationReveal(type: 'body_throw_miss', message: '体投げ未回収で位置暴露');
+      _bodyThrowPosition = null;
+      _bodyThrowEndsAt = null;
+    }
+  }
+
   bool get _isInfectedNow =>
       _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
 
   bool _isCaptureTriggered(double gpsDistance) {
     if (_gameState != GameState.running) return false;
-    if (!_testMode && !_remoteOniKnown) return false;
+    if (!_testMode && !_remoteOniKnown && !_isHunterNow) return false;
+    if (_captureZoneCenter != null) {
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        _captureZoneCenter!.latitude,
+        _captureZoneCenter!.longitude,
+      );
+      if (d <= GameConfig.captureZoneRadiusMeters) return true;
+    }
     if (_latestProximityBand == ProximityBand.contact) return true;
     final bonus = _latestProximityBand == ProximityBand.near ? 14.0 : 0.0;
     return gpsDistance <= (GameConfig.captureDistanceMeters + bonus);
@@ -1329,6 +1415,75 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() {
       _statusMessage = '偽位置スキル発動（短時間）';
     });
+  }
+
+  void _activateWerewolfHunter() {
+    if (_gameState != GameState.running || _localRole != PlayerRole.werewolf) {
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastWerewolfSkillAt != null &&
+        now.difference(_lastWerewolfSkillAt!).inSeconds <
+            GameConfig.werewolfHunterCooldownSeconds) {
+      return;
+    }
+    _lastWerewolfSkillAt = now;
+    _werewolfHunterEndsAt = now.add(
+      const Duration(seconds: GameConfig.werewolfHunterDurationSeconds),
+    );
+    _emitMatchEvent(
+      type: 'werewolf_hunter_start',
+      message: '人狼が一時的に鬼化',
+      position: _currentPosition,
+    );
+    setState(() => _statusMessage = '一時鬼化中');
+  }
+
+  void _activateCaptureZone() {
+    if (_gameState != GameState.running) return;
+    final now = DateTime.now();
+    if (_lastCaptureZoneAt != null &&
+        now.difference(_lastCaptureZoneAt!).inSeconds <
+            GameConfig.captureZoneCooldownSeconds) {
+      return;
+    }
+    _lastCaptureZoneAt = now;
+    _captureZoneCenter = _currentPosition;
+    _captureZoneEndsAt = now.add(
+      const Duration(seconds: GameConfig.captureZoneDurationSeconds),
+    );
+    _emitMatchEvent(
+      type: 'capture_zone_start',
+      message: '捕獲結界を展開',
+      position: _captureZoneCenter!,
+    );
+    setState(() => _statusMessage = '捕獲結界を展開しました');
+  }
+
+  void _activateBodyThrow() {
+    if (_gameState != GameState.running) return;
+    final now = DateTime.now();
+    if (_lastBodyThrowAt != null &&
+        now.difference(_lastBodyThrowAt!).inSeconds <
+            GameConfig.bodyThrowCooldownSeconds) {
+      return;
+    }
+    _lastBodyThrowAt = now;
+    _bodyThrowPosition = LatLng(
+      _currentPosition.latitude,
+      _currentPosition.longitude +
+          GameConfig.bodyThrowDistanceMeters /
+              (111111 * math.cos(_currentPosition.latitude * math.pi / 180)),
+    );
+    _bodyThrowEndsAt = now.add(
+      const Duration(seconds: GameConfig.bodyThrowDurationSeconds),
+    );
+    _emitMatchEvent(
+      type: 'body_throw_start',
+      message: '体投げ発動',
+      position: _bodyThrowPosition!,
+    );
+    setState(() => _statusMessage = '体投げ発動中');
   }
 
   void _emitMatchEvent({
@@ -1846,6 +2001,18 @@ class _GameMapScreenState extends State<GameMapScreen>
         ),
       );
     }
+    if (_bodyThrowPosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('body_throw_position'),
+          position: _bodyThrowPosition!,
+          infoWindow: const InfoWindow(title: '体投げ', snippet: '判定位置'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+        ),
+      );
+    }
 
     if (_afterCatchRule != null) {
       final rough = _buildGhostRoughPositions();
@@ -1983,6 +2150,16 @@ class _GameMapScreenState extends State<GameMapScreen>
           strokeColor: Colors.cyan.shade700,
           zIndex: 2,
         ),
+      if (_captureZoneCenter != null)
+        Circle(
+          circleId: const CircleId('capture-zone'),
+          center: _captureZoneCenter!,
+          radius: GameConfig.captureZoneRadiusMeters,
+          strokeWidth: 3,
+          fillColor: Colors.red.withValues(alpha: 0.16),
+          strokeColor: Colors.red.shade700,
+          zIndex: 12,
+        ),
     };
 
     if (_playArea.type == PlayAreaType.circle && !_editingArea) {
@@ -2080,6 +2257,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     OniIntelMode selectedIntel = _oniIntelMode;
     bool selectedConsent = _trajectoryConsent;
     EliminationAftermathRule selectedElimination = _eliminationAftermathRule;
+    PlayerRole selectedRole = _localRole;
     final prefs0 = await SharedPreferences.getInstance();
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -2170,6 +2348,27 @@ class _GameMapScreenState extends State<GameMapScreen>
                           onChanged: (v) {
                             if (v == null) return;
                             setModalState(() => selectedIntel = v);
+                          },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        DropdownButtonFormField<PlayerRole>(
+                          initialValue: selectedRole,
+                          decoration: const InputDecoration(
+                            labelText: 'ローカル役職',
+                          ),
+                          items: PlayerRole.values
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r,
+                                  child: Text(r.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setModalState(() => selectedRole = v);
                           },
                         ),
 
@@ -2550,6 +2749,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _activeProfile = selectedProfile;
       _oniIntelMode = selectedIntel;
       _eliminationAftermathRule = selectedElimination;
+      _localRole = selectedRole;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -2988,6 +3188,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                     onStart: _startGame,
                     onReset: _resetGame,
                     onFakeSkill: _activateFakeSkill,
+                    onWerewolfHunter: _activateWerewolfHunter,
+                    onCaptureZone: _activateCaptureZone,
+                    onBodyThrow: _activateBodyThrow,
                     onAbortVote: _requestAbortByVote,
                     onToggleAreaEdit: _toggleAreaEditor,
                     onToggleCollapsed: _toggleMenuCollapsed,
@@ -2999,6 +3202,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     canStartMatch: _gameState == GameState.waiting,
                     isEditing: _editingArea,
                     fakeSkillActive: _fakePositionActive,
+                    roleLabel: _isHunterNow ? 'hunter' : _localRole.label,
                     menuCollapsed: _menuCollapsed,
                     prepLobbyMapHidden:
                         _gameState == GameState.waiting && !showGameMap,
@@ -3435,6 +3639,9 @@ class _ControlPanel extends StatelessWidget {
     required this.onStart,
     required this.onReset,
     required this.onFakeSkill,
+    required this.onWerewolfHunter,
+    required this.onCaptureZone,
+    required this.onBodyThrow,
     required this.onAbortVote,
     required this.onToggleAreaEdit,
     required this.onToggleCollapsed,
@@ -3444,6 +3651,7 @@ class _ControlPanel extends StatelessWidget {
     required this.canStartMatch,
     required this.isEditing,
     required this.fakeSkillActive,
+    required this.roleLabel,
     required this.menuCollapsed,
     required this.prepLobbyMapHidden,
   });
@@ -3451,6 +3659,9 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onReset;
   final VoidCallback onFakeSkill;
+  final VoidCallback onWerewolfHunter;
+  final VoidCallback onCaptureZone;
+  final VoidCallback onBodyThrow;
   final VoidCallback onAbortVote;
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onToggleCollapsed;
@@ -3460,6 +3671,7 @@ class _ControlPanel extends StatelessWidget {
   final bool canStartMatch;
   final bool isEditing;
   final bool fakeSkillActive;
+  final String roleLabel;
   final bool menuCollapsed;
   final bool prepLobbyMapHidden;
 
@@ -3523,6 +3735,22 @@ class _ControlPanel extends StatelessWidget {
                         icon: const Icon(Icons.flare),
                         label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置スキル'),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: !isEditing ? onWerewolfHunter : null,
+                        icon: const Icon(Icons.nightlight),
+                        label: const Text('人狼鬼化'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: !isEditing ? onCaptureZone : null,
+                        icon: const Icon(Icons.trip_origin),
+                        label: const Text('捕獲結界'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: !isEditing ? onBodyThrow : null,
+                        icon: const Icon(Icons.near_me),
+                        label: const Text('体投げ'),
+                      ),
+                      Chip(label: Text('role: $roleLabel')),
                       OutlinedButton.icon(
                         onPressed: onAbortVote,
                         icon: const Icon(Icons.how_to_vote_outlined),
