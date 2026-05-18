@@ -114,7 +114,6 @@ class _GameMapScreenState extends State<GameMapScreen>
   int _safeZoneCharges = 0;
   DateTime? _lastSafeChargeAt;
   DateTime? _lastInfoBrokerAt;
-  DateTime? _lastPeriodicRevealAt;
   OniIntelMode _oniIntelMode = OniIntelMode.directionOnly;
   bool _safeZoneAvailable = true;
   bool _infoBrokerAvailable = true;
@@ -156,6 +155,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
+  bool _ownsRoomSession = false;
 
   /// オンラインで鬼役の位置が members に載っている。
   bool _remoteOniKnown = false;
@@ -313,6 +313,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _roomSession = LocalOnlyRoomSession();
       _remoteMembers = {};
       _remoteOniKnown = false;
+      _ownsRoomSession = false;
       _oniPosition = _defaultOniPosition;
     });
   }
@@ -321,7 +322,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     final fs = widget.onlineSession;
     if (fs == null || fs.roomId == null) return;
     if (!mounted) return;
-    setState(() => _roomSession = fs);
+    setState(() {
+      _roomSession = fs;
+      _ownsRoomSession = false;
+    });
     _bindRemoteMembers(fs);
     _statusMessage = 'ルーム ${fs.roomId} に接続済み';
   }
@@ -339,7 +343,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     final err = await fs.join(roomId: roomId, nickname: nickname, role: role);
     if (err != null) return err;
     if (!mounted) return '中断されました';
-    setState(() => _roomSession = fs);
+    setState(() {
+      _roomSession = fs;
+      _ownsRoomSession = true;
+    });
     _bindRemoteMembers(fs);
     return null;
   }
@@ -620,7 +627,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       _safeZoneCharges = 0;
       _lastSafeChargeAt = null;
       _lastInfoBrokerAt = null;
-      _lastPeriodicRevealAt = null;
       _safeZoneAvailable = true;
       _infoBrokerAvailable = true;
       _safeZoneRespawnAt = null;
@@ -672,7 +678,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       _safeZoneCharges = 0;
       _lastSafeChargeAt = null;
       _lastInfoBrokerAt = null;
-      _lastPeriodicRevealAt = null;
       _safeZoneAvailable = true;
       _infoBrokerAvailable = true;
       _safeZoneRespawnAt = null;
@@ -795,7 +800,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     _evaluateCameraTriggers();
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
-    _evaluatePeriodicReveal();
 
     if (_isCaptureTriggered(distance)) {
       _endGame(GameState.caughtByOni, '鬼に捕まりました。');
@@ -984,27 +988,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         _statusMessage = '情報屋が再出現しました';
       });
     }
-  }
-
-  void _evaluatePeriodicReveal() {
-    if (_elapsedSeconds <= 0 ||
-        _elapsedSeconds % GameConfig.periodicRevealIntervalSeconds != 0) {
-      return;
-    }
-    final now = DateTime.now();
-    if (_lastPeriodicRevealAt != null &&
-        now.difference(_lastPeriodicRevealAt!).inSeconds < 5) {
-      return;
-    }
-    _lastPeriodicRevealAt = now;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('定期暴露: いまの位置が短時間通知されました')));
-    _emitMatchEvent(
-      type: 'periodic_reveal',
-      message: '定期暴露',
-      position: _positionForReveal,
-    );
   }
 
   void _evaluateCameraTriggers() {
@@ -2412,6 +2395,23 @@ class _GameMapScreenState extends State<GameMapScreen>
     return tierBase + pulse;
   }
 
+  Future<void> _backToTitle() async {
+    _matchTimer?.cancel();
+    _remoteMembersSub?.cancel();
+    _remoteMembersSub = null;
+    if (_roomSession is FirestoreRoomSession) {
+      await (_roomSession as FirestoreRoomSession).disconnect();
+    }
+    if (!mounted) return;
+    setState(() {
+      _roomSession = LocalOnlyRoomSession();
+      _remoteMembers = {};
+      _remoteOniKnown = false;
+      _ownsRoomSession = false;
+    });
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   @override
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_onFrameTimings);
@@ -2423,7 +2423,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     _renderPump?.cancel();
     _dangerPulseController.dispose();
     _proximityService.stop();
-    _roomSession.disconnect();
+    if (_ownsRoomSession) {
+      unawaited(_roomSession.disconnect());
+    }
     _mapController?.dispose();
     super.dispose();
   }
@@ -2469,6 +2471,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         title: Text(appTitle),
         actions: [
           IconButton(
+            tooltip: 'タイトルへ戻る',
+            onPressed: _backToTitle,
+            icon: const Icon(Icons.home_outlined),
+          ),
+          IconButton(
             tooltip: 'ルームロビー',
             onPressed: () async {
               final fs = _roomSession is FirestoreRoomSession
@@ -2482,7 +2489,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                   );
               if (!mounted) return;
               if (returned != null && returned.roomId != null) {
-                setState(() => _roomSession = returned);
+                setState(() {
+                  _roomSession = returned;
+                  _ownsRoomSession = false;
+                });
                 _bindRemoteMembers(returned);
                 _statusMessage = 'ルーム ${returned.roomId} に接続済み';
               } else if (_roomSession is FirestoreRoomSession &&
@@ -2491,6 +2501,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   _roomSession = LocalOnlyRoomSession();
                   _remoteMembers = {};
                   _remoteOniKnown = false;
+                  _ownsRoomSession = false;
                 });
               }
             },
@@ -2606,7 +2617,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                     );
                 if (!mounted) return;
                 if (returned != null && returned.roomId != null) {
-                  setState(() => _roomSession = returned);
+                  setState(() {
+                    _roomSession = returned;
+                    _ownsRoomSession = false;
+                  });
                   _bindRemoteMembers(returned);
                   _statusMessage = 'ルーム ${returned.roomId} に接続済み';
                 }
@@ -2806,8 +2820,8 @@ class _GameMapScreenState extends State<GameMapScreen>
             )
           else
             Positioned(
-              right: 16,
-              bottom: _editingArea ? 220 : 28,
+              left: 16,
+              bottom: _editingArea ? 132 : 96,
               child: SafeArea(
                 child: FloatingActionButton.extended(
                   onPressed: () => setState(() => _prepControlSheetOpen = true),

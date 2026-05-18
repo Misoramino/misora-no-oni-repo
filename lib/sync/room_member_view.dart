@@ -20,6 +20,12 @@ class RoomMemberView {
 
   bool get hasHeartbeat => reportedAtUtc != null;
 
+  bool isStale(DateTime nowUtc) {
+    final at = reportedAtUtc;
+    if (at == null) return false;
+    return nowUtc.difference(at.toUtc()) > const Duration(minutes: 3);
+  }
+
   static RoomMemberView parse({
     required String uid,
     required Map<String, dynamic> data,

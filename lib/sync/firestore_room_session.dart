@@ -24,6 +24,8 @@ class FirestoreRoomSession implements RoomSessionPort {
   String? _uid;
   String? _nickname;
   String _role = 'runner';
+  Timer? _heartbeatTimer;
+  List<RoomMemberView> _latestLobby = const [];
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   final StreamController<Map<String, RemoteMemberSnapshot>> _remoteCtrl =
@@ -36,6 +38,8 @@ class FirestoreRoomSession implements RoomSessionPort {
 
   /// ルーム内の全メンバー（自分を含む）。ロビー UI 用。
   Stream<List<RoomMemberView>> get lobbyMembers => _lobbyCtrl.stream;
+  List<RoomMemberView> get currentLobbyMembers =>
+      List.unmodifiable(_latestLobby);
 
   String? get nickname => _nickname;
   String get role => _role;
@@ -80,8 +84,12 @@ class FirestoreRoomSession implements RoomSessionPort {
       await memberRef.set({
         MemberPresenceFields.nickname: _nickname,
         MemberPresenceFields.role: _role,
+        MemberPresenceFields.reportedAtUtc: DateTime.now()
+            .toUtc()
+            .toIso8601String(),
         MemberPresenceFields.locationVisibility: 'hidden',
       });
+      _startHeartbeat();
 
       await _membersSub?.cancel();
       _membersSub = _db
@@ -92,11 +100,16 @@ class FirestoreRoomSession implements RoomSessionPort {
           .listen((snap) {
             final out = <String, RemoteMemberSnapshot>{};
             final lobby = <RoomMemberView>[];
+            final now = DateTime.now().toUtc();
             for (final d in snap.docs) {
               final isSelf = d.id == _uid;
-              lobby.add(
-                RoomMemberView.parse(uid: d.id, data: d.data(), isSelf: isSelf),
+              final view = RoomMemberView.parse(
+                uid: d.id,
+                data: d.data(),
+                isSelf: isSelf,
               );
+              if (!isSelf && view.isStale(now)) continue;
+              lobby.add(view);
               final remote = RemoteMemberSnapshot.tryParse(d.id, d.data());
               if (!isSelf && remote != null) out[d.id] = remote;
             }
@@ -108,8 +121,9 @@ class FirestoreRoomSession implements RoomSessionPort {
               if (br == 'oni' && ar != 'oni') return 1;
               return a.nickname.compareTo(b.nickname);
             });
+            _latestLobby = List.unmodifiable(lobby);
             if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
-            if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(lobby);
+            if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(_latestLobby);
           });
       return null;
     } on FirebaseAuthException catch (e) {
@@ -147,10 +161,20 @@ class FirestoreRoomSession implements RoomSessionPort {
     await ref.set(payload);
   }
 
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      unawaited(publishPresence(tension: false));
+    });
+  }
+
   @override
   Future<void> disconnect() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     await _membersSub?.cancel();
     _membersSub = null;
+    _latestLobby = const [];
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add([]);
     final rid = _roomId;
     final uid = _uid;

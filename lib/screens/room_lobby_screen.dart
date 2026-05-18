@@ -54,6 +54,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 
   void _bindLobby(FirestoreRoomSession session) {
     _lobbySub?.cancel();
+    final cached = session.currentLobbyMembers;
+    if (mounted) {
+      setState(() => _members = cached);
+    } else {
+      _members = cached;
+    }
     _lobbySub = session.lobbyMembers.listen((list) {
       if (!mounted) return;
       setState(() => _members = list);
@@ -145,7 +151,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
           children: [
             Text(
               'ルームに参加すると、同じルームIDの端末が一覧に表示されます。'
-              '本番プレイでは鬼の位置はオンライン同期されたメンバーから取得します。',
+              '位置は標準では秘匿され、スキルやイベントでのみ公開されます。',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -246,7 +252,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
             else if (_members.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: Text('メンバー同期中です。表示されない場合は再参加してください。')),
               )
             else
               ..._members.map((v) => _MemberTile(view: v)),
