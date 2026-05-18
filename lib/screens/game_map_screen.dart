@@ -60,6 +60,49 @@ enum PlayerRole {
   final String label;
 }
 
+extension PlayerRoleUi on PlayerRole {
+  String get displayName => switch (this) {
+    PlayerRole.runner => '逃走者',
+    PlayerRole.hunter => '鬼',
+    PlayerRole.werewolf => '人狼',
+  };
+}
+
+const _assignableRoles = [
+  PlayerRole.runner,
+  PlayerRole.hunter,
+  PlayerRole.werewolf,
+];
+
+abstract final class SkillIds {
+  static const fakePosition = 'fake_position';
+  static const fakeIntelReveal = 'fake_intel_reveal';
+  static const captureZone = 'capture_zone';
+  static const bodyThrow = 'body_throw';
+  static const werewolfTransform = 'werewolf_transform';
+}
+
+String _skillLabel(String id) => switch (id) {
+  SkillIds.fakePosition => '偽位置',
+  SkillIds.fakeIntelReveal => '偽情報暴露',
+  SkillIds.captureZone => '捕獲結界',
+  SkillIds.bodyThrow => '体投げ',
+  SkillIds.werewolfTransform => '鬼化',
+  _ => id,
+};
+
+class _OniIntelTrace {
+  const _OniIntelTrace({
+    required this.timestamp,
+    required this.position,
+    required this.text,
+  });
+
+  final DateTime timestamp;
+  final LatLng position;
+  final String text;
+}
+
 class _GeneratedGimmicks {
   const _GeneratedGimmicks({
     required this.safeZones,
@@ -86,11 +129,10 @@ class _GeneratedGimmicks {
       GameConfig.infoBrokerMinCount,
       GameConfig.infoBrokerMaxCount,
     );
-    final cameraCount = _scaledCount(
-      radius,
-      GameConfig.cameraMinCount,
-      GameConfig.cameraMaxCount,
-    );
+    final cameraCount =
+        (GameConfig.cameraMinCount + ((radius - 250) / 180).floor())
+            .clamp(GameConfig.cameraMinCount, GameConfig.cameraMaxCount)
+            .toInt();
     final eventCount = _scaledCount(
       radius,
       GameConfig.commJammingZoneMinCount,
@@ -103,8 +145,10 @@ class _GeneratedGimmicks {
       required int count,
       required double angleSeed,
       required double radiusFactor,
+      double? minGapOverride,
     }) {
       final out = <LatLng>[];
+      final gap = minGapOverride ?? minGap;
       for (var i = 0; i < count; i++) {
         final angle = angleSeed + i * (360 / math.max(1, count));
         final dist = radius * (radiusFactor + 0.08 * (i % 2));
@@ -114,7 +158,7 @@ class _GeneratedGimmicks {
           angleDegrees: angle,
           distanceMeters: dist,
           avoid: used,
-          minGapMeters: minGap,
+          minGapMeters: gap,
         );
         out.add(p);
         used.add(p);
@@ -129,13 +173,18 @@ class _GeneratedGimmicks {
         angleSeed: 150,
         radiusFactor: 0.58,
       ),
-      cameras: group(count: cameraCount, angleSeed: 245, radiusFactor: 0.72),
+      cameras: group(
+        count: cameraCount,
+        angleSeed: 245,
+        radiusFactor: 0.68,
+        minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
+      ),
       eventAreas: group(count: eventCount, angleSeed: 315, radiusFactor: 0.50),
     );
   }
 
   static int _scaledCount(double radius, int min, int max) {
-    final extra = ((radius - 300) / 450).floor();
+    final extra = ((radius - 240) / 320).round();
     return (min + extra).clamp(min, max).toInt();
   }
 
@@ -281,6 +330,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   int _safeZoneCharges = 0;
   DateTime? _lastSafeChargeAt;
   DateTime? _lastInfoBrokerAt;
+  String? _lastOniIntelText;
+  DateTime? _lastOniIntelAt;
+  bool _showOniIntelCard = true;
+  final List<_OniIntelTrace> _oniIntelTraces = [];
   OniIntelMode _oniIntelMode = OniIntelMode.directionOnly;
   bool _safeZoneAvailable = true;
   bool _infoBrokerAvailable = true;
@@ -298,12 +351,18 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _customRuleMode = false;
   int _matchDurationSeconds = GameConfig.matchDurationSeconds;
   PlayerRole _localRole = PlayerRole.runner;
-  Set<String> _skillLoadout = const {'fake', 'capture_zone', 'body_throw'};
-  DateTime? _werewolfHunterEndsAt;
-  DateTime? _lastWerewolfSkillAt;
+  Set<String> _skillLoadout = const {SkillIds.fakePosition};
+  DateTime? _werewolfTransformEndsAt;
+  DateTime? _lastWerewolfTransformAt;
   LatLng? _captureZoneCenter;
   DateTime? _captureZoneEndsAt;
   DateTime? _lastCaptureZoneAt;
+  bool _waitingCaptureZoneTap = false;
+  Set<String> _captureZoneBoundIds = const {};
+  DateTime? _captureZoneTargetLeftAt;
+  bool _captureZoneEscapeRevealed = false;
+  DateTime? _touchLockStartedAt;
+  bool _touchLockNoticeShown = false;
   LatLng? _bodyThrowPosition;
   DateTime? _bodyThrowEndsAt;
   DateTime? _lastBodyThrowAt;
@@ -313,12 +372,14 @@ class _GameMapScreenState extends State<GameMapScreen>
   final List<LatLng> _tracePoints = [];
 
   MatchRecorder? _matchRecorder;
+  Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
   bool _menuCollapsed = false;
 
   /// 準備・試合結果中は操作パネルを隠し、FAB「操作」で開く。
   bool _prepControlSheetOpen = false;
+  Offset? _controlFabOffset;
   bool _testMode = false;
   int _timeScale = 1;
   final List<String> _debugLogs = [];
@@ -676,8 +737,8 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   bool get _isHunterNow =>
       _localRole == PlayerRole.hunter ||
-      (_werewolfHunterEndsAt != null &&
-          DateTime.now().isBefore(_werewolfHunterEndsAt!));
+      (_werewolfTransformEndsAt != null &&
+          DateTime.now().isBefore(_werewolfTransformEndsAt!));
 
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
@@ -818,6 +879,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       _safeZoneCharges = 0;
       _lastSafeChargeAt = null;
       _lastInfoBrokerAt = null;
+      _lastOniIntelText = null;
+      _lastOniIntelAt = null;
+      _showOniIntelCard = true;
+      _oniIntelTraces.clear();
       _safeZoneAvailable = true;
       _infoBrokerAvailable = true;
       _safeZoneRespawnAt = null;
@@ -827,9 +892,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       _fakePositionEndsAt = null;
       _lastFakeSkillAt = null;
       _fakePositionLatLng = null;
-      _werewolfHunterEndsAt = null;
+      _werewolfTransformEndsAt = null;
+      _lastWerewolfTransformAt = null;
       _captureZoneCenter = null;
       _captureZoneEndsAt = null;
+      _waitingCaptureZoneTap = false;
+      _captureZoneBoundIds = const {};
+      _captureZoneTargetLeftAt = null;
+      _captureZoneEscapeRevealed = false;
+      _touchLockStartedAt = null;
+      _touchLockNoticeShown = false;
       _bodyThrowPosition = null;
       _bodyThrowEndsAt = null;
       _infectionExposureSeconds = 0;
@@ -843,6 +915,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           'ギミック生成: 安全地帯${_safeZonePositions.length} / 情報屋${_infoBrokerPositions.length} / 監視カメラ${_cameraPositions.length} / イベントエリア${_commJammingZonePositions.length}',
       position: _playAreaAnchor,
     );
+    _showRoleSkillDialog();
     _logDebug('match_start scale=${_timeScale}x');
     HapticFeedback.selectionClick();
     SystemSound.play(SystemSoundType.click);
@@ -865,6 +938,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _matchTimer?.cancel();
     _matchRecorder?.discard();
     _matchRecorder = null;
+    _finalizeRecordingFuture = null;
     _retuneGpsIfNeeded();
     setState(() {
       _gameState = GameState.waiting;
@@ -880,6 +954,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       _safeZoneCharges = 0;
       _lastSafeChargeAt = null;
       _lastInfoBrokerAt = null;
+      _lastOniIntelText = null;
+      _lastOniIntelAt = null;
+      _showOniIntelCard = true;
+      _oniIntelTraces.clear();
       _safeZoneAvailable = true;
       _infoBrokerAvailable = true;
       _safeZoneRespawnAt = null;
@@ -888,9 +966,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       _fakePositionActive = false;
       _fakePositionEndsAt = null;
       _fakePositionLatLng = null;
-      _werewolfHunterEndsAt = null;
+      _werewolfTransformEndsAt = null;
+      _lastWerewolfTransformAt = null;
       _captureZoneCenter = null;
       _captureZoneEndsAt = null;
+      _waitingCaptureZoneTap = false;
+      _captureZoneBoundIds = const {};
+      _captureZoneTargetLeftAt = null;
+      _captureZoneEscapeRevealed = false;
+      _touchLockStartedAt = null;
+      _touchLockNoticeShown = false;
       _bodyThrowPosition = null;
       _bodyThrowEndsAt = null;
       _infectionExposureSeconds = 0;
@@ -902,20 +987,59 @@ class _GameMapScreenState extends State<GameMapScreen>
     _logDebug('match_reset');
   }
 
+  void _showRoleSkillDialog() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _gameState != GameState.running) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('あなたの役職 / スキル'),
+          content: Text(
+            '役職: ${_localRole.displayName}\n'
+            'スキル: ${_skillLoadout.map(_skillLabel).join(" / ")}',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   void _assignDefaultSetupIfNeeded() {
     if (_customRuleMode) return;
     final seed = DateTime.now().millisecondsSinceEpoch;
     final rnd = math.Random(seed);
-    final roles = PlayerRole.values;
-    final skills = ['fake', 'capture_zone', 'body_throw'];
-    skills.shuffle(rnd);
+    const roles = _assignableRoles;
     _localRole = roles[rnd.nextInt(roles.length)];
-    _skillLoadout = skills.take(2).toSet();
+    _skillLoadout = _randomSkillsFor(_localRole, rnd);
     _oniIntelMode =
         OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
     _eliminationAftermathRule = EliminationAftermathRule
         .values[rnd.nextInt(EliminationAftermathRule.values.length)];
   }
+
+  Set<String> _randomSkillsFor(PlayerRole role, math.Random rnd) {
+    final list = _skillCandidates(role).toList()..shuffle(rnd);
+    return list.take(role == PlayerRole.hunter ? 2 : 1).toSet();
+  }
+
+  List<String> _skillCandidates(PlayerRole role) => switch (role) {
+    PlayerRole.runner => const [
+      SkillIds.fakePosition,
+      SkillIds.bodyThrow,
+      SkillIds.captureZone,
+    ],
+    PlayerRole.hunter => const [
+      SkillIds.fakeIntelReveal,
+      SkillIds.captureZone,
+      SkillIds.bodyThrow,
+    ],
+    PlayerRole.werewolf => const [SkillIds.werewolfTransform],
+  };
 
   LatLng get _playAreaAnchor {
     switch (_playArea.type) {
@@ -1018,7 +1142,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     SystemSound.play(SystemSoundType.alert);
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
-    Future<void>.microtask(() => _finalizeMatchRecording(outcome));
+    _finalizeRecordingFuture = Future<void>.microtask(
+      () => _finalizeMatchRecording(outcome),
+    );
   }
 
   void _evaluateGame() {
@@ -1034,9 +1160,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     _evaluateCameraTriggers();
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
+    _evaluateScaledTouchLock(distance);
 
-    if (_isCaptureTriggered(distance)) {
-      _endGame(GameState.caughtByOni, '鬼に捕まりました。');
+    if (_isCaptureTriggered()) {
+      _endGame(GameState.caughtByOni, 'BLE接近で接触判定。鬼に捕まりました。');
       HapticFeedback.heavyImpact();
       return;
     }
@@ -1072,12 +1199,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
 
     _maybeTriggerDangerFeedback(distance);
-    _updateDangerPulse(distance);
+    _updateDangerPulse();
   }
 
-  void _updateDangerPulse(double distanceToOni) {
+  void _updateDangerPulse() {
     final shouldPulse =
-        distanceToOni <= GameConfig.warningDistanceMeters || _isInfectedNow;
+        _touchLockNoticeShown ||
+        _captureZoneBoundIds.contains('self') ||
+        _isInfectedNow;
     if (shouldPulse) {
       if (!_dangerPulseController.isAnimating) {
         _dangerPulseController.repeat(reverse: true);
@@ -1093,11 +1222,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _triggerLocationReveal(double overflowMeters) {
     _revealedInCurrentOutside = true;
     _revealCount += 1;
+    final playerLabel = _localPlayerLabel;
     final ev = LocationRevealEvent(
       sequence: _revealCount,
       timestamp: DateTime.now(),
       position: _positionForReveal,
       overflowMeters: overflowMeters,
+      playerLabel: playerLabel,
     );
     setState(() {
       _revealLog.insert(0, ev);
@@ -1105,11 +1236,15 @@ class _GameMapScreenState extends State<GameMapScreen>
         _revealLog.removeLast();
       }
       _statusMessage =
-          '位置暴露 #$_revealCount: エリア外 ${overflowMeters.toStringAsFixed(0)}m';
+          '$playerLabel の位置暴露 #$_revealCount: ${_formatLatLng(_positionForReveal)}';
     });
     HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('位置暴露: 全員に現在位置が通知されました（$_revealCount回目）')),
+      SnackBar(
+        content: Text(
+          '位置暴露: $playerLabel / ${_formatLatLng(_positionForReveal)}（数分だけ地図表示）',
+        ),
+      ),
     );
     _emitMatchEvent(
       type: 'area_reveal',
@@ -1121,11 +1256,13 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _emitLocationReveal({required String type, required String message}) {
     _revealCount += 1;
+    final playerLabel = _localPlayerLabel;
     final ev = LocationRevealEvent(
       sequence: _revealCount,
       timestamp: DateTime.now(),
       position: _positionForReveal,
       overflowMeters: 0,
+      playerLabel: playerLabel,
     );
     setState(() {
       _revealLog.insert(0, ev);
@@ -1139,46 +1276,59 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!_safeZoneAvailable) return;
     if (_safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
     final now = DateTime.now();
-    final hit = _firstPointWithin(
+    final hitIndex = _firstPointWithinIndex(
       _safeZonePositions,
       GameConfig.safeZoneRadiusMeters,
     );
-    if (hit == null) return;
+    if (hitIndex == null) return;
+    final hit = _safeZonePositions[hitIndex];
     if (_lastSafeChargeAt != null &&
         now.difference(_lastSafeChargeAt!).inSeconds <
             GameConfig.safeZoneChargeCooldownSeconds) {
       return;
     }
-    _lastSafeChargeAt = now;
-    _safeZoneCharges += 1;
-    _safeZoneAvailable = false;
-    _safeZoneRespawnAt = now.add(
-      const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
+    final nextSafeZone = _relocatedGimmickPoint(
+      avoid: [
+        ..._safeZonePositions,
+        ..._infoBrokerPositions,
+        ..._cameraPositions,
+        ..._commJammingZonePositions,
+      ],
+      angleSeed: 35 + _elapsedSeconds * 7 + hitIndex * 53,
+      radiusFactor: 0.44,
     );
     setState(() {
-      _statusMessage = '安全地帯でステルスチャージを獲得（$_safeZoneCharges）';
+      _lastSafeChargeAt = now;
+      _safeZoneCharges += 1;
+      _refreshSkillCooldownsFromSafeZone();
+      _safeZonePositions[hitIndex] = nextSafeZone;
+      _safeZoneAvailable = false;
+      _safeZoneRespawnAt = now.add(
+        const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
+      );
+      _statusMessage = '安全地帯: ステルス獲得 + スキル再使用可能（移動中）';
     });
-    _emitMatchEvent(type: 'safe_charge', message: '安全地帯でチャージ獲得', position: hit);
+    _emitMatchEvent(
+      type: 'safe_charge',
+      message: '安全地帯でチャージ獲得・スキル再使用可能・安全地帯移動',
+      position: hit,
+    );
   }
 
   void _evaluateInfoBroker(double distanceToOni) {
     if (!_infoBrokerAvailable) return;
     final now = DateTime.now();
-    final hit = _firstPointWithin(
+    final hitIndex = _firstPointWithinIndex(
       _infoBrokerPositions,
       GameConfig.infoBrokerRadiusMeters,
     );
-    if (hit == null) return;
+    if (hitIndex == null) return;
+    final hit = _infoBrokerPositions[hitIndex];
     if (_lastInfoBrokerAt != null &&
         now.difference(_lastInfoBrokerAt!).inSeconds <
             GameConfig.infoBrokerCooldownSeconds) {
       return;
     }
-    _lastInfoBrokerAt = now;
-    _infoBrokerAvailable = false;
-    _infoBrokerRespawnAt = now.add(
-      const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-    );
     final bearing = Geolocator.bearingBetween(
       _currentPosition.latitude,
       _currentPosition.longitude,
@@ -1196,7 +1346,33 @@ class _GameMapScreenState extends State<GameMapScreen>
       distanceBand: distBand,
       bearingDegrees: bearing,
     );
+    final nextInfoBroker = _relocatedGimmickPoint(
+      avoid: [
+        ..._safeZonePositions,
+        ..._infoBrokerPositions,
+        ..._cameraPositions,
+        ..._commJammingZonePositions,
+      ],
+      angleSeed: 150 + _elapsedSeconds * 11 + hitIndex * 71,
+      radiusFactor: 0.58,
+    );
     setState(() {
+      _lastInfoBrokerAt = now;
+      _infoBrokerAvailable = false;
+      _infoBrokerRespawnAt = now.add(
+        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
+      );
+      _lastOniIntelText = intel;
+      _lastOniIntelAt = now;
+      _showOniIntelCard = true;
+      _oniIntelTraces.insert(
+        0,
+        _OniIntelTrace(timestamp: now, position: _oniPosition, text: intel),
+      );
+      if (_oniIntelTraces.length > 20) {
+        _oniIntelTraces.removeLast();
+      }
+      _infoBrokerPositions[hitIndex] = nextInfoBroker;
       _statusMessage = '情報屋: $intel';
     });
     _emitMatchEvent(
@@ -1207,16 +1383,58 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   LatLng? _firstPointWithin(List<LatLng> points, double radiusMeters) {
-    for (final p in points) {
+    final index = _firstPointWithinIndex(points, radiusMeters);
+    return index == null ? null : points[index];
+  }
+
+  int? _firstPointWithinIndex(List<LatLng> points, double radiusMeters) {
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
       final d = Geolocator.distanceBetween(
         _currentPosition.latitude,
         _currentPosition.longitude,
         p.latitude,
         p.longitude,
       );
-      if (d <= radiusMeters) return p;
+      if (d <= radiusMeters) return i;
     }
     return null;
+  }
+
+  LatLng _relocatedGimmickPoint({
+    required List<LatLng> avoid,
+    required double angleSeed,
+    required double radiusFactor,
+  }) {
+    final center = _GeneratedGimmicks._centerOf(_playArea);
+    final radius = _GeneratedGimmicks._effectiveRadiusMeters(
+      _playArea,
+      center,
+    ).clamp(180.0, 2400.0);
+    final minGap = (radius * 0.16).clamp(45.0, 160.0);
+    return _GeneratedGimmicks._pointInArea(
+      area: _playArea,
+      center: center,
+      angleDegrees: angleSeed % 360,
+      distanceMeters: radius * radiusFactor,
+      avoid: avoid,
+      minGapMeters: minGap,
+    );
+  }
+
+  void _refreshSkillCooldownsFromSafeZone() {
+    if (_skillLoadout.contains(SkillIds.fakePosition)) {
+      _lastFakeSkillAt = null;
+    }
+    if (_skillLoadout.contains(SkillIds.werewolfTransform)) {
+      _lastWerewolfTransformAt = null;
+    }
+    if (_skillLoadout.contains(SkillIds.captureZone)) {
+      _lastCaptureZoneAt = null;
+    }
+    if (_skillLoadout.contains(SkillIds.bodyThrow)) {
+      _lastBodyThrowAt = null;
+    }
   }
 
   void _refreshPointRespawns() {
@@ -1281,10 +1499,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _evaluateSkillTimers() {
     final now = DateTime.now();
-    if (_werewolfHunterEndsAt != null && now.isAfter(_werewolfHunterEndsAt!)) {
-      _werewolfHunterEndsAt = null;
+    if (_werewolfTransformEndsAt != null &&
+        now.isAfter(_werewolfTransformEndsAt!)) {
+      _werewolfTransformEndsAt = null;
       _emitMatchEvent(
-        type: 'werewolf_hunter_end',
+        type: 'werewolf_transform_end',
         message: '人狼の一時鬼化が終了',
         position: _currentPosition,
       );
@@ -1292,11 +1511,37 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_captureZoneEndsAt != null && now.isAfter(_captureZoneEndsAt!)) {
       _captureZoneCenter = null;
       _captureZoneEndsAt = null;
+      _captureZoneBoundIds = const {};
+      _captureZoneTargetLeftAt = null;
+      _captureZoneEscapeRevealed = false;
       _emitMatchEvent(
         type: 'capture_zone_end',
         message: '捕獲結界が終了',
         position: _currentPosition,
       );
+    }
+    if (_captureZoneCenter != null && _captureZoneBoundIds.contains('self')) {
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        _captureZoneCenter!.latitude,
+        _captureZoneCenter!.longitude,
+      );
+      if (d > GameConfig.captureZoneRadiusMeters) {
+        _captureZoneTargetLeftAt ??= now;
+        if (now.difference(_captureZoneTargetLeftAt!).inSeconds >= 8) {
+          _endGame(GameState.caughtByOni, '捕獲結界から長時間離脱しました。');
+        } else if (!_captureZoneEscapeRevealed) {
+          _captureZoneEscapeRevealed = true;
+          _emitLocationReveal(
+            type: 'capture_zone_escape',
+            message: '捕獲結界から離脱して位置暴露',
+          );
+        }
+      } else {
+        _captureZoneTargetLeftAt = null;
+        _captureZoneEscapeRevealed = false;
+      }
     }
     if (_bodyThrowEndsAt != null && now.isAfter(_bodyThrowEndsAt!)) {
       _emitLocationReveal(type: 'body_throw_miss', message: '体投げ未回収で位置暴露');
@@ -1308,21 +1553,99 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool get _isInfectedNow =>
       _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
 
-  bool _isCaptureTriggered(double gpsDistance) {
+  void _evaluateScaledTouchLock(double gpsDistance) {
+    if (_gameState != GameState.running) return;
+    if (!_testMode && !_remoteOniKnown && !_isHunterNow) return;
+    if (_captureZoneBoundIds.contains('self')) return;
+
+    final radius = _scaledTouchRadiusMeters();
+    final now = DateTime.now();
+    if (gpsDistance > radius) {
+      _touchLockStartedAt = null;
+      _touchLockNoticeShown = false;
+      return;
+    }
+
+    _touchLockStartedAt ??= now;
+    final heldSeconds = now.difference(_touchLockStartedAt!).inSeconds;
+    if (!_touchLockNoticeShown &&
+        heldSeconds >= GameConfig.touchLockRunnerNoticeSeconds) {
+      _touchLockNoticeShown = true;
+      setState(() {
+        _statusMessage = '鬼の接触圏に入りました。離脱してください。';
+      });
+    }
+
+    if (heldSeconds < GameConfig.touchLockRequiredSeconds) return;
+
+    setState(() {
+      _captureZoneCenter = _currentPosition;
+      _captureZoneBoundIds = const {'self'};
+      _captureZoneTargetLeftAt = null;
+      _captureZoneEscapeRevealed = false;
+      _captureZoneEndsAt = now.add(
+        const Duration(seconds: GameConfig.touchLockDurationSeconds),
+      );
+      _touchLockStartedAt = null;
+      _touchLockNoticeShown = false;
+      _statusMessage = '鬼に捕捉され、移動範囲が制限されました。BLE接触で捕獲。';
+    });
+    _emitMatchEvent(
+      type: 'touch_lock_start',
+      message: 'エリア連動タッチ範囲 ${radius.toStringAsFixed(0)}m 内に一定時間入り、捕獲結界状態',
+      position: _currentPosition,
+    );
+    HapticFeedback.mediumImpact();
+  }
+
+  bool _isCaptureTriggered() {
     if (_gameState != GameState.running) return false;
     if (!_testMode && !_remoteOniKnown && !_isHunterNow) return false;
-    if (_captureZoneCenter != null) {
-      final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-        _captureZoneCenter!.latitude,
-        _captureZoneCenter!.longitude,
-      );
-      if (d <= GameConfig.captureZoneRadiusMeters) return true;
+    final isLocked = _captureZoneBoundIds.contains('self');
+    if (isLocked && _latestProximityBand == ProximityBand.contact) {
+      return true;
     }
-    if (_latestProximityBand == ProximityBand.contact) return true;
-    final bonus = _latestProximityBand == ProximityBand.near ? 14.0 : 0.0;
-    return gpsDistance <= (GameConfig.captureDistanceMeters + bonus);
+    return false;
+  }
+
+  double _scaledTouchRadiusMeters() {
+    final areaRadius = _effectivePlayAreaRadiusMeters();
+    final scaled = areaRadius * GameConfig.scaledTouchRadiusAreaRatio;
+    return scaled.clamp(
+      GameConfig.scaledTouchRadiusMinMeters,
+      GameConfig.scaledTouchRadiusMaxMeters,
+    );
+  }
+
+  double _effectivePlayAreaRadiusMeters() {
+    switch (_playArea.type) {
+      case PlayAreaType.circle:
+        return _playArea.radiusMeters;
+      case PlayAreaType.polygon:
+        if (_playArea.points.isEmpty) return GameConfig.playAreaRadiusMeters;
+        final center = _polygonCenter(_playArea.points);
+        var maxDistance = GameConfig.playAreaRadiusMeters;
+        for (final p in _playArea.points) {
+          maxDistance = math.max(
+            maxDistance,
+            Geolocator.distanceBetween(
+              center.latitude,
+              center.longitude,
+              p.latitude,
+              p.longitude,
+            ),
+          );
+        }
+        return maxDistance;
+    }
+  }
+
+  LatLng _polygonCenter(List<LatLng> points) {
+    final lat =
+        points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length;
+    final lng =
+        points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length;
+    return LatLng(lat, lng);
   }
 
   double _distanceToOni() {
@@ -1407,7 +1730,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('ゲーム中のみ使えます');
       return;
     }
-    if (!_skillLoadout.contains('fake')) return;
+    if (!_skillLoadout.contains(SkillIds.fakePosition)) return;
     final now = DateTime.now();
     if (_lastFakeSkillAt != null &&
         now.difference(_lastFakeSkillAt!).inSeconds <
@@ -1442,26 +1765,73 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
     final now = DateTime.now();
-    if (_lastWerewolfSkillAt != null &&
-        now.difference(_lastWerewolfSkillAt!).inSeconds <
-            GameConfig.werewolfHunterCooldownSeconds) {
+    if (_lastWerewolfTransformAt != null &&
+        now.difference(_lastWerewolfTransformAt!).inSeconds <
+            GameConfig.werewolfTransformCooldownSeconds) {
       return;
     }
-    _lastWerewolfSkillAt = now;
-    _werewolfHunterEndsAt = now.add(
-      const Duration(seconds: GameConfig.werewolfHunterDurationSeconds),
+    _lastWerewolfTransformAt = now;
+    _werewolfTransformEndsAt = now.add(
+      const Duration(seconds: GameConfig.werewolfTransformDurationSeconds),
     );
     _emitMatchEvent(
-      type: 'werewolf_hunter_start',
+      type: 'werewolf_transform_start',
       message: '人狼が一時的に鬼化',
       position: _currentPosition,
     );
     setState(() => _statusMessage = '一時鬼化中');
   }
 
+  Future<void> _activateFakeIntelReveal() async {
+    if (_gameState != GameState.running) return;
+    if (!_skillLoadout.contains(SkillIds.fakeIntelReveal)) return;
+    final self = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('偽情報暴露'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('自分を暴露'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('他人を暴露'),
+          ),
+        ],
+      ),
+    );
+    if (self == null) return;
+    final p = self
+        ? LatLng(
+            _currentPosition.latitude + 0.0007,
+            _currentPosition.longitude - 0.0005,
+          )
+        : _randomOtherRevealPoint();
+    _emitMatchEvent(
+      type: 'accidental_reveal',
+      message: self ? '事故風の位置暴露（自分）' : '事故風の位置暴露（他人）',
+      position: p,
+    );
+    setState(() => _statusMessage = '自然な事故イベント風に位置暴露を偽装しました');
+  }
+
+  LatLng _randomOtherRevealPoint() {
+    final candidates = _remoteMembers.values
+        .map((m) => LatLng(m.lat, m.lng))
+        .toList();
+    if (candidates.isNotEmpty) {
+      return candidates[math.Random().nextInt(candidates.length)];
+    }
+    return LatLng(
+      _currentPosition.latitude - 0.0008,
+      _currentPosition.longitude + 0.0006,
+    );
+  }
+
   void _activateCaptureZone() {
     if (_gameState != GameState.running) return;
-    if (!_skillLoadout.contains('capture_zone')) return;
+    if (!_skillLoadout.contains(SkillIds.captureZone)) return;
     final now = DateTime.now();
     if (_lastCaptureZoneAt != null &&
         now.difference(_lastCaptureZoneAt!).inSeconds <
@@ -1469,21 +1839,15 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
     _lastCaptureZoneAt = now;
-    _captureZoneCenter = _currentPosition;
-    _captureZoneEndsAt = now.add(
-      const Duration(seconds: GameConfig.captureZoneDurationSeconds),
-    );
-    _emitMatchEvent(
-      type: 'capture_zone_start',
-      message: '捕獲結界を展開',
-      position: _captureZoneCenter!,
-    );
-    setState(() => _statusMessage = '捕獲結界を展開しました');
+    setState(() {
+      _waitingCaptureZoneTap = true;
+      _statusMessage = '地図タップ地点に捕獲結界を設置';
+    });
   }
 
   void _activateBodyThrow() {
     if (_gameState != GameState.running) return;
-    if (!_skillLoadout.contains('body_throw')) return;
+    if (!_skillLoadout.contains(SkillIds.bodyThrow)) return;
     final now = DateTime.now();
     if (_lastBodyThrowAt != null &&
         now.difference(_lastBodyThrowAt!).inSeconds <
@@ -1536,14 +1900,78 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _clearTracePoints() {
-    if (_tracePoints.isEmpty) {
+    if (_tracePoints.isEmpty && _revealLog.isEmpty && _oniIntelTraces.isEmpty) {
       _toast('痕跡はありません');
       return;
     }
     setState(() {
       _tracePoints.clear();
+      _revealLog.clear();
+      _oniIntelTraces.clear();
       _statusMessage = '痕跡をクリアしました';
     });
+  }
+
+  Iterable<LocationRevealEvent> _recentRevealTraces() {
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 3));
+    return _revealLog.where((e) => e.timestamp.isAfter(cutoff)).take(12);
+  }
+
+  Iterable<_OniIntelTrace> _recentOniIntelTraces() {
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 10));
+    return _oniIntelTraces.where((e) => e.timestamp.isAfter(cutoff)).take(12);
+  }
+
+  String _latestIntelLine() {
+    final text = _lastOniIntelText;
+    final at = _lastOniIntelAt;
+    if (text == null || at == null) {
+      return '鬼情報: 未入手（情報屋エリアで取得）';
+    }
+    final ageSeconds = DateTime.now().difference(at).inSeconds;
+    if (ageSeconds < 60) {
+      return '鬼情報: $text（$ageSeconds秒前）';
+    }
+    return '鬼情報: $text（${ageSeconds ~/ 60}分前）';
+  }
+
+  String _conditionLine() {
+    if (_captureZoneBoundIds.contains('self') && _captureZoneEndsAt != null) {
+      return '捕捉ロック中: 残り ${_secondsUntil(_captureZoneEndsAt)}秒 / BLE接触で捕獲';
+    }
+    if (_touchLockNoticeShown && _touchLockStartedAt != null) {
+      final held = DateTime.now().difference(_touchLockStartedAt!).inSeconds;
+      final remain = (GameConfig.touchLockRequiredSeconds - held).clamp(0, 99);
+      return '接触圏内: あと $remain秒以内に離脱';
+    }
+    if (_isInfectedNow) {
+      return '感染中 (${_secondsUntil(_infectionEndsAt)}秒)';
+    }
+    return '異常なし';
+  }
+
+  String _formatTraceAge(DateTime timestamp) {
+    final ageSeconds = DateTime.now().difference(timestamp).inSeconds;
+    if (ageSeconds < 60) return '$ageSeconds秒前の暴露地点';
+    return '${ageSeconds ~/ 60}分前の暴露地点';
+  }
+
+  String _formatIntelTraceAge(DateTime timestamp) {
+    final ageSeconds = DateTime.now().difference(timestamp).inSeconds;
+    if (ageSeconds < 60) return '$ageSeconds秒前の鬼情報';
+    return '${ageSeconds ~/ 60}分前の鬼情報';
+  }
+
+  String _formatLatLng(LatLng p) {
+    return '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
+  }
+
+  String get _localPlayerLabel {
+    final fs = _roomSession is FirestoreRoomSession
+        ? _roomSession as FirestoreRoomSession
+        : null;
+    final name = fs?.nickname?.trim();
+    return name == null || name.isEmpty ? 'player1' : name;
   }
 
   String _bearingToDirection(double bearing) {
@@ -1570,30 +1998,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!_isInsideCommJammingZone()) return true;
     final bucket = (_elapsedSeconds ~/ GameConfig.commJammingCycleSeconds) % 2;
     return bucket == 0;
-  }
-
-  String _currentOniIntelHeadline() {
-    if (!_testMode && !_remoteOniKnown && _gameState == GameState.running) {
-      return '鬼の位置は未同期 — 鬼役端末の参加と位置報告を待っています';
-    }
-    final d = _distanceToOni();
-    final bearing = Geolocator.bearingBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _oniPosition.latitude,
-      _oniPosition.longitude,
-    );
-    final direction = _bearingToDirection(bearing);
-    final distBand = d <= GameConfig.dangerDistanceMeters
-        ? '至近'
-        : d <= GameConfig.warningDistanceMeters
-        ? '中距離'
-        : '遠距離';
-    return _buildOniIntel(
-      direction: direction,
-      distanceBand: distBand,
-      bearingDegrees: bearing,
-    );
   }
 
   /// 断片モード用。16 方位ではなく大まかな寄りだけに落とす。
@@ -1652,19 +2056,25 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _maybeTriggerDangerFeedback(double currentDistance) {
+    if (!_touchLockNoticeShown && !_captureZoneBoundIds.contains('self')) {
+      _lastDistance = currentDistance;
+      return;
+    }
     if (_lastDistance == null) {
       _lastDistance = currentDistance;
       return;
     }
-    final wasSafe = _lastDistance! > GameConfig.warningDistanceMeters;
-    final isWarning = currentDistance <= GameConfig.warningDistanceMeters;
-    final isDanger = currentDistance <= GameConfig.dangerDistanceMeters;
+    final warningDistance = _scaledTouchRadiusMeters();
+    final dangerDistance = GameConfig.captureDistanceMeters;
+    final wasSafe = _lastDistance! > warningDistance;
+    final isWarning = currentDistance <= warningDistance;
+    final isDanger = currentDistance <= dangerDistance;
 
     if (wasSafe && isWarning) {
       _emitOniCue(level: 'warning');
       _logDebug('danger_warning_enter');
     }
-    if (_lastDistance! > GameConfig.dangerDistanceMeters && isDanger) {
+    if (_lastDistance! > dangerDistance && isDanger) {
       _emitOniCue(level: 'danger');
       _logDebug('danger_close_enter');
     }
@@ -1703,6 +2113,17 @@ class _GameMapScreenState extends State<GameMapScreen>
     final min = (seconds ~/ 60).toString().padLeft(2, '0');
     final sec = (seconds % 60).toString().padLeft(2, '0');
     return '$min:$sec';
+  }
+
+  Offset _clampControlFabOffset(Offset? raw, Size screenSize) {
+    const fabWidth = 132.0;
+    const fabHeight = 64.0;
+    final fallback = Offset(16, math.max(96, screenSize.height - 190));
+    final next = raw ?? fallback;
+    return Offset(
+      next.dx.clamp(8.0, math.max(8, screenSize.width - fabWidth)),
+      next.dy.clamp(72.0, math.max(72, screenSize.height - fabHeight - 16)),
+    );
   }
 
   void _moveOniForTest() {
@@ -1796,6 +2217,32 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _onMapTap(LatLng pos) {
+    if (_waitingCaptureZoneTap) {
+      final now = DateTime.now();
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      setState(() {
+        _waitingCaptureZoneTap = false;
+        _captureZoneCenter = pos;
+        _captureZoneBoundIds = _captureZoneTargetsAt(pos, d);
+        _captureZoneTargetLeftAt = null;
+        _captureZoneEscapeRevealed = false;
+        _captureZoneEndsAt = now.add(
+          const Duration(seconds: GameConfig.captureZoneDurationSeconds),
+        );
+        _statusMessage = '捕獲結界を設置しました';
+      });
+      _emitMatchEvent(
+        type: 'capture_zone_start',
+        message: '捕獲結界を設置',
+        position: pos,
+      );
+      return;
+    }
     if (!_editingArea) return;
     setState(() {
       if (_editCircleMode && _waitingCircleCenterTap) {
@@ -1807,6 +2254,22 @@ class _GameMapScreenState extends State<GameMapScreen>
         _statusMessage = '頂点 ${_polygonDraft.length} 点目';
       }
     });
+  }
+
+  Set<String> _captureZoneTargetsAt(LatLng center, double selfDistance) {
+    final ids = <String>{};
+    if (selfDistance <= GameConfig.captureZoneRadiusMeters) ids.add('self');
+    for (final e in _remoteMembers.entries) {
+      final p = LatLng(e.value.lat, e.value.lng);
+      final d = Geolocator.distanceBetween(
+        p.latitude,
+        p.longitude,
+        center.latitude,
+        center.longitude,
+      );
+      if (d <= GameConfig.captureZoneRadiusMeters) ids.add(e.key);
+    }
+    return ids;
   }
 
   void _undoLastVertex() {
@@ -1886,6 +2349,26 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
+  Future<void> _copyDiscordStatusSummary() async {
+    final lines = [
+      '**Oni Game 状況共有**',
+      '- 状態: ${_gameState.label}',
+      '- ルーム: ${_roomSession.modeLabel}',
+      '- エリア: ${_playAreaSummary()}',
+      '- 役職: ${_localRole.displayName}${_isHunterNow && _localRole != PlayerRole.hunter ? "（一時鬼化中）" : ""}',
+      '- スキル: ${_skillLoadout.map(_skillLabel).join(" / ")}',
+      '- 残り時間: ${_formatTime(_remainingSeconds)}',
+      '- 位置暴露: $_revealCount 回',
+      '- 情報屋: ${_lastOniIntelText == null ? "未取得" : _latestIntelLine()}',
+      '- ギミック: 安全地帯 ${_safeZonePositions.length} / 情報屋 ${_infoBrokerPositions.length} / カメラ ${_cameraPositions.length} / イベント ${_commJammingZonePositions.length}',
+      '',
+      '現在地共有は必要な時だけ別途行ってください。',
+    ];
+    await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    if (!mounted) return;
+    _toast('Discord貼り付け用の状況メモをコピーしました');
+  }
+
   void _showRevealLog() {
     showModalBottomSheet<void>(
       context: context,
@@ -1903,10 +2386,10 @@ class _GameMapScreenState extends State<GameMapScreen>
             ListTile(
               dense: true,
               title: Text(
-                '#${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m',
+                '${e.playerLabel} #${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m',
               ),
               subtitle: Text(
-                '${e.timestamp.toIso8601String()}\n${e.position.latitude.toStringAsFixed(5)}, ${e.position.longitude.toStringAsFixed(5)}',
+                '${e.timestamp.toIso8601String()}\n${_formatLatLng(e.position)}',
               ),
             ),
         ],
@@ -1915,6 +2398,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Set<Marker> _buildMarkers() {
+    final revealTraces = _recentRevealTraces().toList(growable: false);
+    final oniIntelTraces = _recentOniIntelTraces().toList(growable: false);
     final markers = <Marker>{
       Marker(
         markerId: const MarkerId('player'),
@@ -1996,6 +2481,33 @@ class _GameMapScreenState extends State<GameMapScreen>
             infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueCyan,
+            ),
+          ),
+        for (var i = 0; i < revealTraces.length; i++)
+          Marker(
+            markerId: MarkerId('reveal_trace_$i'),
+            position: revealTraces[i].position,
+            infoWindow: InfoWindow(
+              title:
+                  '${revealTraces[i].playerLabel} の位置暴露 #${revealTraces[i].sequence}',
+              snippet:
+                  '${_formatTraceAge(revealTraces[i].timestamp)} / ${_formatLatLng(revealTraces[i].position)}',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueViolet,
+            ),
+          ),
+        for (var i = 0; i < oniIntelTraces.length; i++)
+          Marker(
+            markerId: MarkerId('oni_intel_trace_$i'),
+            position: oniIntelTraces[i].position,
+            infoWindow: InfoWindow(
+              title: '情報屋の鬼情報',
+              snippet:
+                  '${_formatIntelTraceAge(oniIntelTraces[i].timestamp)} / ${oniIntelTraces[i].text}',
+            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
             ),
           ),
         for (var i = 0; i < _cameraPositions.length; i++)
@@ -2127,6 +2639,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Set<Circle> _buildCircles(WorldProfileTokens tokens) {
+    final revealTraces = _recentRevealTraces().toList(growable: false);
+    final oniIntelTraces = _recentOniIntelTraces().toList(growable: false);
     final circles = <Circle>{
       for (var i = 0; i < _safeZonePositions.length; i++)
         Circle(
@@ -2171,6 +2685,26 @@ class _GameMapScreenState extends State<GameMapScreen>
           fillColor: Colors.cyan.withValues(alpha: 0.2),
           strokeColor: Colors.cyan.shade700,
           zIndex: 2,
+        ),
+      for (var i = 0; i < revealTraces.length; i++)
+        Circle(
+          circleId: CircleId('reveal_trace_circle_$i'),
+          center: revealTraces[i].position,
+          radius: 24,
+          strokeWidth: 1,
+          fillColor: Colors.deepPurple.withValues(alpha: 0.16),
+          strokeColor: Colors.deepPurple.shade700,
+          zIndex: 2,
+        ),
+      for (var i = 0; i < oniIntelTraces.length; i++)
+        Circle(
+          circleId: CircleId('oni_intel_trace_circle_$i'),
+          center: oniIntelTraces[i].position,
+          radius: 30,
+          strokeWidth: 2,
+          fillColor: Colors.red.withValues(alpha: 0.12),
+          strokeColor: Colors.red.shade700,
+          zIndex: 3,
         ),
       if (_captureZoneCenter != null)
         Circle(
@@ -2282,13 +2816,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     PlayerRole selectedRole = _localRole;
     bool selectedCustomRuleMode = _customRuleMode;
     double selectedDurationMinutes = _matchDurationSeconds / 60;
+    final selectedSkills = Set<String>.from(_skillLoadout);
     final prefs0 = await SharedPreferences.getInstance();
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     var selectedUseBle = prefs0.getBool(_kUseBleScanPrefKey) ?? false;
     final roomController = TextEditingController();
     final nickController = TextEditingController(text: 'player1');
-    var onlineRole = 'runner';
     var firebaseWarmScheduled = false;
 
     bool? ok;
@@ -2381,19 +2915,64 @@ class _GameMapScreenState extends State<GameMapScreen>
                           initialValue: selectedRole,
                           decoration: const InputDecoration(
                             labelText: 'ローカル役職',
+                            helperText: 'カスタム公開ルールON時だけ固定されます',
                           ),
-                          items: PlayerRole.values
+                          items: _assignableRoles
                               .map(
                                 (r) => DropdownMenuItem(
                                   value: r,
-                                  child: Text(r.label),
+                                  child: Text(r.displayName),
                                 ),
                               )
                               .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setModalState(() => selectedRole = v);
-                          },
+                          onChanged: selectedCustomRuleMode
+                              ? (v) {
+                                  if (v == null) return;
+                                  setModalState(() {
+                                    selectedRole = v;
+                                    selectedSkills
+                                      ..clear()
+                                      ..addAll(
+                                        _skillCandidates(
+                                          v,
+                                        ).take(v == PlayerRole.hunter ? 2 : 1),
+                                      );
+                                  });
+                                }
+                              : null,
+                        ),
+
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            for (final s in _skillCandidates(selectedRole))
+                              FilterChip(
+                                label: Text(_skillLabel(s)),
+                                selected: selectedSkills.contains(s),
+                                onSelected: selectedCustomRuleMode
+                                    ? (v) {
+                                        setModalState(() {
+                                          if (v) {
+                                            if (selectedRole !=
+                                                PlayerRole.hunter) {
+                                              selectedSkills.clear();
+                                            }
+                                            if (selectedRole ==
+                                                    PlayerRole.hunter &&
+                                                selectedSkills.length >= 2) {
+                                              selectedSkills.remove(
+                                                selectedSkills.first,
+                                              );
+                                            }
+                                            selectedSkills.add(s);
+                                          } else {
+                                            selectedSkills.remove(s);
+                                          }
+                                        });
+                                      }
+                                    : null,
+                              ),
+                          ],
                         ),
 
                         const SizedBox(height: 10),
@@ -2508,35 +3087,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                                 isDense: true,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              key: ValueKey(onlineRole),
-                              initialValue: onlineRole,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'ロール',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'runner',
-                                  child: Text('runner'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'oni',
-                                  child: Text('oni'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'spectator',
-                                  child: Text('spectator'),
-                                ),
-                              ],
-                              onChanged: (v) {
-                                if (v == null) return;
-                                setModalState(() => onlineRole = v);
-                              },
-                            ),
                             const SizedBox(height: 12),
                             Row(
                               children: [
@@ -2613,7 +3163,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                                         err = await _joinFirestoreRoom(
                                           roomId: rid,
                                           nickname: nick,
-                                          role: onlineRole,
+                                          role: 'runner',
                                         );
                                       } finally {
                                         if (ctx.mounted) {
@@ -2793,11 +3343,13 @@ class _GameMapScreenState extends State<GameMapScreen>
       _activeProfile = selectedProfile;
       _oniIntelMode = selectedIntel;
       _eliminationAftermathRule = selectedElimination;
-      _localRole = selectedRole;
       _customRuleMode = selectedCustomRuleMode;
       _matchDurationSeconds = selectedDurationMinutes.round() * 60;
       if (_customRuleMode) {
-        _skillLoadout = const {'fake', 'capture_zone', 'body_throw'};
+        _localRole = selectedRole;
+        _skillLoadout = selectedSkills.isEmpty
+            ? _skillCandidates(_localRole).take(1).toSet()
+            : selectedSkills;
       }
     });
     final prefs = await SharedPreferences.getInstance();
@@ -2833,7 +3385,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _backToTitle() async {
+    if (!await _confirmLeaveActiveMatch('タイトルへ戻りますか？')) return;
     _matchTimer?.cancel();
+    _matchRecorder?.discard();
+    _matchRecorder = null;
+    _finalizeRecordingFuture = null;
     _remoteMembersSub?.cancel();
     _remoteMembersSub = null;
     if (_roomSession is FirestoreRoomSession) {
@@ -2847,6 +3403,143 @@ class _GameMapScreenState extends State<GameMapScreen>
       _ownsRoomSession = false;
     });
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _openRoomLobby() async {
+    if (!await _confirmLeaveActiveMatch('ルームロビーへ移動しますか？')) return;
+    if (!mounted) return;
+    if (_gameState == GameState.running) {
+      _discardActiveMatchForNavigation();
+    }
+    final fs = _roomSession is FirestoreRoomSession
+        ? _roomSession as FirestoreRoomSession
+        : null;
+    final returned = await Navigator.of(context).push<FirestoreRoomSession?>(
+      MaterialPageRoute<FirestoreRoomSession?>(
+        builder: (_) => RoomLobbyScreen(existingSession: fs),
+      ),
+    );
+    if (!mounted) return;
+    if (returned != null && returned.roomId != null) {
+      setState(() {
+        _roomSession = returned;
+        _ownsRoomSession = false;
+      });
+      _bindRemoteMembers(returned);
+      _statusMessage = 'ルーム ${returned.roomId} に接続済み';
+    } else if (_roomSession is FirestoreRoomSession &&
+        (_roomSession as FirestoreRoomSession).roomId == null) {
+      setState(() {
+        _roomSession = LocalOnlyRoomSession();
+        _remoteMembers = {};
+        _remoteOniKnown = false;
+        _ownsRoomSession = false;
+      });
+    }
+  }
+
+  void _hideMapToPrep() {
+    if (_gameState != GameState.waiting || _editingArea) {
+      _toast('地図を隠せるのは準備中のみです');
+      return;
+    }
+    setState(() {
+      _mapVisibleInLobby = false;
+      _prepControlSheetOpen = true;
+      _statusMessage = '準備画面に切り替えました';
+    });
+  }
+
+  Future<void> _openMatchGallery() async {
+    final pending = _finalizeRecordingFuture;
+    if (pending != null) {
+      _toast('軌跡保存を完了してから開きます');
+      await pending;
+      if (!mounted) return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const MatchGalleryScreen()),
+    );
+  }
+
+  void _discardActiveMatchForNavigation() {
+    _matchTimer?.cancel();
+    _matchRecorder?.discard();
+    _matchRecorder = null;
+    _finalizeRecordingFuture = null;
+    setState(() {
+      _gameState = GameState.waiting;
+      _prepControlSheetOpen = true;
+      _statusMessage = '試合を中断しました';
+    });
+  }
+
+  Future<bool> _confirmLeaveActiveMatch(String title) async {
+    if (_gameState != GameState.running) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: const Text('試合中の移動です。現在の試合記録は破棄されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('移動する'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  void _showHowToPlaySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('遊び方', style: Theme.of(ctx).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          const ListTile(
+            leading: Icon(Icons.flag_outlined),
+            title: Text('流れ'),
+            subtitle: Text(
+              'タイトル → ルーム/エリア/ルール設定 → 開始 → 役職/スキル確認 → 試合 → 結果 → 軌跡再生',
+            ),
+          ),
+          const ListTile(
+            leading: Icon(Icons.visibility_off_outlined),
+            title: Text('基本ルール'),
+            subtitle: Text('通常はライブ位置を見せません。位置暴露・情報屋・イベント・スキルで情報が出ます。'),
+          ),
+          const ListTile(
+            leading: Icon(Icons.shield_outlined),
+            title: Text('安全地帯'),
+            subtitle: Text('ステルスチャージを得て、装備中スキルの再使用待ちを回復します。使用後は移動します。'),
+          ),
+          const ListTile(
+            leading: Icon(Icons.storefront_outlined),
+            title: Text('情報屋'),
+            subtitle: Text('鬼情報を一時的に取得します。手に入れた情報はマップ上に10分ほど痕跡として残ります。'),
+          ),
+          const ListTile(
+            leading: Icon(Icons.videocam_outlined),
+            title: Text('監視カメラ'),
+            subtitle: Text('小さい罠です。踏むとイベントログに残り、逃走中のルート選びに影響します。'),
+          ),
+          const ListTile(
+            leading: Icon(Icons.front_hand_outlined),
+            title: Text('捕獲'),
+            subtitle: Text('鬼の接触圏に一定時間入るとロックされ、ロック中にBLE接触すると捕獲です。'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -2870,24 +3563,14 @@ class _GameMapScreenState extends State<GameMapScreen>
   @override
   Widget build(BuildContext context) {
     final tokens = WorldProfileTokenFactory.of(_activeProfile);
-    final distance = _distanceToOni();
+    final screenSize = MediaQuery.sizeOf(context);
+    final controlFabOffset = _clampControlFabOffset(
+      _controlFabOffset,
+      screenSize,
+    );
     final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
     final bool isOutBeyondGrace =
         overflowMeters > GameConfig.outsideAreaGraceMeters;
-    final bool isDanger = distance <= GameConfig.dangerDistanceMeters;
-    final bool isWarning = distance <= GameConfig.warningDistanceMeters;
-
-    final Color alertColor = isDanger
-        ? tokens.alertColor
-        : isWarning
-        ? Colors.orange.shade700
-        : Colors.black87;
-    final String alertText = isDanger
-        ? '${tokens.dangerTextPrefix}: 鬼がすぐ近くにいます'
-        : isWarning
-        ? '${tokens.warningTextPrefix}: 鬼が近づいています'
-        : '${tokens.safeTextPrefix}: 鬼との距離あり';
-
     final running = _gameState == GameState.running;
     final ended =
         _gameState == GameState.runnerWin ||
@@ -2907,111 +3590,164 @@ class _GameMapScreenState extends State<GameMapScreen>
       appBar: AppBar(
         title: Text(appTitle),
         actions: [
-          IconButton(
-            tooltip: 'タイトルへ戻る',
+          TextButton.icon(
             onPressed: _backToTitle,
-            icon: const Icon(Icons.home_outlined),
+            icon: const Icon(Icons.home_outlined, size: 18),
+            label: const Text('Home'),
           ),
-          IconButton(
-            tooltip: 'ルームロビー',
-            onPressed: () async {
-              final fs = _roomSession is FirestoreRoomSession
-                  ? _roomSession as FirestoreRoomSession
-                  : null;
-              final returned = await Navigator.of(context)
-                  .push<FirestoreRoomSession?>(
-                    MaterialPageRoute<FirestoreRoomSession?>(
-                      builder: (_) => RoomLobbyScreen(existingSession: fs),
-                    ),
-                  );
-              if (!mounted) return;
-              if (returned != null && returned.roomId != null) {
-                setState(() {
-                  _roomSession = returned;
-                  _ownsRoomSession = false;
-                });
-                _bindRemoteMembers(returned);
-                _statusMessage = 'ルーム ${returned.roomId} に接続済み';
-              } else if (_roomSession is FirestoreRoomSession &&
-                  (_roomSession as FirestoreRoomSession).roomId == null) {
-                setState(() {
-                  _roomSession = LocalOnlyRoomSession();
-                  _remoteMembers = {};
-                  _remoteOniKnown = false;
-                  _ownsRoomSession = false;
-                });
-              }
-            },
-            icon: const Icon(Icons.groups_outlined),
-          ),
-          IconButton(
-            tooltip: '鬼コンソール（鬼向け通知など）',
-            onPressed: () async {
-              await Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => const OniOperatorScreen(),
-                ),
-              );
-              await _loadOniOperatorPrefs();
-            },
-            icon: const Icon(Icons.nightlight_round),
+          TextButton.icon(
+            onPressed: _openRoomLobby,
+            icon: const Icon(Icons.groups_outlined, size: 18),
+            label: const Text('Lobby'),
           ),
           if (_gameState == GameState.waiting &&
               !_editingArea &&
               _mapVisibleInLobby)
-            IconButton(
-              tooltip: '準備画面（地図を隠す）',
-              onPressed: () => setState(() {
-                _mapVisibleInLobby = false;
-                _statusMessage = '準備画面に切り替えました';
-              }),
-              icon: const Icon(Icons.dashboard_outlined),
+            TextButton.icon(
+              onPressed: _hideMapToPrep,
+              icon: const Icon(Icons.dashboard_outlined, size: 18),
+              label: const Text('Map off'),
             ),
-          IconButton(
-            tooltip: 'テストモード',
-            onPressed: _toggleTestMode,
-            icon: Icon(
-              _testMode ? Icons.bug_report : Icons.bug_report_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: 'プライバシー管理',
-            onPressed: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => const PrivacyControlScreen(),
-                ),
-              );
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'discord':
+                  await _copyDiscordStatusSummary();
+                  break;
+                case 'help':
+                  _showHowToPlaySheet();
+                  break;
+                case 'oni':
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const OniOperatorScreen(),
+                    ),
+                  );
+                  await _loadOniOperatorPrefs();
+                  break;
+                case 'hide_map':
+                  _hideMapToPrep();
+                  break;
+                case 'gallery':
+                  await _openMatchGallery();
+                  break;
+                case 'history':
+                  _showRevealLog();
+                  break;
+                case 'privacy':
+                  if (!context.mounted) return;
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PrivacyControlScreen(),
+                    ),
+                  );
+                  break;
+                case 'test':
+                  _toggleTestMode();
+                  break;
+                case 'import':
+                  if (_gameState == GameState.running) {
+                    _toast('ゲーム中は GeoJSON をインポートできません');
+                  } else {
+                    await _showImportGeoJsonDialog();
+                  }
+                  break;
+                case 'export':
+                  await _exportGeoJson();
+                  break;
+              }
             },
-            icon: const Icon(Icons.privacy_tip_outlined),
-          ),
-          IconButton(
-            tooltip: '試合ギャラリー（タイムラプス再生）',
-            onPressed: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => const MatchGalleryScreen(),
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'help',
+                child: ListTile(
+                  leading: Icon(Icons.help_outline),
+                  title: Text('How to play'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-              );
-            },
-            icon: const Icon(Icons.movie_filter_outlined),
-          ),
-          IconButton(
-            tooltip: '位置暴露ログ',
-            onPressed: _showRevealLog,
-            icon: const Icon(Icons.history),
-          ),
-          IconButton(
-            tooltip: 'GeoJSON インポート',
-            onPressed: _gameState == GameState.running
-                ? null
-                : _showImportGeoJsonDialog,
-            icon: const Icon(Icons.upload_file_outlined),
-          ),
-          IconButton(
-            tooltip: 'GeoJSON エクスポート',
-            onPressed: _exportGeoJson,
-            icon: const Icon(Icons.copy_outlined),
+              ),
+              const PopupMenuItem(
+                value: 'oni',
+                child: ListTile(
+                  leading: Icon(Icons.nightlight_round),
+                  title: Text('Oni settings'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'discord',
+                child: ListTile(
+                  leading: Icon(Icons.chat_bubble_outline),
+                  title: Text('Discord用メモをコピー'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'hide_map',
+                enabled:
+                    _gameState == GameState.waiting &&
+                    !_editingArea &&
+                    _mapVisibleInLobby,
+                child: const ListTile(
+                  leading: Icon(Icons.dashboard_outlined),
+                  title: Text('Map off / Setup'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'gallery',
+                child: ListTile(
+                  leading: Icon(Icons.movie_filter_outlined),
+                  title: Text('試合ギャラリー'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'history',
+                child: ListTile(
+                  leading: Icon(Icons.history),
+                  title: Text('位置暴露ログ'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'privacy',
+                child: ListTile(
+                  leading: Icon(Icons.privacy_tip_outlined),
+                  title: Text('プライバシー管理'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'test',
+                child: ListTile(
+                  leading: Icon(
+                    _testMode ? Icons.bug_report : Icons.bug_report_outlined,
+                  ),
+                  title: Text(_testMode ? 'テストモードをOFF' : 'テストモードをON'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'import',
+                enabled: _gameState != GameState.running,
+                child: const ListTile(
+                  leading: Icon(Icons.upload_file_outlined),
+                  title: Text('GeoJSON インポート'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.copy_outlined),
+                  title: Text('GeoJSON エクスポート'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -3042,26 +3778,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 _mapVisibleInLobby = true;
                 _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
               }),
-              onOpenLobby: () async {
-                final fs = _roomSession is FirestoreRoomSession
-                    ? _roomSession as FirestoreRoomSession
-                    : null;
-                final returned = await Navigator.of(context)
-                    .push<FirestoreRoomSession?>(
-                      MaterialPageRoute<FirestoreRoomSession?>(
-                        builder: (_) => RoomLobbyScreen(existingSession: fs),
-                      ),
-                    );
-                if (!mounted) return;
-                if (returned != null && returned.roomId != null) {
-                  setState(() {
-                    _roomSession = returned;
-                    _ownsRoomSession = false;
-                  });
-                  _bindRemoteMembers(returned);
-                  _statusMessage = 'ルーム ${returned.roomId} に接続済み';
-                }
-              },
+              onOpenLobby: _openRoomLobby,
             ),
           if (showGameMap && _gameState == GameState.running)
             Positioned.fill(
@@ -3117,7 +3834,11 @@ class _GameMapScreenState extends State<GameMapScreen>
               child: _MatchOutcomeBanner(
                 outcome: _gameState,
                 detail: _statusMessage,
+                roleSummary:
+                    '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(_skillLabel).join("・")}',
                 onPrepareNext: _resetGame,
+                onOpenGallery: _openMatchGallery,
+                onOpenLobby: _openRoomLobby,
               ),
             ),
           if (_editingArea && !running && !ended)
@@ -3156,13 +3877,14 @@ class _GameMapScreenState extends State<GameMapScreen>
               left: 16,
               right: 16,
               child: _InfoPanel(
-                headline: _currentOniIntelHeadline(),
-                intelModeLabel: _oniIntelMode.label,
+                intelLine: _latestIntelLine(),
+                showIntelLine: _showOniIntelCard,
+                onDismissIntel: () => setState(() {
+                  _showOniIntelCard = false;
+                }),
                 timerText: _formatTime(_remainingSeconds),
                 gameStateText: _gameState.label,
                 statusText: _statusMessage,
-                alertText: alertText,
-                alertColor: alertColor,
                 areaText: isOutBeyondGrace
                     ? '猶予超過: +${overflowMeters.toStringAsFixed(0)}m'
                     : 'エリア内（またはGPS猶予内）',
@@ -3172,9 +3894,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 revealCount: _revealCount,
                 editing: _editingArea,
                 safeZoneCharges: _safeZoneCharges,
-                infectionText: _isInfectedNow
-                    ? '感染中 (${_secondsUntil(_infectionEndsAt)}秒)'
-                    : '感染なし',
+                conditionText: _conditionLine(),
                 spectatorLine: _afterCatchRule?.infoPanelLine,
               ),
             ),
@@ -3265,6 +3985,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     onStart: _startGame,
                     onReset: _resetGame,
                     onFakeSkill: _activateFakeSkill,
+                    onFakeIntelReveal: _activateFakeIntelReveal,
                     onWerewolfHunter: _activateWerewolfHunter,
                     onCaptureZone: _activateCaptureZone,
                     onBodyThrow: _activateBodyThrow,
@@ -3272,6 +3993,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     onToggleAreaEdit: _toggleAreaEditor,
                     onToggleCollapsed: _toggleMenuCollapsed,
                     onOpenCustomMenu: _openCustomMenu,
+                    onOpenHelp: _showHowToPlaySheet,
                     onDismissPrepSheet: () => setState(() {
                       _prepControlSheetOpen = false;
                     }),
@@ -3279,10 +4001,18 @@ class _GameMapScreenState extends State<GameMapScreen>
                     canStartMatch: _gameState == GameState.waiting,
                     isEditing: _editingArea,
                     fakeSkillActive: _fakePositionActive,
-                    roleLabel: _isHunterNow ? 'hunter' : _localRole.label,
-                    canFakeSkill: _skillLoadout.contains('fake'),
-                    canCaptureZone: _skillLoadout.contains('capture_zone'),
-                    canBodyThrow: _skillLoadout.contains('body_throw'),
+                    roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
+                    canFakeSkill: _skillLoadout.contains(SkillIds.fakePosition),
+                    canFakeIntelReveal: _skillLoadout.contains(
+                      SkillIds.fakeIntelReveal,
+                    ),
+                    canWerewolfHunter: _skillLoadout.contains(
+                      SkillIds.werewolfTransform,
+                    ),
+                    canCaptureZone: _skillLoadout.contains(
+                      SkillIds.captureZone,
+                    ),
+                    canBodyThrow: _skillLoadout.contains(SkillIds.bodyThrow),
                     menuCollapsed: _menuCollapsed,
                     prepLobbyMapHidden:
                         _gameState == GameState.waiting && !showGameMap,
@@ -3292,13 +4022,24 @@ class _GameMapScreenState extends State<GameMapScreen>
             )
           else
             Positioned(
-              left: 16,
-              bottom: _editingArea ? 132 : 96,
+              left: controlFabOffset.dx,
+              top: controlFabOffset.dy,
               child: SafeArea(
-                child: FloatingActionButton.extended(
-                  onPressed: () => setState(() => _prepControlSheetOpen = true),
-                  icon: const Icon(Icons.tune),
-                  label: const Text('操作'),
+                child: GestureDetector(
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _controlFabOffset = _clampControlFabOffset(
+                        controlFabOffset + details.delta,
+                        screenSize,
+                      );
+                    });
+                  },
+                  child: FloatingActionButton.extended(
+                    onPressed: () =>
+                        setState(() => _prepControlSheetOpen = true),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('操作'),
+                  ),
                 ),
               ),
             ),
@@ -3312,12 +4053,18 @@ class _MatchOutcomeBanner extends StatelessWidget {
   const _MatchOutcomeBanner({
     required this.outcome,
     required this.detail,
+    required this.roleSummary,
     required this.onPrepareNext,
+    required this.onOpenGallery,
+    required this.onOpenLobby,
   });
 
   final GameState outcome;
   final String detail;
+  final String roleSummary;
   final VoidCallback onPrepareNext;
+  final VoidCallback onOpenGallery;
+  final VoidCallback onOpenLobby;
 
   @override
   Widget build(BuildContext context) {
@@ -3351,9 +4098,16 @@ class _MatchOutcomeBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(detail, style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    '開示: $roleSummary',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    '次の試合に進むには「次の準備へ」を押してください。試合中は新しい「開始」はできません。',
+                    '次はリザルト確認、軌跡再生、またはルームロビーへ戻れます。',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       fontSize: 11,
@@ -3362,7 +4116,25 @@ class _MatchOutcomeBanner extends StatelessWidget {
                 ],
               ),
             ),
-            FilledButton(onPressed: onPrepareNext, child: const Text('次の準備へ')),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              direction: Axis.vertical,
+              children: [
+                FilledButton(
+                  onPressed: onPrepareNext,
+                  child: const Text('Next setup'),
+                ),
+                OutlinedButton(
+                  onPressed: onOpenGallery,
+                  child: const Text('Replay'),
+                ),
+                OutlinedButton(
+                  onPressed: onOpenLobby,
+                  child: const Text('Lobby'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -3416,6 +4188,20 @@ class _PrepLobbyPanel extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: const [
+                      Chip(label: Text('1 Setup')),
+                      Chip(label: Text('2 Start')),
+                      Chip(label: Text('3 Role')),
+                      Chip(label: Text('4 Play')),
+                      Chip(label: Text('5 Result')),
+                      Chip(label: Text('6 Replay/Lobby')),
+                    ],
+                  ),
                   const SizedBox(height: 28),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -3467,43 +4253,41 @@ class _PrepLobbyPanel extends StatelessWidget {
 
 class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
-    required this.headline,
-    required this.intelModeLabel,
+    required this.intelLine,
+    required this.showIntelLine,
+    required this.onDismissIntel,
     required this.timerText,
     required this.gameStateText,
     required this.statusText,
-    required this.alertText,
-    required this.alertColor,
     required this.areaText,
     required this.areaColor,
     required this.revealCount,
     required this.editing,
     required this.safeZoneCharges,
-    required this.infectionText,
+    required this.conditionText,
     required this.spectatorLine,
   });
 
-  final String headline;
-  final String intelModeLabel;
+  final String intelLine;
+  final bool showIntelLine;
+  final VoidCallback onDismissIntel;
   final String timerText;
   final String gameStateText;
   final String statusText;
-  final String alertText;
-  final Color alertColor;
   final String areaText;
   final Color areaColor;
   final int revealCount;
   final bool editing;
   final int safeZoneCharges;
-  final String infectionText;
+  final String conditionText;
   final String? spectatorLine;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: Colors.white.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
@@ -3513,72 +4297,74 @@ class _InfoPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      headline,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17,
-                      ),
-                    ),
-                    Text(
-                      '鬼情報: $intelModeLabel（距離[m]・精密方角はモードにより伏せます。断片は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが切り替わります）',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               Chip(
                 label: Text(editing ? 'エリア編集中' : gameStateText),
                 visualDensity: VisualDensity.compact,
               ),
+              Text(
+                timerText,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              Text('暴露 $revealCount / ステルス $safeZoneCharges'),
             ],
           ),
-          const SizedBox(height: 4),
-          Text('残り時間 $timerText / 位置暴露 $revealCount 回 / ステルス $safeZoneCharges'),
-          const SizedBox(height: 4),
-          Text(infectionText),
+          if (showIntelLine) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    intelLine,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  tooltip: '鬼情報をしまう',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  onPressed: onDismissIntel,
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 2),
+          Text(conditionText, style: Theme.of(context).textTheme.bodySmall),
           if (spectatorLine != null) ...[
             const SizedBox(height: 4),
-            Text(spectatorLine!),
+            Text(spectatorLine!, style: Theme.of(context).textTheme.bodySmall),
           ],
           const SizedBox(height: 4),
-          Text(statusText),
-          const SizedBox(height: 8),
+          Text(
+            statusText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 6),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
             decoration: BoxDecoration(
               color: areaColor,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               areaText,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-            decoration: BoxDecoration(
-              color: alertColor,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              alertText,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -3719,6 +4505,7 @@ class _ControlPanel extends StatelessWidget {
     required this.onStart,
     required this.onReset,
     required this.onFakeSkill,
+    required this.onFakeIntelReveal,
     required this.onWerewolfHunter,
     required this.onCaptureZone,
     required this.onBodyThrow,
@@ -3726,6 +4513,7 @@ class _ControlPanel extends StatelessWidget {
     required this.onToggleAreaEdit,
     required this.onToggleCollapsed,
     required this.onOpenCustomMenu,
+    required this.onOpenHelp,
     required this.onDismissPrepSheet,
     required this.isRunning,
     required this.canStartMatch,
@@ -3733,6 +4521,8 @@ class _ControlPanel extends StatelessWidget {
     required this.fakeSkillActive,
     required this.roleLabel,
     required this.canFakeSkill,
+    required this.canFakeIntelReveal,
+    required this.canWerewolfHunter,
     required this.canCaptureZone,
     required this.canBodyThrow,
     required this.menuCollapsed,
@@ -3742,6 +4532,7 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onReset;
   final VoidCallback onFakeSkill;
+  final VoidCallback onFakeIntelReveal;
   final VoidCallback onWerewolfHunter;
   final VoidCallback onCaptureZone;
   final VoidCallback onBodyThrow;
@@ -3749,6 +4540,7 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onToggleCollapsed;
   final VoidCallback onOpenCustomMenu;
+  final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
   final bool isRunning;
   final bool canStartMatch;
@@ -3756,6 +4548,8 @@ class _ControlPanel extends StatelessWidget {
   final bool fakeSkillActive;
   final String roleLabel;
   final bool canFakeSkill;
+  final bool canFakeIntelReveal;
+  final bool canWerewolfHunter;
   final bool canCaptureZone;
   final bool canBodyThrow;
   final bool menuCollapsed;
@@ -3816,33 +4610,42 @@ class _ControlPanel extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      FilledButton.tonalIcon(
-                        onPressed: !isEditing && canFakeSkill
-                            ? onFakeSkill
-                            : null,
-                        icon: const Icon(Icons.flare),
-                        label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置スキル'),
-                      ),
+                      if (canFakeSkill)
+                        FilledButton.tonalIcon(
+                          onPressed: !isEditing ? onFakeSkill : null,
+                          icon: const Icon(Icons.flare),
+                          label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置'),
+                        ),
+                      if (canFakeIntelReveal)
+                        OutlinedButton.icon(
+                          onPressed: !isEditing ? onFakeIntelReveal : null,
+                          icon: const Icon(Icons.report),
+                          label: const Text('偽情報暴露'),
+                        ),
+                      if (canWerewolfHunter)
+                        OutlinedButton.icon(
+                          onPressed: !isEditing ? onWerewolfHunter : null,
+                          icon: const Icon(Icons.nightlight),
+                          label: const Text('鬼化'),
+                        ),
+                      if (canCaptureZone)
+                        OutlinedButton.icon(
+                          onPressed: !isEditing ? onCaptureZone : null,
+                          icon: const Icon(Icons.trip_origin),
+                          label: const Text('捕獲結界'),
+                        ),
+                      if (canBodyThrow)
+                        OutlinedButton.icon(
+                          onPressed: !isEditing ? onBodyThrow : null,
+                          icon: const Icon(Icons.near_me),
+                          label: const Text('体投げ'),
+                        ),
+                      Chip(label: Text('役職: $roleLabel')),
                       OutlinedButton.icon(
-                        onPressed: !isEditing ? onWerewolfHunter : null,
-                        icon: const Icon(Icons.nightlight),
-                        label: const Text('人狼鬼化'),
+                        onPressed: onOpenHelp,
+                        icon: const Icon(Icons.help_outline),
+                        label: const Text('遊び方'),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: !isEditing && canCaptureZone
-                            ? onCaptureZone
-                            : null,
-                        icon: const Icon(Icons.trip_origin),
-                        label: const Text('捕獲結界'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: !isEditing && canBodyThrow
-                            ? onBodyThrow
-                            : null,
-                        icon: const Icon(Icons.near_me),
-                        label: const Text('体投げ'),
-                      ),
-                      Chip(label: Text('role: $roleLabel')),
                       OutlinedButton.icon(
                         onPressed: onAbortVote,
                         icon: const Icon(Icons.how_to_vote_outlined),
@@ -3883,6 +4686,11 @@ class _ControlPanel extends StatelessWidget {
                         onPressed: onOpenCustomMenu,
                         icon: const Icon(Icons.settings),
                         label: const Text('カスタム設定'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onOpenHelp,
+                        icon: const Icon(Icons.help_outline),
+                        label: const Text('遊び方'),
                       ),
                     ],
                   ),

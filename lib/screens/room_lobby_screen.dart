@@ -27,7 +27,6 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   FirestoreRoomSession? _session;
   StreamSubscription<List<RoomMemberView>>? _lobbySub;
   List<RoomMemberView> _members = [];
-  String _role = 'runner';
   bool _joining = false;
   String? _error;
 
@@ -46,7 +45,6 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     _nickController.text = form.nickname;
     _roomController.text = form.roomId;
-    setState(() => _role = form.role);
     if (_session != null && _session!.roomId != null) {
       _bindLobby(_session!);
     }
@@ -91,9 +89,9 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       });
       return;
     }
-    await SessionPrefs.saveForm(nickname: nick, roomId: rid, role: _role);
+    await SessionPrefs.saveForm(nickname: nick, roomId: rid, role: 'runner');
     final fs = _session ?? FirestoreRoomSession();
-    final err = await fs.join(roomId: rid, nickname: nick, role: _role);
+    final err = await fs.join(roomId: rid, nickname: nick, role: 'runner');
     if (!mounted) return;
     if (err != null) {
       setState(() {
@@ -176,28 +174,6 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                 border: OutlineInputBorder(),
               ),
               enabled: !_joining,
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              key: ValueKey(_role),
-              initialValue: _role,
-              decoration: const InputDecoration(
-                labelText: 'ロール',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'runner', child: Text('runner（逃走）')),
-                DropdownMenuItem(value: 'oni', child: Text('oni（鬼）')),
-                DropdownMenuItem(
-                  value: 'spectator',
-                  child: Text('spectator（観戦）'),
-                ),
-              ],
-              onChanged: _joining
-                  ? null
-                  : (v) {
-                      if (v != null) setState(() => _role = v);
-                    },
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
