@@ -280,11 +280,6 @@ class _MemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final roleLabel = switch (view.role) {
-      'oni' => '鬼',
-      'spectator' => '観戦',
-      _ => '逃走',
-    };
     final subtitle = view.hasHeartbeat
         ? 'オンライン · 位置は秘匿 · ${view.proximityBand ?? "近接帯未設定"}'
         : 'オンライン · 位置は秘匿（ゲーム画面で心拍更新）';
@@ -296,16 +291,13 @@ class _MemberTile extends StatelessWidget {
           backgroundColor: view.isSelf
               ? theme.colorScheme.primaryContainer
               : theme.colorScheme.surfaceContainerHighest,
-          child: Icon(
-            view.role == 'oni' ? Icons.front_hand : Icons.directions_run,
-            size: 20,
-          ),
+          child: const Icon(Icons.person_outline, size: 20),
         ),
         title: Text(
           '${view.nickname.isEmpty ? "(名前なし)" : view.nickname}'
           '${view.isSelf ? "（あなた）" : ""}',
         ),
-        subtitle: Text('$roleLabel · $subtitle'),
+        subtitle: Text(subtitle),
         trailing: view.isSelf
             ? Chip(
                 label: const Text('自分'),

@@ -295,7 +295,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   DateTime? _fakePositionEndsAt;
   DateTime? _lastFakeSkillAt;
   LatLng? _fakePositionLatLng;
+  bool _customRuleMode = false;
+  int _matchDurationSeconds = GameConfig.matchDurationSeconds;
   PlayerRole _localRole = PlayerRole.runner;
+  Set<String> _skillLoadout = const {'fake', 'capture_zone', 'body_throw'};
   DateTime? _werewolfHunterEndsAt;
   DateTime? _lastWerewolfSkillAt;
   LatLng? _captureZoneCenter;
@@ -796,6 +799,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
     }
     final gimmicks = _GeneratedGimmicks.create(_playArea);
+    _assignDefaultSetupIfNeeded();
     _retuneGpsIfNeeded();
     setState(() {
       _safeZonePositions = gimmicks.safeZones;
@@ -804,7 +808,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _cameraPositions = gimmicks.cameras;
       _gameState = GameState.running;
       _afterCatchRule = null;
-      _remainingSeconds = GameConfig.matchDurationSeconds;
+      _remainingSeconds = _matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
       _revealedInCurrentOutside = false;
@@ -866,7 +870,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _gameState = GameState.waiting;
       _mapVisibleInLobby = false;
       _afterCatchRule = null;
-      _remainingSeconds = GameConfig.matchDurationSeconds;
+      _remainingSeconds = _matchDurationSeconds;
       _elapsedSeconds = 0;
       _outsideAreaSince = null;
       _revealedInCurrentOutside = false;
@@ -896,6 +900,21 @@ class _GameMapScreenState extends State<GameMapScreen>
       _prepControlSheetOpen = false;
     });
     _logDebug('match_reset');
+  }
+
+  void _assignDefaultSetupIfNeeded() {
+    if (_customRuleMode) return;
+    final seed = DateTime.now().millisecondsSinceEpoch;
+    final rnd = math.Random(seed);
+    final roles = PlayerRole.values;
+    final skills = ['fake', 'capture_zone', 'body_throw'];
+    skills.shuffle(rnd);
+    _localRole = roles[rnd.nextInt(roles.length)];
+    _skillLoadout = skills.take(2).toSet();
+    _oniIntelMode =
+        OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
+    _eliminationAftermathRule = EliminationAftermathRule
+        .values[rnd.nextInt(EliminationAftermathRule.values.length)];
   }
 
   LatLng get _playAreaAnchor {
@@ -1388,6 +1407,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('ゲーム中のみ使えます');
       return;
     }
+    if (!_skillLoadout.contains('fake')) return;
     final now = DateTime.now();
     if (_lastFakeSkillAt != null &&
         now.difference(_lastFakeSkillAt!).inSeconds <
@@ -1441,6 +1461,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _activateCaptureZone() {
     if (_gameState != GameState.running) return;
+    if (!_skillLoadout.contains('capture_zone')) return;
     final now = DateTime.now();
     if (_lastCaptureZoneAt != null &&
         now.difference(_lastCaptureZoneAt!).inSeconds <
@@ -1462,6 +1483,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _activateBodyThrow() {
     if (_gameState != GameState.running) return;
+    if (!_skillLoadout.contains('body_throw')) return;
     final now = DateTime.now();
     if (_lastBodyThrowAt != null &&
         now.difference(_lastBodyThrowAt!).inSeconds <
@@ -2258,6 +2280,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     bool selectedConsent = _trajectoryConsent;
     EliminationAftermathRule selectedElimination = _eliminationAftermathRule;
     PlayerRole selectedRole = _localRole;
+    bool selectedCustomRuleMode = _customRuleMode;
+    double selectedDurationMinutes = _matchDurationSeconds / 60;
     final prefs0 = await SharedPreferences.getInstance();
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
@@ -2370,6 +2394,26 @@ class _GameMapScreenState extends State<GameMapScreen>
                             if (v == null) return;
                             setModalState(() => selectedRole = v);
                           },
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('カスタム公開ルール'),
+                          subtitle: const Text('オフ時は開始時に役職/スキル/ルールを秘密ランダム割当'),
+                          value: selectedCustomRuleMode,
+                          onChanged: (v) =>
+                              setModalState(() => selectedCustomRuleMode = v),
+                        ),
+                        Text('制限時間: ${selectedDurationMinutes.round()} 分'),
+                        Slider(
+                          min: 1,
+                          max: 20,
+                          divisions: 19,
+                          value: selectedDurationMinutes.clamp(1, 20),
+                          onChanged: (v) =>
+                              setModalState(() => selectedDurationMinutes = v),
                         ),
 
                         const SizedBox(height: 10),
@@ -2750,6 +2794,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       _oniIntelMode = selectedIntel;
       _eliminationAftermathRule = selectedElimination;
       _localRole = selectedRole;
+      _customRuleMode = selectedCustomRuleMode;
+      _matchDurationSeconds = selectedDurationMinutes.round() * 60;
+      if (_customRuleMode) {
+        _skillLoadout = const {'fake', 'capture_zone', 'body_throw'};
+      }
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -3129,6 +3178,34 @@ class _GameMapScreenState extends State<GameMapScreen>
                 spectatorLine: _afterCatchRule?.infoPanelLine,
               ),
             ),
+          if (running && _remainingSeconds <= 10)
+            Positioned(
+              top: 110,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      _remainingSeconds.clamp(0, 10).toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (_editingArea)
             Positioned(
               left: 12,
@@ -3203,6 +3280,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                     isEditing: _editingArea,
                     fakeSkillActive: _fakePositionActive,
                     roleLabel: _isHunterNow ? 'hunter' : _localRole.label,
+                    canFakeSkill: _skillLoadout.contains('fake'),
+                    canCaptureZone: _skillLoadout.contains('capture_zone'),
+                    canBodyThrow: _skillLoadout.contains('body_throw'),
                     menuCollapsed: _menuCollapsed,
                     prepLobbyMapHidden:
                         _gameState == GameState.waiting && !showGameMap,
@@ -3652,6 +3732,9 @@ class _ControlPanel extends StatelessWidget {
     required this.isEditing,
     required this.fakeSkillActive,
     required this.roleLabel,
+    required this.canFakeSkill,
+    required this.canCaptureZone,
+    required this.canBodyThrow,
     required this.menuCollapsed,
     required this.prepLobbyMapHidden,
   });
@@ -3672,6 +3755,9 @@ class _ControlPanel extends StatelessWidget {
   final bool isEditing;
   final bool fakeSkillActive;
   final String roleLabel;
+  final bool canFakeSkill;
+  final bool canCaptureZone;
+  final bool canBodyThrow;
   final bool menuCollapsed;
   final bool prepLobbyMapHidden;
 
@@ -3731,7 +3817,9 @@ class _ControlPanel extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       FilledButton.tonalIcon(
-                        onPressed: !isEditing ? onFakeSkill : null,
+                        onPressed: !isEditing && canFakeSkill
+                            ? onFakeSkill
+                            : null,
                         icon: const Icon(Icons.flare),
                         label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置スキル'),
                       ),
@@ -3741,12 +3829,16 @@ class _ControlPanel extends StatelessWidget {
                         label: const Text('人狼鬼化'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: !isEditing ? onCaptureZone : null,
+                        onPressed: !isEditing && canCaptureZone
+                            ? onCaptureZone
+                            : null,
                         icon: const Icon(Icons.trip_origin),
                         label: const Text('捕獲結界'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: !isEditing ? onBodyThrow : null,
+                        onPressed: !isEditing && canBodyThrow
+                            ? onBodyThrow
+                            : null,
                         icon: const Icon(Icons.near_me),
                         label: const Text('体投げ'),
                       ),
