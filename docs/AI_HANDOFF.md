@@ -49,6 +49,8 @@ the current design intent.
 ## Planned Next Steps
 
 1. BLE proximity band integration (near-distance confidence boost)
-2. Firestore room sync (single-room first, capped write strategy)
-3. FCM event nudges for iOS-friendly foreground re-entry
-4. WorldProfile UI packs (horror/sport/sci-fi/ARG overlays)
+2. FCM event nudges for iOS-friendly foreground re-entry
+3. Optional PNG marker art per `assets/map_markers/{assetKey}/`
+4. Cloud Map Styling (Map IDs) for production map tiles
+
+World Visual Pack (6 profiles, map JSON, markers, atmosphere, replay) is implemented — see `docs/ARCHITECTURE.md` § World Visual Pack.

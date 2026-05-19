@@ -16,6 +16,7 @@ class GameCustomSettingsInitial {
     required this.matchDurationMinutes,
     required this.skillLoadout,
     required this.useBleScan,
+    this.avatarImagePath,
   });
 
   final WorldProfile profile;
@@ -28,6 +29,7 @@ class GameCustomSettingsInitial {
   final double matchDurationMinutes;
   final Set<String> skillLoadout;
   final bool useBleScan;
+  final String? avatarImagePath;
 }
 
 /// 「適用」後に画面へ反映する値。
@@ -43,6 +45,7 @@ class GameCustomSettingsResult {
     required this.matchDurationMinutes,
     required this.skillLoadout,
     required this.useBleScan,
+    this.avatarImagePath,
   });
 
   final WorldProfile profile;
@@ -55,4 +58,5 @@ class GameCustomSettingsResult {
   final double matchDurationMinutes;
   final Set<String> skillLoadout;
   final bool useBleScan;
+  final String? avatarImagePath;
 }

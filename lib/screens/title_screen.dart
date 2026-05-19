@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
+import '../theme/title_profile_chrome.dart';
 import '../theme/world_profile.dart';
 import '../widgets/responsive_page.dart';
 import 'game_map_screen.dart';
@@ -8,7 +10,14 @@ import 'room_lobby_screen.dart';
 
 /// アプリ入口。オンラインルーム参加か、オフライン練習かを選ぶ。
 class TitleScreen extends StatefulWidget {
-  const TitleScreen({super.key});
+  const TitleScreen({
+    this.initialProfile = WorldProfile.horror,
+    this.onProfileChanged,
+    super.key,
+  });
+
+  final WorldProfile initialProfile;
+  final ValueChanged<WorldProfile>? onProfileChanged;
 
   @override
   State<TitleScreen> createState() => _TitleScreenState();
@@ -16,16 +25,32 @@ class TitleScreen extends StatefulWidget {
 
 class _TitleScreenState extends State<TitleScreen> {
   bool _booting = true;
+  late WorldProfile _profile;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_warmFirebase);
+    _profile = widget.initialProfile;
+    Future<void>.microtask(_boot);
   }
 
-  Future<void> _warmFirebase() async {
+  Future<void> _boot() async {
     await FirebaseBootstrap.tryInit();
-    if (mounted) setState(() => _booting = false);
+    final saved = await WorldProfilePrefs.load();
+    if (!mounted) return;
+    setState(() {
+      _profile = saved;
+      _booting = false;
+    });
+    widget.onProfileChanged?.call(saved);
+  }
+
+  Future<void> _onProfileSelected(WorldProfile? next) async {
+    if (next == null || next == _profile) return;
+    await WorldProfilePrefs.save(next);
+    if (!mounted) return;
+    setState(() => _profile = next);
+    widget.onProfileChanged?.call(next);
   }
 
   @override
@@ -38,7 +63,7 @@ class _TitleScreenState extends State<TitleScreen> {
           children: [
             const SizedBox(height: 24),
             Icon(
-              Icons.nightlight_round,
+              TitleProfileChrome.iconFor(_profile),
               size: 56,
               color: theme.colorScheme.primary,
             ),
@@ -58,7 +83,26 @@ class _TitleScreenState extends State<TitleScreen> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
+            if (!_booting)
+              DropdownButtonFormField<WorldProfile>(
+                initialValue: _profile,
+                decoration: const InputDecoration(
+                  labelText: '世界観',
+                  border: OutlineInputBorder(),
+                  helperText: '地図・ピン・雰囲気のテーマ（ゲーム中も変更可）',
+                ),
+                items: WorldProfile.values
+                    .map(
+                      (p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(p.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _onProfileSelected,
+              ),
+            const SizedBox(height: 24),
             if (_booting)
               const Center(child: CircularProgressIndicator())
             else ...[
@@ -81,9 +125,7 @@ class _TitleScreenState extends State<TitleScreen> {
                 onPressed: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
-                      builder: (_) => const GameMapScreen(
-                        profile: WorldProfile.horror,
-                      ),
+                      builder: (_) => GameMapScreen(profile: _profile),
                     ),
                   );
                 },

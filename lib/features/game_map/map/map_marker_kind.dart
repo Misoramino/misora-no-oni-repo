@@ -1,0 +1,18 @@
+/// 地図マーカーの種類（世界観アイコン生成用）。
+enum MapMarkerKind {
+  player,
+  playerRevealed,
+  oni,
+  remoteOni,
+  remoteRunner,
+  remoteSpectator,
+  camera,
+  infoBroker,
+  safeZone,
+  commJamming,
+  trace,
+  reveal,
+  oniIntel,
+  fakePosition,
+  bodyThrow,
+}

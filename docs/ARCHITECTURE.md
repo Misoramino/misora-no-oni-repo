@@ -58,6 +58,41 @@
 - 試合中 HUD の「詳細」展開 → `MapLayerToggleStrip` でピン・円の種類ごとに ON/OFF（`GameMapLayerToggles`）。
 - 下部パネルの「詳細」→ スキル以外（GPS 再取得・地図を現在地へ・痕跡クリア等）。ボタンラベルは「スキル ⇄ 詳細」で切替。
 
+## World Visual Pack（世界観 UI）
+
+| 世界観 | enum | 地図 JSON |
+|--------|------|-----------|
+| Urban Horror | `horror` | `urban_horror.json` |
+| Pop City | `sport` | `pop_city.json` |
+| Cyber Night | `sciFi` | `cyber_night.json` |
+| Stealth Tactical | `arg` | `stealth_tactical.json` |
+| Magical World | `magical` | `magical_world.json` |
+| Astronomy | `astronomy` | `astronomy.json` |
+
+- `WorldVisualPackFactory` — スタイルパス・LOD・レイヤー初期値・ビネット・演出フラグ
+- `WorldProfileTokens` — マーカー色に加え、プレイエリア・痕跡・カメラ円など地図オーバーレイ色
+- `MapVisualController` — `GoogleMap.style` / マーカーキャッシュ / 写真ピン
+- `MapMarkerIconFactory` — PNG（`assets/map_markers/{assetKey}/`）優先、未配置時はプログラム生成
+- `AvatarPinCompositor` + `AvatarImageStore` — 端末ローカル写真（Firestore 非送信、アプリ内に永続化）
+- `WorldMapAtmosphere` — ビネット・reveal フラッシュ（プロファイル別 duration）・ノイズ・VHS・スキャン線
+- `RevealFlashController` — 試合中 / 再生のフラッシュ ON/OFF を共通化
+- ズーム LOD: `onCameraIdle` で `mapZoom` 更新 → ギミック Marker の出し分け
+- 監視カメラ: 未作動はスキャン円パルス、作動後は赤いアラート円（`cameraPulsePhase`）
+- タイトル / カスタム設定 / 軌跡再生 / ルーム→マップ: `WorldProfilePrefs` で世界観を共有
+
+### 世界観別演出（抜粋）
+
+| 世界観 | ビネット | reveal フラッシュ | ノイズ | VHS | スキャン線 | バウンス | 写真ピン |
+|--------|----------|-------------------|--------|-----|------------|----------|----------|
+| Urban Horror | 強 | 赤 | ○ | ○ | — | — | 暴露後のみ |
+| Pop City | — | ピンク | — | — | — | ○ | 常時可 |
+| Cyber Night | 暗 | シアン | ○ | — | ○ | — | — |
+| Stealth Tactical | 弱 | 控えめ | — | — | — | — | — |
+| Magical World | 紫 | マゼンタ | — | — | — | — | 常時可 |
+| Astronomy | 宇宙 | 黄 | — | — | ○ | — | — |
+
+再生画面 AppBar のパレットで世界観を切替可能（`WorldProfilePrefs` に保存）。
+
 今後さらに分ける候補:
 
 - スキル発動 UI コールバックの整理（画面から Match 層へ）

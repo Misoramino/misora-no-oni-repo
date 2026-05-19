@@ -66,10 +66,14 @@ import '../services/play_area_slot_store.dart';
 import '../services/play_area_store.dart';
 import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
+import '../features/game_map/visual/map_visual_controller.dart';
+import '../features/game_map/visual/reveal_flash_controller.dart';
+import '../features/game_map/widgets/world_map_atmosphere.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import '../widgets/confirm_dialog.dart';
 import '../session/game_map_prefs.dart';
+import '../session/world_profile_prefs.dart';
 import '../settings/oni_operator_prefs.dart';
 import 'match_gallery_screen.dart';
 import 'match_result_screen.dart';
@@ -149,6 +153,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
+  late MapVisualController _mapVisual;
+  String? _avatarImagePath;
+  late RevealFlashController _revealFlash;
+  double _cameraPulsePhase = 0;
   ControlSheetMode _controlSheetMode = ControlSheetMode.skillsOnly;
   bool _hudExpanded = false;
   GameMapLayerToggles _mapLayerToggles = GameMapLayerToggles.allOn;
@@ -201,6 +209,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _activeProfile = widget.profile;
+    _mapVisual = MapVisualController(_activeProfile);
+    _revealFlash = RevealFlashController(() {
+      if (mounted) setState(() {});
+    });
+    _mapLayerToggles = _mapVisual.pack.layerDefaults;
     _dangerPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -215,6 +228,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     Future<void>.microtask(_loadOniOperatorPrefs);
     Future<void>.microtask(_loadPlayAreaSlots);
+    Future<void>.microtask(_initWorldVisual);
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
   }
@@ -679,10 +693,75 @@ class _GameMapScreenState extends State<GameMapScreen>
       _hudRevealAlert = message;
       _hudExpanded = true;
     });
+    _revealFlash.trigger(_mapVisual.pack);
+    unawaited(_refreshPlayerAvatarIcon());
     _hudRevealAlertTimer = Timer(const Duration(seconds: 14), () {
       if (!mounted) return;
       setState(() => _hudRevealAlert = null);
     });
+  }
+
+  Future<void> _initWorldVisual() async {
+    final prefs = await SharedPreferences.getInstance();
+    _avatarImagePath = prefs.getString(GameMapPrefs.avatarImagePath);
+    final profile = await WorldProfilePrefs.load();
+    await _mapVisual.reloadForProfile(profile);
+    await _refreshPlayerAvatarIcon();
+    if (!mounted) return;
+    setState(() {
+      _activeProfile = profile;
+      _mapLayerToggles = _mapVisual.pack.layerDefaults;
+    });
+  }
+
+  Future<void> _applyWorldProfile(WorldProfile profile) async {
+    await _mapVisual.reloadForProfile(profile);
+    await _refreshPlayerAvatarIcon();
+    if (!mounted) return;
+    setState(() => _mapLayerToggles = _mapVisual.pack.layerDefaults);
+  }
+
+  bool _isPlayerRevealedForPhoto() {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 50));
+    return _rt.revealLog.any(
+      (e) =>
+          e.timestamp.isAfter(cutoff) &&
+          e.playerLabel == _localPlayerLabel,
+    );
+  }
+
+  bool _shouldUsePhotoPlayerPin() {
+    final p = _mapVisual.pack;
+    if (_avatarImagePath == null || _avatarImagePath!.isEmpty) return false;
+    if (p.showPhotoPinByDefault && !p.photoOnlyOnReveal) return true;
+    return _isPlayerRevealedForPhoto();
+  }
+
+  Future<void> _refreshPlayerAvatarIcon() async {
+    await _mapVisual.refreshPlayerAvatar(
+      localPath: _avatarImagePath,
+      usePhoto: _shouldUsePhotoPlayerPin(),
+      revealedStyle: _isPlayerRevealedForPhoto(),
+    );
+  }
+
+  Future<void> _onMapCreated(GoogleMapController controller) async {
+    _mapController = controller;
+    try {
+      _mapVisual.updateZoom(await controller.getZoomLevel());
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _onCameraIdle() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    try {
+      final z = await controller.getZoomLevel();
+      if ((z - _mapVisual.mapZoom).abs() < 0.15) return;
+      _mapVisual.updateZoom(z);
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   LatLng _displayRevealPosition(LatLng raw) =>
@@ -788,8 +867,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     s.stepTowardTarget(blend);
     final after = s.residualMeters;
     final running = _gameState == GameState.running;
-    final shouldRepaint =
+    var shouldRepaint =
         running || (before - after).abs() > 0.25 || !s.isNearlyThere;
+    if (running &&
+        _mapLayerToggles.cameras &&
+        _rt.cameraPositions.isNotEmpty) {
+      _cameraPulsePhase = (_cameraPulsePhase + 0.04) % 1.0;
+      shouldRepaint = true;
+    }
     if (shouldRepaint && (running || after > 1.2 || !s.isNearlyThere)) {
       setState(() {});
     }
@@ -2677,6 +2762,12 @@ class _GameMapScreenState extends State<GameMapScreen>
       captureZoneCenter: _rt.captureZoneCenter,
       tokens: tokens,
       layerToggles: _mapLayerToggles,
+      visualPack: _mapVisual.pack,
+      markerRegistry: _mapVisual.markerRegistry,
+      mapZoom: _mapVisual.mapZoom,
+      playerMarkerIcon: _mapVisual.playerAvatarIcon,
+      usePhotoPlayerPin: _shouldUsePhotoPlayerPin(),
+      cameraPulsePhase: _cameraPulsePhase,
     );
   }
 
@@ -2799,6 +2890,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         matchDurationMinutes: _matchDurationSeconds / 60,
         skillLoadout: _skillLoadout,
         useBleScan: prefs0.getBool(GameMapPrefs.useBleScanProximity) ?? false,
+        avatarImagePath: _avatarImagePath,
       ),
       isHost: _isHost,
       onJoinRoom: ({required roomId, required nickname, required role}) =>
@@ -2810,6 +2902,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       onLeaveRoom: _leaveFirestoreRoom,
     );
     if (!mounted || result == null) return;
+    await WorldProfilePrefs.save(result.profile);
     setState(() {
       _activeProfile = result.profile;
       _oniIntelMode = result.oniIntelMode;
@@ -2833,6 +2926,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
       if (err != null && mounted) _toast(err);
     }
+    _avatarImagePath = result.avatarImagePath;
+    await _applyWorldProfile(result.profile);
+    await _refreshPlayerAvatarIcon();
     await _reloadProximityStackFromPrefs();
     if (_trajectoryConsent != result.trajectoryConsent) {
       await _setTrajectoryConsent(result.trajectoryConsent);
@@ -3054,6 +3150,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _renderPump?.cancel();
     _cancelCaptureBoundTimers();
     _dangerPulseController.dispose();
+    _revealFlash.dispose();
     _proximityService.stop();
     if (_ownsRoomSession) {
       unawaited(_roomSession.disconnect());
@@ -3132,6 +3229,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               builder: (context) {
                 final overlay = _overlaySnapshot(tokens);
                 return GoogleMap(
+              style: _mapVisual.mapStyleJson,
               initialCameraPosition: CameraPosition(
                 target: _currentPosition,
                 zoom: 16,
@@ -3143,9 +3241,8 @@ class _GameMapScreenState extends State<GameMapScreen>
               circles: GameMapOverlayBuilder.buildCircles(overlay),
               polygons: GameMapOverlayBuilder.buildPolygons(overlay),
               onTap: _onMapTap,
-              onMapCreated: (controller) {
-                _mapController = controller;
-              },
+              onMapCreated: _onMapCreated,
+              onCameraIdle: _onCameraIdle,
                 );
               },
             )
@@ -3173,27 +3270,41 @@ class _GameMapScreenState extends State<GameMapScreen>
               }),
               onOpenLobby: _openRoomLobby,
             ),
-          if (showGameMap && _gameState == GameState.running)
+          if (showGameMap)
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   animation: _dangerPulseController,
                   builder: (_, child) {
-                    final level =
-                        (_dangerPulseController.value * 0.35) +
-                        (_rt.isInfectedNow ? 0.20 : 0.0);
-                    return Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: const Alignment(0, -0.2),
-                          radius: 1.0,
-                          colors: [
-                            Colors.red.withValues(alpha: level),
-                            Colors.transparent,
-                          ],
+                    final dangerExtra = _gameState == GameState.running
+                        ? (_dangerPulseController.value * 0.35) +
+                            (_rt.isInfectedNow ? 0.20 : 0.0)
+                        : 0.0;
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        WorldMapAtmosphere(
+                          pack: _mapVisual.pack,
+                          dangerPulse: dangerExtra,
+                          revealFlashActive: _revealFlash.active,
+                          scanPhase: _cameraPulsePhase,
+                          revealNoiseSeed: _revealFlash.noiseSeed,
                         ),
-                      ),
-                      child: child,
+                        if (dangerExtra > 0.05)
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: const Alignment(0, -0.2),
+                                radius: 1.0,
+                                colors: [
+                                  _mapVisual.pack.tokens.alertColor
+                                      .withValues(alpha: dangerExtra),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),

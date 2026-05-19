@@ -6,6 +6,7 @@ import '../session/session_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../sync/firestore_room_session.dart';
 import '../sync/room_member_view.dart';
+import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
 import '../widgets/responsive_page.dart';
 import 'game_map_screen.dart';
@@ -29,6 +30,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   List<RoomMemberView> _members = [];
   bool _joining = false;
   String? _error;
+  WorldProfile _worldProfile = WorldProfile.horror;
 
   bool get _joined => _session?.roomId != null;
 
@@ -41,8 +43,10 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 
   Future<void> _init() async {
     await FirebaseBootstrap.tryInit();
+    final profile = await WorldProfilePrefs.load();
     final form = await SessionPrefs.loadForm();
     if (!mounted) return;
+    setState(() => _worldProfile = profile);
     _nickController.text = form.nickname;
     _roomController.text = form.roomId;
     if (_session != null && _session!.roomId != null) {
@@ -154,10 +158,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     final fs = _session;
     if (fs == null || fs.roomId == null) return;
     if (!mounted) return;
+    final profile = await WorldProfilePrefs.load();
+    if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) =>
-            GameMapScreen(profile: WorldProfile.horror, onlineSession: fs),
+            GameMapScreen(profile: profile, onlineSession: fs),
       ),
     );
     if (!mounted) return;
@@ -188,6 +194,23 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
               'ルームに参加すると、同じルームIDの端末が一覧に表示されます。'
               '位置は標準では秘匿され、スキルやイベントでのみ公開されます。',
               style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: '地図の世界観',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                _worldProfile.label,
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+            Text(
+              'タイトル画面の世界観設定がマップに反映されます',
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),

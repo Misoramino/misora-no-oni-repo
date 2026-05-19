@@ -29,7 +29,9 @@
 |------|-------------------------|
 | 地図の `setState` 連打 | マーカー平滑化タイマーは試合中 50ms、待機中 250ms |
 | GPS | 状況で `LocationSamplingTier` を切替 |
-| マーカー・円の再生成 | 試合中のみ毎フレーム再構築しうる → 将来 `game_map_markers.dart` でメモ化 |
+| マーカー・円の再生成 | 試合中のみ毎フレーム再構築しうる → `MapMarkerIconRegistry` で Bitmap を warm-up 済み |
+| 地図スタイル JSON | 起動時に `MapStyleLoader` がキャッシュ（プロファイル切替時のみ再読込） |
+| 雰囲気 overlay | `WorldMapAtmosphere` は IgnorePointer・軽量 CustomPaint。ズームは `onCameraIdle` のみ `setState` |
 | 準備画面 | 地図非表示時は GoogleMap を構築しない |
 
 体感が重い場合: 開発者メニューの Test Mode をオフ、痕跡のクリア、端末の省電力除外を確認してください。

@@ -9,7 +9,13 @@ import '../game/game_state.dart';
 import '../game/match_event.dart';
 import '../game/match_record.dart';
 import '../game/play_area.dart';
+import '../features/game_map/map/map_replay_marker_helper.dart';
+import '../features/game_map/visual/map_visual_controller.dart';
+import '../features/game_map/visual/reveal_flash_controller.dart';
+import '../features/game_map/widgets/world_map_atmosphere.dart';
 import '../services/match_recorder.dart';
+import '../session/world_profile_prefs.dart';
+import '../theme/world_profile.dart';
 
 /// タイムラプス風に軌跡を再生する画面。
 class MatchReplayScreen extends StatefulWidget {
@@ -34,6 +40,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   bool _showEventMarkers = true;
   bool _showPlayArea = true;
   bool _panelExpanded = false;
+  late MapVisualController _mapVisual;
+  bool _visualReady = false;
+  late RevealFlashController _revealFlash;
 
   @override
   void initState() {
@@ -41,6 +50,18 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
     _trackVisible = {
       for (final k in widget.record.tracks.keys) k: true,
     };
+    _mapVisual = MapVisualController(WorldProfile.horror);
+    _revealFlash = RevealFlashController(() {
+      if (mounted) setState(() {});
+    });
+    Future<void>.microtask(_loadReplayVisual);
+  }
+
+  Future<void> _loadReplayVisual() async {
+    final profile = await WorldProfilePrefs.load();
+    await _mapVisual.reloadForProfile(profile);
+    if (!mounted) return;
+    setState(() => _visualReady = true);
   }
 
   Future<void> _fitMapToContent() async {
@@ -102,6 +123,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   @override
   void dispose() {
     _clock?.cancel();
+    _revealFlash.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -118,7 +140,30 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
         _clock?.cancel();
       }
     });
+    _maybeRevealFlashAt(_timeAtProgress(_progress));
     _maybePulseClearEffect();
+  }
+
+  void _maybeRevealFlashAt(DateTime tNow) {
+    if (_mapVisual.pack.revealFlashColor == null) return;
+    final hit = widget.record.events.any(
+      (e) =>
+          MapReplayMarkerHelper.isRevealFlashType(e.type) &&
+          !e.atUtc.isAfter(tNow) &&
+          tNow.difference(e.atUtc) <= const Duration(milliseconds: 500),
+    );
+    if (!hit || _revealFlash.active) return;
+    _revealFlash.trigger(_mapVisual.pack);
+  }
+
+  Future<void> _cycleReplayProfile() async {
+    final values = WorldProfile.values;
+    final i = values.indexOf(_mapVisual.pack.profile);
+    final next = values[(i + 1) % values.length];
+    await WorldProfilePrefs.save(next);
+    await _mapVisual.reloadForProfile(next);
+    if (!mounted) return;
+    setState(() => _visualReady = true);
   }
 
   void _setPlaying(bool v) {
@@ -198,8 +243,24 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.record.outcome.label),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.record.outcome.label),
+            if (_visualReady)
+              Text(
+                _mapVisual.pack.profile.label,
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+          ],
+        ),
         actions: [
+          if (_visualReady)
+            IconButton(
+              tooltip: '世界観を切替（${_mapVisual.pack.profile.label}）',
+              onPressed: () => unawaited(_cycleReplayProfile()),
+              icon: const Icon(Icons.palette_outlined),
+            ),
           IconButton(
             tooltip: _showEventMarkers ? 'イベントを隠す' : 'イベントを表示',
             onPressed: () => setState(() => _showEventMarkers = !_showEventMarkers),
@@ -221,9 +282,23 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
           ),
         ],
       ),
-      body: Stack(
+      body: !_visualReady
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
         children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: WorldMapAtmosphere(
+                pack: _mapVisual.pack,
+                dangerPulse: 0,
+                revealFlashActive: _revealFlash.active,
+                scanPhase: _playing ? _progress : 0,
+                revealNoiseSeed: _revealFlash.noiseSeed,
+              ),
+            ),
+          ),
           GoogleMap(
+            style: _mapVisual.mapStyleJson,
             initialCameraPosition: CameraPosition(
               target: fallbackTarget,
               zoom: 15,
@@ -252,8 +327,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                       center: playArea.center,
                       radius: playArea.radiusMeters,
                       strokeWidth: 2,
-                      fillColor: Colors.blue.withValues(alpha: 0.06),
-                      strokeColor: Colors.blue.shade400,
+                      fillColor: _mapVisual.pack.tokens.playAreaColor
+                          .withValues(alpha: 0.12),
+                      strokeColor: _mapVisual.pack.tokens.playAreaColor,
                     ),
                   }
                 : {},
@@ -263,8 +339,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                       polygonId: const PolygonId('replay-area'),
                       points: playArea.points,
                       strokeWidth: 2,
-                      fillColor: Colors.blue.withValues(alpha: 0.06),
-                      strokeColor: Colors.blue.shade400,
+                      fillColor: _mapVisual.pack.tokens.playAreaColor
+                          .withValues(alpha: 0.12),
+                      strokeColor: _mapVisual.pack.tokens.playAreaColor,
                     ),
                   }
                 : {},
@@ -277,7 +354,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
                       colors: [
-                        Colors.amber.withValues(alpha: 0.15 * ((_progress - 0.9) / 0.1).clamp(0.0, 1.0)),
+                        _mapVisual.pack.tokens.markerAccent.withValues(
+                          alpha: 0.15 * ((_progress - 0.9) / 0.1).clamp(0.0, 1.0),
+                        ),
                         Colors.transparent,
                       ],
                     ),
@@ -287,7 +366,8 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                     style: TextStyle(
                       fontSize: 42,
                       fontWeight: FontWeight.w900,
-                      color: Colors.amberAccent.withValues(alpha: 0.65),
+                      color: _mapVisual.pack.tokens.markerAccent
+                          .withValues(alpha: 0.65),
                       letterSpacing: 4,
                     ),
                   ),
@@ -333,6 +413,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                                       _progress = v;
                                       _celebrationShown = false;
                                     });
+                                    _maybeRevealFlashAt(_timeAtProgress(v));
                                   },
                                 ),
                               ],
@@ -472,15 +553,19 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   }
 
   Set<Marker> _buildEventMarkers(DateTime now) {
-    if (!_showEventMarkers) return {};
+    if (!_showEventMarkers || !(_mapVisual.markerRegistry?.isReady ?? false)) {
+      return {};
+    }
+    final reg = _mapVisual.markerRegistry!;
     final out = <Marker>{};
     for (final e in _eventsNear(now, const Duration(seconds: 90))) {
+      final kind = MapReplayMarkerHelper.forEventType(e.type);
       out.add(
         Marker(
           markerId: MarkerId('event_${e.type}_${e.atUtc.microsecondsSinceEpoch}'),
           position: e.position,
           infoWindow: InfoWindow(title: 'イベント', snippet: e.message),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow),
+          icon: reg.iconOrHue(kind, BitmapDescriptor.hueYellow),
         ),
       );
     }
@@ -488,6 +573,8 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   }
 
   Set<Marker> _buildMarkersAt(DateTime tNow) {
+    if (!(_mapVisual.markerRegistry?.isReady ?? false)) return {};
+    final reg = _mapVisual.markerRegistry!;
     final out = <Marker>{};
     var index = 0;
     for (final e in widget.record.tracks.entries) {
@@ -499,13 +586,12 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
       }
       final pos = interpolateAlongTrack(samples, tNow);
       if (pos != null) {
+        final kind = MapReplayMarkerHelper.forTrackId(id);
         out.add(
           Marker(
             markerId: MarkerId('replay_$id'),
             position: pos,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              _markerHue(id, index),
-            ),
+            icon: reg.iconOrHue(kind, _markerHue(id, index)),
             infoWindow: InfoWindow(title: _trackTitle(id)),
           ),
         );
@@ -536,15 +622,16 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
     return id;
   }
 
-  static Color _trackColor(String id, int fallbackIndex) {
-    if (id == MatchTrackIds.runnerLocal) return Colors.lightBlue.shade700;
-    if (id == MatchTrackIds.oniLocal) return Colors.red.shade700;
-    const palette = <Color>[
-      Color(0xFF43A047),
-      Color(0xFFFFA726),
-      Color(0xFFAB47BC),
-      Color(0xFF78909C),
-      Color(0xFF0097A7),
+  Color _trackColor(String id, int fallbackIndex) {
+    final t = _mapVisual.pack.tokens;
+    if (id == MatchTrackIds.runnerLocal) return t.playerRingColor;
+    if (id == MatchTrackIds.oniLocal) return t.alertColor;
+    final palette = <Color>[
+      t.safeColor,
+      t.infoColor,
+      t.traceColor,
+      t.playerRingColor,
+      t.revealRingColor,
     ];
     return palette[fallbackIndex % palette.length];
   }

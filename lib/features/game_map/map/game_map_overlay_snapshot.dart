@@ -6,7 +6,9 @@ import '../../../game/oni_intel_trace.dart';
 import '../../../game/play_area.dart';
 import '../../../sync/remote_member_snapshot.dart';
 import '../../../theme/world_profile_tokens.dart';
+import '../../../theme/world_visual_pack.dart';
 import 'game_map_layer_toggles.dart';
+import 'map_marker_icon_registry.dart';
 
 /// [GameMapOverlayBuilder] 用の地図描画スナップショット（1 フレーム分）。
 class GameMapOverlaySnapshot {
@@ -45,6 +47,12 @@ class GameMapOverlaySnapshot {
     required this.captureZoneCenter,
     required this.tokens,
     this.layerToggles = GameMapLayerToggles.allOn,
+    this.visualPack,
+    this.markerRegistry,
+    this.mapZoom = 16,
+    this.playerMarkerIcon,
+    this.usePhotoPlayerPin = false,
+    this.cameraPulsePhase = 0,
   });
 
   final DateTime now;
@@ -81,4 +89,12 @@ class GameMapOverlaySnapshot {
   final LatLng? captureZoneCenter;
   final WorldProfileTokens tokens;
   final GameMapLayerToggles layerToggles;
+  final WorldVisualPack? visualPack;
+  final MapMarkerIconRegistry? markerRegistry;
+  final double mapZoom;
+  final BitmapDescriptor? playerMarkerIcon;
+  final bool usePhotoPlayerPin;
+
+  /// 0〜1。監視カメラのスキャン円アニメ用。
+  final double cameraPulsePhase;
 }
