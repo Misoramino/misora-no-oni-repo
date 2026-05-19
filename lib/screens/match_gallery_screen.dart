@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../game/game_state.dart';
 import '../game/match_record.dart';
 import '../services/match_archive_store.dart';
+import '../widgets/confirm_dialog.dart';
 import 'match_replay_screen.dart';
 
 /// 端末に保存した試合一覧。同期前はローカルのみ。
@@ -25,6 +26,23 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
     _reload();
   }
 
+  Future<void> _deleteAll() async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'すべての軌跡を削除',
+      message: '保存済みの試合記録 ${_items.length} 件をすべて削除しますか？\nこの操作は取り消せません。',
+      confirmLabel: 'すべて削除',
+      isDestructive: true,
+    );
+    if (!ok) return;
+    await _store.clearAll();
+    await _reload();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('すべての軌跡を削除しました')),
+    );
+  }
+
   Future<void> _reload() async {
     setState(() => _loading = true);
     final items = await _store.listRecent(limit: 50);
@@ -45,6 +63,12 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
       appBar: AppBar(
         title: const Text('試合ギャラリー'),
         actions: [
+          if (_items.isNotEmpty)
+            IconButton(
+              tooltip: 'すべて削除',
+              onPressed: _loading ? null : _deleteAll,
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
           IconButton(
             tooltip: '再読込',
             onPressed: _loading ? null : _reload,
@@ -96,6 +120,13 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () async {
+                                  final ok = await showConfirmDialog(
+                                    context,
+                                    title: '軌跡を削除',
+                                    message:
+                                        '「${_outcomeJa(m.outcome)}」の記録（${m.startedAtUtc.toLocal()}）を削除しますか？',
+                                  );
+                                  if (!ok) return;
                                   await _store.delete(m.id);
                                   await _reload();
                                 },

@@ -113,6 +113,43 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     await _session?.disconnect();
   }
 
+  Future<void> _transferHostTo(RoomMemberView target) async {
+    final fs = _session;
+    if (fs == null || !fs.isHost) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ホストを譲渡'),
+        content: Text(
+          '「${target.nickname}」をホストにしますか？\n'
+          'あなたは通常メンバーになります。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('譲渡'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final err = await fs.transferHost(target.uid);
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${target.nickname} をホストにしました')),
+      );
+    }
+  }
+
   Future<void> _openMap() async {
     final fs = _session;
     if (fs == null || fs.roomId == null) return;
@@ -231,7 +268,16 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                 child: Center(child: Text('メンバー同期中です。表示されない場合は再参加してください。')),
               )
             else
-              ..._members.map((v) => _MemberTile(view: v)),
+              ..._members.map(
+                (v) => _MemberTile(
+                  view: v,
+                  canTransferHost:
+                      _session?.isHost == true &&
+                      !v.isSelf &&
+                      !v.isHost,
+                  onTransferHost: () => _transferHostTo(v),
+                ),
+              ),
             const SizedBox(height: 20),
             FilledButton.tonalIcon(
               onPressed: _joined ? _openMap : null,
@@ -249,16 +295,22 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 }
 
 class _MemberTile extends StatelessWidget {
-  const _MemberTile({required this.view});
+  const _MemberTile({
+    required this.view,
+    this.canTransferHost = false,
+    this.onTransferHost,
+  });
 
   final RoomMemberView view;
+  final bool canTransferHost;
+  final VoidCallback? onTransferHost;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitle = view.hasHeartbeat
-        ? 'オンライン · 位置は秘匿 · ${view.proximityBand ?? "近接帯未設定"}'
-        : 'オンライン · 位置は秘匿（ゲーム画面で心拍更新）';
+        ? 'オンライン ・ 位置は秘匿 ・ ${view.proximityBand ?? "近接帯未設定"}'
+        : 'オンライン ・ 位置は秘匿（ゲーム画面で心拍更新）';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -274,13 +326,34 @@ class _MemberTile extends StatelessWidget {
           '${view.isSelf ? "（あなた）" : ""}',
         ),
         subtitle: Text(subtitle),
-        trailing: view.isSelf
-            ? Chip(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (view.isHost)
+              Chip(
+                avatar: Icon(
+                  Icons.star,
+                  size: 14,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+                label: const Text('ホスト'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor: theme.colorScheme.secondaryContainer,
+              ),
+            if (view.isSelf)
+              Chip(
                 label: const Text('自分'),
                 visualDensity: VisualDensity.compact,
                 backgroundColor: theme.colorScheme.primaryContainer,
-              )
-            : null,
+              ),
+            if (canTransferHost && onTransferHost != null)
+              IconButton(
+                tooltip: 'ホストを譲渡',
+                icon: const Icon(Icons.swap_horiz),
+                onPressed: onTransferHost,
+              ),
+          ],
+        ),
       ),
     );
   }

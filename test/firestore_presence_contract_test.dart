@@ -20,6 +20,22 @@ void main() {
     expect(view.role, 'runner');
     expect(view.hasHeartbeat, isTrue);
     expect(view.isSelf, isFalse);
+    expect(view.isHost, isFalse);
+  });
+
+  test('lobby member can be marked host', () {
+    final view = RoomMemberView.parse(
+      uid: 'host-uid',
+      data: {
+        MemberPresenceFields.nickname: 'host',
+        MemberPresenceFields.role: 'runner',
+        MemberPresenceFields.reportedAtUtc: '2026-01-10T10:00:00.000Z',
+        MemberPresenceFields.locationVisibility: 'hidden',
+      },
+      isSelf: false,
+      isHost: true,
+    );
+    expect(view.isHost, isTrue);
   });
 
   test('remote map snapshots still require explicit coordinates', () {

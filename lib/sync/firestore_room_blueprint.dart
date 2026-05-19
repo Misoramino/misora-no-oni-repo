@@ -16,9 +16,36 @@ abstract final class FirestorePaths {
 /// rooms/{roomId}
 /// ```
 abstract final class RoomDocFields {
-  static const phase = 'phase'; // 'lobby' | 'running' | 'finale' |ended'
+  static const phase = 'phase'; // 'lobby' | 'running' | 'finale' | 'ended'
   static const endedAtUtc = 'endedAtUtc';
   static const rulesVersion = 'rulesVersion'; // アプリ側ルールセットの整数
+
+  /// ルームホストの Firebase Auth UID。
+  static const hostUid = 'hostUid';
+
+  /// Phase A: ホストが試合開始時に 1 回だけ書く（ネスト map）。
+  static const matchStart = 'matchStart';
+
+  static const matchStartGimmickSeed = 'gimmickSeed';
+  static const matchStartPlayArea = 'playArea';
+  static const matchStartDurationSec = 'matchDurationSeconds';
+  static const matchStartOniIntelMode = 'oniIntelMode';
+  static const matchStartAftermathRule = 'eliminationAftermathRule';
+  static const matchStartAssignments = 'assignments';
+  static const matchStartStartedAtUtc = 'startedAtUtc';
+
+  /// Phase A: 試合終了時（ホストのみ）。
+  static const endReason = 'endReason';
+  static const matchOutcome = 'matchOutcome';
+  static const endMessage = 'endMessage';
+}
+
+/// [RoomDocFields.endReason] の値。
+abstract final class MatchEndReason {
+  static const timeUp = 'time_up';
+  static const caught = 'caught';
+  static const hostEnded = 'host_ended';
+  static const hostAbort = 'host_abort';
 }
 
 /// メンバー文書：`members/{uid}`。live 位置は置かず、接続状態だけを軽く同期する。

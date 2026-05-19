@@ -8,14 +8,42 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/game_map/control_sheet_mode.dart';
+import '../features/game_map/map/game_map_overlay_builder.dart';
+import '../features/game_map/map/game_map_overlay_snapshot.dart';
+import '../features/game_map/map/map_geo_format.dart';
+import '../features/game_map/logic/gimmick_relocator.dart';
+import '../features/game_map/logic/map_geo_utils.dart';
+import '../features/game_map/logic/oni_intel_text_builder.dart';
+import '../features/game_map/match/game_map_match_controller.dart';
+import '../features/game_map/match/gimmick_pickup_evaluator.dart';
+import '../features/game_map/match/match_geo_helpers.dart';
+import '../features/game_map/match/match_runtime_state.dart';
+import '../features/game_map/match/match_tick_effects.dart';
+import '../features/game_map/play_area/geo_json_actions.dart';
+import '../features/game_map/prep/prep_lobby_panel.dart';
+import '../features/game_map/widgets/how_to_play_sheet.dart';
+import '../features/game_map/settings/game_custom_settings_models.dart';
+import '../features/game_map/settings/game_custom_settings_sheet.dart';
+import '../features/game_map/widgets/area_editor_card.dart';
+import '../features/game_map/widgets/diagnostics_card.dart';
+import '../features/game_map/widgets/game_control_panel.dart';
+import '../features/game_map/widgets/game_info_panel.dart';
+import '../features/game_map/widgets/game_map_overflow_menu.dart';
+import '../features/game_map/widgets/ghost_spectator_bar.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
 import '../game/game_state.dart';
+import '../game/generated_gimmicks.dart';
 import '../game/location_reveal_event.dart';
 import '../game/match_event.dart';
 import '../game/oni_intel_mode.dart';
+import '../game/oni_intel_trace.dart';
 import '../game/play_area.dart';
+import '../game/player_role.dart';
+import '../game/polygon_area_resolver.dart';
 import '../game/sampling_tier.dart';
+import '../game/skill_ids.dart';
 import '../map/runner_display_smooth.dart';
 import '../proximity/ble_scan_proximity_service.dart';
 import '../proximity/hybrid_proximity_service.dart';
@@ -24,6 +52,9 @@ import '../proximity/proximity_service.dart';
 import '../proximity/proximity_signal.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../sync/firestore_room_session.dart';
+import '../sync/firestore_room_blueprint.dart';
+import '../sync/room_phase.dart';
+import '../sync/shared_match_snapshot.dart';
 import '../sync/remote_member_snapshot.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
@@ -34,15 +65,14 @@ import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
+import '../widgets/confirm_dialog.dart';
+import '../session/game_map_prefs.dart';
 import '../settings/oni_operator_prefs.dart';
 import 'match_gallery_screen.dart';
 import 'match_result_screen.dart';
 import 'oni_operator_screen.dart';
 import 'privacy_control_screen.dart';
 import 'room_lobby_screen.dart';
-
-/// 操作パネル: 非表示 / スキルのみ / 詳細（準備時は詳細設定）
-enum _ControlSheetMode { hidden, skillsOnly, expanded }
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, this.onlineSession, super.key});
@@ -56,234 +86,6 @@ class GameMapScreen extends StatefulWidget {
   State<GameMapScreen> createState() => _GameMapScreenState();
 }
 
-enum PlayerRole {
-  runner('runner'),
-  hunter('hunter'),
-  werewolf('werewolf');
-
-  const PlayerRole(this.label);
-  final String label;
-}
-
-extension PlayerRoleUi on PlayerRole {
-  String get displayName => switch (this) {
-    PlayerRole.runner => '逃走者',
-    PlayerRole.hunter => '鬼',
-    PlayerRole.werewolf => '人狼',
-  };
-}
-
-const _assignableRoles = [
-  PlayerRole.runner,
-  PlayerRole.hunter,
-  PlayerRole.werewolf,
-];
-
-abstract final class SkillIds {
-  static const fakePosition = 'fake_position';
-  static const fakeIntelReveal = 'fake_intel_reveal';
-  static const captureZone = 'capture_zone';
-  static const bodyThrow = 'body_throw';
-  static const werewolfTransform = 'werewolf_transform';
-}
-
-String _skillLabel(String id) => switch (id) {
-  SkillIds.fakePosition => '偽位置',
-  SkillIds.fakeIntelReveal => '偽情報暴露',
-  SkillIds.captureZone => '捕獲結界',
-  SkillIds.bodyThrow => '体投げ',
-  SkillIds.werewolfTransform => '鬼化',
-  _ => id,
-};
-
-String _skillShortLabel(String id) => switch (id) {
-  SkillIds.fakePosition => '偽位置',
-  SkillIds.fakeIntelReveal => '偽情報',
-  SkillIds.captureZone => '結界',
-  SkillIds.bodyThrow => '体投',
-  SkillIds.werewolfTransform => '鬼化',
-  _ => id,
-};
-
-class _OniIntelTrace {
-  const _OniIntelTrace({
-    required this.timestamp,
-    required this.position,
-    required this.text,
-  });
-
-  final DateTime timestamp;
-  final LatLng position;
-  final String text;
-}
-
-class _GeneratedGimmicks {
-  const _GeneratedGimmicks({
-    required this.safeZones,
-    required this.infoBrokers,
-    required this.cameras,
-    required this.eventAreas,
-  });
-
-  final List<LatLng> safeZones;
-  final List<LatLng> infoBrokers;
-  final List<LatLng> cameras;
-  final List<LatLng> eventAreas;
-
-  factory _GeneratedGimmicks.create(PlayArea area) {
-    final center = _centerOf(area);
-    final radius = _effectiveRadiusMeters(area, center).clamp(180.0, 2400.0);
-    final safeCount = _scaledCount(
-      radius,
-      GameConfig.safeZoneMinCount,
-      GameConfig.safeZoneMaxCount,
-    );
-    final brokerCount = _scaledCount(
-      radius,
-      GameConfig.infoBrokerMinCount,
-      GameConfig.infoBrokerMaxCount,
-    );
-    final cameraCount =
-        (GameConfig.cameraMinCount + ((radius - 250) / 180).floor())
-            .clamp(GameConfig.cameraMinCount, GameConfig.cameraMaxCount)
-            .toInt();
-    final eventCount = _scaledCount(
-      radius,
-      GameConfig.commJammingZoneMinCount,
-      GameConfig.commJammingZoneMaxCount,
-    );
-    final minGap = (radius * 0.18).clamp(60.0, 180.0);
-
-    final used = <LatLng>[];
-    List<LatLng> group({
-      required int count,
-      required double angleSeed,
-      required double radiusFactor,
-      double? minGapOverride,
-    }) {
-      final out = <LatLng>[];
-      final gap = minGapOverride ?? minGap;
-      for (var i = 0; i < count; i++) {
-        final angle = angleSeed + i * (360 / math.max(1, count));
-        final dist = radius * (radiusFactor + 0.08 * (i % 2));
-        final p = _pointInArea(
-          area: area,
-          center: center,
-          angleDegrees: angle,
-          distanceMeters: dist,
-          avoid: used,
-          minGapMeters: gap,
-        );
-        out.add(p);
-        used.add(p);
-      }
-      return out;
-    }
-
-    return _GeneratedGimmicks(
-      safeZones: group(count: safeCount, angleSeed: 35, radiusFactor: 0.42),
-      infoBrokers: group(
-        count: brokerCount,
-        angleSeed: 150,
-        radiusFactor: 0.58,
-      ),
-      cameras: group(
-        count: cameraCount,
-        angleSeed: 245,
-        radiusFactor: 0.68,
-        minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
-      ),
-      eventAreas: group(count: eventCount, angleSeed: 315, radiusFactor: 0.50),
-    );
-  }
-
-  static int _scaledCount(double radius, int min, int max) {
-    final extra = ((radius - 240) / 320).round();
-    return (min + extra).clamp(min, max).toInt();
-  }
-
-  static LatLng _centerOf(PlayArea area) {
-    switch (area.type) {
-      case PlayAreaType.circle:
-        return area.center;
-      case PlayAreaType.polygon:
-        if (area.points.isEmpty) return const LatLng(35.681236, 139.767125);
-        final lat =
-            area.points.map((p) => p.latitude).reduce((a, b) => a + b) /
-            area.points.length;
-        final lng =
-            area.points.map((p) => p.longitude).reduce((a, b) => a + b) /
-            area.points.length;
-        final center = LatLng(lat, lng);
-        return area.contains(center) ? center : area.points.first;
-    }
-  }
-
-  static double _effectiveRadiusMeters(PlayArea area, LatLng center) {
-    switch (area.type) {
-      case PlayAreaType.circle:
-        return area.radiusMeters;
-      case PlayAreaType.polygon:
-        var maxDistance = 240.0;
-        for (final p in area.points) {
-          maxDistance = math.max(
-            maxDistance,
-            Geolocator.distanceBetween(
-              center.latitude,
-              center.longitude,
-              p.latitude,
-              p.longitude,
-            ),
-          );
-        }
-        return maxDistance;
-    }
-  }
-
-  static LatLng _pointInArea({
-    required PlayArea area,
-    required LatLng center,
-    required double angleDegrees,
-    required double distanceMeters,
-    required List<LatLng> avoid,
-    required double minGapMeters,
-  }) {
-    for (final scale in const [1.0, 0.75, 0.55, 0.35]) {
-      final p = _offset(center, angleDegrees, distanceMeters * scale);
-      if (area.contains(p) && _farEnough(p, avoid, minGapMeters)) return p;
-    }
-    return center;
-  }
-
-  static bool _farEnough(LatLng p, List<LatLng> avoid, double minGapMeters) {
-    for (final other in avoid) {
-      final d = Geolocator.distanceBetween(
-        p.latitude,
-        p.longitude,
-        other.latitude,
-        other.longitude,
-      );
-      if (d < minGapMeters) return false;
-    }
-    return true;
-  }
-
-  static LatLng _offset(LatLng origin, double angleDegrees, double meters) {
-    final rad = angleDegrees * math.pi / 180;
-    final north = math.cos(rad) * meters;
-    final east = math.sin(rad) * meters;
-    final lat = origin.latitude + north / 111111;
-    final lng =
-        origin.longitude +
-        east / (111111 * math.cos(origin.latitude * math.pi / 180));
-    return LatLng(lat, lng);
-  }
-}
-
-const _kTrajectoryConsentPrefKey = 'trajectory_consent_default';
-const _kEliminationAftermathPrefKey = 'elimination_aftermath_rule_v1';
-const _kUseBleScanPrefKey = 'use_ble_scan_proximity_v1';
-
 class _GameMapScreenState extends State<GameMapScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const LatLng _defaultOniPosition = LatLng(35.6805, 139.7690);
@@ -293,10 +95,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   final PlayAreaSlotStore _areaSlotStore = PlayAreaSlotStore();
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
   final OfflineSyncQueue _offlineQueue = OfflineSyncQueue();
+  final GameMapMatchController _matchCtrl = GameMapMatchController();
   late HybridProximityService _proximityService = HybridProximityService(
     bleDelegate: IdleProximityService(),
   );
   RoomSessionPort _roomSession = LocalOnlyRoomSession();
+
+  MatchRuntimeState get _rt => _matchCtrl.runtime;
 
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionSubscription;
@@ -319,6 +124,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _editingArea = false;
   bool _editCircleMode = true;
   final List<LatLng> _polygonDraft = [];
+  bool _polygonDraftClosed = false;
   LatLng _circleDraftCenter = const LatLng(35.681236, 139.767125);
   double _circleDraftRadiusMeters = GameConfig.playAreaRadiusMeters;
   bool _waitingCircleCenterTap = false;
@@ -327,76 +133,26 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _mapVisibleInLobby = false;
 
   GameState _gameState = GameState.waiting;
-  int _remainingSeconds = GameConfig.matchDurationSeconds;
   String _statusMessage = '現在地を取得中...';
-  int _revealCount = 0;
-  final List<LocationRevealEvent> _revealLog = [];
-  final List<MatchEvent> _matchEvents = [];
-
-  DateTime? _outsideAreaSince;
-  bool _revealedInCurrentOutside = false;
   DateTime? _lastAcceptedPositionAt;
-  double? _lastDistance;
-  int _elapsedSeconds = 0;
-
-  List<LatLng> _safeZonePositions = const [LatLng(35.6822, 139.7682)];
-  List<LatLng> _infoBrokerPositions = const [LatLng(35.6804, 139.7657)];
-  List<LatLng> _commJammingZonePositions = const [LatLng(35.6796, 139.7689)];
-  int _safeZoneCharges = 0;
-  DateTime? _lastSafeChargeAt;
-  DateTime? _lastInfoBrokerAt;
-  String? _lastOniIntelText;
-  DateTime? _lastOniIntelAt;
-  bool _showOniIntelCard = true;
-  final List<_OniIntelTrace> _oniIntelTraces = [];
   OniIntelMode _oniIntelMode = OniIntelMode.directionOnly;
-  bool _safeZoneAvailable = true;
-  bool _infoBrokerAvailable = true;
-  DateTime? _safeZoneRespawnAt;
-  DateTime? _infoBrokerRespawnAt;
-  List<LatLng> _cameraPositions = const [
-    LatLng(35.6817, 139.7661),
-    LatLng(35.6800, 139.7696),
-  ];
-  final Set<int> _triggeredCameras = <int>{};
-  bool _fakePositionActive = false;
-  DateTime? _fakePositionEndsAt;
-  DateTime? _lastFakeSkillAt;
-  LatLng? _fakePositionLatLng;
   bool _customRuleMode = false;
   int _matchDurationSeconds = GameConfig.matchDurationSeconds;
   PlayerRole _localRole = PlayerRole.runner;
   Set<String> _skillLoadout = const {SkillIds.fakePosition};
-  DateTime? _werewolfTransformEndsAt;
-  DateTime? _lastWerewolfTransformAt;
-  LatLng? _captureZoneCenter;
-  DateTime? _captureZoneEndsAt;
-  DateTime? _lastCaptureZoneAt;
-  bool _waitingCaptureZoneTap = false;
-  Set<String> _captureZoneBoundIds = const {};
-  DateTime? _captureZoneTargetLeftAt;
-  bool _captureZoneEscapeRevealed = false;
-  DateTime? _touchLockStartedAt;
-  bool _touchLockNoticeShown = false;
-  LatLng? _bodyThrowPosition;
-  DateTime? _bodyThrowEndsAt;
-  DateTime? _lastBodyThrowAt;
-  int _infectionExposureSeconds = 0;
-  DateTime? _infectionEndsAt;
-  DateTime? _lastInfectionRevealAt;
   final List<LatLng> _tracePoints = [];
 
   MatchRecorder? _matchRecorder;
   Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
-  _ControlSheetMode _controlSheetMode = _ControlSheetMode.skillsOnly;
+  ControlSheetMode _controlSheetMode = ControlSheetMode.skillsOnly;
   bool _hudExpanded = false;
   String? _hudRevealAlert;
   Timer? _hudRevealAlertTimer;
 
-  /// ローカルホストが準備設定（時間・エリア適用）を開放したか。
-  bool _hostPrepOpen = false;
+  /// ホストが参加者にカスタムルール（役職固定等）の編集を許可したか。
+  bool _participantRulesOpen = false;
   List<SavedPlayArea> _savedPlayAreas = const [];
   String? _selectedPlayAreaSlotId;
 
@@ -418,6 +174,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
+  StreamSubscription<RoomMatchState>? _roomMatchSub;
   bool _ownsRoomSession = false;
 
   /// オンラインで鬼役の位置が members に載っている。
@@ -451,9 +208,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     Future<void>.microtask(_loadOniOperatorPrefs);
     Future<void>.microtask(_loadPlayAreaSlots);
-    _renderPump = Timer.periodic(const Duration(milliseconds: 52), (_) {
-      _pulseVisualSmoothing();
-    });
+    _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
   }
 
@@ -484,14 +239,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _trajectoryConsent = prefs.getBool(_kTrajectoryConsentPrefKey) ?? false;
+      _trajectoryConsent = prefs.getBool(GameMapPrefs.trajectoryConsent) ?? false;
     });
   }
 
   Future<void> _loadEliminationAftermathRule() async {
     final prefs = await SharedPreferences.getInstance();
     final parsed = EliminationAftermathRuleX.tryParseName(
-      prefs.getString(_kEliminationAftermathPrefKey),
+      prefs.getString(GameMapPrefs.eliminationAftermathRule),
     );
     if (!mounted) return;
     if (parsed != null) {
@@ -502,7 +257,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _setTrajectoryConsent(bool value) async {
     setState(() => _trajectoryConsent = value);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kTrajectoryConsentPrefKey, value);
+    await prefs.setBool(GameMapPrefs.trajectoryConsent, value);
   }
 
   Future<void> _refreshOfflineQueueCount() async {
@@ -547,7 +302,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _initProximityStack() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    final useBle = prefs.getBool(_kUseBleScanPrefKey) ?? false;
+    final useBle = prefs.getBool(GameMapPrefs.useBleScanProximity) ?? false;
     await _proximitySubscription?.cancel();
     await _proximityService.stop();
     final ProximityService bleDelegate;
@@ -569,6 +324,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _leaveFirestoreRoom() async {
     _remoteMembersSub?.cancel();
     _remoteMembersSub = null;
+    _roomMatchSub?.cancel();
+    _roomMatchSub = null;
     if (_roomSession is FirestoreRoomSession) {
       await (_roomSession as FirestoreRoomSession).disconnect();
     }
@@ -624,7 +381,48 @@ class _GameMapScreenState extends State<GameMapScreen>
         _applyRemoteOniPosition(map);
       });
     });
+    _roomMatchSub?.cancel();
+    _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
   }
+
+  void _onRemoteRoomMatchState(RoomMatchState state) {
+    if (!mounted || _isHost) return;
+    switch (state.phase) {
+      case RoomPhase.running:
+        if (_gameState == GameState.waiting &&
+            !_editingArea &&
+            state.matchStart != null) {
+          _applySharedMatchStart(state.matchStart!);
+          _toast('ホストが試合を開始しました');
+          _startGameCore();
+        }
+        break;
+      case RoomPhase.ended:
+        if (_gameState == GameState.running && state.matchEnd != null) {
+          final end = state.matchEnd!;
+          _endGame(
+            end.outcome,
+            end.message.isNotEmpty ? end.message : _messageForMatchEnd(end),
+            endReason: end.endReason,
+            skipFirestoreSync: true,
+          );
+        }
+        break;
+      case RoomPhase.lobby:
+        if (_gameState != GameState.waiting) {
+          _resetGame(skipFirestoreSync: true);
+          _toast('ルームがロビーに戻りました');
+        }
+        break;
+    }
+  }
+
+  String _messageForMatchEnd(SharedMatchEnd end) => switch (end.endReason) {
+        MatchEndReason.timeUp => '逃走成功。時間切れです。',
+        MatchEndReason.caught => '鬼に捕まりました。',
+        MatchEndReason.hostAbort => 'ホストが試合を中止しました。',
+        _ => 'ホストが試合を終了しました。',
+      };
 
   void _applyRemoteOniPosition(Map<String, RemoteMemberSnapshot> map) {
     _remoteOniKnown = false;
@@ -675,6 +473,73 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
+  Future<bool> _confirmDialog({
+    required String title,
+    required String message,
+    String confirmLabel = '削除',
+  }) =>
+      showConfirmDialog(
+        context,
+        title: title,
+        message: message,
+        confirmLabel: confirmLabel,
+      );
+
+  Future<String?> _promptAreaName(String defaultName) => showTextPromptDialog(
+        context,
+        title: 'エリアの名前',
+        labelText: '名前',
+        hintText: '例: 公園A・駅前',
+        defaultValue: defaultName,
+        confirmLabel: '保存',
+      );
+
+  void _closePolygonDraft() {
+    if (_polygonDraft.length < 3) {
+      _toast('3点以上打ってから閉じてください');
+      return;
+    }
+    try {
+      final resolved = PolygonAreaResolver.resolveBoundedRing(
+        _polygonDraft,
+        seed: _polygonDraft.first,
+      );
+      setState(() {
+        _polygonDraft
+          ..clear()
+          ..addAll(resolved);
+        _polygonDraftClosed = true;
+        _statusMessage = 'エリアを閉じました（${_polygonDraft.length} 頂点）';
+      });
+    } catch (e) {
+      _toast('閉じられませんでした: $e');
+    }
+  }
+
+  void _reopenPolygonDraft() {
+    setState(() {
+      _polygonDraftClosed = false;
+      _statusMessage = '頂点を追加してから再度「閉じる」';
+    });
+  }
+
+  Future<void> _deleteSavedPlayArea(String id, String name) async {
+    final ok = await _confirmDialog(
+      title: '保存エリアを削除',
+      message: '「$name」を削除しますか？\n試合に適用済みの形は変わりません。',
+    );
+    if (!ok) return;
+    await _areaSlotStore.remove(id);
+    if (!mounted) return;
+    setState(() {
+      if (_selectedPlayAreaSlotId == id) {
+        _selectedPlayAreaSlotId = null;
+      }
+    });
+    await _loadPlayAreaSlots();
+    _toast('保存エリアを削除しました');
+  }
+
   Future<void> _saveEditedAreaAsSlot() async {
     try {
       late final PlayArea next;
@@ -684,16 +549,20 @@ class _GameMapScreenState extends State<GameMapScreen>
           radiusMeters: _circleDraftRadiusMeters,
         );
       } else {
-        if (_polygonDraft.length < 3) {
-          _toast('多角形は3点以上必要です');
+        if (!_polygonDraftClosed || _polygonDraft.length < 3) {
+          _toast('多角形は「閉じる」してから保存してください');
           return;
         }
         next = PlayArea.polygon(points: List.from(_polygonDraft));
       }
       final stamp = DateTime.now();
+      final defaultName =
+          'エリア ${stamp.month}/${stamp.day} ${stamp.hour}:${stamp.minute.toString().padLeft(2, '0')}';
+      final name = await _promptAreaName(defaultName);
+      if (!mounted || name == null) return;
       final slot = SavedPlayArea(
         id: 'area_${stamp.microsecondsSinceEpoch}',
-        name: 'エリア ${stamp.month}/${stamp.day} ${stamp.hour}:${stamp.minute.toString().padLeft(2, '0')}',
+        name: name,
         area: next,
         savedAtUtc: stamp.toUtc(),
       );
@@ -706,14 +575,30 @@ class _GameMapScreenState extends State<GameMapScreen>
         _statusMessage = 'エリアを保存しました（ホストが適用するまで試合には反映されません）';
       });
       await _loadPlayAreaSlots();
+      _returnToPrepAfterAreaEdit();
     } catch (e) {
       _toast('保存に失敗しました: $e');
     }
   }
 
+  FirestoreRoomSession? get _firestoreSession =>
+      _roomSession is FirestoreRoomSession
+      ? _roomSession as FirestoreRoomSession
+      : null;
+
+  bool get _isOnlineFirestore => _firestoreSession?.roomId != null;
+
+  bool get _isHost {
+    final fs = _firestoreSession;
+    if (fs != null && fs.roomId != null) {
+      return fs.isHost;
+    }
+    return true;
+  }
+
   void _hostApplySelectedPlayArea() {
-    if (!_hostPrepOpen) {
-      _toast('ホストが「試合設定を開放」してから適用できます');
+    if (!_isHost) {
+      _toast('エリアの適用はホストのみできます');
       return;
     }
     final id = _selectedPlayAreaSlotId;
@@ -744,17 +629,22 @@ class _GameMapScreenState extends State<GameMapScreen>
     unawaited(_areaStore.save(applied.area));
   }
 
-  void _setHostPrepOpen(bool open) {
-    setState(() => _hostPrepOpen = open);
-    if (open) {
-      _toast('ホストが試合設定を開放しました');
-    }
-  }
-
   void _setPrepDurationMinutes(double minutes) {
-    if (!_hostPrepOpen) return;
+    if (!_isHost) return;
     setState(() {
       _matchDurationSeconds = (minutes.round() * 60).clamp(60, 20 * 60);
+      if (_gameState == GameState.waiting) {
+        _rt.remainingSeconds = _matchDurationSeconds;
+      }
+    });
+  }
+
+  void _returnToPrepAfterAreaEdit() {
+    if (_gameState != GameState.waiting) return;
+    setState(() {
+      _mapVisibleInLobby = false;
+      _prepControlSheetOpen = false;
+      _statusMessage = '準備画面に戻りました';
     });
   }
 
@@ -770,27 +660,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
-  LatLng _displayRevealPosition(LatLng raw) {
-    if (!_isPointInCommJammingZone(_currentPosition)) return raw;
-    final r = math.Random();
-    final meters = 25 + r.nextDouble() * 55;
-    final bearing = r.nextDouble() * 360;
-    final latOffset = meters / 111111 * math.cos(bearing * math.pi / 180);
-    final lngOffset =
-        meters /
-        (111111 * math.cos(raw.latitude * math.pi / 180)) *
-        math.sin(bearing * math.pi / 180);
-    return LatLng(raw.latitude + latOffset, raw.longitude + lngOffset);
-  }
+  LatLng _displayRevealPosition(LatLng raw) =>
+      MapGeoUtils.displayRevealPositionWithJamming(
+        raw: raw,
+        viewerPosition: _currentPosition,
+        jammingZoneCenters: _rt.commJammingZonePositions,
+      );
 
-  bool _isPointInCommJammingZone(LatLng point) {
-    return _firstPointWithin(
-          _commJammingZonePositions,
-          GameConfig.commJammingZoneRadiusMeters,
-          from: point,
-        ) !=
-        null;
-  }
+  bool _isPointInCommJammingZone(LatLng point) => MapGeoUtils.isPointInZone(
+        point,
+        _rt.commJammingZonePositions,
+        GameConfig.commJammingZoneRadiusMeters,
+      );
 
   bool get _oniInCommJammingZone => _isPointInCommJammingZone(_oniPosition);
 
@@ -829,7 +710,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   LocationSamplingTier _resolveGpsTier() {
     if (!_editingArea && _gameState == GameState.running) {
       final d = _distanceToOni();
-      if (_revealedInCurrentOutside) {
+      if (_rt.revealedInCurrentOutside) {
         return LocationSamplingTier.standard;
       }
       if (d <= GameConfig.dangerDistanceMeters + 25) {
@@ -843,6 +724,35 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _retuneGpsIfNeeded() => _bindGpsSubscription();
+
+  /// マーカー平滑化用。試合中のみ高頻度、それ以外は省電力寄り。
+  void _startRenderPump() {
+    _renderPump?.cancel();
+    _renderPump = Timer.periodic(
+      Duration(milliseconds: _renderPumpIntervalMs),
+      (_) => _pulseVisualSmoothing(),
+    );
+  }
+
+  int get _renderPumpIntervalMs {
+    if (_gameState == GameState.running) return 50;
+    if (_editingArea) return 100;
+    return 250;
+  }
+
+  void _retuneRenderPump() {
+    final interval = _renderPumpIntervalMs;
+    if (_renderPump == null) {
+      _startRenderPump();
+      return;
+    }
+    // 間隔が変わったときだけタイマーを作り直す。
+    _renderPump?.cancel();
+    _renderPump = Timer.periodic(
+      Duration(milliseconds: interval),
+      (_) => _pulseVisualSmoothing(),
+    );
+  }
 
   void _pulseVisualSmoothing() {
     if (!mounted || _editingArea) return;
@@ -870,7 +780,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (distanceToOni <= GameConfig.warningDistanceMeters) {
       return 0.32;
     }
-    if (_revealedInCurrentOutside) {
+    if (_rt.revealedInCurrentOutside) {
       return 0.24;
     }
     if (distanceToOni <= 240) {
@@ -882,15 +792,15 @@ class _GameMapScreenState extends State<GameMapScreen>
   LatLng get _playerMarkerPosition =>
       _runnerSmooth?.display ?? _currentPosition;
   LatLng get _positionForReveal =>
-      _bodyThrowPosition ??
-      (_fakePositionActive && _fakePositionLatLng != null
-          ? _fakePositionLatLng!
+      _rt.bodyThrowPosition ??
+      (_rt.fakePositionActive && _rt.fakePositionLatLng != null
+          ? _rt.fakePositionLatLng!
           : _currentPosition);
 
   bool get _isHunterNow =>
       _localRole == PlayerRole.hunter ||
-      (_werewolfTransformEndsAt != null &&
-          DateTime.now().isBefore(_werewolfTransformEndsAt!));
+      (_rt.werewolfTransformEndsAt != null &&
+          DateTime.now().isBefore(_rt.werewolfTransformEndsAt!));
 
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
@@ -961,8 +871,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _finalizeMatchRecording(GameState outcome) async {
     final rec = _matchRecorder?.finalize(
       outcome: outcome,
-      reveals: List<LocationRevealEvent>.from(_revealLog),
-      events: List<MatchEvent>.from(_matchEvents),
+      reveals: List<LocationRevealEvent>.from(_rt.revealLog),
+      events: List<MatchEvent>.from(_rt.matchEvents),
     );
     _matchRecorder = null;
     if (rec == null) return;
@@ -991,7 +901,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
-  void _startGame() {
+  Future<void> _startGame() async {
     if (_gameState != GameState.waiting) {
       if (_gameState == GameState.running) return;
       _toast('新しい試合を始めるには「リセット」で結果を閉じてからにしてください');
@@ -1001,6 +911,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('エリア編集中は開始できません');
       return;
     }
+    if (_isOnlineFirestore && !_isHost) {
+      _toast('試合の開始はホストのみできます');
+      return;
+    }
+
     _matchRecorder?.discard();
     _matchRecorder = null;
     if (_trajectoryConsent) {
@@ -1011,66 +926,45 @@ class _GameMapScreenState extends State<GameMapScreen>
         initialOni: _oniPosition,
       );
     }
-    final gimmicks = _GeneratedGimmicks.create(_playArea);
-    _assignDefaultSetupIfNeeded();
+
+    if (_isOnlineFirestore && _isHost) {
+      final snapshot = _buildSharedMatchSnapshot();
+      final err = await _firestoreSession!.publishMatchStart(snapshot);
+      if (err != null) {
+        _toast(err);
+        return;
+      }
+      _applySharedMatchStart(snapshot);
+    } else {
+      _assignDefaultSetupIfNeeded();
+      final gimmicks = GeneratedGimmicks.create(_playArea);
+      _rt.applyStartGimmicks(
+        gimmicks: gimmicks,
+        matchDurationSeconds: _matchDurationSeconds,
+      );
+    }
+
     _retuneGpsIfNeeded();
+    _startGameCore();
+  }
+
+  void _startGameCore() {
     setState(() {
-      _safeZonePositions = gimmicks.safeZones;
-      _infoBrokerPositions = gimmicks.infoBrokers;
-      _commJammingZonePositions = gimmicks.eventAreas;
-      _cameraPositions = gimmicks.cameras;
       _gameState = GameState.running;
       _afterCatchRule = null;
-      _remainingSeconds = _matchDurationSeconds;
-      _elapsedSeconds = 0;
-      _outsideAreaSince = null;
-      _revealedInCurrentOutside = false;
-      _revealCount = 0;
-      _revealLog.clear();
-      _matchEvents.clear();
-      _safeZoneCharges = 0;
-      _lastSafeChargeAt = null;
-      _lastInfoBrokerAt = null;
-      _lastOniIntelText = null;
-      _lastOniIntelAt = null;
-      _showOniIntelCard = true;
-      _oniIntelTraces.clear();
-      _safeZoneAvailable = true;
-      _infoBrokerAvailable = true;
-      _safeZoneRespawnAt = null;
-      _infoBrokerRespawnAt = null;
-      _triggeredCameras.clear();
-      _fakePositionActive = false;
-      _fakePositionEndsAt = null;
-      _lastFakeSkillAt = null;
-      _fakePositionLatLng = null;
-      _werewolfTransformEndsAt = null;
-      _lastWerewolfTransformAt = null;
-      _captureZoneCenter = null;
-      _captureZoneEndsAt = null;
-      _waitingCaptureZoneTap = false;
-      _captureZoneBoundIds = const {};
-      _captureZoneTargetLeftAt = null;
-      _captureZoneEscapeRevealed = false;
-      _touchLockStartedAt = null;
-      _touchLockNoticeShown = false;
-      _bodyThrowPosition = null;
-      _bodyThrowEndsAt = null;
-      _infectionExposureSeconds = 0;
-      _infectionEndsAt = null;
-      _lastInfectionRevealAt = null;
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
-      _controlSheetMode = _ControlSheetMode.skillsOnly;
+      _controlSheetMode = ControlSheetMode.skillsOnly;
       _hudExpanded = false;
     });
+    _retuneRenderPump();
     _emitMatchEvent(
       type: 'gimmicks_generated',
       message:
-          'ギミック生成: 安全地帯${_safeZonePositions.length} / 情報屋${_infoBrokerPositions.length} / 監視カメラ${_cameraPositions.length} / イベントエリア${_commJammingZonePositions.length}',
+          'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / イベントエリア${_rt.commJammingZonePositions.length}',
       position: _playAreaAnchor,
     );
     _showRoleSkillDialog();
-    _logDebug('match_start scale=${_timeScale}x');
+    _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
     HapticFeedback.selectionClick();
     SystemSound.play(SystemSoundType.click);
 
@@ -1079,8 +973,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (!mounted || _gameState != GameState.running) return;
       _matchRecorder?.tryAppendOni(_oniPosition);
       setState(() {
-        _remainingSeconds -= _timeScale;
-        _elapsedSeconds += _timeScale;
+        _rt.remainingSeconds -= _timeScale;
+        _rt.elapsedSeconds += _timeScale;
         _estimatedBatteryScore += _batteryCostPerSecond() * _timeScale;
       });
       _evaluateGame();
@@ -1088,56 +982,81 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
-  void _resetGame() {
+  SharedMatchSnapshot _buildSharedMatchSnapshot() {
+    final fs = _firestoreSession!;
+    final seed = DateTime.now().millisecondsSinceEpoch;
+    final rnd = math.Random(seed);
+    final oniIntel =
+        OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
+    final aftermath = EliminationAftermathRule
+        .values[rnd.nextInt(EliminationAftermathRule.values.length)];
+    final assignments = <String, SharedPlayerAssignment>{};
+    final members = fs.currentLobbyMembers;
+    if (members.isEmpty && fs.myUid != null) {
+      final role = assignablePlayerRoles[rnd.nextInt(assignablePlayerRoles.length)];
+      assignments[fs.myUid!] = SharedPlayerAssignment(
+        role: role,
+        skills: _randomSkillsFor(role, rnd).toList(),
+      );
+    } else {
+      for (final m in members) {
+        final role =
+            assignablePlayerRoles[rnd.nextInt(assignablePlayerRoles.length)];
+        assignments[m.uid] = SharedPlayerAssignment(
+          role: role,
+          skills: _randomSkillsFor(role, rnd).toList(),
+        );
+      }
+    }
+    return SharedMatchSnapshot(
+      gimmickSeed: seed,
+      playArea: _playArea,
+      matchDurationSeconds: _matchDurationSeconds,
+      oniIntelMode: oniIntel,
+      eliminationAftermathRule: aftermath,
+      assignments: assignments,
+      startedAtUtc: DateTime.now().toUtc().toIso8601String(),
+    );
+  }
+
+  void _applySharedMatchStart(SharedMatchSnapshot snapshot) {
+    _playArea = snapshot.playArea;
+    _matchDurationSeconds = snapshot.matchDurationSeconds;
+    _oniIntelMode = snapshot.oniIntelMode;
+    _eliminationAftermathRule = snapshot.eliminationAftermathRule;
+    final mine = snapshot.assignmentFor(_firestoreSession?.myUid);
+    if (mine != null) {
+      _localRole = mine.role;
+      _skillLoadout = mine.skills.toSet();
+    }
+    final gimmicks = GeneratedGimmicks.create(
+      _playArea,
+      seed: snapshot.gimmickSeed,
+    );
+    _rt.applyStartGimmicks(
+      gimmicks: gimmicks,
+      matchDurationSeconds: snapshot.matchDurationSeconds,
+    );
+  }
+
+  void _resetGame({bool skipFirestoreSync = false}) {
     _matchTimer?.cancel();
     _matchRecorder?.discard();
     _matchRecorder = null;
     _finalizeRecordingFuture = null;
     _retuneGpsIfNeeded();
+    _rt.resetToLobby(matchDurationSeconds: _matchDurationSeconds);
     setState(() {
       _gameState = GameState.waiting;
       _mapVisibleInLobby = false;
       _afterCatchRule = null;
-      _remainingSeconds = _matchDurationSeconds;
-      _elapsedSeconds = 0;
-      _outsideAreaSince = null;
-      _revealedInCurrentOutside = false;
-      _revealCount = 0;
-      _revealLog.clear();
-      _matchEvents.clear();
-      _safeZoneCharges = 0;
-      _lastSafeChargeAt = null;
-      _lastInfoBrokerAt = null;
-      _lastOniIntelText = null;
-      _lastOniIntelAt = null;
-      _showOniIntelCard = true;
-      _oniIntelTraces.clear();
-      _safeZoneAvailable = true;
-      _infoBrokerAvailable = true;
-      _safeZoneRespawnAt = null;
-      _infoBrokerRespawnAt = null;
-      _triggeredCameras.clear();
-      _fakePositionActive = false;
-      _fakePositionEndsAt = null;
-      _fakePositionLatLng = null;
-      _werewolfTransformEndsAt = null;
-      _lastWerewolfTransformAt = null;
-      _captureZoneCenter = null;
-      _captureZoneEndsAt = null;
-      _waitingCaptureZoneTap = false;
-      _captureZoneBoundIds = const {};
-      _captureZoneTargetLeftAt = null;
-      _captureZoneEscapeRevealed = false;
-      _touchLockStartedAt = null;
-      _touchLockNoticeShown = false;
-      _bodyThrowPosition = null;
-      _bodyThrowEndsAt = null;
-      _infectionExposureSeconds = 0;
-      _infectionEndsAt = null;
-      _lastInfectionRevealAt = null;
       _statusMessage = 'リセットしました。開始ボタンでゲーム開始。';
       _prepControlSheetOpen = false;
     });
+    _retuneRenderPump();
+    if (!skipFirestoreSync && _isOnlineFirestore && _isHost) {
+      unawaited(_firestoreSession!.updateRoomPhase(RoomPhase.lobby));
+    }
     _logDebug('match_reset');
   }
 
@@ -1150,7 +1069,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           title: const Text('あなたの役職 / スキル'),
           content: Text(
             '役職: ${_localRole.displayName}\n'
-            'スキル: ${_skillLoadout.map(_skillLabel).join(" / ")}',
+            'スキル: ${_skillLoadout.map(skillLabel).join(" / ")}',
           ),
           actions: [
             FilledButton(
@@ -1164,10 +1083,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _assignDefaultSetupIfNeeded() {
-    if (_customRuleMode) return;
+    if (_customRuleMode || _isOnlineFirestore) return;
     final seed = DateTime.now().millisecondsSinceEpoch;
     final rnd = math.Random(seed);
-    const roles = _assignableRoles;
+    const roles = assignablePlayerRoles;
     _localRole = roles[rnd.nextInt(roles.length)];
     _skillLoadout = _randomSkillsFor(_localRole, rnd);
     _oniIntelMode =
@@ -1177,23 +1096,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Set<String> _randomSkillsFor(PlayerRole role, math.Random rnd) {
-    final list = _skillCandidates(role).toList()..shuffle(rnd);
+    final list = skillCandidatesForRole(role).toList()..shuffle(rnd);
     return list.take(role == PlayerRole.hunter ? 2 : 1).toSet();
   }
 
-  List<String> _skillCandidates(PlayerRole role) => switch (role) {
-    PlayerRole.runner => const [
-      SkillIds.fakePosition,
-      SkillIds.bodyThrow,
-      SkillIds.captureZone,
-    ],
-    PlayerRole.hunter => const [
-      SkillIds.fakeIntelReveal,
-      SkillIds.captureZone,
-      SkillIds.bodyThrow,
-    ],
-    PlayerRole.werewolf => const [SkillIds.werewolfTransform],
-  };
 
   LatLng get _playAreaAnchor {
     switch (_playArea.type) {
@@ -1268,7 +1174,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
-  void _endGame(GameState result, String message) {
+  void _endGame(
+    GameState result,
+    String message, {
+    String? endReason,
+    bool skipFirestoreSync = false,
+  }) {
     _matchTimer?.cancel();
     final outcome = result;
     if (result == GameState.caughtByOni) {
@@ -1299,7 +1210,27 @@ class _GameMapScreenState extends State<GameMapScreen>
     _finalizeRecordingFuture = Future<void>.microtask(
       () => _finalizeMatchRecording(outcome),
     );
+    if (!skipFirestoreSync && _isOnlineFirestore && _isHost) {
+      unawaited(
+        _firestoreSession!.publishMatchEnd(
+          outcome: result,
+          endReason: endReason ?? _inferEndReason(result, message),
+          message: message,
+        ),
+      );
+    }
     unawaited(_openMatchResultScreen());
+  }
+
+  String _inferEndReason(GameState result, String message) {
+    if (message.contains('ホストが試合を終了')) {
+      return MatchEndReason.hostEnded;
+    }
+    return switch (result) {
+      GameState.runnerWin => MatchEndReason.timeUp,
+      GameState.caughtByOni => MatchEndReason.caught,
+      _ => MatchEndReason.hostEnded,
+    };
   }
 
   void _evaluateGame() {
@@ -1307,61 +1238,98 @@ class _GameMapScreenState extends State<GameMapScreen>
 
     final distance = _distanceToOni();
     _proximityService.ingestGpsDistanceMeters(distance);
-    final overflowMeters = _playArea.overflowDistanceMeters(_currentPosition);
-    _refreshPointRespawns();
-    _evaluateFakeSkillTimer();
-    _evaluateSkillTimers();
-    _evaluateInfection(_effectiveInfectionDistance(distance));
-    _evaluateCameraTriggers();
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
-    _evaluateScaledTouchLock(distance);
 
-    if (_isCaptureTriggered()) {
-      _endGame(GameState.caughtByOni, 'BLE接近で接触判定。鬼に捕まりました。');
-      HapticFeedback.heavyImpact();
-      return;
-    }
-
-    if (_remainingSeconds <= 0) {
-      _endGame(GameState.runnerWin, '逃走成功。時間切れです。');
-      HapticFeedback.mediumImpact();
-      return;
-    }
-
-    final isOutBeyondGrace = overflowMeters > GameConfig.outsideAreaGraceMeters;
-    if (isOutBeyondGrace) {
-      _outsideAreaSince ??= DateTime.now();
-      final outsideSec = DateTime.now()
-          .difference(_outsideAreaSince!)
-          .inSeconds;
-      if (!_revealedInCurrentOutside &&
-          outsideSec >= GameConfig.outsideAreaGraceSeconds) {
-        if (_safeZoneCharges > 0) {
-          _safeZoneCharges -= 1;
-          _outsideAreaSince = null;
-          _revealedInCurrentOutside = false;
-          setState(() {
-            _statusMessage = '安全地帯チャージを消費して位置暴露を回避しました';
-          });
-        } else {
-          _triggerLocationReveal(overflowMeters);
-        }
-      }
-    } else {
-      _outsideAreaSince = null;
-      _revealedInCurrentOutside = false;
-    }
-
-    _maybeTriggerDangerFeedback(distance);
+    final effects = _matchCtrl.evaluateRunningTick(
+      playArea: _playArea,
+      playerPosition: _currentPosition,
+      oniPosition: _oniPosition,
+      testMode: _testMode,
+      oniKnown: _remoteOniKnown,
+      isHunterNow: _isHunterNow,
+      proximityBand: _latestProximityBand,
+      now: DateTime.now(),
+    );
+    _applyMatchTickEffects(effects);
     _updateDangerPulse();
   }
 
+  void _applyMatchTickEffects(List<MatchTickEffect> effects) {
+    for (final effect in effects) {
+      switch (effect) {
+        case MatchEndEffect(
+          :final state,
+          :final message,
+          :final heavyHaptic,
+        ):
+          if (heavyHaptic) {
+            HapticFeedback.heavyImpact();
+          } else {
+            HapticFeedback.mediumImpact();
+          }
+          _endGame(state, message);
+          return;
+        case MatchStatusMessageEffect(:final message):
+          setState(() => _statusMessage = message);
+        case MatchConsumeSafeChargeEffect():
+          break;
+        case MatchAreaRevealEffect(:final overflowMeters):
+          _triggerLocationReveal(overflowMeters);
+        case MatchResetOutsideTrackingEffect():
+          break;
+        case MatchOniCueEffect(:final level):
+          _emitOniCue(level: level);
+          if (level == 'warning') {
+            _logDebug('danger_warning_enter');
+          } else if (level == 'danger') {
+            _logDebug('danger_close_enter');
+          }
+        case MatchEmitEventEffect(
+          :final type,
+          :final message,
+          :final position,
+        ):
+          _emitMatchEvent(type: type, message: message, position: position);
+        case MatchLocationRevealEmitEffect(:final type, :final message):
+          _emitLocationReveal(type: type, message: message);
+        case MatchInfectionPulseRevealEffect():
+          _appendInfectionPulseReveal();
+        case MatchTouchLockStartEffect():
+          HapticFeedback.mediumImpact();
+        case MatchCameraSpottedEffect(:final message):
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+  }
+
+  void _appendInfectionPulseReveal() {
+    final now = DateTime.now();
+    final ev = LocationRevealEvent(
+      sequence: _rt.revealCount + 1,
+      timestamp: now,
+      position: _positionForReveal,
+      overflowMeters: 0,
+    );
+    _rt.revealCount += 1;
+    _rt.revealLog.insert(0, ev);
+    if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
+    _emitMatchEvent(
+      type: 'infection_reveal',
+      message: '感染露出パルス',
+      position: _positionForReveal,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')),
+    );
+  }
+
   void _updateDangerPulse() {
-    final shouldPulse =
-        _touchLockNoticeShown ||
-        _captureZoneBoundIds.contains('self') ||
-        _isInfectedNow;
+    final shouldPulse = _rt.dangerPulseActive;
     if (shouldPulse) {
       if (!_dangerPulseController.isAnimating) {
         _dangerPulseController.repeat(reverse: true);
@@ -1375,13 +1343,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _triggerLocationReveal(double overflowMeters) {
-    _revealedInCurrentOutside = true;
-    _revealCount += 1;
+    _rt.revealedInCurrentOutside = true;
+    _rt.revealCount += 1;
     final playerLabel = _localPlayerLabel;
     final shown = _displayRevealPosition(_positionForReveal);
     final jammed = _isPointInCommJammingZone(_currentPosition);
     final ev = LocationRevealEvent(
-      sequence: _revealCount,
+      sequence: _rt.revealCount,
       timestamp: DateTime.now(),
       position: shown,
       overflowMeters: overflowMeters,
@@ -1391,11 +1359,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         '$playerLabel の位置が暴露されました'
         '${jammed ? '（通信障害で誤差大）' : ''}';
     setState(() {
-      _revealLog.insert(0, ev);
-      if (_revealLog.length > 50) {
-        _revealLog.removeLast();
+      _rt.revealLog.insert(0, ev);
+      if (_rt.revealLog.length > 50) {
+        _rt.revealLog.removeLast();
       }
-      _statusMessage = '$alert: ${_formatLatLng(shown)}';
+      _statusMessage = '$alert: ${MapGeoFormat.latLng(shown)}';
     });
     _pushHudRevealAlert(alert);
     HapticFeedback.heavyImpact();
@@ -1408,19 +1376,19 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _emitLocationReveal({required String type, required String message}) {
-    _revealCount += 1;
+    _rt.revealCount += 1;
     final playerLabel = _localPlayerLabel;
     final shown = _displayRevealPosition(_positionForReveal);
     final ev = LocationRevealEvent(
-      sequence: _revealCount,
+      sequence: _rt.revealCount,
       timestamp: DateTime.now(),
       position: shown,
       overflowMeters: 0,
       playerLabel: playerLabel,
     );
     setState(() {
-      _revealLog.insert(0, ev);
-      if (_revealLog.length > 50) _revealLog.removeLast();
+      _rt.revealLog.insert(0, ev);
+      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
       _statusMessage = message;
     });
     _pushHudRevealAlert('$playerLabel の位置情報を受信');
@@ -1428,37 +1396,37 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _evaluateSafeZone() {
-    if (!_safeZoneAvailable) return;
-    if (_safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
+    if (_rt.safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
     final now = DateTime.now();
-    final hitIndex = _firstPointWithinIndex(
-      _safeZonePositions,
-      GameConfig.safeZoneRadiusMeters,
+    final hitIndex = GimmickPickupEvaluator.pickupIndexIfAllowed(
+      available: _rt.safeZoneAvailable,
+      positions: _rt.safeZonePositions,
+      radiusMeters: GameConfig.safeZoneRadiusMeters,
+      playerPosition: _currentPosition,
+      lastPickupAt: _rt.lastSafeChargeAt,
+      cooldownSeconds: GameConfig.safeZoneChargeCooldownSeconds,
+      now: now,
     );
     if (hitIndex == null) return;
-    final hit = _safeZonePositions[hitIndex];
-    if (_lastSafeChargeAt != null &&
-        now.difference(_lastSafeChargeAt!).inSeconds <
-            GameConfig.safeZoneChargeCooldownSeconds) {
-      return;
-    }
-    final nextSafeZone = _relocatedGimmickPoint(
+    final hit = _rt.safeZonePositions[hitIndex];
+    final nextSafeZone = GimmickRelocator.relocate(
+      area: _playArea,
       avoid: [
-        ..._safeZonePositions,
-        ..._infoBrokerPositions,
-        ..._cameraPositions,
-        ..._commJammingZonePositions,
+        ..._rt.safeZonePositions,
+        ..._rt.infoBrokerPositions,
+        ..._rt.cameraPositions,
+        ..._rt.commJammingZonePositions,
       ],
-      angleSeed: 35 + _elapsedSeconds * 7 + hitIndex * 53,
+      angleSeed: 35 + _rt.elapsedSeconds * 7 + hitIndex * 53,
       radiusFactor: 0.44,
     );
     setState(() {
-      _lastSafeChargeAt = now;
-      _safeZoneCharges += 1;
+      _rt.lastSafeChargeAt = now;
+      _rt.safeZoneCharges += 1;
       _refreshSkillCooldownsFromSafeZone();
-      _safeZonePositions[hitIndex] = nextSafeZone;
-      _safeZoneAvailable = false;
-      _safeZoneRespawnAt = now.add(
+      _rt.safeZonePositions[hitIndex] = nextSafeZone;
+      _rt.safeZoneAvailable = false;
+      _rt.safeZoneRespawnAt = now.add(
         const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
       );
       _statusMessage = '安全地帯: ステルス獲得 + スキル再使用可能（移動中）';
@@ -1471,63 +1439,68 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _evaluateInfoBroker(double distanceToOni) {
-    if (!_infoBrokerAvailable) return;
     final now = DateTime.now();
-    final hitIndex = _firstPointWithinIndex(
-      _infoBrokerPositions,
-      GameConfig.infoBrokerRadiusMeters,
+    final hitIndex = GimmickPickupEvaluator.pickupIndexIfAllowed(
+      available: _rt.infoBrokerAvailable,
+      positions: _rt.infoBrokerPositions,
+      radiusMeters: GameConfig.infoBrokerRadiusMeters,
+      playerPosition: _currentPosition,
+      lastPickupAt: _rt.lastInfoBrokerAt,
+      cooldownSeconds: GameConfig.infoBrokerCooldownSeconds,
+      now: now,
     );
     if (hitIndex == null) return;
-    final hit = _infoBrokerPositions[hitIndex];
-    if (_lastInfoBrokerAt != null &&
-        now.difference(_lastInfoBrokerAt!).inSeconds <
-            GameConfig.infoBrokerCooldownSeconds) {
-      return;
-    }
+    final hit = _rt.infoBrokerPositions[hitIndex];
     final bearing = Geolocator.bearingBetween(
       _currentPosition.latitude,
       _currentPosition.longitude,
       _oniPosition.latitude,
       _oniPosition.longitude,
     );
-    final direction = _bearingToDirection(bearing);
+    final direction = MapGeoUtils.bearingToDirection(bearing);
     final distBand = distanceToOni <= GameConfig.dangerDistanceMeters
         ? '至近'
         : distanceToOni <= GameConfig.warningDistanceMeters
         ? '中距離'
         : '遠距離';
-    final intel = _buildOniIntel(
+    final intel = OniIntelTextBuilder.build(
+      mode: _oniIntelMode,
+      elapsedSeconds: _rt.elapsedSeconds,
+      oniInCommJammingZone: _oniInCommJammingZone,
+      playerPosition: _currentPosition,
+      commJammingZoneCenters: _rt.commJammingZonePositions,
       direction: direction,
       distanceBand: distBand,
       bearingDegrees: bearing,
     );
-    final nextInfoBroker = _relocatedGimmickPoint(
+    final nextInfoBroker = GimmickRelocator.relocate(
+      area: _playArea,
       avoid: [
-        ..._safeZonePositions,
-        ..._infoBrokerPositions,
-        ..._cameraPositions,
-        ..._commJammingZonePositions,
+        ..._rt.safeZonePositions,
+        ..._rt.infoBrokerPositions,
+        ..._rt.cameraPositions,
+        ..._rt.commJammingZonePositions,
       ],
-      angleSeed: 150 + _elapsedSeconds * 11 + hitIndex * 71,
+      angleSeed: 150 + _rt.elapsedSeconds * 11 + hitIndex * 71,
       radiusFactor: 0.58,
     );
     setState(() {
-      _lastInfoBrokerAt = now;
-      _infoBrokerAvailable = false;
-      _infoBrokerRespawnAt = now.add(
+      _rt.lastInfoBrokerAt = now;
+      _rt.infoBrokerAvailable = false;
+      _rt.infoBrokerRespawnAt = now.add(
         const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
       );
-      _lastOniIntelText = intel;
-      _lastOniIntelAt = now;
-      _showOniIntelCard = true;
-      _oniIntelTraces.insert(
+      _rt.lastOniIntelText = intel;
+      _rt.lastOniIntelAt = now;
+      _rt.showOniIntelCard = true;
+      _rt.oniIntelTraces.insert(
         0,
-        _OniIntelTrace(timestamp: now, position: _oniPosition, text: intel),
+        OniIntelTrace(timestamp: now, position: _oniPosition, text: intel),
       );
-      if (_oniIntelTraces.length > 20) {
-        _oniIntelTraces.removeLast();
+      if (_rt.oniIntelTraces.length > 20) {
+        _rt.oniIntelTraces.removeLast();
       }
-      _infoBrokerPositions[hitIndex] = nextInfoBroker;
+      _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
       _statusMessage = '情報屋: $intel';
     });
     _emitMatchEvent(
@@ -1537,357 +1510,32 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
-  LatLng? _firstPointWithin(
-    List<LatLng> points,
-    double radiusMeters, {
-    LatLng? from,
-  }) {
-    final index = _firstPointWithinIndex(points, radiusMeters, from: from);
-    return index == null ? null : points[index];
-  }
-
-  int? _firstPointWithinIndex(
-    List<LatLng> points,
-    double radiusMeters, {
-    LatLng? from,
-  }) {
-    final origin = from ?? _currentPosition;
-    for (var i = 0; i < points.length; i++) {
-      final p = points[i];
-      final d = Geolocator.distanceBetween(
-        origin.latitude,
-        origin.longitude,
-        p.latitude,
-        p.longitude,
-      );
-      if (d <= radiusMeters) return i;
-    }
-    return null;
-  }
-
-  LatLng _relocatedGimmickPoint({
-    required List<LatLng> avoid,
-    required double angleSeed,
-    required double radiusFactor,
-  }) {
-    final center = _GeneratedGimmicks._centerOf(_playArea);
-    final radius = _GeneratedGimmicks._effectiveRadiusMeters(
-      _playArea,
-      center,
-    ).clamp(180.0, 2400.0);
-    final minGap = (radius * 0.16).clamp(45.0, 160.0);
-    return _GeneratedGimmicks._pointInArea(
-      area: _playArea,
-      center: center,
-      angleDegrees: angleSeed % 360,
-      distanceMeters: radius * radiusFactor,
-      avoid: avoid,
-      minGapMeters: minGap,
-    );
-  }
-
   void _refreshSkillCooldownsFromSafeZone() {
     if (_skillLoadout.contains(SkillIds.fakePosition)) {
-      _lastFakeSkillAt = null;
+      _rt.lastFakeSkillAt = null;
     }
     if (_skillLoadout.contains(SkillIds.werewolfTransform)) {
-      _lastWerewolfTransformAt = null;
+      _rt.lastWerewolfTransformAt = null;
     }
     if (_skillLoadout.contains(SkillIds.captureZone)) {
-      _lastCaptureZoneAt = null;
+      _rt.lastCaptureZoneAt = null;
     }
     if (_skillLoadout.contains(SkillIds.bodyThrow)) {
-      _lastBodyThrowAt = null;
+      _rt.lastBodyThrowAt = null;
     }
   }
 
-  void _refreshPointRespawns() {
-    final now = DateTime.now();
-    if (!_safeZoneAvailable &&
-        _safeZoneRespawnAt != null &&
-        !now.isBefore(_safeZoneRespawnAt!)) {
-      _safeZoneAvailable = true;
-      _safeZoneRespawnAt = null;
-      setState(() {
-        _statusMessage = '安全地帯が再出現しました';
-      });
-    }
-    if (!_infoBrokerAvailable &&
-        _infoBrokerRespawnAt != null &&
-        !now.isBefore(_infoBrokerRespawnAt!)) {
-      _infoBrokerAvailable = true;
-      _infoBrokerRespawnAt = null;
-      setState(() {
-        _statusMessage = '情報屋が再出現しました';
-      });
-    }
-  }
-
-  void _evaluateCameraTriggers() {
-    for (var i = 0; i < _cameraPositions.length; i++) {
-      if (_triggeredCameras.contains(i)) continue;
-      final p = _cameraPositions[i];
-      final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-        p.latitude,
-        p.longitude,
+  double _distanceToOni() => MatchGeoHelpers.distanceToOni(
+        player: _currentPosition,
+        oni: _oniPosition,
+        oniKnown: _remoteOniKnown,
+        testMode: _testMode,
       );
-      if (d <= GameConfig.cameraTriggerRadiusMeters) {
-        _triggeredCameras.add(i);
-        final msg = '監視カメラ: プレイヤーが監視地点${i + 1}に現れた';
-        _emitMatchEvent(type: 'camera_spotted', message: msg, position: p);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
-      }
-    }
-  }
-
-  void _evaluateFakeSkillTimer() {
-    if (!_fakePositionActive || _fakePositionEndsAt == null) return;
-    if (DateTime.now().isAfter(_fakePositionEndsAt!)) {
-      _fakePositionActive = false;
-      _fakePositionEndsAt = null;
-      _fakePositionLatLng = null;
-      _emitMatchEvent(
-        type: 'fake_end',
-        message: '偽位置スキルが終了',
-        position: _currentPosition,
-      );
-      setState(() {
-        _statusMessage = '偽位置スキル終了';
-      });
-    }
-  }
-
-  void _evaluateSkillTimers() {
-    final now = DateTime.now();
-    if (_werewolfTransformEndsAt != null &&
-        now.isAfter(_werewolfTransformEndsAt!)) {
-      _werewolfTransformEndsAt = null;
-      _emitMatchEvent(
-        type: 'werewolf_transform_end',
-        message: '人狼の一時鬼化が終了',
-        position: _currentPosition,
-      );
-    }
-    if (_captureZoneEndsAt != null && now.isAfter(_captureZoneEndsAt!)) {
-      _captureZoneCenter = null;
-      _captureZoneEndsAt = null;
-      _captureZoneBoundIds = const {};
-      _captureZoneTargetLeftAt = null;
-      _captureZoneEscapeRevealed = false;
-      _emitMatchEvent(
-        type: 'capture_zone_end',
-        message: '捕獲結界が終了',
-        position: _currentPosition,
-      );
-    }
-    if (_captureZoneCenter != null && _captureZoneBoundIds.contains('self')) {
-      final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-        _captureZoneCenter!.latitude,
-        _captureZoneCenter!.longitude,
-      );
-      if (d > GameConfig.captureZoneRadiusMeters) {
-        _captureZoneTargetLeftAt ??= now;
-        if (now.difference(_captureZoneTargetLeftAt!).inSeconds >= 8) {
-          _endGame(GameState.caughtByOni, '捕獲結界から長時間離脱しました。');
-        } else if (!_captureZoneEscapeRevealed) {
-          _captureZoneEscapeRevealed = true;
-          _emitLocationReveal(
-            type: 'capture_zone_escape',
-            message: '捕獲結界から離脱して位置暴露',
-          );
-        }
-      } else {
-        _captureZoneTargetLeftAt = null;
-        _captureZoneEscapeRevealed = false;
-      }
-    }
-    if (_bodyThrowEndsAt != null && now.isAfter(_bodyThrowEndsAt!)) {
-      _emitLocationReveal(type: 'body_throw_miss', message: '体投げ未回収で位置暴露');
-      _bodyThrowPosition = null;
-      _bodyThrowEndsAt = null;
-    }
-  }
-
-  bool get _isInfectedNow =>
-      _infectionEndsAt != null && DateTime.now().isBefore(_infectionEndsAt!);
-
-  void _evaluateScaledTouchLock(double gpsDistance) {
-    if (_gameState != GameState.running) return;
-    if (!_testMode && !_remoteOniKnown && !_isHunterNow) return;
-    if (_captureZoneBoundIds.contains('self')) return;
-
-    final radius = _scaledTouchRadiusMeters();
-    final now = DateTime.now();
-    if (gpsDistance > radius) {
-      _touchLockStartedAt = null;
-      _touchLockNoticeShown = false;
-      return;
-    }
-
-    _touchLockStartedAt ??= now;
-    final heldSeconds = now.difference(_touchLockStartedAt!).inSeconds;
-    if (!_touchLockNoticeShown &&
-        heldSeconds >= GameConfig.touchLockRunnerNoticeSeconds) {
-      _touchLockNoticeShown = true;
-      setState(() {
-        _statusMessage = '鬼の接触圏に入りました。離脱してください。';
-      });
-    }
-
-    if (heldSeconds < GameConfig.touchLockRequiredSeconds) return;
-
-    setState(() {
-      _captureZoneCenter = _currentPosition;
-      _captureZoneBoundIds = const {'self'};
-      _captureZoneTargetLeftAt = null;
-      _captureZoneEscapeRevealed = false;
-      _captureZoneEndsAt = now.add(
-        const Duration(seconds: GameConfig.touchLockDurationSeconds),
-      );
-      _touchLockStartedAt = null;
-      _touchLockNoticeShown = false;
-      _statusMessage = '鬼に捕捉され、移動範囲が制限されました。BLE接触で捕獲。';
-    });
-    _emitMatchEvent(
-      type: 'touch_lock_start',
-      message: 'エリア連動タッチ範囲 ${radius.toStringAsFixed(0)}m 内に一定時間入り、捕獲結界状態',
-      position: _currentPosition,
-    );
-    HapticFeedback.mediumImpact();
-  }
-
-  bool _isCaptureTriggered() {
-    if (_gameState != GameState.running) return false;
-    if (!_testMode && !_remoteOniKnown && !_isHunterNow) return false;
-    final isLocked = _captureZoneBoundIds.contains('self');
-    if (isLocked && _latestProximityBand == ProximityBand.contact) {
-      return true;
-    }
-    return false;
-  }
-
-  double _scaledTouchRadiusMeters() {
-    final areaRadius = _effectivePlayAreaRadiusMeters();
-    final scaled = areaRadius * GameConfig.scaledTouchRadiusAreaRatio;
-    return scaled.clamp(
-      GameConfig.scaledTouchRadiusMinMeters,
-      GameConfig.scaledTouchRadiusMaxMeters,
-    );
-  }
-
-  double _effectivePlayAreaRadiusMeters() {
-    switch (_playArea.type) {
-      case PlayAreaType.circle:
-        return _playArea.radiusMeters;
-      case PlayAreaType.polygon:
-        if (_playArea.points.isEmpty) return GameConfig.playAreaRadiusMeters;
-        final center = _polygonCenter(_playArea.points);
-        var maxDistance = GameConfig.playAreaRadiusMeters;
-        for (final p in _playArea.points) {
-          maxDistance = math.max(
-            maxDistance,
-            Geolocator.distanceBetween(
-              center.latitude,
-              center.longitude,
-              p.latitude,
-              p.longitude,
-            ),
-          );
-        }
-        return maxDistance;
-    }
-  }
-
-  LatLng _polygonCenter(List<LatLng> points) {
-    final lat =
-        points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length;
-    final lng =
-        points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length;
-    return LatLng(lat, lng);
-  }
-
-  double _distanceToOni() {
-    if (!_testMode && !_remoteOniKnown) {
-      return double.infinity;
-    }
-    return Geolocator.distanceBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _oniPosition.latitude,
-      _oniPosition.longitude,
-    );
-  }
 
   bool get _showGimmickMapMarkers =>
       _testMode || _gameState == GameState.running;
 
   bool get _showOniMarker => _testMode || _remoteOniKnown;
-
-  double _effectiveInfectionDistance(double gpsDistance) {
-    if (_latestProximityBand == ProximityBand.contact) {
-      return 0;
-    }
-    if (_latestProximityBand == ProximityBand.near) {
-      return gpsDistance - 10;
-    }
-    return gpsDistance;
-  }
-
-  void _evaluateInfection(double distanceToOni) {
-    if (_isInfectedNow) {
-      final now = DateTime.now();
-      if (_lastInfectionRevealAt == null ||
-          now.difference(_lastInfectionRevealAt!).inSeconds >=
-              GameConfig.infectionRevealIntervalSeconds) {
-        _lastInfectionRevealAt = now;
-        final ev = LocationRevealEvent(
-          sequence: _revealCount + 1,
-          timestamp: now,
-          position: _positionForReveal,
-          overflowMeters: 0,
-        );
-        _revealCount += 1;
-        _revealLog.insert(0, ev);
-        if (_revealLog.length > 50) _revealLog.removeLast();
-        _emitMatchEvent(
-          type: 'infection_reveal',
-          message: '感染露出パルス',
-          position: _positionForReveal,
-        );
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')));
-      }
-      return;
-    }
-
-    if (distanceToOni <= GameConfig.infectionTriggerDistanceMeters) {
-      _infectionExposureSeconds += 1;
-      if (_infectionExposureSeconds >= GameConfig.infectionExposureSeconds) {
-        _infectionEndsAt = DateTime.now().add(
-          const Duration(seconds: GameConfig.infectionDurationSeconds),
-        );
-        _infectionExposureSeconds = 0;
-        _lastInfectionRevealAt = null;
-        _emitMatchEvent(
-          type: 'infection_start',
-          message: '感染状態に入った',
-          position: _currentPosition,
-        );
-        setState(() {
-          _statusMessage = '感染状態: 一時的に位置露出が増加';
-        });
-      }
-    } else {
-      _infectionExposureSeconds = 0;
-    }
-  }
 
   void _activateFakeSkill() {
     if (_gameState != GameState.running) {
@@ -1896,28 +1544,28 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (!_skillLoadout.contains(SkillIds.fakePosition)) return;
     final now = DateTime.now();
-    if (_lastFakeSkillAt != null &&
-        now.difference(_lastFakeSkillAt!).inSeconds <
+    if (_rt.lastFakeSkillAt != null &&
+        now.difference(_rt.lastFakeSkillAt!).inSeconds <
             GameConfig.fakeSkillCooldownSeconds) {
       final remain =
           GameConfig.fakeSkillCooldownSeconds -
-          now.difference(_lastFakeSkillAt!).inSeconds;
+          now.difference(_rt.lastFakeSkillAt!).inSeconds;
       _toast('偽位置スキル再使用まで $remain 秒');
       return;
     }
-    _lastFakeSkillAt = now;
-    _fakePositionActive = true;
-    _fakePositionEndsAt = now.add(
+    _rt.lastFakeSkillAt = now;
+    _rt.fakePositionActive = true;
+    _rt.fakePositionEndsAt = now.add(
       const Duration(seconds: GameConfig.fakeSkillDurationSeconds),
     );
-    _fakePositionLatLng = LatLng(
+    _rt.fakePositionLatLng = LatLng(
       _currentPosition.latitude + 0.0012,
       _currentPosition.longitude - 0.0011,
     );
     _emitMatchEvent(
       type: 'fake_start',
       message: '偽位置スキル発動',
-      position: _fakePositionLatLng!,
+      position: _rt.fakePositionLatLng!,
     );
     setState(() {
       _statusMessage = '偽位置スキル発動（短時間）';
@@ -1929,13 +1577,13 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
     final now = DateTime.now();
-    if (_lastWerewolfTransformAt != null &&
-        now.difference(_lastWerewolfTransformAt!).inSeconds <
+    if (_rt.lastWerewolfTransformAt != null &&
+        now.difference(_rt.lastWerewolfTransformAt!).inSeconds <
             GameConfig.werewolfTransformCooldownSeconds) {
       return;
     }
-    _lastWerewolfTransformAt = now;
-    _werewolfTransformEndsAt = now.add(
+    _rt.lastWerewolfTransformAt = now;
+    _rt.werewolfTransformEndsAt = now.add(
       const Duration(seconds: GameConfig.werewolfTransformDurationSeconds),
     );
     _emitMatchEvent(
@@ -1980,17 +1628,17 @@ class _GameMapScreenState extends State<GameMapScreen>
         : _randomOtherRevealPoint();
     final p = _displayRevealPosition(raw);
     final label = self ? _localPlayerLabel : '不明なプレイヤー';
-    _revealCount += 1;
+    _rt.revealCount += 1;
     final ev = LocationRevealEvent(
-      sequence: _revealCount,
+      sequence: _rt.revealCount,
       timestamp: DateTime.now(),
       position: p,
       overflowMeters: 0,
       playerLabel: label,
     );
     setState(() {
-      _revealLog.insert(0, ev);
-      if (_revealLog.length > 50) _revealLog.removeLast();
+      _rt.revealLog.insert(0, ev);
+      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
       _statusMessage = '偽情報暴露: $label の位置が地図に表示されました';
     });
     _pushHudRevealAlert('偽情報暴露: $label の位置情報を受信');
@@ -2019,14 +1667,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.captureZone)) return;
     final now = DateTime.now();
-    if (_lastCaptureZoneAt != null &&
-        now.difference(_lastCaptureZoneAt!).inSeconds <
+    if (_rt.lastCaptureZoneAt != null &&
+        now.difference(_rt.lastCaptureZoneAt!).inSeconds <
             GameConfig.captureZoneCooldownSeconds) {
       return;
     }
-    _lastCaptureZoneAt = now;
+    _rt.lastCaptureZoneAt = now;
     setState(() {
-      _waitingCaptureZoneTap = true;
+      _rt.waitingCaptureZoneTap = true;
       _statusMessage = '地図タップ地点に捕獲結界を設置';
     });
   }
@@ -2035,25 +1683,25 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.bodyThrow)) return;
     final now = DateTime.now();
-    if (_lastBodyThrowAt != null &&
-        now.difference(_lastBodyThrowAt!).inSeconds <
+    if (_rt.lastBodyThrowAt != null &&
+        now.difference(_rt.lastBodyThrowAt!).inSeconds <
             GameConfig.bodyThrowCooldownSeconds) {
       return;
     }
-    _lastBodyThrowAt = now;
-    _bodyThrowPosition = LatLng(
+    _rt.lastBodyThrowAt = now;
+    _rt.bodyThrowPosition = LatLng(
       _currentPosition.latitude,
       _currentPosition.longitude +
           GameConfig.bodyThrowDistanceMeters /
               (111111 * math.cos(_currentPosition.latitude * math.pi / 180)),
     );
-    _bodyThrowEndsAt = now.add(
+    _rt.bodyThrowEndsAt = now.add(
       const Duration(seconds: GameConfig.bodyThrowDurationSeconds),
     );
     _emitMatchEvent(
       type: 'body_throw_start',
       message: '体投げ発動',
-      position: _bodyThrowPosition!,
+      position: _rt.bodyThrowPosition!,
     );
     setState(() => _statusMessage = '体投げ発動中');
   }
@@ -2069,9 +1717,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       message: message,
       position: position,
     );
-    _matchEvents.insert(0, event);
-    if (_matchEvents.length > 120) {
-      _matchEvents.removeLast();
+    _rt.matchEvents.insert(0, event);
+    if (_rt.matchEvents.length > 120) {
+      _rt.matchEvents.removeLast();
     }
     _offlineQueue
         .push(
@@ -2085,32 +1733,38 @@ class _GameMapScreenState extends State<GameMapScreen>
         .then((_) => _refreshOfflineQueueCount());
   }
 
-  void _clearTracePoints() {
-    if (_tracePoints.isEmpty && _revealLog.isEmpty && _oniIntelTraces.isEmpty) {
+  Future<void> _clearTracePoints() async {
+    if (_tracePoints.isEmpty && _rt.revealLog.isEmpty && _rt.oniIntelTraces.isEmpty) {
       _toast('痕跡はありません');
       return;
     }
+    final ok = await _confirmDialog(
+      title: '痕跡をクリア',
+      message: '地図上の痕跡・暴露ログ・鬼情報トレースを消しますか？',
+      confirmLabel: 'クリア',
+    );
+    if (!ok) return;
     setState(() {
       _tracePoints.clear();
-      _revealLog.clear();
-      _oniIntelTraces.clear();
+      _rt.revealLog.clear();
+      _rt.oniIntelTraces.clear();
       _statusMessage = '痕跡をクリアしました';
     });
   }
 
   Iterable<LocationRevealEvent> _recentRevealTraces() {
     final cutoff = DateTime.now().subtract(const Duration(minutes: 3));
-    return _revealLog.where((e) => e.timestamp.isAfter(cutoff)).take(12);
+    return _rt.revealLog.where((e) => e.timestamp.isAfter(cutoff)).take(12);
   }
 
-  Iterable<_OniIntelTrace> _recentOniIntelTraces() {
+  Iterable<OniIntelTrace> _recentOniIntelTraces() {
     final cutoff = DateTime.now().subtract(const Duration(minutes: 10));
-    return _oniIntelTraces.where((e) => e.timestamp.isAfter(cutoff)).take(12);
+    return _rt.oniIntelTraces.where((e) => e.timestamp.isAfter(cutoff)).take(12);
   }
 
   String _latestIntelLine() {
-    final text = _lastOniIntelText;
-    final at = _lastOniIntelAt;
+    final text = _rt.lastOniIntelText;
+    final at = _rt.lastOniIntelAt;
     if (text == null || at == null) {
       return '鬼情報: 未入手（情報屋エリアで取得）';
     }
@@ -2122,34 +1776,18 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   String _conditionLine() {
-    if (_captureZoneBoundIds.contains('self') && _captureZoneEndsAt != null) {
-      return '捕捉ロック中: 残り ${_secondsUntil(_captureZoneEndsAt)}秒 / BLE接触で捕獲';
+    if (_rt.captureZoneBoundIds.contains('self') && _rt.captureZoneEndsAt != null) {
+      return '捕捉ロック中: 残り ${_secondsUntil(_rt.captureZoneEndsAt)}秒 / BLE接触で捕獲';
     }
-    if (_touchLockNoticeShown && _touchLockStartedAt != null) {
-      final held = DateTime.now().difference(_touchLockStartedAt!).inSeconds;
+    if (_rt.touchLockNoticeShown && _rt.touchLockStartedAt != null) {
+      final held = DateTime.now().difference(_rt.touchLockStartedAt!).inSeconds;
       final remain = (GameConfig.touchLockRequiredSeconds - held).clamp(0, 99);
       return '接触圏内: あと $remain秒以内に離脱';
     }
-    if (_isInfectedNow) {
-      return '感染中 (${_secondsUntil(_infectionEndsAt)}秒)';
+    if (_rt.isInfectedNow) {
+      return '感染中 (${_secondsUntil(_rt.infectionEndsAt)}秒)';
     }
     return '異常なし';
-  }
-
-  String _formatTraceAge(DateTime timestamp) {
-    final ageSeconds = DateTime.now().difference(timestamp).inSeconds;
-    if (ageSeconds < 60) return '$ageSeconds秒前の暴露地点';
-    return '${ageSeconds ~/ 60}分前の暴露地点';
-  }
-
-  String _formatIntelTraceAge(DateTime timestamp) {
-    final ageSeconds = DateTime.now().difference(timestamp).inSeconds;
-    if (ageSeconds < 60) return '$ageSeconds秒前の鬼情報';
-    return '${ageSeconds ~/ 60}分前の鬼情報';
-  }
-
-  String _formatLatLng(LatLng p) {
-    return '${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
   }
 
   String get _localPlayerLabel {
@@ -2158,73 +1796,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         : null;
     final name = fs?.nickname?.trim();
     return name == null || name.isEmpty ? 'player1' : name;
-  }
-
-  String _bearingToDirection(double bearing) {
-    final b = (bearing + 360) % 360;
-    if (b >= 337.5 || b < 22.5) return '北';
-    if (b < 67.5) return '北東';
-    if (b < 112.5) return '東';
-    if (b < 157.5) return '南東';
-    if (b < 202.5) return '南';
-    if (b < 247.5) return '南西';
-    if (b < 292.5) return '西';
-    return '北西';
-  }
-
-  bool _isInsideCommJammingZone() => _isPointInCommJammingZone(_currentPosition);
-
-  bool _isCommJammingOpenNow() {
-    if (!_isInsideCommJammingZone()) return true;
-    final bucket = (_elapsedSeconds ~/ GameConfig.commJammingCycleSeconds) % 2;
-    return bucket == 0;
-  }
-
-  /// 断片モード用。16 方位ではなく大まかな寄りだけに落とす。
-  String _fragmentedCoarseCardinal(double bearingDegrees) {
-    final b = (bearingDegrees + 360) % 360;
-    if (b >= 315 || b < 45) return '北寄り';
-    if (b < 135) return '東寄り';
-    if (b < 225) return '南寄り';
-    return '西寄り';
-  }
-
-  String _buildOniIntel({
-    required String direction,
-    required String distanceBand,
-    required double bearingDegrees,
-  }) {
-    if (_oniInCommJammingZone) {
-      final coarse = _fragmentedCoarseCardinal(bearingDegrees);
-      return '通信障害（鬼がゾーン内）: 情報屋の手がかりはほぼ解読不能 — $coarse 付近にノイズのみ';
-    }
-    if (!_isCommJammingOpenNow()) {
-      return '通信障害: ノイズ混入（方角・距離が大きく歪む）';
-    }
-
-    switch (_oniIntelMode) {
-      case OniIntelMode.directionOnly:
-        return '鬼は $direction 方向';
-      case OniIntelMode.distanceBandOnly:
-        return '鬼の距離帯: $distanceBand';
-      case OniIntelMode.fragmented:
-        final phase =
-            (_elapsedSeconds ~/ GameConfig.fragmentedPhaseSeconds) % 5;
-        final coarse = _fragmentedCoarseCardinal(bearingDegrees);
-        switch (phase) {
-          case 0:
-            return '断片: 信号途切れ — 方角・距離とも取得不能';
-          case 1:
-            return '断片: 粗い方角のみ — $coarse（精密方位は非表示）';
-          case 2:
-            return '断片: ノイズ帯 — このウィンドウは情報ロック';
-          case 3:
-            return '断片: 距離帯のみ — $distanceBand（方角は伏せられています）';
-          case 4:
-          default:
-            return '断片: 同期ズレ — 次のウィンドウまで欠落';
-        }
-    }
   }
 
   Future<void> _loadOniOperatorPrefs() async {
@@ -2237,32 +1808,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       _oniNotifySound = s.notifySound;
       _oniNotifyAggressive = s.notifyAggressive;
     });
-  }
-
-  void _maybeTriggerDangerFeedback(double currentDistance) {
-    if (!_touchLockNoticeShown && !_captureZoneBoundIds.contains('self')) {
-      _lastDistance = currentDistance;
-      return;
-    }
-    if (_lastDistance == null) {
-      _lastDistance = currentDistance;
-      return;
-    }
-    final warningDistance = _scaledTouchRadiusMeters();
-    final dangerDistance = GameConfig.captureDistanceMeters;
-    final wasSafe = _lastDistance! > warningDistance;
-    final isWarning = currentDistance <= warningDistance;
-    final isDanger = currentDistance <= dangerDistance;
-
-    if (wasSafe && isWarning) {
-      _emitOniCue(level: 'warning');
-      _logDebug('danger_warning_enter');
-    }
-    if (_lastDistance! > dangerDistance && isDanger) {
-      _emitOniCue(level: 'danger');
-      _logDebug('danger_close_enter');
-    }
-    _lastDistance = currentDistance;
   }
 
   void _emitOniCue({required String level}) {
@@ -2291,12 +1836,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         level == 'danger' ? SystemSoundType.alert : SystemSoundType.click,
       );
     }
-  }
-
-  String _formatTime(int seconds) {
-    final min = (seconds ~/ 60).toString().padLeft(2, '0');
-    final sec = (seconds % 60).toString().padLeft(2, '0');
-    return '$min:$sec';
   }
 
   Offset _clampControlFabOffset(Offset? raw, Size screenSize) {
@@ -2336,9 +1875,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   String _playAreaSummary() {
     switch (_playArea.type) {
       case PlayAreaType.circle:
-        return '円エリア · 半径 ${_playArea.radiusMeters.toStringAsFixed(0)} m';
+        return '円エリア ・ 半径 ${_playArea.radiusMeters.toStringAsFixed(0)} m';
       case PlayAreaType.polygon:
-        return '多角形エリア · ${_playArea.points.length} 頂点';
+        return '多角形エリア ・ ${_playArea.points.length} 頂点';
     }
   }
 
@@ -2354,6 +1893,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         _mapVisibleInLobby = true;
         _prepControlSheetOpen = true;
         _polygonDraft.clear();
+        _polygonDraftClosed = false;
         _waitingCircleCenterTap = false;
         _editCircleMode = _playArea.type == PlayAreaType.circle;
         if (_playArea.type == PlayAreaType.circle) {
@@ -2366,10 +1906,13 @@ class _GameMapScreenState extends State<GameMapScreen>
         _statusMessage = 'エリア編集モード（地図をタップして頂点追加 / 円はスライダー）';
       } else {
         _polygonDraft.clear();
+        _polygonDraftClosed = false;
         _waitingCircleCenterTap = false;
         _statusMessage = '編集を終了しました';
+        _returnToPrepAfterAreaEdit();
       }
     });
+    _retuneRenderPump();
   }
 
   Future<void> _applyEditedArea() async {
@@ -2377,7 +1920,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _onMapTap(LatLng pos) {
-    if (_waitingCaptureZoneTap) {
+    if (_rt.waitingCaptureZoneTap) {
       final now = DateTime.now();
       final d = Geolocator.distanceBetween(
         _currentPosition.latitude,
@@ -2386,12 +1929,12 @@ class _GameMapScreenState extends State<GameMapScreen>
         pos.longitude,
       );
       setState(() {
-        _waitingCaptureZoneTap = false;
-        _captureZoneCenter = pos;
-        _captureZoneBoundIds = _captureZoneTargetsAt(pos, d);
-        _captureZoneTargetLeftAt = null;
-        _captureZoneEscapeRevealed = false;
-        _captureZoneEndsAt = now.add(
+        _rt.waitingCaptureZoneTap = false;
+        _rt.captureZoneCenter = pos;
+        _rt.captureZoneBoundIds = _captureZoneTargetsAt(pos, d);
+        _rt.captureZoneTargetLeftAt = null;
+        _rt.captureZoneEscapeRevealed = false;
+        _rt.captureZoneEndsAt = now.add(
           const Duration(seconds: GameConfig.captureZoneDurationSeconds),
         );
         _statusMessage = '捕獲結界を設置しました';
@@ -2410,8 +1953,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         _waitingCircleCenterTap = false;
         _statusMessage = '円の中心を設定しました';
       } else if (!_editCircleMode) {
+        _polygonDraftClosed = false;
         _polygonDraft.add(pos);
-        _statusMessage = '頂点 ${_polygonDraft.length} 点目';
+        _statusMessage = '頂点 ${_polygonDraft.length} 点目（閉じるで確定）';
       }
     });
   }
@@ -2436,6 +1980,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_polygonDraft.isEmpty) return;
     setState(() {
       _polygonDraft.removeLast();
+      _polygonDraftClosed = false;
       _statusMessage = '頂点を1つ戻しました（${_polygonDraft.length}点）';
     });
   }
@@ -2443,40 +1988,15 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _clearPolygonDraft() {
     setState(() {
       _polygonDraft.clear();
+      _polygonDraftClosed = false;
       _statusMessage = '頂点をクリアしました';
     });
   }
 
   Future<void> _showImportGeoJsonDialog() async {
-    final controller = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('GeoJSON を取り込み'),
-        content: SingleChildScrollView(
-          child: TextField(
-            controller: controller,
-            maxLines: 12,
-            decoration: const InputDecoration(
-              hintText: 'Feature / FeatureCollection / Polygon を貼り付け',
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('取り込み'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
     try {
-      final area = PlayArea.fromGeoJsonString(controller.text.trim());
+      final area = await GeoJsonActions.showImportDialog(context);
+      if (area == null || !mounted) return;
       await _areaStore.save(area);
       setState(() {
         _playArea = area;
@@ -2489,23 +2009,14 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('保存済み。必要ならエリア編集で微調整してください。');
     } catch (e) {
       _toast('パース失敗: $e');
-    } finally {
-      controller.dispose();
     }
   }
 
   Future<void> _exportGeoJson() async {
-    final raw = _playArea.toGeoJsonFeatureString();
-    await Clipboard.setData(ClipboardData(text: raw));
-    if (!mounted) return;
-    _toast('GeoJSON をクリップボードにコピーしました');
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: SelectableText(raw, style: const TextStyle(fontSize: 12)),
-      ),
+    await GeoJsonActions.exportToClipboard(
+      context,
+      _playArea,
+      onCopied: _toast,
     );
   }
 
@@ -2516,11 +2027,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       '- ルーム: ${_roomSession.modeLabel}',
       '- エリア: ${_playAreaSummary()}',
       '- 役職: ${_localRole.displayName}${_isHunterNow && _localRole != PlayerRole.hunter ? "（一時鬼化中）" : ""}',
-      '- スキル: ${_skillLoadout.map(_skillLabel).join(" / ")}',
-      '- 残り時間: ${_formatTime(_remainingSeconds)}',
-      '- 位置暴露: $_revealCount 回',
-      '- 情報屋: ${_lastOniIntelText == null ? "未取得" : _latestIntelLine()}',
-      '- ギミック: 安全地帯 ${_safeZonePositions.length} / 情報屋 ${_infoBrokerPositions.length} / カメラ ${_cameraPositions.length} / イベント ${_commJammingZonePositions.length}',
+      '- スキル: ${_skillLoadout.map(skillLabel).join(" / ")}',
+      '- 残り時間: ${MapGeoUtils.formatClock(_rt.remainingSeconds)}',
+      '- 位置暴露: $_rt.revealCount 回',
+      '- 情報屋: ${_rt.lastOniIntelText == null ? "未取得" : _latestIntelLine()}',
+      '- ギミック: 安全地帯 ${_rt.safeZonePositions.length} / 情報屋 ${_rt.infoBrokerPositions.length} / カメラ ${_rt.cameraPositions.length} / イベント ${_rt.commJammingZonePositions.length}',
       '',
       '現在地共有は必要な時だけ別途行ってください。',
     ];
@@ -2541,15 +2052,15 @@ class _GameMapScreenState extends State<GameMapScreen>
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          if (_revealLog.isEmpty) const Text('まだありません'),
-          for (final e in _revealLog)
+          if (_rt.revealLog.isEmpty) const Text('まだありません'),
+          for (final e in _rt.revealLog)
             ListTile(
               dense: true,
               title: Text(
                 '${e.playerLabel} #${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m',
               ),
               subtitle: Text(
-                '${e.timestamp.toIso8601String()}\n${_formatLatLng(e.position)}',
+                '${e.timestamp.toIso8601String()}\n${MapGeoFormat.latLng(e.position)}',
               ),
             ),
         ],
@@ -2557,403 +2068,51 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
-  Set<Marker> _buildMarkers() {
-    final revealTraces = _recentRevealTraces().toList(growable: false);
-    final oniIntelTraces = _recentOniIntelTraces().toList(growable: false);
-    final markers = <Marker>{
-      Marker(
-        markerId: const MarkerId('player'),
-        position: _playerMarkerPosition,
-        infoWindow: const InfoWindow(title: 'あなた', snippet: '現在地'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      ),
-      if (_showOniMarker)
-        Marker(
-          markerId: const MarkerId('oni'),
-          position: _oniPosition,
-          infoWindow: InfoWindow(
-            title: '鬼',
-            snippet: _remoteOniKnown ? 'オンライン同期' : 'テスト／デモ',
-          ),
-        ),
-      for (final e in _remoteMembers.entries)
-        Marker(
-          markerId: MarkerId('remote_${e.key}'),
-          position: LatLng(e.value.lat, e.value.lng),
-          infoWindow: InfoWindow(
-            title: e.value.nickname.isEmpty ? '参加者' : e.value.nickname,
-            snippet: '${e.value.role} (online)',
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(switch (e.value.role) {
-            'oni' => BitmapDescriptor.hueRose,
-            'spectator' => BitmapDescriptor.hueAzure,
-            _ => BitmapDescriptor.hueMagenta,
-          }),
-        ),
-    };
-
-    if (_showGimmickMapMarkers) {
-      markers.addAll({
-        for (var i = 0; i < _safeZonePositions.length; i++)
-          Marker(
-            markerId: MarkerId('safe_zone_marker_$i'),
-            position: _safeZonePositions[i],
-            infoWindow: InfoWindow(
-              title: '安全地帯 ${i + 1}',
-              snippet: _safeZoneAvailable
-                  ? 'チャージ獲得地点'
-                  : '再出現まで ${_secondsUntil(_safeZoneRespawnAt)} 秒',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
-          ),
-        for (var i = 0; i < _infoBrokerPositions.length; i++)
-          Marker(
-            markerId: MarkerId('info_broker_marker_$i'),
-            position: _infoBrokerPositions[i],
-            infoWindow: InfoWindow(
-              title: '情報屋 ${i + 1}',
-              snippet: _infoBrokerAvailable
-                  ? '鬼の方角ヒント'
-                  : '再出現まで ${_secondsUntil(_infoBrokerRespawnAt)} 秒',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueViolet,
-            ),
-          ),
-        for (var i = 0; i < _commJammingZonePositions.length; i++)
-          Marker(
-            markerId: MarkerId('comm_jamming_zone_marker_$i'),
-            position: _commJammingZonePositions[i],
-            infoWindow: InfoWindow(
-              title: '通信障害地帯 ${i + 1}',
-              snippet: '情報が断片化する',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueOrange,
-            ),
-          ),
-        for (var i = 0; i < _tracePoints.length; i++)
-          Marker(
-            markerId: MarkerId('trace_$i'),
-            position: _tracePoints[i],
-            infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueCyan,
-            ),
-          ),
-        for (var i = 0; i < revealTraces.length; i++)
-          Marker(
-            markerId: MarkerId('reveal_trace_$i'),
-            position: revealTraces[i].position,
-            infoWindow: InfoWindow(
-              title:
-                  '${revealTraces[i].playerLabel} の位置暴露 #${revealTraces[i].sequence}',
-              snippet:
-                  '${_formatTraceAge(revealTraces[i].timestamp)} / ${_formatLatLng(revealTraces[i].position)}',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueViolet,
-            ),
-          ),
-        for (var i = 0; i < oniIntelTraces.length; i++)
-          Marker(
-            markerId: MarkerId('oni_intel_trace_$i'),
-            position: oniIntelTraces[i].position,
-            infoWindow: InfoWindow(
-              title: '情報屋の鬼情報',
-              snippet:
-                  '${_formatIntelTraceAge(oniIntelTraces[i].timestamp)} / ${oniIntelTraces[i].text}',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed,
-            ),
-          ),
-        for (var i = 0; i < _cameraPositions.length; i++)
-          Marker(
-            markerId: MarkerId('camera_$i'),
-            position: _cameraPositions[i],
-            infoWindow: InfoWindow(
-              title: '監視カメラ ${i + 1}',
-              snippet: _triggeredCameras.contains(i)
-                  ? '作動済み'
-                  : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueYellow,
-            ),
-          ),
-      });
-    }
-
-    if (_fakePositionActive && _fakePositionLatLng != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('fake_position'),
-          position: _fakePositionLatLng!,
-          infoWindow: const InfoWindow(title: '偽位置', snippet: 'デコイ発信中'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
-        ),
-      );
-    }
-    if (_bodyThrowPosition != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('body_throw_position'),
-          position: _bodyThrowPosition!,
-          infoWindow: const InfoWindow(title: '体投げ', snippet: '判定位置'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
-        ),
-      );
-    }
-
-    if (_afterCatchRule != null) {
-      final rough = _buildGhostRoughPositions();
-      final rule = _afterCatchRule!;
-      final hue = rule == EliminationAftermathRule.joinOni
-          ? BitmapDescriptor.hueRed
-          : BitmapDescriptor.hueAzure;
-      final title = rule == EliminationAftermathRule.joinOni ? '鬼側索敵' : '幽霊視点';
-      final snippet = rule == EliminationAftermathRule.joinOni
-          ? 'ざっくり位置（鬼合流）'
-          : 'ざっくり位置（中立）';
-      for (var i = 0; i < rough.length; i++) {
-        markers.add(
-          Marker(
-            markerId: MarkerId('spectator_rough_$i'),
-            position: rough[i],
-            infoWindow: InfoWindow(title: title, snippet: snippet),
-            icon: BitmapDescriptor.defaultMarkerWithHue(hue),
-          ),
-        );
-      }
-    }
-
-    if (_editingArea && !_editCircleMode) {
-      for (var i = 0; i < _polygonDraft.length; i++) {
-        markers.add(
-          Marker(
-            markerId: MarkerId('draft_v_$i'),
-            position: _polygonDraft[i],
-            infoWindow: InfoWindow(title: '頂点', snippet: '${i + 1}'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
-          ),
-        );
-      }
-    }
-
-    if (_editingArea && _editCircleMode) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('circle_center'),
-          position: _circleDraftCenter,
-          infoWindow: const InfoWindow(title: '円の中心', snippet: '編集中'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueViolet,
-          ),
-        ),
-      );
-    }
-
-    return markers;
+  GameMapOverlaySnapshot _overlaySnapshot(WorldProfileTokens tokens) {
+    return GameMapOverlaySnapshot(
+      now: DateTime.now(),
+      playerMarkerPosition: _playerMarkerPosition,
+      oniPosition: _oniPosition,
+      showOniMarker: _showOniMarker,
+      remoteOniKnown: _remoteOniKnown,
+      remoteMembers: _remoteMembers,
+      showGimmickMarkers: _showGimmickMapMarkers,
+      safeZonePositions: _rt.safeZonePositions,
+      infoBrokerPositions: _rt.infoBrokerPositions,
+      commJammingZonePositions: _rt.commJammingZonePositions,
+      cameraPositions: _rt.cameraPositions,
+      tracePoints: _tracePoints,
+      revealTraces: _recentRevealTraces().toList(growable: false),
+      oniIntelTraces: _recentOniIntelTraces().toList(growable: false),
+      safeZoneAvailable: _rt.safeZoneAvailable,
+      infoBrokerAvailable: _rt.infoBrokerAvailable,
+      safeZoneRespawnAt: _rt.safeZoneRespawnAt,
+      infoBrokerRespawnAt: _rt.infoBrokerRespawnAt,
+      triggeredCameras: _rt.triggeredCameras,
+      fakePositionActive: _rt.fakePositionActive,
+      fakePositionLatLng: _rt.fakePositionLatLng,
+      bodyThrowPosition: _rt.bodyThrowPosition,
+      afterCatchRule: _afterCatchRule,
+      ghostRoughPositions: _afterCatchRule != null
+          ? GameMapOverlayBuilder.ghostRoughPositions(
+              currentPosition: _currentPosition,
+              oniPosition: _oniPosition,
+              cameraPositions: _rt.cameraPositions,
+            )
+          : const [],
+      editingArea: _editingArea,
+      editCircleMode: _editCircleMode,
+      polygonDraft: _polygonDraft,
+      polygonDraftClosed: _polygonDraftClosed,
+      circleDraftCenter: _circleDraftCenter,
+      circleDraftRadiusMeters: _circleDraftRadiusMeters,
+      playArea: _playArea,
+      captureZoneCenter: _rt.captureZoneCenter,
+      tokens: tokens,
+    );
   }
 
-  List<LatLng> _buildGhostRoughPositions() {
-    final base = [
-      _currentPosition,
-      _oniPosition,
-      for (final p in _cameraPositions) p,
-    ];
-    return base.asMap().entries.map((e) {
-      final p = e.value;
-      final shift = (e.key + 1) * 0.0006;
-      return LatLng(p.latitude + shift, p.longitude - shift);
-    }).toList();
-  }
-
-  Set<Polyline> _buildPolylines() {
-    if (!_editingArea || _editCircleMode || _polygonDraft.length < 2) {
-      return {};
-    }
-    return {
-      Polyline(
-        polylineId: const PolylineId('draft_polyline'),
-        points: _polygonDraft,
-        width: 3,
-        color: Colors.deepOrange,
-      ),
-    };
-  }
-
-  List<LatLng> _closedPolygonPoints(List<LatLng> points) {
-    if (points.length < 3) return points;
-    final first = points.first;
-    final last = points.last;
-    if (first.latitude == last.latitude && first.longitude == last.longitude) {
-      return points;
-    }
-    return [...points, first];
-  }
-
-  Set<Circle> _buildCircles(WorldProfileTokens tokens) {
-    final revealTraces = _recentRevealTraces().toList(growable: false);
-    final oniIntelTraces = _recentOniIntelTraces().toList(growable: false);
-    final circles = <Circle>{
-      for (var i = 0; i < _safeZonePositions.length; i++)
-        Circle(
-          circleId: CircleId('safe-zone-$i'),
-          center: _safeZonePositions[i],
-          radius: GameConfig.safeZoneRadiusMeters,
-          strokeWidth: 2,
-          fillColor: tokens.safeColor.withValues(
-            alpha: _safeZoneAvailable ? 0.12 : 0.04,
-          ),
-          strokeColor: tokens.safeColor,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < _infoBrokerPositions.length; i++)
-        Circle(
-          circleId: CircleId('info-broker-$i'),
-          center: _infoBrokerPositions[i],
-          radius: GameConfig.infoBrokerRadiusMeters,
-          strokeWidth: 2,
-          fillColor: tokens.infoColor.withValues(
-            alpha: _infoBrokerAvailable ? 0.12 : 0.04,
-          ),
-          strokeColor: tokens.infoColor,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < _commJammingZonePositions.length; i++)
-        Circle(
-          circleId: CircleId('comm-jamming-zone-$i'),
-          center: _commJammingZonePositions[i],
-          radius: GameConfig.commJammingZoneRadiusMeters,
-          strokeWidth: 2,
-          fillColor: Colors.orange.withValues(alpha: 0.12),
-          strokeColor: Colors.orange.shade700,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < _cameraPositions.length; i++)
-        if (!_triggeredCameras.contains(i))
-          Circle(
-            circleId: CircleId('camera-zone-$i'),
-            center: _cameraPositions[i],
-            radius: GameConfig.cameraTriggerRadiusMeters,
-            strokeWidth: 1,
-            fillColor: Colors.yellow.withValues(alpha: 0.07),
-            strokeColor: Colors.yellow.shade800.withValues(alpha: 0.55),
-            zIndex: 1,
-          ),
-      for (var i = 0; i < _tracePoints.length; i++)
-        Circle(
-          circleId: CircleId('trace_circle_$i'),
-          center: _tracePoints[i],
-          radius: 18,
-          strokeWidth: 1,
-          fillColor: Colors.cyan.withValues(alpha: 0.2),
-          strokeColor: Colors.cyan.shade700,
-          zIndex: 2,
-        ),
-      for (var i = 0; i < revealTraces.length; i++)
-        Circle(
-          circleId: CircleId('reveal_trace_circle_$i'),
-          center: revealTraces[i].position,
-          radius: 24,
-          strokeWidth: 1,
-          fillColor: Colors.deepPurple.withValues(alpha: 0.16),
-          strokeColor: Colors.deepPurple.shade700,
-          zIndex: 2,
-        ),
-      for (var i = 0; i < oniIntelTraces.length; i++)
-        Circle(
-          circleId: CircleId('oni_intel_trace_circle_$i'),
-          center: oniIntelTraces[i].position,
-          radius: 30,
-          strokeWidth: 2,
-          fillColor: Colors.red.withValues(alpha: 0.12),
-          strokeColor: Colors.red.shade700,
-          zIndex: 3,
-        ),
-      if (_captureZoneCenter != null)
-        Circle(
-          circleId: const CircleId('capture-zone'),
-          center: _captureZoneCenter!,
-          radius: GameConfig.captureZoneRadiusMeters,
-          strokeWidth: 3,
-          fillColor: Colors.red.withValues(alpha: 0.16),
-          strokeColor: Colors.red.shade700,
-          zIndex: 12,
-        ),
-    };
-
-    if (_playArea.type == PlayAreaType.circle && !_editingArea) {
-      circles.add(
-        Circle(
-          circleId: const CircleId('play-area'),
-          center: _playArea.center,
-          radius: _playArea.radiusMeters,
-          strokeWidth: 4,
-          fillColor: Colors.blue.withValues(alpha: 0.16),
-          strokeColor: Colors.blue.shade600,
-          zIndex: 10,
-        ),
-      );
-    }
-
-    if (_editingArea && _editCircleMode) {
-      circles.add(
-        Circle(
-          circleId: const CircleId('draft-circle'),
-          center: _circleDraftCenter,
-          radius: _circleDraftRadiusMeters,
-          strokeWidth: 4,
-          fillColor: Colors.purple.withValues(alpha: 0.22),
-          strokeColor: Colors.purple.shade700,
-          zIndex: 20,
-        ),
-      );
-    }
-    return circles;
-  }
-
-  Set<Polygon> _buildPolygons() {
-    if (!_editingArea && _playArea.type == PlayAreaType.polygon) {
-      return {
-        Polygon(
-          polygonId: const PolygonId('play-area-poly'),
-          points: _closedPolygonPoints(_playArea.points),
-          strokeWidth: 4,
-          strokeColor: Colors.blue.shade600,
-          fillColor: Colors.blue.withValues(alpha: 0.16),
-          zIndex: 10,
-        ),
-      };
-    }
-    if (_editingArea && !_editCircleMode && _polygonDraft.length >= 3) {
-      return {
-        Polygon(
-          polygonId: const PolygonId('draft-poly-preview'),
-          points: _closedPolygonPoints(_polygonDraft),
-          strokeWidth: 4,
-          strokeColor: Colors.deepOrange.shade600,
-          fillColor: Colors.deepOrange.withValues(alpha: 0.22),
-          zIndex: 20,
-        ),
-      };
-    }
-    return {};
-  }
-
-  int _secondsUntil(DateTime? target) {
-    if (target == null) return 0;
-    final diff = target.difference(DateTime.now()).inSeconds;
-    return diff < 0 ? 0 : diff;
-  }
+  int _secondsUntil(DateTime? target) => MapGeoFormat.secondsUntil(target);
 
   void _logDebug(String line) {
     final stamp = DateTime.now().toIso8601String().substring(11, 19);
@@ -2973,11 +2132,22 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _cycleControlSheetMode() {
     setState(() {
-      _controlSheetMode = switch (_controlSheetMode) {
-        _ControlSheetMode.hidden => _ControlSheetMode.skillsOnly,
-        _ControlSheetMode.skillsOnly => _ControlSheetMode.expanded,
-        _ControlSheetMode.expanded => _ControlSheetMode.hidden,
-      };
+      _controlSheetMode = _controlSheetMode == ControlSheetMode.expanded
+          ? ControlSheetMode.skillsOnly
+          : ControlSheetMode.expanded;
+    });
+  }
+
+  void _hideControlPanel() {
+    setState(() => _controlSheetMode = ControlSheetMode.hidden);
+  }
+
+  void _showControlPanel() {
+    setState(() {
+      _controlSheetMode = ControlSheetMode.skillsOnly;
+      if (_gameState == GameState.waiting) {
+        _prepControlSheetOpen = true;
+      }
     });
   }
 
@@ -3007,7 +2177,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           outcome: _gameState,
           detail: _statusMessage,
           roleSummary:
-              '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(_skillLabel).join("・")}',
+              '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(skillLabel).join("・")}',
           matchDurationLabel: _matchDurationLabel(),
           afterCatchRule: _afterCatchRule,
           onPrepareNext: () {
@@ -3042,531 +2212,55 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('ゲーム中はカスタム設定を変更できません');
       return;
     }
-    WorldProfile selectedProfile = _activeProfile;
-    OniIntelMode selectedIntel = _oniIntelMode;
-    bool selectedConsent = _trajectoryConsent;
-    EliminationAftermathRule selectedElimination = _eliminationAftermathRule;
-    PlayerRole selectedRole = _localRole;
-    bool selectedCustomRuleMode = _customRuleMode;
-    double selectedDurationMinutes = _matchDurationSeconds / 60;
-    final selectedSkills = Set<String>.from(_skillLoadout);
+    if (!_isHost && !_participantRulesOpen) {
+      _toast('カスタムルールの編集はホストが開放するまで待ってください');
+      return;
+    }
     final prefs0 = await SharedPreferences.getInstance();
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    var selectedUseBle = prefs0.getBool(_kUseBleScanPrefKey) ?? false;
-    final roomController = TextEditingController();
-    final nickController = TextEditingController(text: 'player1');
-    var firebaseWarmScheduled = false;
-
-    bool? ok;
-    try {
-      ok = await showModalBottomSheet<bool>(
-        context: context,
-        showDragHandle: true,
-        isScrollControlled: true,
-        builder: (ctx) {
-          return StatefulBuilder(
-            builder: (ctx, setModalState) {
-              final screenH = MediaQuery.sizeOf(ctx).height;
-              final kb = MediaQuery.viewInsetsOf(ctx).bottom;
-              final sheetH = (screenH * 0.86 - kb).clamp(280.0, screenH * 0.92);
-              if (!firebaseWarmScheduled) {
-                firebaseWarmScheduled = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  unawaited(
-                    FirebaseBootstrap.tryInit().then((_) {
-                      if (ctx.mounted) setModalState(() {});
-                    }),
-                  );
-                });
-              }
-              return Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 8,
-                  bottom: 16 + kb,
-                ),
-                child: SizedBox(
-                  height: sheetH,
-                  child: SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'カスタム設定',
-                          style: Theme.of(ctx).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 10),
-
-                        DropdownButtonFormField<WorldProfile>(
-                          initialValue: selectedProfile,
-                          decoration: const InputDecoration(labelText: '世界観'),
-                          items: WorldProfile.values
-                              .map(
-                                (p) => DropdownMenuItem(
-                                  value: p,
-                                  child: Text(p.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setModalState(() => selectedProfile = v);
-                          },
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        DropdownButtonFormField<OniIntelMode>(
-                          initialValue: selectedIntel,
-                          decoration: InputDecoration(
-                            labelText: '情報屋の鬼情報モード',
-                            helperText:
-                                '情報屋で入手する鬼の手がかりの出し方。未設定時は方角のみ・距離帯のみ・断片のいずれかがランダム相当で切り替わります。「断片」は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが変わります。',
-                            helperMaxLines: 4,
-                          ),
-                          items: OniIntelMode.values
-                              .map(
-                                (m) => DropdownMenuItem(
-                                  value: m,
-                                  child: Text(m.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setModalState(() => selectedIntel = v);
-                          },
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        DropdownButtonFormField<PlayerRole>(
-                          initialValue: selectedRole,
-                          decoration: const InputDecoration(
-                            labelText: 'ローカル役職',
-                            helperText: 'カスタム公開ルールON時だけ固定されます',
-                          ),
-                          items: _assignableRoles
-                              .map(
-                                (r) => DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r.displayName),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: selectedCustomRuleMode
-                              ? (v) {
-                                  if (v == null) return;
-                                  setModalState(() {
-                                    selectedRole = v;
-                                    selectedSkills
-                                      ..clear()
-                                      ..addAll(
-                                        _skillCandidates(
-                                          v,
-                                        ).take(v == PlayerRole.hunter ? 2 : 1),
-                                      );
-                                  });
-                                }
-                              : null,
-                        ),
-
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            for (final s in _skillCandidates(selectedRole))
-                              FilterChip(
-                                label: Text(_skillLabel(s)),
-                                selected: selectedSkills.contains(s),
-                                onSelected: selectedCustomRuleMode
-                                    ? (v) {
-                                        setModalState(() {
-                                          if (v) {
-                                            if (selectedRole !=
-                                                PlayerRole.hunter) {
-                                              selectedSkills.clear();
-                                            }
-                                            if (selectedRole ==
-                                                    PlayerRole.hunter &&
-                                                selectedSkills.length >= 2) {
-                                              selectedSkills.remove(
-                                                selectedSkills.first,
-                                              );
-                                            }
-                                            selectedSkills.add(s);
-                                          } else {
-                                            selectedSkills.remove(s);
-                                          }
-                                        });
-                                      }
-                                    : null,
-                              ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('カスタム公開ルール'),
-                          subtitle: const Text('オフ時は開始時に役職/スキル/ルールを秘密ランダム割当'),
-                          value: selectedCustomRuleMode,
-                          onChanged: (v) =>
-                              setModalState(() => selectedCustomRuleMode = v),
-                        ),
-                        Text(
-                          '制限時間: ${selectedDurationMinutes.round()} 分',
-                          style: Theme.of(ctx).textTheme.titleSmall,
-                        ),
-                        const Text(
-                          'ホストは準備画面のスライダーで変更するのが基本です。ここは上級者向けの同じ設定です。',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        Slider(
-                          min: 1,
-                          max: 20,
-                          divisions: 19,
-                          value: selectedDurationMinutes.clamp(1, 20),
-                          onChanged: (v) =>
-                              setModalState(() => selectedDurationMinutes = v),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        DropdownButtonFormField<EliminationAftermathRule>(
-                          initialValue: selectedElimination,
-                          decoration: const InputDecoration(
-                            labelText: '脱落後ルール（ルーム設定）',
-                          ),
-                          items: EliminationAftermathRule.values
-                              .map(
-                                (r) => DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setModalState(() => selectedElimination = v);
-                          },
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('実機 BLE スキャン（近接推定）'),
-                          subtitle: const Text(
-                            'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
-                          ),
-                          value: selectedUseBle,
-                          onChanged: (v) =>
-                              setModalState(() => selectedUseBle = v),
-                        ),
-
-                        ExpansionTile(
-                          initiallyExpanded: true,
-                          tilePadding: EdgeInsets.zero,
-                          title: const Text('オンラインルーム（Firestore）'),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                FirebaseBootstrap.isReady
-                                    ? '接続済み · 下のボタンでルームに参加できます'
-                                    : '未接続 · 「参加」で Firebase を再初期化します',
-                                style: Theme.of(ctx).textTheme.bodySmall,
-                              ),
-                              Text(
-                                'まだ誰も使っていないルームIDで参加すると、Firestore に rooms と members が作成されます。',
-                                style: Theme.of(ctx).textTheme.bodySmall
-                                    ?.copyWith(
-                                      fontSize: 11,
-                                      color: Theme.of(
-                                        ctx,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
-                          ),
-                          children: [
-                            if (!FirebaseBootstrap.isReady &&
-                                FirebaseBootstrap.lastErrorBrief != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: SelectableText(
-                                  FirebaseBootstrap.lastErrorBrief!,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(ctx).colorScheme.error,
-                                  ),
-                                ),
-                              ),
-                            TextField(
-                              controller: roomController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'ルームID',
-                                hintText: '例: demo-room-1',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: nickController,
-                              textInputAction: TextInputAction.done,
-                              decoration: const InputDecoration(
-                                labelText: '表示名',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                    ),
-                                    onPressed: () async {
-                                      FocusScope.of(ctx).unfocus();
-                                      await FirebaseBootstrap.tryInit();
-                                      if (!ctx.mounted) return;
-                                      setModalState(() {});
-                                      if (!FirebaseBootstrap.isReady) {
-                                        messenger.showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Firebase に接続できません。\n\n'
-                                              '1) android/app/google-services.json を配置してフル再ビルド\n'
-                                              '2) または dart-define で FIREBASE_* を指定\n\n'
-                                              '${FirebaseBootstrap.lastErrorBrief ?? ""}',
-                                            ),
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: const EdgeInsets.fromLTRB(
-                                              16,
-                                              0,
-                                              16,
-                                              220,
-                                            ),
-                                            duration: const Duration(
-                                              seconds: 10,
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      final rid = roomController.text.trim();
-                                      final nick = nickController.text.trim();
-                                      if (rid.isEmpty || nick.isEmpty) {
-                                        messenger.showSnackBar(
-                                          const SnackBar(
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: EdgeInsets.fromLTRB(
-                                              16,
-                                              0,
-                                              16,
-                                              220,
-                                            ),
-                                            content: Text('ルームIDと表示名を入力してください'),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      showDialog<void>(
-                                        context: ctx,
-                                        barrierDismissible: false,
-                                        useRootNavigator: true,
-                                        builder: (dCtx) => const AlertDialog(
-                                          content: Row(
-                                            children: [
-                                              CircularProgressIndicator(),
-                                              SizedBox(width: 16),
-                                              Expanded(
-                                                child: Text('ルームに参加しています…'),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                      String? err;
-                                      try {
-                                        err = await _joinFirestoreRoom(
-                                          roomId: rid,
-                                          nickname: nick,
-                                          role: 'runner',
-                                        );
-                                      } finally {
-                                        if (ctx.mounted) {
-                                          Navigator.of(
-                                            ctx,
-                                            rootNavigator: true,
-                                          ).pop();
-                                        }
-                                      }
-                                      if (!ctx.mounted) return;
-                                      if (err != null) {
-                                        messenger.showSnackBar(
-                                          SnackBar(
-                                            content: Text(err),
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: const EdgeInsets.fromLTRB(
-                                              16,
-                                              0,
-                                              16,
-                                              220,
-                                            ),
-                                            duration: const Duration(
-                                              seconds: 10,
-                                            ),
-                                          ),
-                                        );
-                                      } else {
-                                        await showDialog<void>(
-                                          context: ctx,
-                                          builder: (dCtx) => AlertDialog(
-                                            icon: Icon(
-                                              Icons.check_circle,
-                                              color: Theme.of(
-                                                dCtx,
-                                              ).colorScheme.primary,
-                                              size: 40,
-                                            ),
-                                            title: const Text('ルームに接続しました'),
-                                            content: SingleChildScrollView(
-                                              child: Text(
-                                                'ルームID「$rid」への参加が完了しました。\n\n'
-                                                'Firestore では次のパスにメンバーが作成されています。\n'
-                                                'rooms / $rid / members / （あなたの UID）\n\n'
-                                                'このシートの「適用」で閉じたあと、地図画面で「開始」から鬼ごっこを始められます。',
-                                              ),
-                                            ),
-                                            actions: [
-                                              FilledButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(dCtx),
-                                                child: const Text('OK'),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }
-                                      if (ctx.mounted) setModalState(() {});
-                                    },
-                                    child: const Text('ルームに参加'),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                    ),
-                                    onPressed: () async {
-                                      FocusScope.of(ctx).unfocus();
-                                      await _leaveFirestoreRoom();
-                                      if (!ctx.mounted) return;
-                                      setModalState(() {});
-                                      messenger.showSnackBar(
-                                        const SnackBar(
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: EdgeInsets.fromLTRB(
-                                            16,
-                                            0,
-                                            16,
-                                            220,
-                                          ),
-                                          content: Text('オフラインに戻しました'),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('退出'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('軌跡を端末保存（同意）'),
-                          value: selectedConsent,
-                          onChanged: (v) =>
-                              setModalState(() => selectedConsent = v),
-                        ),
-
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.nightlight_round,
-                            color: Theme.of(ctx).colorScheme.primary,
-                          ),
-                          title: const Text('鬼ロール・鬼向け通知'),
-                          subtitle: const Text(
-                            'AppBar の「鬼コンソール」アイコンから設定します（バイブ・サウンド等）。',
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('適用'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      roomController.dispose();
-      nickController.dispose();
-    }
-
-    if (ok != true) return;
+    final result = await showGameCustomSettingsSheet(
+      context: context,
+      initial: GameCustomSettingsInitial(
+        profile: _activeProfile,
+        oniIntelMode: _oniIntelMode,
+        trajectoryConsent: _trajectoryConsent,
+        eliminationAftermathRule: _eliminationAftermathRule,
+        localRole: _localRole,
+        customRuleMode: _customRuleMode,
+        participantRulesOpen: _participantRulesOpen,
+        matchDurationMinutes: _matchDurationSeconds / 60,
+        skillLoadout: _skillLoadout,
+        useBleScan: prefs0.getBool(GameMapPrefs.useBleScanProximity) ?? false,
+      ),
+      isHost: _isHost,
+      onJoinRoom: ({required roomId, required nickname, required role}) =>
+          _joinFirestoreRoom(
+            roomId: roomId,
+            nickname: nickname,
+            role: role,
+          ),
+      onLeaveRoom: _leaveFirestoreRoom,
+    );
+    if (!mounted || result == null) return;
     setState(() {
-      _activeProfile = selectedProfile;
-      _oniIntelMode = selectedIntel;
-      _eliminationAftermathRule = selectedElimination;
-      _customRuleMode = selectedCustomRuleMode;
-      _matchDurationSeconds = selectedDurationMinutes.round() * 60;
+      _activeProfile = result.profile;
+      _oniIntelMode = result.oniIntelMode;
+      _eliminationAftermathRule = result.eliminationAftermathRule;
+      _customRuleMode = result.customRuleMode;
+      if (_isHost) {
+        _participantRulesOpen = result.participantRulesOpen;
+      }
+      _matchDurationSeconds = result.matchDurationMinutes.round() * 60;
       if (_customRuleMode) {
-        _localRole = selectedRole;
-        _skillLoadout = selectedSkills.isEmpty
-            ? _skillCandidates(_localRole).take(1).toSet()
-            : selectedSkills;
+        _localRole = result.localRole;
+        _skillLoadout = result.skillLoadout.isEmpty
+            ? skillCandidatesForRole(_localRole).take(1).toSet()
+            : result.skillLoadout;
       }
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _kEliminationAftermathPrefKey,
-      selectedElimination.name,
-    );
-    await prefs.setBool(_kUseBleScanPrefKey, selectedUseBle);
     await _reloadProximityStackFromPrefs();
-    if (_trajectoryConsent != selectedConsent) {
-      await _setTrajectoryConsent(selectedConsent);
+    if (_trajectoryConsent != result.trajectoryConsent) {
+      await _setTrajectoryConsent(result.trajectoryConsent);
     }
     _toast('カスタム設定を適用しました');
   }
@@ -3586,7 +2280,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       LocationSamplingTier.standard => 0.55,
       LocationSamplingTier.chase => 0.95,
     };
-    final pulse = _isInfectedNow ? 0.25 : 0.0;
+    final pulse = _rt.isInfectedNow ? 0.25 : 0.0;
     return tierBase + pulse;
   }
 
@@ -3702,50 +2396,73 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ok ?? false;
   }
 
-  void _showHowToPlaySheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('遊び方', style: Theme.of(ctx).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          const ListTile(
-            leading: Icon(Icons.flag_outlined),
-            title: Text('流れ'),
-            subtitle: Text(
-              'タイトル → ルーム/エリア/ルール設定 → 開始 → 役職/スキル確認 → 試合 → 結果 → 軌跡再生',
-            ),
+  void _showHowToPlaySheet() => showHowToPlaySheet(context);
+
+  Future<void> _onOverflowMenuSelected(String value) async {
+    switch (value) {
+      case 'discord':
+        await _copyDiscordStatusSummary();
+        break;
+      case 'help':
+        _showHowToPlaySheet();
+        break;
+      case 'oni':
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => const OniOperatorScreen(),
           ),
-          const ListTile(
-            leading: Icon(Icons.visibility_off_outlined),
-            title: Text('基本ルール'),
-            subtitle: Text('通常はライブ位置を見せません。位置暴露・情報屋・イベント・スキルで情報が出ます。'),
+        );
+        await _loadOniOperatorPrefs();
+        break;
+      case 'hide_map':
+        _hideMapToPrep();
+        break;
+      case 'gallery':
+        await _openMatchGallery();
+        break;
+      case 'history':
+        _showRevealLog();
+        break;
+      case 'privacy':
+        if (!context.mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => const PrivacyControlScreen(),
           ),
-          const ListTile(
-            leading: Icon(Icons.shield_outlined),
-            title: Text('安全地帯'),
-            subtitle: Text('ステルスチャージを得て、装備中スキルの再使用待ちを回復します。使用後は移動します。'),
-          ),
-          const ListTile(
-            leading: Icon(Icons.storefront_outlined),
-            title: Text('情報屋'),
-            subtitle: Text('鬼情報を一時的に取得します。手に入れた情報はマップ上に10分ほど痕跡として残ります。'),
-          ),
-          const ListTile(
-            leading: Icon(Icons.videocam_outlined),
-            title: Text('監視カメラ'),
-            subtitle: Text('小さい罠です。踏むとイベントログに残り、逃走中のルート選びに影響します。'),
-          ),
-          const ListTile(
-            leading: Icon(Icons.front_hand_outlined),
-            title: Text('捕獲'),
-            subtitle: Text('鬼の接触圏に一定時間入るとロックされ、ロック中にBLE接触すると捕獲です。'),
-          ),
-        ],
-      ),
-    );
+        );
+        break;
+      case 'test':
+        _toggleTestMode();
+        break;
+      case 'result':
+        final ended =
+            _gameState == GameState.runnerWin ||
+            _gameState == GameState.caughtByOni;
+        if (ended) await _openMatchResultScreen();
+        break;
+      case 'dev_reset':
+        if (_testMode) _resetGame();
+        break;
+      case 'dev_abort':
+        if (_testMode) await _requestAbortByVote();
+        break;
+      case 'dev_oni_move':
+        if (_testMode) _moveOniForTest();
+        break;
+      case 'import':
+        if (_gameState == GameState.running) {
+          _toast('ゲーム中は GeoJSON をインポートできません');
+        } else {
+          await _showImportGeoJsonDialog();
+        }
+        break;
+      case 'export':
+        await _exportGeoJson();
+        break;
+      case 'show_panel':
+        _showControlPanel();
+        break;
+    }
   }
 
   @override
@@ -3755,6 +2472,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _positionSubscription?.cancel();
     _proximitySubscription?.cancel();
     _remoteMembersSub?.cancel();
+    _roomMatchSub?.cancel();
     _matchTimer?.cancel();
     _hudRevealAlertTimer?.cancel();
     _renderPump?.cancel();
@@ -3783,7 +2501,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         _gameState == GameState.runnerWin ||
         _gameState == GameState.caughtByOni;
     final showHudPanel = running;
-    final panelHidden = _controlSheetMode == _ControlSheetMode.hidden;
+    final panelHidden = _controlSheetMode == ControlSheetMode.hidden;
     final showBottomControlSheet =
         (running || _prepControlSheetOpen) && !panelHidden;
     final showControlFab =
@@ -3791,10 +2509,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     final showGameMap =
         _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
     final appTitle = switch (_gameState) {
-      GameState.waiting => 'Oni Game · 準備',
-      GameState.running => 'Oni Game · プレイ中',
-      GameState.runnerWin => 'Oni Game · 逃走成功',
-      GameState.caughtByOni => 'Oni Game · 捕獲',
+      GameState.waiting => 'Oni Game ・ 準備',
+      GameState.running => 'Oni Game ・ プレイ中',
+      GameState.runnerWin => 'Oni Game ・ 逃走成功',
+      GameState.caughtByOni => 'Oni Game ・ 捕獲',
     };
 
     return Scaffold(
@@ -3819,231 +2537,59 @@ class _GameMapScreenState extends State<GameMapScreen>
               icon: const Icon(Icons.dashboard_outlined, size: 18),
               label: const Text('Map off'),
             ),
-          PopupMenuButton<String>(
-            tooltip: 'More',
-            onSelected: (value) async {
-              switch (value) {
-                case 'discord':
-                  await _copyDiscordStatusSummary();
-                  break;
-                case 'help':
-                  _showHowToPlaySheet();
-                  break;
-                case 'oni':
-                  await Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const OniOperatorScreen(),
-                    ),
-                  );
-                  await _loadOniOperatorPrefs();
-                  break;
-                case 'hide_map':
-                  _hideMapToPrep();
-                  break;
-                case 'gallery':
-                  await _openMatchGallery();
-                  break;
-                case 'history':
-                  _showRevealLog();
-                  break;
-                case 'privacy':
-                  if (!context.mounted) return;
-                  await Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const PrivacyControlScreen(),
-                    ),
-                  );
-                  break;
-                case 'test':
-                  _toggleTestMode();
-                  break;
-                case 'result':
-                  if (ended) await _openMatchResultScreen();
-                  break;
-                case 'dev_reset':
-                  if (_testMode) _resetGame();
-                  break;
-                case 'dev_abort':
-                  if (_testMode) await _requestAbortByVote();
-                  break;
-                case 'dev_oni_move':
-                  if (_testMode) _moveOniForTest();
-                  break;
-                case 'import':
-                  if (_gameState == GameState.running) {
-                    _toast('ゲーム中は GeoJSON をインポートできません');
-                  } else {
-                    await _showImportGeoJsonDialog();
-                  }
-                  break;
-                case 'export':
-                  await _exportGeoJson();
-                  break;
-              }
-            },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: 'help',
-                child: ListTile(
-                  leading: Icon(Icons.help_outline),
-                  title: Text('How to play'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'oni',
-                child: ListTile(
-                  leading: Icon(Icons.nightlight_round),
-                  title: Text('Oni settings'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'discord',
-                child: ListTile(
-                  leading: Icon(Icons.chat_bubble_outline),
-                  title: Text('Discord用メモをコピー'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'hide_map',
-                enabled:
-                    _gameState == GameState.waiting &&
-                    !_editingArea &&
-                    _mapVisibleInLobby,
-                child: const ListTile(
-                  leading: Icon(Icons.dashboard_outlined),
-                  title: Text('Map off / Setup'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'gallery',
-                child: ListTile(
-                  leading: Icon(Icons.movie_filter_outlined),
-                  title: Text('試合ギャラリー'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'history',
-                child: ListTile(
-                  leading: Icon(Icons.history),
-                  title: Text('位置暴露ログ'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'privacy',
-                child: ListTile(
-                  leading: Icon(Icons.privacy_tip_outlined),
-                  title: Text('プライバシー管理'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'test',
-                child: ListTile(
-                  leading: Icon(
-                    _testMode ? Icons.bug_report : Icons.bug_report_outlined,
-                  ),
-                  title: Text(_testMode ? 'テストモードをOFF' : 'テストモードをON'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              if (ended)
-                const PopupMenuItem(
-                  value: 'result',
-                  child: ListTile(
-                    leading: Icon(Icons.emoji_events_outlined),
-                    title: Text('リザルト画面'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              if (_testMode && running) ...[
-                const PopupMenuItem(
-                  value: 'dev_abort',
-                  child: ListTile(
-                    leading: Icon(Icons.how_to_vote_outlined),
-                    title: Text('中止提案（開発）'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'dev_reset',
-                  child: ListTile(
-                    leading: Icon(Icons.stop_circle_outlined),
-                    title: Text('強制リセット（開発）'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'dev_oni_move',
-                  child: ListTile(
-                    leading: Icon(Icons.directions_run),
-                    title: Text('鬼移動（開発）'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ],
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'import',
-                enabled: _gameState != GameState.running,
-                child: const ListTile(
-                  leading: Icon(Icons.upload_file_outlined),
-                  title: Text('GeoJSON インポート'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'export',
-                child: ListTile(
-                  leading: Icon(Icons.copy_outlined),
-                  title: Text('GeoJSON エクスポート'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
+          GameMapOverflowMenu(
+            gameState: _gameState,
+            editingArea: _editingArea,
+            mapVisibleInLobby: _mapVisibleInLobby,
+            testMode: _testMode,
+            panelHidden: panelHidden,
+            prepControlSheetOpen: _prepControlSheetOpen,
+            onSelected: (value) => unawaited(_onOverflowMenuSelected(value)),
           ),
         ],
       ),
       body: Stack(
         children: [
           if (showGameMap)
-            GoogleMap(
+            Builder(
+              builder: (context) {
+                final overlay = _overlaySnapshot(tokens);
+                return GoogleMap(
               initialCameraPosition: CameraPosition(
                 target: _currentPosition,
                 zoom: 16,
               ),
               myLocationEnabled: true,
               myLocationButtonEnabled: !_editingArea,
-              markers: _buildMarkers(),
-              polylines: _buildPolylines(),
-              circles: _buildCircles(tokens),
-              polygons: _buildPolygons(),
+              markers: GameMapOverlayBuilder.buildMarkers(overlay),
+              polylines: GameMapOverlayBuilder.buildPolylines(overlay),
+              circles: GameMapOverlayBuilder.buildCircles(overlay),
+              polygons: GameMapOverlayBuilder.buildPolygons(overlay),
               onTap: _onMapTap,
               onMapCreated: (controller) {
                 _mapController = controller;
               },
+                );
+              },
             )
           else
-            _PrepLobbyPanel(
+            PrepLobbyPanel(
               roomLabel: _roomSession.modeLabel,
               playAreaLabel: _playAreaSummary(),
               matchDurationMinutes: _matchDurationSeconds / 60,
-              hostPrepOpen: _hostPrepOpen,
-              onHostPrepOpenChanged: _setHostPrepOpen,
+              isHost: _isHost,
               onDurationChanged: _setPrepDurationMinutes,
               savedAreas: _savedPlayAreas,
               selectedAreaId: _selectedPlayAreaSlotId,
               onSelectArea: (id) =>
                   setState(() => _selectedPlayAreaSlotId = id),
               onHostApplyArea: _hostApplySelectedPlayArea,
+              onDeleteSavedArea: _deleteSavedPlayArea,
+              activePlayArea: _playArea,
               onStart: _startGame,
-              canStart: !_editingArea,
+              canStart: !_editingArea && _isHost,
               onOpenCustomSettings: _openCustomMenu,
+              participantRulesOpen: _participantRulesOpen,
               onShowMap: () => setState(() {
                 _mapVisibleInLobby = true;
                 _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
@@ -4058,7 +2604,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   builder: (_, child) {
                     final level =
                         (_dangerPulseController.value * 0.35) +
-                        (_isInfectedNow ? 0.20 : 0.0);
+                        (_rt.isInfectedNow ? 0.20 : 0.0);
                     return Container(
                       decoration: BoxDecoration(
                         gradient: RadialGradient(
@@ -4080,7 +2626,7 @@ class _GameMapScreenState extends State<GameMapScreen>
             Positioned(
               top: 120,
               right: 12,
-              child: _DiagnosticsCard(
+              child: DiagnosticsCard(
                 fps: _fps,
                 gpsTier: _gpsTier.name,
                 gpsAccuracyLast: _lastGpsAccuracyMeters,
@@ -4128,7 +2674,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               left: 16,
               right: 16,
               bottom: showBottomControlSheet ? 200 : 24,
-              child: _GhostSpectatorBar(
+              child: GhostSpectatorBar(
                 rule: _afterCatchRule!,
                 onOpenResult: _openMatchResultScreen,
               ),
@@ -4168,7 +2714,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               top: 18,
               left: 16,
               right: 16,
-              child: _InfoPanel(
+              child: GameInfoPanel(
                 expanded: _hudExpanded,
                 onToggleExpanded: () =>
                     setState(() => _hudExpanded = !_hudExpanded),
@@ -4179,11 +2725,11 @@ class _GameMapScreenState extends State<GameMapScreen>
                 }),
                 onOpenRevealLog: _showRevealLog,
                 intelLine: _latestIntelLine(),
-                showIntelLine: _showOniIntelCard,
+                showIntelLine: _rt.showOniIntelCard,
                 onDismissIntel: () => setState(() {
-                  _showOniIntelCard = false;
+                  _rt.showOniIntelCard = false;
                 }),
-                timerText: _formatTime(_remainingSeconds),
+                timerText: MapGeoUtils.formatClock(_rt.remainingSeconds),
                 gameStateText: _gameState.label,
                 statusText: _statusMessage,
                 areaText: isOutBeyondGrace
@@ -4192,24 +2738,24 @@ class _GameMapScreenState extends State<GameMapScreen>
                 areaColor: isOutBeyondGrace
                     ? Colors.red.shade700
                     : Colors.green.shade700,
-                revealCount: _revealCount,
+                revealCount: _rt.revealCount,
                 editing: _editingArea,
-                safeZoneCharges: _safeZoneCharges,
+                safeZoneCharges: _rt.safeZoneCharges,
                 conditionText: _conditionLine(),
                 werewolfBuffSeconds: _buffRemainingSeconds(
-                  _werewolfTransformEndsAt,
+                  _rt.werewolfTransformEndsAt,
                 ),
                 werewolfCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastWerewolfTransformAt,
+                  _rt.lastWerewolfTransformAt,
                   GameConfig.werewolfTransformCooldownSeconds,
                 ),
                 fakeCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastFakeSkillAt,
+                  _rt.lastFakeSkillAt,
                   GameConfig.fakeSkillCooldownSeconds,
                 ),
               ),
             ),
-          if (running && _remainingSeconds <= 10)
+          if (running && _rt.remainingSeconds <= 10)
             Positioned(
               top: 110,
               left: 0,
@@ -4226,7 +2772,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                       vertical: 10,
                     ),
                     child: Text(
-                      _remainingSeconds.clamp(0, 10).toString(),
+                      _rt.remainingSeconds.clamp(0, 10).toString(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 42,
@@ -4242,7 +2788,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               left: 12,
               right: 12,
               bottom: 200,
-              child: _AreaEditorCard(
+              child: AreaEditorCard(
                 editCircleMode: _editCircleMode,
                 onModeChanged: (circle) {
                   setState(() {
@@ -4265,14 +2811,21 @@ class _GameMapScreenState extends State<GameMapScreen>
                 }),
                 onUndo: _undoLastVertex,
                 onClear: _clearPolygonDraft,
+                polygonClosed: _polygonDraftClosed,
+                onClosePolygon: _closePolygonDraft,
+                onReopenPolygon: _reopenPolygonDraft,
                 vertexCount: _polygonDraft.length,
                 onApply: _applyEditedArea,
-                onCancel: () => setState(() {
-                  _editingArea = false;
-                  _waitingCircleCenterTap = false;
-                  _polygonDraft.clear();
-                  _statusMessage = '編集をキャンセルしました';
-                }),
+                onCancel: () {
+                  setState(() {
+                    _editingArea = false;
+                    _waitingCircleCenterTap = false;
+                    _polygonDraft.clear();
+                    _polygonDraftClosed = false;
+                    _statusMessage = '編集をキャンセルしました';
+                  });
+                  _returnToPrepAfterAreaEdit();
+                },
               ),
             ),
           if (showBottomControlSheet)
@@ -4280,7 +2833,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               bottom: 16,
               left: 16,
               right: 16,
-              child: _ControlPanel(
+              child: GameControlPanel(
                 sheetMode: _controlSheetMode,
                 onCycleSheetMode: _cycleControlSheetMode,
                 onStart: _startGame,
@@ -4300,11 +2853,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                 onDismissPrepSheet: () => setState(() {
                   _prepControlSheetOpen = false;
                 }),
+                onHidePanel: _hideControlPanel,
+                isHost: _isHost,
                 isRunning: running,
                 matchEnded: ended,
                 canStartMatch: _gameState == GameState.waiting,
                 isEditing: _editingArea,
-                fakeSkillActive: _fakePositionActive,
+                fakeSkillActive: _rt.fakePositionActive,
                 roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
                 matchDurationLabel: _matchDurationLabel(),
                 canFakeSkill: _skillLoadout.contains(SkillIds.fakePosition),
@@ -4319,22 +2874,22 @@ class _GameMapScreenState extends State<GameMapScreen>
                 ),
                 canBodyThrow: _skillLoadout.contains(SkillIds.bodyThrow),
                 fakeCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastFakeSkillAt,
+                  _rt.lastFakeSkillAt,
                   GameConfig.fakeSkillCooldownSeconds,
                 ),
                 captureCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastCaptureZoneAt,
+                  _rt.lastCaptureZoneAt,
                   GameConfig.captureZoneCooldownSeconds,
                 ),
                 bodyThrowCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastBodyThrowAt,
+                  _rt.lastBodyThrowAt,
                   GameConfig.bodyThrowCooldownSeconds,
                 ),
                 werewolfBuffSeconds: _buffRemainingSeconds(
-                  _werewolfTransformEndsAt,
+                  _rt.werewolfTransformEndsAt,
                 ),
                 werewolfCooldownSeconds: _cooldownRemainingSeconds(
-                  _lastWerewolfTransformAt,
+                  _rt.lastWerewolfTransformAt,
                   GameConfig.werewolfTransformCooldownSeconds,
                 ),
                 prepLobbyMapHidden:
@@ -4356,1167 +2911,14 @@ class _GameMapScreenState extends State<GameMapScreen>
                     });
                   },
                   child: FloatingActionButton.extended(
-                    onPressed: () => setState(() {
-                      if (running) {
-                        _controlSheetMode = _ControlSheetMode.skillsOnly;
-                      } else {
-                        _prepControlSheetOpen = true;
-                        _controlSheetMode = _ControlSheetMode.expanded;
-                      }
-                    }),
-                    icon: const Icon(Icons.tune),
-                    label: Text(
-                      running ? '操作' : '詳細設定',
-                    ),
+                    onPressed: _showControlPanel,
+                    icon: Icon(running ? Icons.expand_less : Icons.tune),
+                    label: Text(running ? '展開' : '詳細設定'),
                   ),
                 ),
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _GhostSpectatorBar extends StatelessWidget {
-  const _GhostSpectatorBar({
-    required this.rule,
-    required this.onOpenResult,
-  });
-
-  final EliminationAftermathRule rule;
-  final VoidCallback onOpenResult;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      elevation: 4,
-      borderRadius: BorderRadius.circular(12),
-      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.92),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Icon(Icons.visibility_outlined, color: theme.colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('幽霊・観戦モード', style: theme.textTheme.titleSmall),
-                  Text(
-                    rule.infoPanelLine,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            TextButton(onPressed: onOpenResult, child: const Text('リザルト')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PrepLobbyPanel extends StatelessWidget {
-  const _PrepLobbyPanel({
-    required this.roomLabel,
-    required this.playAreaLabel,
-    required this.matchDurationMinutes,
-    required this.hostPrepOpen,
-    required this.onHostPrepOpenChanged,
-    required this.onDurationChanged,
-    required this.savedAreas,
-    required this.selectedAreaId,
-    required this.onSelectArea,
-    required this.onHostApplyArea,
-    required this.onStart,
-    required this.canStart,
-    required this.onOpenCustomSettings,
-    required this.onShowMap,
-    required this.onOpenLobby,
-  });
-
-  final String roomLabel;
-  final String playAreaLabel;
-  final double matchDurationMinutes;
-  final bool hostPrepOpen;
-  final ValueChanged<bool> onHostPrepOpenChanged;
-  final ValueChanged<double> onDurationChanged;
-  final List<SavedPlayArea> savedAreas;
-  final String? selectedAreaId;
-  final ValueChanged<String?> onSelectArea;
-  final VoidCallback onHostApplyArea;
-  final VoidCallback onStart;
-  final bool canStart;
-  final VoidCallback onOpenCustomSettings;
-  final VoidCallback onShowMap;
-  final VoidCallback onOpenLobby;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '試合の準備',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'ホストが時間とエリアを決めてから開始します。地図はオフのままでも設定できます。エリアの形は全員が「保存」でき、適用はホストだけです。',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('ホスト: 試合設定を開放'),
-                            subtitle: const Text(
-                              'オンにすると制限時間の変更と、保存済みエリアの適用ができます',
-                            ),
-                            value: hostPrepOpen,
-                            onChanged: onHostPrepOpenChanged,
-                          ),
-                          Text(
-                            '制限時間: ${matchDurationMinutes.round()} 分',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          Slider(
-                            min: 1,
-                            max: 20,
-                            divisions: 19,
-                            value: matchDurationMinutes.clamp(1, 20),
-                            onChanged: hostPrepOpen ? onDurationChanged : null,
-                          ),
-                          Text(
-                            '適用中エリア: $playAreaLabel',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 8),
-                          if (savedAreas.isEmpty)
-                            Text(
-                              '保存済みエリアはまだありません。地図の「エリア編集」で形を作り「エリアを保存」してください。',
-                              style: theme.textTheme.bodySmall,
-                            )
-                          else
-                            DropdownButtonFormField<String>(
-                              initialValue: selectedAreaId,
-                              decoration: const InputDecoration(
-                                labelText: '保存済みエリア（ホストが適用）',
-                                isDense: true,
-                              ),
-                              items: savedAreas
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s.id,
-                                      child: Text(s.name),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: hostPrepOpen ? onSelectArea : null,
-                            ),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: hostPrepOpen ? onHostApplyArea : null,
-                            icon: const Icon(Icons.check_circle_outline),
-                            label: const Text('選択したエリアを適用'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.groups_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    title: const Text('オンライン'),
-                    subtitle: Text(roomLabel),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 56,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      onPressed: canStart ? onStart : null,
-                      icon: const Icon(Icons.play_circle_fill, size: 30),
-                      label: const Text(
-                        '試合を開始',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: onOpenLobby,
-                    icon: const Icon(Icons.groups_outlined),
-                    label: const Text('ルームロビー'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: onShowMap,
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('地図を表示（位置確認・エリア保存）'),
-                  ),
-                  TextButton(
-                    onPressed: onOpenCustomSettings,
-                    child: const Text('その他のカスタム設定（役職・スキル・ルール）'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoPanel extends StatelessWidget {
-  const _InfoPanel({
-    required this.expanded,
-    required this.onToggleExpanded,
-    required this.revealAlert,
-    required this.onDismissRevealAlert,
-    required this.onOpenRevealLog,
-    required this.intelLine,
-    required this.showIntelLine,
-    required this.onDismissIntel,
-    required this.timerText,
-    required this.gameStateText,
-    required this.statusText,
-    required this.areaText,
-    required this.areaColor,
-    required this.revealCount,
-    required this.editing,
-    required this.safeZoneCharges,
-    required this.conditionText,
-    required this.werewolfBuffSeconds,
-    required this.werewolfCooldownSeconds,
-    required this.fakeCooldownSeconds,
-  });
-
-  final bool expanded;
-  final VoidCallback onToggleExpanded;
-  final String? revealAlert;
-  final VoidCallback onDismissRevealAlert;
-  final VoidCallback onOpenRevealLog;
-  final String intelLine;
-  final bool showIntelLine;
-  final VoidCallback onDismissIntel;
-  final String timerText;
-  final String gameStateText;
-  final String statusText;
-  final String areaText;
-  final Color areaColor;
-  final int revealCount;
-  final bool editing;
-  final int safeZoneCharges;
-  final String conditionText;
-  final int? werewolfBuffSeconds;
-  final int werewolfCooldownSeconds;
-  final int fakeCooldownSeconds;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    if (revealAlert != null && revealAlert!.isNotEmpty) {
-      return Material(
-        color: theme.colorScheme.errorContainer.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(10),
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            children: [
-              Icon(Icons.campaign_outlined, color: theme.colorScheme.error),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  revealAlert!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              TextButton(
-                onPressed: onOpenRevealLog,
-                child: const Text('ログ'),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                onPressed: onDismissRevealAlert,
-                icon: const Icon(Icons.close, size: 18),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!expanded) {
-      return Material(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(10),
-        elevation: 1,
-        child: InkWell(
-          onTap: onToggleExpanded,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: areaColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    timerText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    areaText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
-                  _CooldownChip(label: '鬼化', seconds: werewolfBuffSeconds!),
-                if (fakeCooldownSeconds > 0)
-                  _CooldownChip(label: 'CD', seconds: fakeCooldownSeconds),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: onToggleExpanded,
-                  icon: const Icon(Icons.expand_more, size: 20),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Chip(
-                label: Text(editing ? '編集中' : gameStateText),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                timerText,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '暴露$revealCount·ステルス$safeZoneCharges',
-                style: theme.textTheme.labelSmall,
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                onPressed: onToggleExpanded,
-                icon: const Icon(Icons.expand_less, size: 20),
-              ),
-            ],
-          ),
-          if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0 ||
-              werewolfCooldownSeconds > 0 ||
-              fakeCooldownSeconds > 0) ...[
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
-                  _CooldownChip(label: '鬼化残', seconds: werewolfBuffSeconds!),
-                if (werewolfCooldownSeconds > 0)
-                  _CooldownChip(
-                    label: '鬼化CD',
-                    seconds: werewolfCooldownSeconds,
-                  ),
-                if (fakeCooldownSeconds > 0)
-                  _CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
-              ],
-            ),
-          ],
-          if (showIntelLine) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    intelLine,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
-                  onPressed: onDismissIntel,
-                  icon: const Icon(Icons.close, size: 16),
-                ),
-              ],
-            ),
-          ],
-          Text(
-            conditionText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 4),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            decoration: BoxDecoration(
-              color: areaColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              areaText,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          if (statusText.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              statusText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _CooldownChip extends StatelessWidget {
-  const _CooldownChip({required this.label, required this.seconds});
-
-  final String label;
-  final int seconds;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text('$label ${seconds}s', style: const TextStyle(fontSize: 11)),
-    );
-  }
-}
-
-class _AreaEditorCard extends StatelessWidget {
-  const _AreaEditorCard({
-    required this.editCircleMode,
-    required this.onModeChanged,
-    required this.circleRadiusMeters,
-    required this.onRadiusChanged,
-    required this.waitingCenterTap,
-    required this.onRequestCenterTap,
-    required this.onCenterGps,
-    required this.onUndo,
-    required this.onClear,
-    required this.vertexCount,
-    required this.onApply,
-    required this.onCancel,
-  });
-
-  final bool editCircleMode;
-  final ValueChanged<bool> onModeChanged;
-  final double circleRadiusMeters;
-  final ValueChanged<double> onRadiusChanged;
-  final bool waitingCenterTap;
-  final VoidCallback onRequestCenterTap;
-  final VoidCallback onCenterGps;
-  final VoidCallback onUndo;
-  final VoidCallback onClear;
-  final int vertexCount;
-  final VoidCallback onApply;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 6,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('プレイエリア編集', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('円')),
-                ButtonSegment(value: false, label: Text('多角形')),
-              ],
-              emptySelectionAllowed: false,
-              selected: {editCircleMode},
-              onSelectionChanged: (s) {
-                if (s.isNotEmpty) onModeChanged(s.first);
-              },
-            ),
-            const SizedBox(height: 12),
-            if (editCircleMode) ...[
-              Text('半径: ${circleRadiusMeters.toStringAsFixed(0)} m'),
-              Slider(
-                min: 50,
-                max: 2000,
-                divisions: 79,
-                value: circleRadiusMeters.clamp(50, 2000),
-                onChanged: onRadiusChanged,
-              ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onCenterGps,
-                    icon: const Icon(Icons.my_location),
-                    label: const Text('中心=現在地'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: onRequestCenterTap,
-                    icon: const Icon(Icons.touch_app),
-                    label: Text(waitingCenterTap ? 'タップ待ち…' : '中心を地図タップ'),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Text('頂点数: $vertexCount（地図をタップで追加）'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: onUndo,
-                    icon: const Icon(Icons.undo),
-                    label: const Text('戻す'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onClear,
-                    icon: const Icon(Icons.clear_all),
-                    label: const Text('クリア'),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    onPressed: onApply,
-                    child: const Text('エリアを保存'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCancel,
-                    child: const Text('キャンセル'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ControlPanel extends StatelessWidget {
-  const _ControlPanel({
-    required this.sheetMode,
-    required this.onCycleSheetMode,
-    required this.onStart,
-    required this.onReset,
-    required this.onOpenResult,
-    required this.onFakeSkill,
-    required this.onFakeIntelReveal,
-    required this.onWerewolfHunter,
-    required this.onCaptureZone,
-    required this.onBodyThrow,
-    required this.onRecenterGps,
-    required this.onRefreshGps,
-    required this.onClearTraces,
-    required this.onToggleAreaEdit,
-    required this.onOpenCustomMenu,
-    required this.onOpenHelp,
-    required this.onDismissPrepSheet,
-    required this.isRunning,
-    required this.matchEnded,
-    required this.canStartMatch,
-    required this.isEditing,
-    required this.fakeSkillActive,
-    required this.roleLabel,
-    required this.matchDurationLabel,
-    required this.canFakeSkill,
-    required this.canFakeIntelReveal,
-    required this.canWerewolfHunter,
-    required this.canCaptureZone,
-    required this.canBodyThrow,
-    required this.fakeCooldownSeconds,
-    required this.captureCooldownSeconds,
-    required this.bodyThrowCooldownSeconds,
-    required this.werewolfBuffSeconds,
-    required this.werewolfCooldownSeconds,
-    required this.prepLobbyMapHidden,
-  });
-
-  final _ControlSheetMode sheetMode;
-  final VoidCallback onCycleSheetMode;
-  final VoidCallback onStart;
-  final VoidCallback onReset;
-  final VoidCallback onOpenResult;
-  final VoidCallback onFakeSkill;
-  final VoidCallback onFakeIntelReveal;
-  final VoidCallback onWerewolfHunter;
-  final VoidCallback onCaptureZone;
-  final VoidCallback onBodyThrow;
-  final VoidCallback onRecenterGps;
-  final VoidCallback onRefreshGps;
-  final VoidCallback onClearTraces;
-  final VoidCallback onToggleAreaEdit;
-  final VoidCallback onOpenCustomMenu;
-  final VoidCallback onOpenHelp;
-  final VoidCallback onDismissPrepSheet;
-  final bool isRunning;
-  final bool matchEnded;
-  final bool canStartMatch;
-  final bool isEditing;
-  final bool fakeSkillActive;
-  final String roleLabel;
-  final String matchDurationLabel;
-  final bool canFakeSkill;
-  final bool canFakeIntelReveal;
-  final bool canWerewolfHunter;
-  final bool canCaptureZone;
-  final bool canBodyThrow;
-  final int fakeCooldownSeconds;
-  final int captureCooldownSeconds;
-  final int bodyThrowCooldownSeconds;
-  final int? werewolfBuffSeconds;
-  final int werewolfCooldownSeconds;
-  final bool prepLobbyMapHidden;
-
-  String get _modeHint => switch (sheetMode) {
-        _ControlSheetMode.hidden => '非表示',
-        _ControlSheetMode.skillsOnly => 'スキル',
-        _ControlSheetMode.expanded => '詳細',
-      };
-
-  Widget _buildSkillRow({required bool compact}) {
-    final skills = <Widget>[
-      if (canFakeSkill)
-        _SkillActionButton(
-          label: _skillShortLabel(SkillIds.fakePosition),
-          icon: Icons.flare,
-          active: fakeSkillActive,
-          cooldownSeconds: fakeCooldownSeconds,
-          compact: compact,
-          onPressed: isEditing ? null : onFakeSkill,
-        ),
-      if (canFakeIntelReveal)
-        _SkillActionButton(
-          label: _skillShortLabel(SkillIds.fakeIntelReveal),
-          icon: Icons.report,
-          compact: compact,
-          onPressed: isEditing ? null : onFakeIntelReveal,
-        ),
-      if (canWerewolfHunter)
-        _SkillActionButton(
-          label: _skillShortLabel(SkillIds.werewolfTransform),
-          icon: Icons.nightlight,
-          buffSeconds: werewolfBuffSeconds,
-          cooldownSeconds: werewolfCooldownSeconds,
-          compact: compact,
-          onPressed: isEditing ? null : onWerewolfHunter,
-        ),
-      if (canCaptureZone)
-        _SkillActionButton(
-          label: _skillShortLabel(SkillIds.captureZone),
-          icon: Icons.trip_origin,
-          cooldownSeconds: captureCooldownSeconds,
-          compact: compact,
-          onPressed: isEditing ? null : onCaptureZone,
-        ),
-      if (canBodyThrow)
-        _SkillActionButton(
-          label: _skillShortLabel(SkillIds.bodyThrow),
-          icon: Icons.near_me,
-          cooldownSeconds: bodyThrowCooldownSeconds,
-          compact: compact,
-          onPressed: isEditing ? null : onBodyThrow,
-        ),
-    ];
-    if (skills.isEmpty) {
-      return Text(
-        '装備スキルなし',
-        style: TextStyle(fontSize: compact ? 11 : 12),
-      );
-    }
-    if (compact) {
-      return Row(
-        children: [
-          for (var i = 0; i < skills.length; i++) ...[
-            if (i > 0) const SizedBox(width: 6),
-            Expanded(child: skills[i]),
-          ],
-        ],
-      );
-    }
-    return Wrap(spacing: 8, runSpacing: 8, children: skills);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final expanded = sheetMode == _ControlSheetMode.expanded;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              if (!isRunning)
-                TextButton.icon(
-                  onPressed: onDismissPrepSheet,
-                  icon: const Icon(Icons.expand_more, size: 18),
-                  label: const Text('閉じる'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                )
-              else
-                const SizedBox.shrink(),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: onCycleSheetMode,
-                icon: Icon(
-                  sheetMode == _ControlSheetMode.expanded
-                      ? Icons.unfold_less
-                      : Icons.unfold_more,
-                  size: 18,
-                ),
-                label: Text(_modeHint),
-                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-              ),
-            ],
-          ),
-          if (!isRunning) ...[
-            Text(
-              prepLobbyMapHidden ? '詳細設定（地図オフ）' : '詳細設定',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            if (expanded) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 52,
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: (isEditing || !canStartMatch) ? null : onStart,
-                  icon: const Icon(Icons.play_circle_fill, size: 28),
-                  label: const Text(
-                    '試合を開始',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.tonalIcon(
-                    onPressed: onToggleAreaEdit,
-                    icon: Icon(
-                      isEditing ? Icons.check_circle : Icons.map_outlined,
-                    ),
-                    label: Text(isEditing ? '編集を閉じる' : 'エリア編集'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onRefreshGps,
-                    icon: const Icon(Icons.gps_fixed),
-                    label: const Text('現在地更新'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onClearTraces,
-                    icon: const Icon(Icons.cleaning_services_outlined),
-                    label: const Text('痕跡クリア'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onOpenCustomMenu,
-                    icon: const Icon(Icons.tune),
-                    label: const Text('カスタム設定'),
-                  ),
-                  if (matchEnded)
-                    OutlinedButton.icon(
-                      onPressed: onOpenResult,
-                      icon: const Icon(Icons.emoji_events_outlined),
-                      label: const Text('リザルト'),
-                    ),
-                  OutlinedButton.icon(
-                    onPressed: onReset,
-                    icon: const Icon(Icons.restart_alt),
-                    label: const Text('リセット'),
-                  ),
-                ],
-              ),
-            ] else
-              Text(
-                '時間・エリアは準備画面で設定。ここはエリア編集などの詳細用です。',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-          ] else ...[
-            if (sheetMode == _ControlSheetMode.skillsOnly)
-              Row(
-                children: [
-                  Chip(
-                    label: Text(roleLabel, style: const TextStyle(fontSize: 11)),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                  const Spacer(),
-                  IconButton.filledTonal(
-                    tooltip: '現在地へ',
-                    onPressed: isEditing ? null : onRecenterGps,
-                    icon: const Icon(Icons.my_location, size: 18),
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                  ),
-                ],
-              ),
-            if (sheetMode == _ControlSheetMode.skillsOnly)
-              const SizedBox(height: 4),
-            _buildSkillRow(compact: sheetMode == _ControlSheetMode.skillsOnly),
-            if (expanded) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: isEditing ? null : onRecenterGps,
-                    icon: const Icon(Icons.my_location),
-                    label: const Text('現在地へ'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onRefreshGps,
-                    icon: const Icon(Icons.gps_fixed),
-                    label: const Text('GPS更新'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onOpenHelp,
-                    icon: const Icon(Icons.help_outline),
-                    label: const Text('遊び方'),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SkillActionButton extends StatelessWidget {
-  const _SkillActionButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.active = false,
-    this.cooldownSeconds = 0,
-    this.buffSeconds,
-    this.compact = false,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool active;
-  final int cooldownSeconds;
-  final int? buffSeconds;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final onCd = cooldownSeconds > 0;
-    final onBuff = buffSeconds != null && buffSeconds! > 0;
-    final enabled = onPressed != null && !onCd;
-    final btn = FilledButton.tonal(
-      onPressed: enabled ? onPressed : null,
-      style: FilledButton.styleFrom(
-        padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
-        minimumSize: Size(compact ? 0 : 88, compact ? 40 : 44),
-      ),
-      child: Icon(icon, size: compact ? 20 : 22),
-    );
-    if (compact) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(width: double.infinity, child: btn),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 9),
-          ),
-          if (onBuff)
-            Text('${buffSeconds}s', style: const TextStyle(fontSize: 8))
-          else if (onCd)
-            Text('$cooldownSeconds', style: const TextStyle(fontSize: 8)),
-        ],
-      );
-    }
-    return SizedBox(
-      width: 88,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn,
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10),
-          ),
-          if (onBuff)
-            Text('${buffSeconds}s', style: const TextStyle(fontSize: 9))
-          else if (onCd)
-            Text('CD $cooldownSeconds', style: const TextStyle(fontSize: 9))
-          else if (active)
-            const Text('作動中', style: TextStyle(fontSize: 9)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DiagnosticsCard extends StatelessWidget {
-  const _DiagnosticsCard({
-    required this.fps,
-    required this.gpsTier,
-    required this.gpsAccuracyLast,
-    required this.gpsAccuracyAvg,
-    required this.batteryScore,
-    required this.timeScale,
-    required this.onCycleTimeScale,
-    required this.onFlushSync,
-    required this.debugLogs,
-    required this.queueCount,
-    required this.proximityText,
-    required this.roomSessionText,
-    required this.syncInFlight,
-  });
-
-  final double fps;
-  final String gpsTier;
-  final double? gpsAccuracyLast;
-  final double gpsAccuracyAvg;
-  final double batteryScore;
-  final int timeScale;
-  final VoidCallback onCycleTimeScale;
-  final VoidCallback onFlushSync;
-  final List<String> debugLogs;
-  final int queueCount;
-  final String proximityText;
-  final String roomSessionText;
-  final bool syncInFlight;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 280),
-      child: Material(
-        color: Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.speed, color: Colors.white, size: 16),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Test Mode',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: onCycleTimeScale,
-                    child: Text('${timeScale}x'),
-                  ),
-                  const SizedBox(width: 4),
-                  TextButton(
-                    onPressed: syncInFlight ? null : onFlushSync,
-                    child: Text(syncInFlight ? 'Sync...' : 'Sync'),
-                  ),
-                ],
-              ),
-              Text(
-                'FPS: ${fps.toStringAsFixed(1)}',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'GPS tier: $gpsTier',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'GPS精度: last=${gpsAccuracyLast?.toStringAsFixed(1) ?? '-'}m / avg=${gpsAccuracyAvg.toStringAsFixed(1)}m',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'Battery score(est): ${batteryScore.toStringAsFixed(1)}',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(
-                'Offline queue: $queueCount',
-                style: const TextStyle(color: Colors.white),
-              ),
-              Text(proximityText, style: const TextStyle(color: Colors.white)),
-              Text(
-                'Room: $roomSessionText',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Logs',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              ...debugLogs
-                  .take(4)
-                  .map(
-                    (e) => Text(
-                      e,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-            ],
-          ),
-        ),
       ),
     );
   }

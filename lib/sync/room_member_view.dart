@@ -7,6 +7,7 @@ class RoomMemberView {
     required this.nickname,
     required this.role,
     required this.isSelf,
+    this.isHost = false,
     this.reportedAtUtc,
     this.proximityBand,
   });
@@ -15,6 +16,7 @@ class RoomMemberView {
   final String nickname;
   final String role;
   final bool isSelf;
+  final bool isHost;
   final DateTime? reportedAtUtc;
   final String? proximityBand;
 
@@ -30,6 +32,7 @@ class RoomMemberView {
     required String uid,
     required Map<String, dynamic> data,
     required bool isSelf,
+    bool isHost = false,
   }) {
     final rawTime = data[MemberPresenceFields.reportedAtUtc];
     DateTime? at;
@@ -41,6 +44,7 @@ class RoomMemberView {
       nickname: (data[MemberPresenceFields.nickname] as String?) ?? '',
       role: (data[MemberPresenceFields.role] as String?) ?? 'runner',
       isSelf: isSelf,
+      isHost: isHost,
       reportedAtUtc: at,
       proximityBand: data[MemberPresenceFields.proximityBand] as String?,
     );
