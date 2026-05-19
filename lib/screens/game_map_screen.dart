@@ -28,6 +28,7 @@ import '../sync/remote_member_snapshot.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
+import '../services/play_area_slot_store.dart';
 import '../services/play_area_store.dart';
 import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
@@ -40,6 +41,7 @@ import 'oni_operator_screen.dart';
 import 'privacy_control_screen.dart';
 import 'room_lobby_screen.dart';
 
+/// 操作パネル: 非表示 / スキルのみ / 詳細（準備時は詳細設定）
 enum _ControlSheetMode { hidden, skillsOnly, expanded }
 
 class GameMapScreen extends StatefulWidget {
@@ -288,6 +290,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   final LocationService _locationService = LocationService();
   final PlayAreaStore _areaStore = PlayAreaStore();
+  final PlayAreaSlotStore _areaSlotStore = PlayAreaSlotStore();
   final MatchArchiveStore _matchArchive = MatchArchiveStore();
   final OfflineSyncQueue _offlineQueue = OfflineSyncQueue();
   late HybridProximityService _proximityService = HybridProximityService(
@@ -387,11 +390,17 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
-  /// 操作パネル: 非表示 / スキルのみ / すべて表示
   _ControlSheetMode _controlSheetMode = _ControlSheetMode.skillsOnly;
   bool _hudExpanded = false;
+  String? _hudRevealAlert;
+  Timer? _hudRevealAlertTimer;
 
-  /// 準備・試合結果中は操作パネルを隠し、FAB「操作」で開く。
+  /// ローカルホストが準備設定（時間・エリア適用）を開放したか。
+  bool _hostPrepOpen = false;
+  List<SavedPlayArea> _savedPlayAreas = const [];
+  String? _selectedPlayAreaSlotId;
+
+  /// 準備・試合結果中は操作パネルを隠し、FAB「詳細設定」で開く。
   bool _prepControlSheetOpen = false;
   Offset? _controlFabOffset;
   bool _testMode = false;
@@ -441,6 +450,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       Future<void>.microtask(_attachOnlineSession);
     }
     Future<void>.microtask(_loadOniOperatorPrefs);
+    Future<void>.microtask(_loadPlayAreaSlots);
     _renderPump = Timer.periodic(const Duration(milliseconds: 52), (_) {
       _pulseVisualSmoothing();
     });
@@ -652,9 +662,137 @@ class _GameMapScreenState extends State<GameMapScreen>
         _circleDraftCenter = _playArea.center;
         _circleDraftRadiusMeters = _playArea.radiusMeters;
       }
-      _statusMessage = '前回保存したプレイエリアを読み込みました';
+      _statusMessage = '前回ホスト適用済みのプレイエリアを読み込みました';
     });
   }
+
+  Future<void> _loadPlayAreaSlots() async {
+    final slots = await _areaSlotStore.loadAll();
+    if (!mounted) return;
+    setState(() {
+      _savedPlayAreas = slots;
+      _selectedPlayAreaSlotId ??= slots.isNotEmpty ? slots.first.id : null;
+    });
+  }
+
+  Future<void> _saveEditedAreaAsSlot() async {
+    try {
+      late final PlayArea next;
+      if (_editCircleMode) {
+        next = PlayArea.circle(
+          center: _circleDraftCenter,
+          radiusMeters: _circleDraftRadiusMeters,
+        );
+      } else {
+        if (_polygonDraft.length < 3) {
+          _toast('多角形は3点以上必要です');
+          return;
+        }
+        next = PlayArea.polygon(points: List.from(_polygonDraft));
+      }
+      final stamp = DateTime.now();
+      final slot = SavedPlayArea(
+        id: 'area_${stamp.microsecondsSinceEpoch}',
+        name: 'エリア ${stamp.month}/${stamp.day} ${stamp.hour}:${stamp.minute.toString().padLeft(2, '0')}',
+        area: next,
+        savedAtUtc: stamp.toUtc(),
+      );
+      await _areaSlotStore.upsert(slot);
+      if (!mounted) return;
+      setState(() {
+        _editingArea = false;
+        _waitingCircleCenterTap = false;
+        _selectedPlayAreaSlotId = slot.id;
+        _statusMessage = 'エリアを保存しました（ホストが適用するまで試合には反映されません）';
+      });
+      await _loadPlayAreaSlots();
+    } catch (e) {
+      _toast('保存に失敗しました: $e');
+    }
+  }
+
+  void _hostApplySelectedPlayArea() {
+    if (!_hostPrepOpen) {
+      _toast('ホストが「試合設定を開放」してから適用できます');
+      return;
+    }
+    final id = _selectedPlayAreaSlotId;
+    if (id == null) {
+      _toast('適用する保存エリアを選んでください');
+      return;
+    }
+    SavedPlayArea? slot;
+    for (final s in _savedPlayAreas) {
+      if (s.id == id) {
+        slot = s;
+        break;
+      }
+    }
+    if (slot == null) {
+      _toast('保存エリアが見つかりません');
+      return;
+    }
+    final applied = slot;
+    setState(() {
+      _playArea = applied.area;
+      if (_playArea.type == PlayAreaType.circle) {
+        _circleDraftCenter = _playArea.center;
+        _circleDraftRadiusMeters = _playArea.radiusMeters;
+      }
+      _statusMessage = 'ホストが「${applied.name}」を適用しました';
+    });
+    unawaited(_areaStore.save(applied.area));
+  }
+
+  void _setHostPrepOpen(bool open) {
+    setState(() => _hostPrepOpen = open);
+    if (open) {
+      _toast('ホストが試合設定を開放しました');
+    }
+  }
+
+  void _setPrepDurationMinutes(double minutes) {
+    if (!_hostPrepOpen) return;
+    setState(() {
+      _matchDurationSeconds = (minutes.round() * 60).clamp(60, 20 * 60);
+    });
+  }
+
+  void _pushHudRevealAlert(String message) {
+    _hudRevealAlertTimer?.cancel();
+    setState(() {
+      _hudRevealAlert = message;
+      _hudExpanded = true;
+    });
+    _hudRevealAlertTimer = Timer(const Duration(seconds: 14), () {
+      if (!mounted) return;
+      setState(() => _hudRevealAlert = null);
+    });
+  }
+
+  LatLng _displayRevealPosition(LatLng raw) {
+    if (!_isPointInCommJammingZone(_currentPosition)) return raw;
+    final r = math.Random();
+    final meters = 25 + r.nextDouble() * 55;
+    final bearing = r.nextDouble() * 360;
+    final latOffset = meters / 111111 * math.cos(bearing * math.pi / 180);
+    final lngOffset =
+        meters /
+        (111111 * math.cos(raw.latitude * math.pi / 180)) *
+        math.sin(bearing * math.pi / 180);
+    return LatLng(raw.latitude + latOffset, raw.longitude + lngOffset);
+  }
+
+  bool _isPointInCommJammingZone(LatLng point) {
+    return _firstPointWithin(
+          _commJammingZonePositions,
+          GameConfig.commJammingZoneRadiusMeters,
+          from: point,
+        ) !=
+        null;
+  }
+
+  bool get _oniInCommJammingZone => _isPointInCommJammingZone(_oniPosition);
 
   Future<void> _setupLocation() async {
     final granted = await _locationService.ensurePermission();
@@ -1240,29 +1378,27 @@ class _GameMapScreenState extends State<GameMapScreen>
     _revealedInCurrentOutside = true;
     _revealCount += 1;
     final playerLabel = _localPlayerLabel;
+    final shown = _displayRevealPosition(_positionForReveal);
+    final jammed = _isPointInCommJammingZone(_currentPosition);
     final ev = LocationRevealEvent(
       sequence: _revealCount,
       timestamp: DateTime.now(),
-      position: _positionForReveal,
+      position: shown,
       overflowMeters: overflowMeters,
       playerLabel: playerLabel,
     );
+    final alert =
+        '$playerLabel の位置が暴露されました'
+        '${jammed ? '（通信障害で誤差大）' : ''}';
     setState(() {
       _revealLog.insert(0, ev);
       if (_revealLog.length > 50) {
         _revealLog.removeLast();
       }
-      _statusMessage =
-          '$playerLabel の位置暴露 #$_revealCount: ${_formatLatLng(_positionForReveal)}';
+      _statusMessage = '$alert: ${_formatLatLng(shown)}';
     });
+    _pushHudRevealAlert(alert);
     HapticFeedback.heavyImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '位置暴露: $playerLabel / ${_formatLatLng(_positionForReveal)}（数分だけ地図表示）',
-        ),
-      ),
-    );
     _emitMatchEvent(
       type: 'area_reveal',
       message: 'エリア外猶予超過で位置暴露',
@@ -1274,10 +1410,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _emitLocationReveal({required String type, required String message}) {
     _revealCount += 1;
     final playerLabel = _localPlayerLabel;
+    final shown = _displayRevealPosition(_positionForReveal);
     final ev = LocationRevealEvent(
       sequence: _revealCount,
       timestamp: DateTime.now(),
-      position: _positionForReveal,
+      position: shown,
       overflowMeters: 0,
       playerLabel: playerLabel,
     );
@@ -1286,7 +1423,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (_revealLog.length > 50) _revealLog.removeLast();
       _statusMessage = message;
     });
-    _emitMatchEvent(type: type, message: message, position: _positionForReveal);
+    _pushHudRevealAlert('$playerLabel の位置情報を受信');
+    _emitMatchEvent(type: type, message: message, position: shown);
   }
 
   void _evaluateSafeZone() {
@@ -1399,17 +1537,26 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
-  LatLng? _firstPointWithin(List<LatLng> points, double radiusMeters) {
-    final index = _firstPointWithinIndex(points, radiusMeters);
+  LatLng? _firstPointWithin(
+    List<LatLng> points,
+    double radiusMeters, {
+    LatLng? from,
+  }) {
+    final index = _firstPointWithinIndex(points, radiusMeters, from: from);
     return index == null ? null : points[index];
   }
 
-  int? _firstPointWithinIndex(List<LatLng> points, double radiusMeters) {
+  int? _firstPointWithinIndex(
+    List<LatLng> points,
+    double radiusMeters, {
+    LatLng? from,
+  }) {
+    final origin = from ?? _currentPosition;
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
       final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
+        origin.latitude,
+        origin.longitude,
         p.latitude,
         p.longitude,
       );
@@ -1800,8 +1947,14 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _activateFakeIntelReveal() async {
-    if (_gameState != GameState.running) return;
-    if (!_skillLoadout.contains(SkillIds.fakeIntelReveal)) return;
+    if (_gameState != GameState.running) {
+      _toast('ゲーム中のみ使えます');
+      return;
+    }
+    if (!_skillLoadout.contains(SkillIds.fakeIntelReveal)) {
+      _toast('この試合のスキルに偽情報暴露がありません');
+      return;
+    }
     final self = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1819,18 +1972,34 @@ class _GameMapScreenState extends State<GameMapScreen>
       ),
     );
     if (self == null) return;
-    final p = self
+    final raw = self
         ? LatLng(
             _currentPosition.latitude + 0.0007,
             _currentPosition.longitude - 0.0005,
           )
         : _randomOtherRevealPoint();
+    final p = _displayRevealPosition(raw);
+    final label = self ? _localPlayerLabel : '不明なプレイヤー';
+    _revealCount += 1;
+    final ev = LocationRevealEvent(
+      sequence: _revealCount,
+      timestamp: DateTime.now(),
+      position: p,
+      overflowMeters: 0,
+      playerLabel: label,
+    );
+    setState(() {
+      _revealLog.insert(0, ev);
+      if (_revealLog.length > 50) _revealLog.removeLast();
+      _statusMessage = '偽情報暴露: $label の位置が地図に表示されました';
+    });
+    _pushHudRevealAlert('偽情報暴露: $label の位置情報を受信');
     _emitMatchEvent(
       type: 'accidental_reveal',
       message: self ? '事故風の位置暴露（自分）' : '事故風の位置暴露（他人）',
       position: p,
     );
-    setState(() => _statusMessage = '自然な事故イベント風に位置暴露を偽装しました');
+    HapticFeedback.mediumImpact();
   }
 
   LatLng _randomOtherRevealPoint() {
@@ -2003,13 +2172,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     return '北西';
   }
 
-  bool _isInsideCommJammingZone() {
-    return _firstPointWithin(
-          _commJammingZonePositions,
-          GameConfig.commJammingZoneRadiusMeters,
-        ) !=
-        null;
-  }
+  bool _isInsideCommJammingZone() => _isPointInCommJammingZone(_currentPosition);
 
   bool _isCommJammingOpenNow() {
     if (!_isInsideCommJammingZone()) return true;
@@ -2031,8 +2194,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     required String distanceBand,
     required double bearingDegrees,
   }) {
+    if (_oniInCommJammingZone) {
+      final coarse = _fragmentedCoarseCardinal(bearingDegrees);
+      return '通信障害（鬼がゾーン内）: 情報屋の手がかりはほぼ解読不能 — $coarse 付近にノイズのみ';
+    }
     if (!_isCommJammingOpenNow()) {
-      return '通信障害: ノイズ混入（情報欠落）';
+      return '通信障害: ノイズ混入（方角・距離が大きく歪む）';
     }
 
     switch (_oniIntelMode) {
@@ -2206,31 +2373,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _applyEditedArea() async {
-    try {
-      late final PlayArea next;
-      if (_editCircleMode) {
-        next = PlayArea.circle(
-          center: _circleDraftCenter,
-          radiusMeters: _circleDraftRadiusMeters,
-        );
-      } else {
-        if (_polygonDraft.length < 3) {
-          _toast('多角形は3点以上必要です');
-          return;
-        }
-        next = PlayArea.polygon(points: List.from(_polygonDraft));
-      }
-      await _areaStore.save(next);
-      if (!mounted) return;
-      setState(() {
-        _playArea = next;
-        _editingArea = false;
-        _waitingCircleCenterTap = false;
-        _statusMessage = 'プレイエリアを保存しました';
-      });
-    } catch (e) {
-      _toast('保存に失敗しました: $e');
-    }
+    await _saveEditedAreaAsSlot();
   }
 
   void _onMapTap(LatLng pos) {
@@ -2533,7 +2676,9 @@ class _GameMapScreenState extends State<GameMapScreen>
             position: _cameraPositions[i],
             infoWindow: InfoWindow(
               title: '監視カメラ ${i + 1}',
-              snippet: _triggeredCameras.contains(i) ? '作動済み' : '未作動',
+              snippet: _triggeredCameras.contains(i)
+                  ? '作動済み'
+                  : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
             ),
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueYellow,
@@ -2693,6 +2838,17 @@ class _GameMapScreenState extends State<GameMapScreen>
           strokeColor: Colors.orange.shade700,
           zIndex: 1,
         ),
+      for (var i = 0; i < _cameraPositions.length; i++)
+        if (!_triggeredCameras.contains(i))
+          Circle(
+            circleId: CircleId('camera-zone-$i'),
+            center: _cameraPositions[i],
+            radius: GameConfig.cameraTriggerRadiusMeters,
+            strokeWidth: 1,
+            fillColor: Colors.yellow.withValues(alpha: 0.07),
+            strokeColor: Colors.yellow.shade800.withValues(alpha: 0.55),
+            zIndex: 1,
+          ),
       for (var i = 0; i < _tracePoints.length; i++)
         Circle(
           circleId: CircleId('trace_circle_$i'),
@@ -3067,7 +3223,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           style: Theme.of(ctx).textTheme.titleSmall,
                         ),
                         const Text(
-                          '試合の長さはここで決めます。準備画面にも同じ値が表示されます。',
+                          'ホストは準備画面のスライダーで変更するのが基本です。ここは上級者向けの同じ設定です。',
                           style: TextStyle(fontSize: 12),
                         ),
                         Slider(
@@ -3367,40 +3523,6 @@ class _GameMapScreenState extends State<GameMapScreen>
 
                         const SizedBox(height: 10),
 
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(ctx, false);
-                                _setupLocation();
-                              },
-                              icon: const Icon(Icons.gps_fixed),
-                              label: const Text('現在地更新'),
-                            ),
-
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(ctx, false);
-                                _moveOniForTest();
-                              },
-                              icon: const Icon(Icons.directions_run),
-                              label: const Text('鬼移動(テスト)'),
-                            ),
-
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(ctx, false);
-                                _clearTracePoints();
-                              },
-                              icon: const Icon(Icons.cleaning_services),
-                              label: const Text('痕跡クリア'),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
                         Align(
                           alignment: Alignment.centerRight,
                           child: FilledButton(
@@ -3634,6 +3756,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _proximitySubscription?.cancel();
     _remoteMembersSub?.cancel();
     _matchTimer?.cancel();
+    _hudRevealAlertTimer?.cancel();
     _renderPump?.cancel();
     _dangerPulseController.dispose();
     _proximityService.stop();
@@ -3742,6 +3865,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                   break;
                 case 'dev_abort':
                   if (_testMode) await _requestAbortByVote();
+                  break;
+                case 'dev_oni_move':
+                  if (_testMode) _moveOniForTest();
                   break;
                 case 'import':
                   if (_gameState == GameState.running) {
@@ -3852,6 +3978,14 @@ class _GameMapScreenState extends State<GameMapScreen>
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
+                const PopupMenuItem(
+                  value: 'dev_oni_move',
+                  child: ListTile(
+                    leading: Icon(Icons.directions_run),
+                    title: Text('鬼移動（開発）'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               ],
               const PopupMenuDivider(),
               PopupMenuItem(
@@ -3898,7 +4032,17 @@ class _GameMapScreenState extends State<GameMapScreen>
             _PrepLobbyPanel(
               roomLabel: _roomSession.modeLabel,
               playAreaLabel: _playAreaSummary(),
-              matchDurationLabel: _matchDurationLabel(),
+              matchDurationMinutes: _matchDurationSeconds / 60,
+              hostPrepOpen: _hostPrepOpen,
+              onHostPrepOpenChanged: _setHostPrepOpen,
+              onDurationChanged: _setPrepDurationMinutes,
+              savedAreas: _savedPlayAreas,
+              selectedAreaId: _selectedPlayAreaSlotId,
+              onSelectArea: (id) =>
+                  setState(() => _selectedPlayAreaSlotId = id),
+              onHostApplyArea: _hostApplySelectedPlayArea,
+              onStart: _startGame,
+              canStart: !_editingArea,
               onOpenCustomSettings: _openCustomMenu,
               onShowMap: () => setState(() {
                 _mapVisibleInLobby = true;
@@ -4028,6 +4172,12 @@ class _GameMapScreenState extends State<GameMapScreen>
                 expanded: _hudExpanded,
                 onToggleExpanded: () =>
                     setState(() => _hudExpanded = !_hudExpanded),
+                revealAlert: _hudRevealAlert,
+                onDismissRevealAlert: () => setState(() {
+                  _hudRevealAlert = null;
+                  _hudRevealAlertTimer?.cancel();
+                }),
+                onOpenRevealLog: _showRevealLog,
                 intelLine: _latestIntelLine(),
                 showIntelLine: _showOniIntelCard,
                 onDismissIntel: () => setState(() {
@@ -4135,8 +4285,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                 onCycleSheetMode: _cycleControlSheetMode,
                 onStart: _startGame,
                 onReset: _resetGame,
-                onForceEnd: () =>
-                    _endGame(GameState.runnerWin, 'ホスト操作で試合を終了しました。'),
                 onOpenResult: _openMatchResultScreen,
                 onFakeSkill: _activateFakeSkill,
                 onFakeIntelReveal: _activateFakeIntelReveal,
@@ -4144,6 +4292,8 @@ class _GameMapScreenState extends State<GameMapScreen>
                 onCaptureZone: _activateCaptureZone,
                 onBodyThrow: _activateBodyThrow,
                 onRecenterGps: _recenterMapOnGps,
+                onRefreshGps: _setupLocation,
+                onClearTraces: _clearTracePoints,
                 onToggleAreaEdit: _toggleAreaEditor,
                 onOpenCustomMenu: _openCustomMenu,
                 onOpenHelp: _showHowToPlaySheet,
@@ -4215,7 +4365,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                       }
                     }),
                     icon: const Icon(Icons.tune),
-                    label: const Text('操作'),
+                    label: Text(
+                      running ? '操作' : '詳細設定',
+                    ),
                   ),
                 ),
               ),
@@ -4272,7 +4424,16 @@ class _PrepLobbyPanel extends StatelessWidget {
   const _PrepLobbyPanel({
     required this.roomLabel,
     required this.playAreaLabel,
-    required this.matchDurationLabel,
+    required this.matchDurationMinutes,
+    required this.hostPrepOpen,
+    required this.onHostPrepOpenChanged,
+    required this.onDurationChanged,
+    required this.savedAreas,
+    required this.selectedAreaId,
+    required this.onSelectArea,
+    required this.onHostApplyArea,
+    required this.onStart,
+    required this.canStart,
     required this.onOpenCustomSettings,
     required this.onShowMap,
     required this.onOpenLobby,
@@ -4280,7 +4441,16 @@ class _PrepLobbyPanel extends StatelessWidget {
 
   final String roomLabel;
   final String playAreaLabel;
-  final String matchDurationLabel;
+  final double matchDurationMinutes;
+  final bool hostPrepOpen;
+  final ValueChanged<bool> onHostPrepOpenChanged;
+  final ValueChanged<double> onDurationChanged;
+  final List<SavedPlayArea> savedAreas;
+  final String? selectedAreaId;
+  final ValueChanged<String?> onSelectArea;
+  final VoidCallback onHostApplyArea;
+  final VoidCallback onStart;
+  final bool canStart;
   final VoidCallback onOpenCustomSettings;
   final VoidCallback onShowMap;
   final VoidCallback onOpenLobby;
@@ -4291,48 +4461,94 @@ class _PrepLobbyPanel extends StatelessWidget {
     return Material(
       color: theme.colorScheme.surfaceContainerHighest,
       child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
-                    Icons.map_outlined,
-                    size: 52,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
                   Text(
-                    '準備（地図は非表示）',
-                    style: theme.textTheme.headlineSmall,
+                    '試合の準備',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
-                    'ルーム参加やカスタム設定はこのまま下部パネルから行えます。鬼ごっこを始めると地図が表示されます。',
+                    'ホストが時間とエリアを決めてから開始します。地図はオフのままでも設定できます。エリアの形は全員が「保存」でき、適用はホストだけです。',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: const [
-                      Chip(label: Text('1 Setup')),
-                      Chip(label: Text('2 Start')),
-                      Chip(label: Text('3 Role')),
-                      Chip(label: Text('4 Play')),
-                      Chip(label: Text('5 Result')),
-                      Chip(label: Text('6 Replay/Lobby')),
-                    ],
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('ホスト: 試合設定を開放'),
+                            subtitle: const Text(
+                              'オンにすると制限時間の変更と、保存済みエリアの適用ができます',
+                            ),
+                            value: hostPrepOpen,
+                            onChanged: onHostPrepOpenChanged,
+                          ),
+                          Text(
+                            '制限時間: ${matchDurationMinutes.round()} 分',
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          Slider(
+                            min: 1,
+                            max: 20,
+                            divisions: 19,
+                            value: matchDurationMinutes.clamp(1, 20),
+                            onChanged: hostPrepOpen ? onDurationChanged : null,
+                          ),
+                          Text(
+                            '適用中エリア: $playAreaLabel',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          if (savedAreas.isEmpty)
+                            Text(
+                              '保存済みエリアはまだありません。地図の「エリア編集」で形を作り「エリアを保存」してください。',
+                              style: theme.textTheme.bodySmall,
+                            )
+                          else
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedAreaId,
+                              decoration: const InputDecoration(
+                                labelText: '保存済みエリア（ホストが適用）',
+                                isDense: true,
+                              ),
+                              items: savedAreas
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s.id,
+                                      child: Text(s.name),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: hostPrepOpen ? onSelectArea : null,
+                            ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: hostPrepOpen ? onHostApplyArea : null,
+                            icon: const Icon(Icons.check_circle_outline),
+                            label: const Text('選択したエリアを適用'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -4342,48 +4558,42 @@ class _PrepLobbyPanel extends StatelessWidget {
                     title: const Text('オンライン'),
                     subtitle: Text(roomLabel),
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.crop_free,
-                      color: theme.colorScheme.primary,
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 56,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: canStart ? onStart : null,
+                      icon: const Icon(Icons.play_circle_fill, size: 30),
+                      label: const Text(
+                        '試合を開始',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    title: const Text('プレイエリア'),
-                    subtitle: Text(playAreaLabel),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.timer_outlined,
-                      color: theme.colorScheme.primary,
-                    ),
-                    title: const Text('制限時間'),
-                    subtitle: Text('$matchDurationLabel（カスタム設定で変更）'),
-                    trailing: IconButton(
-                      tooltip: '制限時間を変更',
-                      onPressed: onOpenCustomSettings,
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: onOpenLobby,
-                    icon: const Icon(Icons.groups_outlined),
-                    label: const Text('ルームロビーを開く'),
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: onShowMap,
-                    icon: const Icon(Icons.map),
-                    label: const Text('地図を表示する'),
+                    onPressed: onOpenLobby,
+                    icon: const Icon(Icons.groups_outlined),
+                    label: const Text('ルームロビー'),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '位置確認・エリア編集・GeoJSON インポートには地図が必要です。下部の「エリア編集」を押しても地図が開きます。',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: onShowMap,
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('地図を表示（位置確認・エリア保存）'),
+                  ),
+                  TextButton(
+                    onPressed: onOpenCustomSettings,
+                    child: const Text('その他のカスタム設定（役職・スキル・ルール）'),
                   ),
                 ],
               ),
@@ -4399,6 +4609,9 @@ class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
     required this.expanded,
     required this.onToggleExpanded,
+    required this.revealAlert,
+    required this.onDismissRevealAlert,
+    required this.onOpenRevealLog,
     required this.intelLine,
     required this.showIntelLine,
     required this.onDismissIntel,
@@ -4418,6 +4631,9 @@ class _InfoPanel extends StatelessWidget {
 
   final bool expanded;
   final VoidCallback onToggleExpanded;
+  final String? revealAlert;
+  final VoidCallback onDismissRevealAlert;
+  final VoidCallback onOpenRevealLog;
   final String intelLine;
   final bool showIntelLine;
   final VoidCallback onDismissIntel;
@@ -4437,6 +4653,42 @@ class _InfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (revealAlert != null && revealAlert!.isNotEmpty) {
+      return Material(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(10),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.campaign_outlined, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  revealAlert!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                onPressed: onOpenRevealLog,
+                child: const Text('ログ'),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: onDismissRevealAlert,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (!expanded) {
       return Material(
         color: Colors.white.withValues(alpha: 0.78),
@@ -4741,7 +4993,7 @@ class _AreaEditorCard extends StatelessWidget {
                 Expanded(
                   child: FilledButton(
                     onPressed: onApply,
-                    child: const Text('保存して適用'),
+                    child: const Text('エリアを保存'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -4766,7 +5018,6 @@ class _ControlPanel extends StatelessWidget {
     required this.onCycleSheetMode,
     required this.onStart,
     required this.onReset,
-    required this.onForceEnd,
     required this.onOpenResult,
     required this.onFakeSkill,
     required this.onFakeIntelReveal,
@@ -4774,6 +5025,8 @@ class _ControlPanel extends StatelessWidget {
     required this.onCaptureZone,
     required this.onBodyThrow,
     required this.onRecenterGps,
+    required this.onRefreshGps,
+    required this.onClearTraces,
     required this.onToggleAreaEdit,
     required this.onOpenCustomMenu,
     required this.onOpenHelp,
@@ -4802,7 +5055,6 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onCycleSheetMode;
   final VoidCallback onStart;
   final VoidCallback onReset;
-  final VoidCallback onForceEnd;
   final VoidCallback onOpenResult;
   final VoidCallback onFakeSkill;
   final VoidCallback onFakeIntelReveal;
@@ -4810,6 +5062,8 @@ class _ControlPanel extends StatelessWidget {
   final VoidCallback onCaptureZone;
   final VoidCallback onBodyThrow;
   final VoidCallback onRecenterGps;
+  final VoidCallback onRefreshGps;
+  final VoidCallback onClearTraces;
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onOpenCustomMenu;
   final VoidCallback onOpenHelp;
@@ -4836,8 +5090,71 @@ class _ControlPanel extends StatelessWidget {
   String get _modeHint => switch (sheetMode) {
         _ControlSheetMode.hidden => '非表示',
         _ControlSheetMode.skillsOnly => 'スキル',
-        _ControlSheetMode.expanded => 'すべて',
+        _ControlSheetMode.expanded => '詳細',
       };
+
+  Widget _buildSkillRow({required bool compact}) {
+    final skills = <Widget>[
+      if (canFakeSkill)
+        _SkillActionButton(
+          label: _skillShortLabel(SkillIds.fakePosition),
+          icon: Icons.flare,
+          active: fakeSkillActive,
+          cooldownSeconds: fakeCooldownSeconds,
+          compact: compact,
+          onPressed: isEditing ? null : onFakeSkill,
+        ),
+      if (canFakeIntelReveal)
+        _SkillActionButton(
+          label: _skillShortLabel(SkillIds.fakeIntelReveal),
+          icon: Icons.report,
+          compact: compact,
+          onPressed: isEditing ? null : onFakeIntelReveal,
+        ),
+      if (canWerewolfHunter)
+        _SkillActionButton(
+          label: _skillShortLabel(SkillIds.werewolfTransform),
+          icon: Icons.nightlight,
+          buffSeconds: werewolfBuffSeconds,
+          cooldownSeconds: werewolfCooldownSeconds,
+          compact: compact,
+          onPressed: isEditing ? null : onWerewolfHunter,
+        ),
+      if (canCaptureZone)
+        _SkillActionButton(
+          label: _skillShortLabel(SkillIds.captureZone),
+          icon: Icons.trip_origin,
+          cooldownSeconds: captureCooldownSeconds,
+          compact: compact,
+          onPressed: isEditing ? null : onCaptureZone,
+        ),
+      if (canBodyThrow)
+        _SkillActionButton(
+          label: _skillShortLabel(SkillIds.bodyThrow),
+          icon: Icons.near_me,
+          cooldownSeconds: bodyThrowCooldownSeconds,
+          compact: compact,
+          onPressed: isEditing ? null : onBodyThrow,
+        ),
+    ];
+    if (skills.isEmpty) {
+      return Text(
+        '装備スキルなし',
+        style: TextStyle(fontSize: compact ? 11 : 12),
+      );
+    }
+    if (compact) {
+      return Row(
+        children: [
+          for (var i = 0; i < skills.length; i++) ...[
+            if (i > 0) const SizedBox(width: 6),
+            Expanded(child: skills[i]),
+          ],
+        ],
+      );
+    }
+    return Wrap(spacing: 8, runSpacing: 8, children: skills);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4883,54 +5200,32 @@ class _ControlPanel extends StatelessWidget {
               ),
             ],
           ),
-          if (prepLobbyMapHidden) ...[
-            Text(
-              '準備（地図オフ）· 制限時間 $matchDurationLabel',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 6),
-          ],
           if (!isRunning) ...[
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('試合進行（ローカルホスト）'),
-              subtitle: const Text('開始・終了・リザルト（本格同期は今後）'),
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: (isEditing || !canStartMatch) ? null : onStart,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('開始'),
-                    ),
-                    if (matchEnded)
-                      OutlinedButton.icon(
-                        onPressed: onOpenResult,
-                        icon: const Icon(Icons.emoji_events_outlined),
-                        label: const Text('リザルト'),
-                      ),
-                    OutlinedButton.icon(
-                      onPressed: onReset,
-                      icon: const Icon(Icons.restart_alt),
-                      label: const Text('リセット'),
-                    ),
-                  ],
-                ),
-              ],
+            Text(
+              prepLobbyMapHidden ? '詳細設定（地図オフ）' : '詳細設定',
+              style: Theme.of(context).textTheme.labelLarge,
             ),
-            if (isRunning && expanded)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: OutlinedButton.icon(
-                  onPressed: onForceEnd,
-                  icon: const Icon(Icons.stop),
-                  label: const Text('強制終了'),
+            if (expanded) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 52,
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: (isEditing || !canStartMatch) ? null : onStart,
+                  icon: const Icon(Icons.play_circle_fill, size: 28),
+                  label: const Text(
+                    '試合を開始',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            if (!isRunning && expanded)
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -4940,12 +5235,82 @@ class _ControlPanel extends StatelessWidget {
                     icon: Icon(
                       isEditing ? Icons.check_circle : Icons.map_outlined,
                     ),
-                    label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
+                    label: Text(isEditing ? '編集を閉じる' : 'エリア編集'),
                   ),
-                  FilledButton.tonalIcon(
+                  OutlinedButton.icon(
+                    onPressed: onRefreshGps,
+                    icon: const Icon(Icons.gps_fixed),
+                    label: const Text('現在地更新'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onClearTraces,
+                    icon: const Icon(Icons.cleaning_services_outlined),
+                    label: const Text('痕跡クリア'),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: onOpenCustomMenu,
-                    icon: const Icon(Icons.timer_outlined),
-                    label: Text('設定 ($matchDurationLabel)'),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('カスタム設定'),
+                  ),
+                  if (matchEnded)
+                    OutlinedButton.icon(
+                      onPressed: onOpenResult,
+                      icon: const Icon(Icons.emoji_events_outlined),
+                      label: const Text('リザルト'),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: onReset,
+                    icon: const Icon(Icons.restart_alt),
+                    label: const Text('リセット'),
+                  ),
+                ],
+              ),
+            ] else
+              Text(
+                '時間・エリアは準備画面で設定。ここはエリア編集などの詳細用です。',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ] else ...[
+            if (sheetMode == _ControlSheetMode.skillsOnly)
+              Row(
+                children: [
+                  Chip(
+                    label: Text(roleLabel, style: const TextStyle(fontSize: 11)),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  ),
+                  const Spacer(),
+                  IconButton.filledTonal(
+                    tooltip: '現在地へ',
+                    onPressed: isEditing ? null : onRecenterGps,
+                    icon: const Icon(Icons.my_location, size: 18),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                  ),
+                ],
+              ),
+            if (sheetMode == _ControlSheetMode.skillsOnly)
+              const SizedBox(height: 4),
+            _buildSkillRow(compact: sheetMode == _ControlSheetMode.skillsOnly),
+            if (expanded) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: isEditing ? null : onRecenterGps,
+                    icon: const Icon(Icons.my_location),
+                    label: const Text('現在地へ'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onRefreshGps,
+                    icon: const Icon(Icons.gps_fixed),
+                    label: const Text('GPS更新'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onOpenHelp,
@@ -4954,85 +5319,7 @@ class _ControlPanel extends StatelessWidget {
                   ),
                 ],
               ),
-          ] else ...[
-            Row(
-              children: [
-                Chip(
-                  label: Text(roleLabel),
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 6),
-                IconButton.filledTonal(
-                  tooltip: '現在地へ',
-                  onPressed: isEditing ? null : onRecenterGps,
-                  icon: const Icon(Icons.my_location, size: 20),
-                  visualDensity: VisualDensity.compact,
-                ),
-                if (expanded) ...[
-                  IconButton(
-                    tooltip: '遊び方',
-                    onPressed: onOpenHelp,
-                    icon: const Icon(Icons.help_outline, size: 20),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  OutlinedButton(
-                    onPressed: onForceEnd,
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: const Text('終了', style: TextStyle(fontSize: 12)),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (canFakeSkill)
-                      _SkillActionButton(
-                        label: _skillShortLabel(SkillIds.fakePosition),
-                        icon: Icons.flare,
-                        active: fakeSkillActive,
-                        cooldownSeconds: fakeCooldownSeconds,
-                        onPressed: isEditing ? null : onFakeSkill,
-                      ),
-                    if (canFakeIntelReveal)
-                      _SkillActionButton(
-                        label: _skillShortLabel(SkillIds.fakeIntelReveal),
-                        icon: Icons.report,
-                        onPressed: isEditing ? null : onFakeIntelReveal,
-                      ),
-                    if (canWerewolfHunter)
-                      _SkillActionButton(
-                        label: _skillShortLabel(SkillIds.werewolfTransform),
-                        icon: Icons.nightlight,
-                        buffSeconds: werewolfBuffSeconds,
-                        cooldownSeconds: werewolfCooldownSeconds,
-                        onPressed: isEditing ? null : onWerewolfHunter,
-                      ),
-                    if (canCaptureZone)
-                      _SkillActionButton(
-                        label: _skillShortLabel(SkillIds.captureZone),
-                        icon: Icons.trip_origin,
-                        cooldownSeconds: captureCooldownSeconds,
-                        onPressed: isEditing ? null : onCaptureZone,
-                      ),
-                    if (canBodyThrow)
-                      _SkillActionButton(
-                        label: _skillShortLabel(SkillIds.bodyThrow),
-                        icon: Icons.near_me,
-                        cooldownSeconds: bodyThrowCooldownSeconds,
-                        onPressed: isEditing ? null : onBodyThrow,
-                      ),
-                  ],
-                );
-              },
-            ),
+            ],
           ],
         ],
       ),
@@ -5048,6 +5335,7 @@ class _SkillActionButton extends StatelessWidget {
     this.active = false,
     this.cooldownSeconds = 0,
     this.buffSeconds,
+    this.compact = false,
   });
 
   final String label;
@@ -5056,25 +5344,46 @@ class _SkillActionButton extends StatelessWidget {
   final bool active;
   final int cooldownSeconds;
   final int? buffSeconds;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final onCd = cooldownSeconds > 0;
     final onBuff = buffSeconds != null && buffSeconds! > 0;
     final enabled = onPressed != null && !onCd;
+    final btn = FilledButton.tonal(
+      onPressed: enabled ? onPressed : null,
+      style: FilledButton.styleFrom(
+        padding: EdgeInsets.symmetric(vertical: compact ? 8 : 10),
+        minimumSize: Size(compact ? 0 : 88, compact ? 40 : 44),
+      ),
+      child: Icon(icon, size: compact ? 20 : 22),
+    );
+    if (compact) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: double.infinity, child: btn),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 9),
+          ),
+          if (onBuff)
+            Text('${buffSeconds}s', style: const TextStyle(fontSize: 8))
+          else if (onCd)
+            Text('$cooldownSeconds', style: const TextStyle(fontSize: 8)),
+        ],
+      );
+    }
     return SizedBox(
       width: 88,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FilledButton.tonal(
-            onPressed: enabled ? onPressed : null,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              minimumSize: const Size(88, 44),
-            ),
-            child: Icon(icon, size: 22),
-          ),
+          btn,
           const SizedBox(height: 2),
           Text(
             label,
