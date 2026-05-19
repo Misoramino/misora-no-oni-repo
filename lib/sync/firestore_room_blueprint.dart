@@ -68,6 +68,10 @@ abstract final class MemberPresenceFields {
   /// live 位置は原則 members に載せない。reveal/event 経由だけに寄せるための明示フラグ。
   static const locationVisibility = 'locationVisibility'; // 'hidden'
 
+  /// カスタムモードの希望（試合確定前）。ホストが matchStart 作成時に参照。
+  static const preferredRole = 'preferredRole';
+  static const preferredSkills = 'preferredSkills';
+
   /// クライアントがセッション開始時のみ送る細かいログを貯めず、イベントとして送りたい場合
   static const lastEventHint = 'lastEventHint';
 }

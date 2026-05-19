@@ -56,6 +56,7 @@ import '../sync/firestore_room_blueprint.dart';
 import '../sync/room_phase.dart';
 import '../sync/shared_match_snapshot.dart';
 import '../sync/remote_member_snapshot.dart';
+import '../sync/room_member_view.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
@@ -986,25 +987,29 @@ class _GameMapScreenState extends State<GameMapScreen>
     final fs = _firestoreSession!;
     final seed = DateTime.now().millisecondsSinceEpoch;
     final rnd = math.Random(seed);
-    final oniIntel =
-        OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
-    final aftermath = EliminationAftermathRule
-        .values[rnd.nextInt(EliminationAftermathRule.values.length)];
+    final oniIntel = _customRuleMode
+        ? _oniIntelMode
+        : OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
+    final aftermath = _customRuleMode
+        ? _eliminationAftermathRule
+        : EliminationAftermathRule
+            .values[rnd.nextInt(EliminationAftermathRule.values.length)];
     final assignments = <String, SharedPlayerAssignment>{};
     final members = fs.currentLobbyMembers;
     if (members.isEmpty && fs.myUid != null) {
-      final role = assignablePlayerRoles[rnd.nextInt(assignablePlayerRoles.length)];
-      assignments[fs.myUid!] = SharedPlayerAssignment(
-        role: role,
-        skills: _randomSkillsFor(role, rnd).toList(),
+      assignments[fs.myUid!] = _assignmentForUid(
+        fs.myUid!,
+        null,
+        rnd,
+        isSelf: true,
       );
     } else {
       for (final m in members) {
-        final role =
-            assignablePlayerRoles[rnd.nextInt(assignablePlayerRoles.length)];
-        assignments[m.uid] = SharedPlayerAssignment(
-          role: role,
-          skills: _randomSkillsFor(role, rnd).toList(),
+        assignments[m.uid] = _assignmentForUid(
+          m.uid,
+          m,
+          rnd,
+          isSelf: m.uid == fs.myUid,
         );
       }
     }
@@ -1016,6 +1021,29 @@ class _GameMapScreenState extends State<GameMapScreen>
       eliminationAftermathRule: aftermath,
       assignments: assignments,
       startedAtUtc: DateTime.now().toUtc().toIso8601String(),
+    );
+  }
+
+  SharedPlayerAssignment _assignmentForUid(
+    String uid,
+    RoomMemberView? member,
+    math.Random rnd, {
+    required bool isSelf,
+  }) {
+    if (_customRuleMode) {
+      if (isSelf) {
+        return SharedPlayerAssignment(
+          role: _localRole,
+          skills: _skillLoadout.toList(),
+        );
+      }
+      final fromPref = member?.preferredAssignment;
+      if (fromPref != null) return fromPref;
+    }
+    final role = assignablePlayerRoles[rnd.nextInt(assignablePlayerRoles.length)];
+    return SharedPlayerAssignment(
+      role: role,
+      skills: _randomSkillsFor(role, rnd).toList(),
     );
   }
 
@@ -1083,7 +1111,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _assignDefaultSetupIfNeeded() {
-    if (_customRuleMode || _isOnlineFirestore) return;
+    if (_isOnlineFirestore) return;
+    if (_customRuleMode) return;
     final seed = DateTime.now().millisecondsSinceEpoch;
     final rnd = math.Random(seed);
     const roles = assignablePlayerRoles;
@@ -2258,6 +2287,13 @@ class _GameMapScreenState extends State<GameMapScreen>
             : result.skillLoadout;
       }
     });
+    if (_isOnlineFirestore && result.customRuleMode) {
+      final err = await _firestoreSession!.publishRulePreferences(
+        preferredRole: result.localRole,
+        preferredSkills: result.skillLoadout.toList(),
+      );
+      if (err != null && mounted) _toast(err);
+    }
     await _reloadProximityStackFromPrefs();
     if (_trajectoryConsent != result.trajectoryConsent) {
       await _setTrajectoryConsent(result.trajectoryConsent);

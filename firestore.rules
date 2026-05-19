@@ -1,71 +1,73 @@
-rules_version = '2';
-// 少人数テスト向け。rooms はホストのみ更新（Phase A）。
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isMemberOwner(memberId) {
-      return signedIn() && request.auth.uid == memberId;
-    }
-
-    function isRoomHost() {
-      return signedIn()
-        && resource.data.hostUid == request.auth.uid;
-    }
-
-    function onlyKeysChanged(keys) {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
-    }
-
-    function validMemberPresence() {
-      return request.resource.data.keys().hasOnly([
-        'nickname',
-        'role',
-        'reportedAtUtc',
-        'proximityBand',
-        'locationVisibility'
-      ]);
-    }
-
-    function validRoomCreate() {
-      return request.resource.data.keys().hasOnly(['hostUid', 'phase'])
-        && request.resource.data.hostUid == request.auth.uid
-        && request.resource.data.phase == 'lobby';
-    }
-
-    function validHostRoomUpdate() {
-      return isRoomHost()
-        && onlyKeysChanged([
-          'hostUid',
-          'phase',
-          'endedAtUtc',
-          'endReason',
-          'matchOutcome',
-          'endMessage',
-          'matchStart'
-        ]);
-    }
-
-    function claimEmptyHost() {
-      return signedIn()
-        && (resource.data.hostUid == null || resource.data.hostUid == '')
-        && request.resource.data.hostUid == request.auth.uid
-        && onlyKeysChanged(['hostUid']);
-    }
-
-    match /rooms/{roomId} {
-      allow read: if signedIn();
-      allow create: if signedIn() && validRoomCreate();
-      allow update: if validHostRoomUpdate() || claimEmptyHost();
-    }
-
-    match /rooms/{roomId}/members/{memberId} {
-      allow read: if signedIn();
-      allow create, update: if isMemberOwner(memberId) && validMemberPresence();
-      allow delete: if isMemberOwner(memberId);
-    }
-  }
-}
+rules_version = '2';
+// 少人数テスト向け。rooms はホストのみ更新（Phase A）。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMemberOwner(memberId) {
+      return signedIn() && request.auth.uid == memberId;
+    }
+
+    function isRoomHost() {
+      return signedIn()
+        && resource.data.hostUid == request.auth.uid;
+    }
+
+    function onlyKeysChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function validMemberPresence() {
+      return request.resource.data.keys().hasOnly([
+        'nickname',
+        'role',
+        'reportedAtUtc',
+        'proximityBand',
+        'locationVisibility',
+        'preferredRole',
+        'preferredSkills'
+      ]);
+    }
+
+    function validRoomCreate() {
+      return request.resource.data.keys().hasOnly(['hostUid', 'phase'])
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.phase == 'lobby';
+    }
+
+    function validHostRoomUpdate() {
+      return isRoomHost()
+        && onlyKeysChanged([
+          'hostUid',
+          'phase',
+          'endedAtUtc',
+          'endReason',
+          'matchOutcome',
+          'endMessage',
+          'matchStart'
+        ]);
+    }
+
+    function claimEmptyHost() {
+      return signedIn()
+        && (resource.data.hostUid == null || resource.data.hostUid == '')
+        && request.resource.data.hostUid == request.auth.uid
+        && onlyKeysChanged(['hostUid']);
+    }
+
+    match /rooms/{roomId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validRoomCreate();
+      allow update: if validHostRoomUpdate() || claimEmptyHost();
+    }
+
+    match /rooms/{roomId}/members/{memberId} {
+      allow read: if signedIn();
+      allow create, update: if isMemberOwner(memberId) && validMemberPresence();
+      allow delete: if isMemberOwner(memberId);
+    }
+  }
+}
 

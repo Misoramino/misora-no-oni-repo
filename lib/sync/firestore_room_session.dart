@@ -9,6 +9,7 @@ import 'presence_throttle.dart';
 import 'remote_member_snapshot.dart';
 import 'room_member_view.dart';
 import '../game/game_state.dart';
+import '../game/player_role.dart';
 import 'room_phase.dart';
 import 'room_session_port.dart';
 import 'shared_match_snapshot.dart';
@@ -347,6 +348,36 @@ class FirestoreRoomSession implements RoomSessionPort {
       await _db.collection('rooms').doc(_roomId).update({
         RoomDocFields.hostUid: targetUid,
       });
+      return null;
+    } on FirebaseException catch (e) {
+      return e.message ?? e.code;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// カスタムモードの希望ロール/スキル（試合確定前。自分の members のみ）。
+  Future<String?> publishRulePreferences({
+    required PlayerRole preferredRole,
+    required List<String> preferredSkills,
+  }) async {
+    if (_roomId == null || _uid == null) return null;
+    try {
+      final ref = _db
+          .collection('rooms')
+          .doc(_roomId)
+          .collection('members')
+          .doc(_uid!);
+      await ref.set({
+        MemberPresenceFields.nickname: _nickname,
+        MemberPresenceFields.role: _role,
+        MemberPresenceFields.reportedAtUtc: DateTime.now()
+            .toUtc()
+            .toIso8601String(),
+        MemberPresenceFields.locationVisibility: 'hidden',
+        MemberPresenceFields.preferredRole: preferredRole.name,
+        MemberPresenceFields.preferredSkills: preferredSkills,
+      }, SetOptions(merge: true));
       return null;
     } on FirebaseException catch (e) {
       return e.message ?? e.code;
