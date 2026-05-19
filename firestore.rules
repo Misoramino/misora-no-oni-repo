@@ -68,6 +68,67 @@ service cloud.firestore {
       allow create, update: if isMemberOwner(memberId) && validMemberPresence();
       allow delete: if isMemberOwner(memberId);
     }
+
+    function roomExists(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function roomHostUid(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid;
+    }
+
+    function isEventRoomHost(roomId) {
+      return signedIn()
+        && roomExists(roomId)
+        && request.auth.uid == roomHostUid(roomId);
+    }
+
+    function participantRoomEventType(t) {
+      return t == 'reveal'
+        || t == 'fake_intel_reveal'
+        || t == 'info_broker'
+        || t == 'match_event'
+        || t == 'capture_zone_placed'
+        || t == 'capture_zone_ack';
+    }
+
+    function hostOnlyRoomEventType(t) {
+      return t == 'capture_zone_bound'
+        || t == 'match_start'
+        || t == 'match_end';
+    }
+
+    function allowedRoomEventType(roomId, t) {
+      return (isEventRoomHost(roomId) && hostOnlyRoomEventType(t))
+        || participantRoomEventType(t);
+    }
+
+    function validRoomEventCreate(roomId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'type',
+          'payload',
+          'emittedAtUtc',
+          'emittedAtMs',
+          'actorUid',
+          'sessionKey'
+        ])
+        && d.type is string
+        && d.actorUid == request.auth.uid
+        && d.emittedAtUtc is string
+        && d.emittedAtMs is int
+        && d.sessionKey is int
+        && d.emittedAtUtc.size() <= 48
+        && d.payload is map
+        && d.payload.size() <= 32
+        && allowedRoomEventType(roomId, d.type);
+    }
+
+    match /rooms/{roomId}/events/{eventId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validRoomEventCreate(roomId);
+      allow update, delete: if false;
+    }
   }
 }
 

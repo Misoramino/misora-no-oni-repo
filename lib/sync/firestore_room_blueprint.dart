@@ -77,9 +77,12 @@ abstract final class MemberPresenceFields {
 }
 
 abstract final class RoomEventsFields {
-  static const type = 'type'; // reveal / capture_near / countdown / etc
+  static const type = 'type';
   static const payload = 'payload';
   static const emittedAtUtc = 'emittedAtUtc';
+  static const emittedAtMs = 'emittedAtMs';
+  static const actorUid = 'actorUid';
+  static const sessionKey = 'sessionKey';
 }
 
 /// **最大10人前後／懐事情的に無駄撃ちしないための送信レート目安（クライアント実装側の規律）**

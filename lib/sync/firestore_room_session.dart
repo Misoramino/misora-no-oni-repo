@@ -10,6 +10,7 @@ import 'remote_member_snapshot.dart';
 import 'room_member_view.dart';
 import '../game/game_state.dart';
 import '../game/player_role.dart';
+import 'room_match_event.dart';
 import 'room_phase.dart';
 import 'room_session_port.dart';
 import 'shared_match_snapshot.dart';
@@ -43,9 +44,12 @@ class FirestoreRoomSession implements RoomSessionPort {
       StreamController<String>.broadcast();
   final StreamController<RoomMatchState> _roomMatchCtrl =
       StreamController<RoomMatchState>.broadcast();
+  final StreamController<RoomMatchEvent> _roomEventCtrl =
+      StreamController<RoomMatchEvent>.broadcast();
 
   RoomMatchState _latestRoomMatch = const RoomMatchState(phase: RoomPhase.lobby);
   SharedMatchSnapshot? _latestMatchStart;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventsSub;
 
   Stream<Map<String, RemoteMemberSnapshot>> get remoteMembers =>
       _remoteCtrl.stream;
@@ -84,6 +88,9 @@ class FirestoreRoomSession implements RoomSessionPort {
   RoomMatchState get currentRoomMatch => _latestRoomMatch;
 
   SharedMatchSnapshot? get currentMatchStart => _latestMatchStart;
+
+  /// 試合中の共有イベント（append-only events サブコレクション）。
+  Stream<RoomMatchEvent> get roomMatchEvents => _roomEventCtrl.stream;
 
   /// エラー時はメッセージを返す。
   Future<String?> join({
@@ -233,6 +240,71 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(_latestLobby);
   }
 
+  /// 参加者: 共有イベントを 1 件追加（append-only）。
+  Future<String?> publishRoomEvent({
+    required String type,
+    required Map<String, dynamic> payload,
+    required int sessionKey,
+  }) async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    try {
+      await _db.collection('rooms').doc(_roomId).collection('events').add({
+        RoomEventsFields.type: type,
+        RoomEventsFields.emittedAtUtc:
+            DateTime.now().toUtc().toIso8601String(),
+        RoomEventsFields.emittedAtMs: DateTime.now().microsecondsSinceEpoch,
+        RoomEventsFields.actorUid: _uid,
+        RoomEventsFields.sessionKey: sessionKey,
+        RoomEventsFields.payload: payload,
+      });
+      return null;
+    } on FirebaseException catch (e) {
+      return e.message ?? e.code;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// ホストのみの共有イベント（中身は [publishRoomEvent] と同じ）。
+  Future<String?> publishHostRoomEvent({
+    required String type,
+    required Map<String, dynamic> payload,
+    required int sessionKey,
+  }) async {
+    if (!isHost) return 'ホストのみ書けます';
+    return publishRoomEvent(type: type, payload: payload, sessionKey: sessionKey);
+  }
+
+  /// 現在の試合 sessionKey（gimmickSeed）で events を購読（ルーム doc / members に加えて 1 本）。
+  void startRoomEventsListener(int sessionKey) {
+    if (_roomId == null) return;
+    final rid = _roomId!;
+    _eventsSub?.cancel();
+    _eventsSub = _db
+        .collection('rooms')
+        .doc(rid)
+        .collection('events')
+        .where(RoomEventsFields.sessionKey, isEqualTo: sessionKey)
+        .orderBy(RoomEventsFields.emittedAtMs)
+        .snapshots()
+        .listen((snap) {
+          for (final change in snap.docChanges) {
+            if (change.type == DocumentChangeType.removed) continue;
+            final data = change.doc.data();
+            if (data == null) continue;
+            final ev = RoomMatchEvent.tryParse(change.doc.id, data);
+            if (ev != null && !_roomEventCtrl.isClosed) {
+              _roomEventCtrl.add(ev);
+            }
+          }
+        });
+  }
+
+  void stopRoomEventsListener() {
+    _eventsSub?.cancel();
+    _eventsSub = null;
+  }
+
   /// ホストのみ。試合開始データと phase=running を 1 回で書く。
   Future<String?> publishMatchStart(SharedMatchSnapshot snapshot) async {
     if (_roomId == null) return 'ルームに参加していません';
@@ -258,6 +330,16 @@ class FirestoreRoomSession implements RoomSessionPort {
         matchStart: _latestMatchStart,
       );
       if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
+      final err = await publishHostRoomEvent(
+        type: RoomMatchEventTypes.matchStart,
+        payload: {
+          'gimmickSeed': snapshot.gimmickSeed,
+          'startedAtUtc': started,
+        },
+        sessionKey: snapshot.gimmickSeed,
+      );
+      if (err != null) return err;
+      startRoomEventsListener(snapshot.gimmickSeed);
       return null;
     } on FirebaseException catch (e) {
       return e.message ?? e.code;
@@ -296,6 +378,19 @@ class FirestoreRoomSession implements RoomSessionPort {
         ),
       );
       if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
+      final sk = _latestMatchStart?.gimmickSeed;
+      if (sk != null) {
+        final err = await publishHostRoomEvent(
+          type: RoomMatchEventTypes.matchEnd,
+          payload: {
+            'endReason': endReason,
+            'outcome': outcome.name,
+            'message': message,
+          },
+          sessionKey: sk,
+        );
+        if (err != null) return err;
+      }
       return null;
     } on FirebaseException catch (e) {
       return e.message ?? e.code;
@@ -304,7 +399,6 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
-  /// ホストのみ。ロビーへ戻す（共有試合データをクリア）。
   Future<String?> updateRoomPhase(String phase) async {
     if (_roomId == null) return 'ルームに参加していません';
     if (!isHost) return 'ホストのみ変更できます';
@@ -317,6 +411,7 @@ class FirestoreRoomSession implements RoomSessionPort {
         patch[RoomDocFields.endMessage] = FieldValue.delete();
         patch[RoomDocFields.endedAtUtc] = FieldValue.delete();
         _latestMatchStart = null;
+        stopRoomEventsListener();
       }
       await _db.collection('rooms').doc(_roomId).update(patch);
       _phase = RoomPhase.normalize(phase);
@@ -409,7 +504,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
     }
-    await ref.set(payload);
+    await ref.set(payload, SetOptions(merge: true));
   }
 
   void _startHeartbeat() {
@@ -427,6 +522,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     _membersSub = null;
     await _roomSub?.cancel();
     _roomSub = null;
+    stopRoomEventsListener();
     _hostUid = null;
     _phase = RoomPhase.lobby;
     _latestMatchStart = null;

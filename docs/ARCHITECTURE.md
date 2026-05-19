@@ -36,6 +36,12 @@
 - 参加者は共有データを適用してから試合開始（ローカル乱数は使わない）
 - `firestore.rules` — `rooms/{id}` はホストのみ update（members は自分のみ）
 
+## オンライン同期（Phase B — append-only events）
+
+- `rooms/{roomId}/events/{eventId}` — **create のみ**（update/delete 禁止）。`sessionKey` は `matchStart.gimmickSeed` と一致させ、試合中だけ購読する（ルーム doc / members に加えて **events 1 本**）。
+- `FirestoreRoomSession.publishRoomEvent` / `publishHostRoomEvent` — 参加者が書ける型とホスト専用型をルールで分離。
+- `GameMapScreen` — `roomMatchEvents` を受けて露出・偽情報・情報屋・捕獲結界を全員で揃える。常時 GPS は members に載せない方針は維持。
+
 今後さらに分ける候補:
 
 - スキル発動 UI コールバックの整理（画面から Match 層へ）
@@ -47,7 +53,7 @@
 - `RoomSessionPort` — オンライン / ローカル単体の抽象
 - `OfflineSyncQueue` — イベントの再送
 
-ロビー UI は `room_lobby_screen.dart`、ゲーム内ホスト操作はまだ端末ローカルが多い（今後 Firestore イベント化）。
+ロビー UI は `room_lobby_screen.dart`、試合中の共有イベントは `events` サブコレクション経由（Phase B）。
 
 ## テスト
 

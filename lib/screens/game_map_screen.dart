@@ -55,6 +55,7 @@ import '../sync/firestore_room_session.dart';
 import '../sync/firestore_room_blueprint.dart';
 import '../sync/room_phase.dart';
 import '../sync/shared_match_snapshot.dart';
+import '../sync/room_match_event.dart';
 import '../sync/remote_member_snapshot.dart';
 import '../sync/room_member_view.dart';
 import '../services/location_service.dart';
@@ -176,6 +177,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
   StreamSubscription<RoomMatchState>? _roomMatchSub;
+  StreamSubscription<RoomMatchEvent>? _roomEventSub;
+  final Set<String> _processedRoomEventDocIds = {};
+  final Map<String, Timer> _captureBoundTimers = {};
   bool _ownsRoomSession = false;
 
   /// オンラインで鬼役の位置が members に載っている。
@@ -327,6 +331,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     _remoteMembersSub = null;
     _roomMatchSub?.cancel();
     _roomMatchSub = null;
+    _roomEventSub?.cancel();
+    _roomEventSub = null;
+    _processedRoomEventDocIds.clear();
+    _cancelCaptureBoundTimers();
     if (_roomSession is FirestoreRoomSession) {
       await (_roomSession as FirestoreRoomSession).disconnect();
     }
@@ -384,12 +392,26 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     _roomMatchSub?.cancel();
     _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
+
+    _roomEventSub?.cancel();
+    _roomEventSub = session.roomMatchEvents.listen(_onRemoteRoomMatchEvent);
+
+    final rm = session.currentRoomMatch;
+    if (rm.phase == RoomPhase.running && rm.matchStart != null) {
+      session.startRoomEventsListener(rm.matchStart!.gimmickSeed);
+    }
+    if (!_isHost) {
+      _onRemoteRoomMatchState(rm);
+    }
   }
 
   void _onRemoteRoomMatchState(RoomMatchState state) {
     if (!mounted || _isHost) return;
     switch (state.phase) {
       case RoomPhase.running:
+        if (state.matchStart != null) {
+          _firestoreSession?.startRoomEventsListener(state.matchStart!.gimmickSeed);
+        }
         if (_gameState == GameState.waiting &&
             !_editingArea &&
             state.matchStart != null) {
@@ -950,6 +972,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _startGameCore() {
+    _processedRoomEventDocIds.clear();
     setState(() {
       _gameState = GameState.running;
       _afterCatchRule = null;
@@ -1069,6 +1092,8 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _resetGame({bool skipFirestoreSync = false}) {
     _matchTimer?.cancel();
+    _cancelCaptureBoundTimers();
+    _processedRoomEventDocIds.clear();
     _matchRecorder?.discard();
     _matchRecorder = null;
     _finalizeRecordingFuture = null;
@@ -1210,6 +1235,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     bool skipFirestoreSync = false,
   }) {
     _matchTimer?.cancel();
+    _cancelCaptureBoundTimers();
     final outcome = result;
     if (result == GameState.caughtByOni) {
       _tracePoints.add(_currentPosition);
@@ -1350,6 +1376,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       type: 'infection_reveal',
       message: '感染露出パルス',
       position: _positionForReveal,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreReveal(
+        revealKind: 'infection_reveal',
+        message: '感染露出パルス',
+        position: _positionForReveal,
+        playerLabel: _localPlayerLabel,
+        overflowMeters: 0,
+      ),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1400,6 +1436,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       type: 'area_reveal',
       message: 'エリア外猶予超過で位置暴露',
       position: _positionForReveal,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreReveal(
+        revealKind: 'area_reveal',
+        message: 'エリア外猶予超過で位置暴露',
+        position: shown,
+        playerLabel: playerLabel,
+        overflowMeters: overflowMeters,
+      ),
     );
     _retuneGpsIfNeeded();
   }
@@ -1421,7 +1467,21 @@ class _GameMapScreenState extends State<GameMapScreen>
       _statusMessage = message;
     });
     _pushHudRevealAlert('$playerLabel の位置情報を受信');
-    _emitMatchEvent(type: type, message: message, position: shown);
+    _emitMatchEvent(
+      type: type,
+      message: message,
+      position: shown,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreReveal(
+        revealKind: type,
+        message: message,
+        position: shown,
+        playerLabel: playerLabel,
+        overflowMeters: 0,
+      ),
+    );
   }
 
   void _evaluateSafeZone() {
@@ -1536,6 +1596,19 @@ class _GameMapScreenState extends State<GameMapScreen>
       type: 'info_broker',
       message: '情報屋を利用: $intel',
       position: hit,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreInfoBroker(
+        intel: intel,
+        hitIndex: hitIndex,
+        pickupLat: hit.latitude,
+        pickupLng: hit.longitude,
+        nextLat: nextInfoBroker.latitude,
+        nextLng: nextInfoBroker.longitude,
+        oniLat: _oniPosition.latitude,
+        oniLng: _oniPosition.longitude,
+      ),
     );
   }
 
@@ -1675,6 +1748,15 @@ class _GameMapScreenState extends State<GameMapScreen>
       type: 'accidental_reveal',
       message: self ? '事故風の位置暴露（自分）' : '事故風の位置暴露（他人）',
       position: p,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreFakeIntelReveal(
+        message: self ? '事故風の位置暴露（自分）' : '事故風の位置暴露（他人）',
+        position: p,
+        playerLabel: label,
+        pickedSelf: self,
+      ),
     );
     HapticFeedback.mediumImpact();
   }
@@ -1735,10 +1817,436 @@ class _GameMapScreenState extends State<GameMapScreen>
     setState(() => _statusMessage = '体投げ発動中');
   }
 
+  int? get _matchEventSessionKey =>
+      _firestoreSession?.currentMatchStart?.gimmickSeed;
+
+  static const _fsMatchEventInnerTypes = <String>{
+    'gimmicks_generated',
+    'trace_drop',
+    'after_catch_rule',
+    'safe_charge',
+    'body_throw_start',
+    'werewolf_transform_start',
+    'fake_start',
+  };
+
+  void _cancelCaptureBoundTimers() {
+    for (final t in _captureBoundTimers.values) {
+      t.cancel();
+    }
+    _captureBoundTimers.clear();
+  }
+
+  void _scheduleHostCaptureBoundOnce({
+    required String placeId,
+    required LatLng center,
+    required List<String> targetUids,
+  }) {
+    if (!_isHost) return;
+    if (_captureBoundTimers.containsKey(placeId)) return;
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null) return;
+    _captureBoundTimers[placeId] = Timer(const Duration(milliseconds: 2000), () async {
+      _captureBoundTimers.remove(placeId);
+      if (!mounted || _gameState != GameState.running) return;
+      final err = await fs.publishHostRoomEvent(
+        type: RoomMatchEventTypes.captureZoneBound,
+        payload: {
+          'placeId': placeId,
+          'targetUids': targetUids,
+          'centerLat': center.latitude,
+          'centerLng': center.longitude,
+          'durationSec': GameConfig.captureZoneDurationSeconds,
+        },
+        sessionKey: sk,
+      );
+      if (err != null && mounted) {
+        _toast(err);
+      }
+    });
+  }
+
+  List<String> _captureTargetUidsForFirestore(Set<String> raw) {
+    final myUid = _firestoreSession?.myUid;
+    return raw
+        .map((id) => id == 'self' ? (myUid ?? 'self') : id)
+        .toList(growable: false);
+  }
+
+  Future<void> _publishCaptureZonePlaced(
+    String placeId,
+    LatLng pos,
+    Set<String> rawTargets,
+  ) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.captureZonePlaced,
+      payload: {
+        'placeId': placeId,
+        'centerLat': pos.latitude,
+        'centerLng': pos.longitude,
+        'durationSec': GameConfig.captureZoneDurationSeconds,
+        'targetUids': _captureTargetUidsForFirestore(rawTargets),
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishCaptureZoneAckIfNeeded(
+    RoomMatchEvent ev,
+    FirestoreRoomSession fs,
+    String placeId,
+  ) async {
+    final sk = _matchEventSessionKey;
+    if (sk == null) return;
+    final raw = ev.payload['targetUids'];
+    if (raw is! List) return;
+    final targets = raw.map((e) => e.toString()).toList();
+    final myUid = fs.myUid;
+    if (myUid == null || !targets.contains(myUid)) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.captureZoneAck,
+      payload: {'placeId': placeId},
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishFirestoreReveal({
+    required String revealKind,
+    required String message,
+    required LatLng position,
+    required String playerLabel,
+    required double overflowMeters,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null ||
+        sk == null ||
+        !_isOnlineFirestore ||
+        _gameState != GameState.running) {
+      return;
+    }
+    final msg = message.length > 400 ? message.substring(0, 400) : message;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.reveal,
+      payload: {
+        'revealKind': revealKind,
+        'message': msg,
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'playerLabel': playerLabel,
+        'overflowMeters': overflowMeters,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishFirestoreFakeIntelReveal({
+    required String message,
+    required LatLng position,
+    required String playerLabel,
+    required bool pickedSelf,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null ||
+        sk == null ||
+        !_isOnlineFirestore ||
+        _gameState != GameState.running) {
+      return;
+    }
+    final msg = message.length > 400 ? message.substring(0, 400) : message;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.fakeIntelReveal,
+      payload: {
+        'message': msg,
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'playerLabel': playerLabel,
+        'pickedSelf': pickedSelf,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishFirestoreInfoBroker({
+    required String intel,
+    required int hitIndex,
+    required double pickupLat,
+    required double pickupLng,
+    required double nextLat,
+    required double nextLng,
+    required double oniLat,
+    required double oniLng,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null ||
+        sk == null ||
+        !_isOnlineFirestore ||
+        _gameState != GameState.running) {
+      return;
+    }
+    final text = intel.length > 400 ? intel.substring(0, 400) : intel;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.infoBroker,
+      payload: {
+        'intel': text,
+        'hitIndex': hitIndex,
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'nextLat': nextLat,
+        'nextLng': nextLng,
+        'oniLat': oniLat,
+        'oniLng': oniLng,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishFirestoreMatchEventInner({
+    required String innerType,
+    required String message,
+    required LatLng position,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null ||
+        sk == null ||
+        !_isOnlineFirestore ||
+        _gameState != GameState.running) {
+      return;
+    }
+    final msg = message.length > 400 ? message.substring(0, 400) : message;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.matchEvent,
+      payload: {
+        'innerType': innerType,
+        'message': msg,
+        'lat': position.latitude,
+        'lng': position.longitude,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  void _onRemoteRoomMatchEvent(RoomMatchEvent ev) {
+    if (!mounted) return;
+    if (_processedRoomEventDocIds.contains(ev.id)) return;
+    _processedRoomEventDocIds.add(ev.id);
+    final sk = _matchEventSessionKey;
+    if (sk == null || ev.sessionKey != sk) return;
+    if (_gameState != GameState.running) return;
+    final fs = _firestoreSession;
+    if (fs == null) return;
+
+    switch (ev.type) {
+      case RoomMatchEventTypes.matchStart:
+      case RoomMatchEventTypes.matchEnd:
+        return;
+      case RoomMatchEventTypes.reveal:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteReveal(ev);
+        return;
+      case RoomMatchEventTypes.fakeIntelReveal:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteFakeIntelReveal(ev);
+        return;
+      case RoomMatchEventTypes.infoBroker:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteInfoBroker(ev);
+        return;
+      case RoomMatchEventTypes.matchEvent:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteMatchEventLog(ev);
+        return;
+      case RoomMatchEventTypes.captureZonePlaced:
+        final placeId = ev.payload['placeId'] as String?;
+        if (placeId == null) return;
+        if (ev.actorUid != fs.myUid) {
+          _applyRemoteCaptureZonePlaced(ev);
+        }
+        unawaited(_publishCaptureZoneAckIfNeeded(ev, fs, placeId));
+        if (_isHost && !_captureBoundTimers.containsKey(placeId)) {
+          final cLat = ev.payload['centerLat'];
+          final cLng = ev.payload['centerLng'];
+          final raw = ev.payload['targetUids'];
+          if (cLat is num &&
+              cLng is num &&
+              raw is List) {
+            _scheduleHostCaptureBoundOnce(
+              placeId: placeId,
+              center: LatLng(cLat.toDouble(), cLng.toDouble()),
+              targetUids: raw.map((e) => e.toString()).toList(growable: false),
+            );
+          }
+        }
+        return;
+      case RoomMatchEventTypes.captureZoneBound:
+        _applyRemoteCaptureZoneBound(ev, fs);
+        return;
+      case RoomMatchEventTypes.captureZoneAck:
+        return;
+      default:
+        return;
+    }
+  }
+
+  void _applyRemoteReveal(RoomMatchEvent ev) {
+    final pos = RoomMatchEvent.latLngFromPayload(ev.payload);
+    if (pos == null) return;
+    final label = ev.payload['playerLabel'] as String? ?? 'player1';
+    final overflow = (ev.payload['overflowMeters'] as num?)?.toDouble() ?? 0;
+    if (!mounted) return;
+    setState(() {
+      _rt.revealCount += 1;
+      _rt.revealLog.insert(
+        0,
+        LocationRevealEvent(
+          sequence: _rt.revealCount,
+          timestamp: DateTime.now(),
+          position: pos,
+          overflowMeters: overflow,
+          playerLabel: label,
+        ),
+      );
+      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
+      _statusMessage = ev.payload['message'] as String? ?? '位置情報を受信';
+    });
+    final rk = ev.payload['revealKind'] as String? ?? 'reveal';
+    _pushHudRevealAlert('$label の位置情報を受信（$rk）');
+    HapticFeedback.mediumImpact();
+  }
+
+  void _applyRemoteFakeIntelReveal(RoomMatchEvent ev) {
+    final pos = RoomMatchEvent.latLngFromPayload(ev.payload);
+    if (pos == null) return;
+    final label = ev.payload['playerLabel'] as String? ?? '不明なプレイヤー';
+    if (!mounted) return;
+    setState(() {
+      _rt.revealCount += 1;
+      _rt.revealLog.insert(
+        0,
+        LocationRevealEvent(
+          sequence: _rt.revealCount,
+          timestamp: DateTime.now(),
+          position: pos,
+          overflowMeters: 0,
+          playerLabel: label,
+        ),
+      );
+      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
+      _statusMessage = ev.payload['message'] as String? ?? '偽情報暴露';
+    });
+    _pushHudRevealAlert('偽情報暴露: $label の位置情報を受信');
+    HapticFeedback.mediumImpact();
+  }
+
+  void _applyRemoteInfoBroker(RoomMatchEvent ev) {
+    final intel = ev.payload['intel'] as String?;
+    final hitIndex = (ev.payload['hitIndex'] as num?)?.toInt();
+    final nextLat = (ev.payload['nextLat'] as num?)?.toDouble();
+    final nextLng = (ev.payload['nextLng'] as num?)?.toDouble();
+    final oniLat = (ev.payload['oniLat'] as num?)?.toDouble();
+    final oniLng = (ev.payload['oniLng'] as num?)?.toDouble();
+    if (intel == null || hitIndex == null || nextLat == null || nextLng == null) {
+      return;
+    }
+    final tracePos = oniLat != null && oniLng != null
+        ? LatLng(oniLat, oniLng)
+        : _oniPosition;
+    if (hitIndex < 0 || hitIndex >= _rt.infoBrokerPositions.length) return;
+    final now = DateTime.now();
+    if (!mounted) return;
+    setState(() {
+      _rt.lastInfoBrokerAt = now;
+      _rt.infoBrokerAvailable = false;
+      _rt.infoBrokerRespawnAt = now.add(
+        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
+      );
+      _rt.lastOniIntelText = intel;
+      _rt.lastOniIntelAt = now;
+      _rt.showOniIntelCard = true;
+      _rt.oniIntelTraces.insert(
+        0,
+        OniIntelTrace(timestamp: now, position: tracePos, text: intel),
+      );
+      if (_rt.oniIntelTraces.length > 20) {
+        _rt.oniIntelTraces.removeLast();
+      }
+      _rt.infoBrokerPositions[hitIndex] = LatLng(nextLat, nextLng);
+      _statusMessage = '情報屋: $intel';
+    });
+    HapticFeedback.lightImpact();
+  }
+
+  void _applyRemoteMatchEventLog(RoomMatchEvent ev) {
+    final inner = ev.payload['innerType'] as String? ?? 'match_event';
+    final msg = ev.payload['message'] as String? ?? '';
+    final pos = RoomMatchEvent.latLngFromPayload(ev.payload) ?? _currentPosition;
+    final event = MatchEvent(
+      type: inner,
+      atUtc: DateTime.now().toUtc(),
+      message: msg,
+      position: pos,
+    );
+    if (!mounted) return;
+    setState(() {
+      _rt.matchEvents.insert(0, event);
+      if (_rt.matchEvents.length > 120) {
+        _rt.matchEvents.removeLast();
+      }
+    });
+  }
+
+  void _applyRemoteCaptureZonePlaced(RoomMatchEvent ev) {
+    final cLat = ev.payload['centerLat'];
+    final cLng = ev.payload['centerLng'];
+    final dur = (ev.payload['durationSec'] as num?)?.toInt() ??
+        GameConfig.captureZoneDurationSeconds;
+    if (cLat is! num || cLng is! num) return;
+    final center = LatLng(cLat.toDouble(), cLng.toDouble());
+    final now = DateTime.now();
+    if (!mounted) return;
+    setState(() {
+      _rt.waitingCaptureZoneTap = false;
+      _rt.captureZoneCenter = center;
+      _rt.captureZoneBoundIds = {};
+      _rt.captureZoneTargetLeftAt = null;
+      _rt.captureZoneEscapeRevealed = false;
+      _rt.captureZoneEndsAt = now.add(Duration(seconds: dur));
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  void _applyRemoteCaptureZoneBound(RoomMatchEvent ev, FirestoreRoomSession fs) {
+    final raw = ev.payload['targetUids'];
+    if (raw is! List) return;
+    final targets = raw.map((e) => e.toString()).toSet();
+    final myUid = fs.myUid;
+    if (!mounted) return;
+    setState(() {
+      if (myUid != null && targets.contains(myUid)) {
+        _rt.captureZoneBoundIds = const {'self'};
+      }
+    });
+  }
+
   void _emitMatchEvent({
     required String type,
     required String message,
     required LatLng position,
+    bool syncFirestore = true,
+    bool queueOffline = true,
   }) {
     final event = MatchEvent(
       type: type,
@@ -1750,16 +2258,30 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_rt.matchEvents.length > 120) {
       _rt.matchEvents.removeLast();
     }
-    _offlineQueue
-        .push(
-          OfflineSyncItem(
-            id: 'ev_${event.atUtc.microsecondsSinceEpoch}_${event.type}',
-            kind: 'match_event',
-            createdAtUtc: event.atUtc.toIso8601String(),
-            payload: event.toJson(),
-          ),
-        )
-        .then((_) => _refreshOfflineQueueCount());
+    if (queueOffline) {
+      _offlineQueue
+          .push(
+            OfflineSyncItem(
+              id: 'ev_${event.atUtc.microsecondsSinceEpoch}_${event.type}',
+              kind: 'match_event',
+              createdAtUtc: event.atUtc.toIso8601String(),
+              payload: event.toJson(),
+            ),
+          )
+          .then((_) => _refreshOfflineQueueCount());
+    }
+    if (syncFirestore &&
+        _isOnlineFirestore &&
+        _gameState == GameState.running &&
+        _fsMatchEventInnerTypes.contains(type)) {
+      unawaited(
+        _publishFirestoreMatchEventInner(
+          innerType: type,
+          message: message,
+          position: position,
+        ),
+      );
+    }
   }
 
   Future<void> _clearTracePoints() async {
@@ -1957,10 +2479,13 @@ class _GameMapScreenState extends State<GameMapScreen>
         pos.latitude,
         pos.longitude,
       );
+      final rawTargets = _captureZoneTargetsAt(pos, d);
+      final placeId =
+          'cz_${now.millisecondsSinceEpoch}_${_firestoreSession?.myUid ?? 'local'}';
       setState(() {
         _rt.waitingCaptureZoneTap = false;
         _rt.captureZoneCenter = pos;
-        _rt.captureZoneBoundIds = _captureZoneTargetsAt(pos, d);
+        _rt.captureZoneBoundIds = rawTargets;
         _rt.captureZoneTargetLeftAt = null;
         _rt.captureZoneEscapeRevealed = false;
         _rt.captureZoneEndsAt = now.add(
@@ -1972,7 +2497,18 @@ class _GameMapScreenState extends State<GameMapScreen>
         type: 'capture_zone_start',
         message: '捕獲結界を設置',
         position: pos,
+        syncFirestore: !_isOnlineFirestore,
       );
+      if (_isOnlineFirestore) {
+        unawaited(_publishCaptureZonePlaced(placeId, pos, rawTargets));
+        if (_isHost) {
+          _scheduleHostCaptureBoundOnce(
+            placeId: placeId,
+            center: pos,
+            targetUids: _captureTargetUidsForFirestore(rawTargets),
+          );
+        }
+      }
       return;
     }
     if (!_editingArea) return;
@@ -2509,9 +3045,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     _proximitySubscription?.cancel();
     _remoteMembersSub?.cancel();
     _roomMatchSub?.cancel();
+    _roomEventSub?.cancel();
     _matchTimer?.cancel();
     _hudRevealAlertTimer?.cancel();
     _renderPump?.cancel();
+    _cancelCaptureBoundTimers();
     _dangerPulseController.dispose();
     _proximityService.stop();
     if (_ownsRoomSession) {
