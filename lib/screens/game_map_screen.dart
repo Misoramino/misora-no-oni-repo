@@ -35,9 +35,12 @@ import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import '../settings/oni_operator_prefs.dart';
 import 'match_gallery_screen.dart';
+import 'match_result_screen.dart';
 import 'oni_operator_screen.dart';
 import 'privacy_control_screen.dart';
 import 'room_lobby_screen.dart';
+
+enum _ControlSheetMode { hidden, skillsOnly, expanded }
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, this.onlineSession, super.key});
@@ -87,6 +90,15 @@ String _skillLabel(String id) => switch (id) {
   SkillIds.fakeIntelReveal => '偽情報暴露',
   SkillIds.captureZone => '捕獲結界',
   SkillIds.bodyThrow => '体投げ',
+  SkillIds.werewolfTransform => '鬼化',
+  _ => id,
+};
+
+String _skillShortLabel(String id) => switch (id) {
+  SkillIds.fakePosition => '偽位置',
+  SkillIds.fakeIntelReveal => '偽情報',
+  SkillIds.captureZone => '結界',
+  SkillIds.bodyThrow => '体投',
   SkillIds.werewolfTransform => '鬼化',
   _ => id,
 };
@@ -375,7 +387,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = false;
   late WorldProfile _activeProfile;
-  bool _menuCollapsed = false;
+  /// 操作パネル: 非表示 / スキルのみ / すべて表示
+  _ControlSheetMode _controlSheetMode = _ControlSheetMode.skillsOnly;
+  bool _hudExpanded = false;
 
   /// 準備・試合結果中は操作パネルを隠し、FAB「操作」で開く。
   bool _prepControlSheetOpen = false;
@@ -908,6 +922,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       _infectionEndsAt = null;
       _lastInfectionRevealAt = null;
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
+      _controlSheetMode = _ControlSheetMode.skillsOnly;
+      _hudExpanded = false;
     });
     _emitMatchEvent(
       type: 'gimmicks_generated',
@@ -1145,6 +1161,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _finalizeRecordingFuture = Future<void>.microtask(
       () => _finalizeMatchRecording(outcome),
     );
+    unawaited(_openMatchResultScreen());
   }
 
   void _evaluateGame() {
@@ -2121,7 +2138,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     final fallback = Offset(16, math.max(96, screenSize.height - 190));
     final next = raw ?? fallback;
     return Offset(
-      next.dx.clamp(8.0, math.max(8, screenSize.width - fabWidth)),
+      next.dx.clamp(0.0, math.max(0, screenSize.width - fabWidth)),
       next.dy.clamp(72.0, math.max(72, screenSize.height - fabHeight - 16)),
     );
   }
@@ -2798,10 +2815,70 @@ class _GameMapScreenState extends State<GameMapScreen>
     unawaited(_reloadProximityStackFromPrefs());
   }
 
-  void _toggleMenuCollapsed() {
+  void _cycleControlSheetMode() {
     setState(() {
-      _menuCollapsed = !_menuCollapsed;
+      _controlSheetMode = switch (_controlSheetMode) {
+        _ControlSheetMode.hidden => _ControlSheetMode.skillsOnly,
+        _ControlSheetMode.skillsOnly => _ControlSheetMode.expanded,
+        _ControlSheetMode.expanded => _ControlSheetMode.hidden,
+      };
     });
+  }
+
+  String _matchDurationLabel() {
+    final m = (_matchDurationSeconds / 60).round();
+    return '$m 分';
+  }
+
+  int _cooldownRemainingSeconds(DateTime? lastUsedAt, int cooldownSeconds) {
+    if (lastUsedAt == null) return 0;
+    final remain =
+        cooldownSeconds - DateTime.now().difference(lastUsedAt).inSeconds;
+    return remain < 0 ? 0 : remain;
+  }
+
+  int? _buffRemainingSeconds(DateTime? endsAt) {
+    if (endsAt == null) return null;
+    final remain = endsAt.difference(DateTime.now()).inSeconds;
+    return remain < 0 ? 0 : remain;
+  }
+
+  Future<void> _openMatchResultScreen() async {
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => MatchResultScreen(
+          outcome: _gameState,
+          detail: _statusMessage,
+          roleSummary:
+              '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(_skillLabel).join("・")}',
+          matchDurationLabel: _matchDurationLabel(),
+          afterCatchRule: _afterCatchRule,
+          onPrepareNext: () {
+            Navigator.of(context).pop();
+            _resetGame();
+          },
+          onOpenGallery: () async {
+            Navigator.of(context).pop();
+            await _openMatchGallery();
+          },
+          onOpenLobby: () async {
+            Navigator.of(context).pop();
+            await _openRoomLobby();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _recenterMapOnGps() {
+    if (_mapController == null) return;
+    unawaited(
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(_currentPosition, 16),
+      ),
+    );
+    _toast('現在地へ移動しました');
   }
 
   Future<void> _openCustomMenu() async {
@@ -2890,10 +2967,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                         DropdownButtonFormField<OniIntelMode>(
                           initialValue: selectedIntel,
                           decoration: InputDecoration(
-                            labelText: '鬼情報モード',
+                            labelText: '情報屋の鬼情報モード',
                             helperText:
-                                '「断片」は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが変わり、方位・距離が周期欠落します。',
-                            helperMaxLines: 3,
+                                '情報屋で入手する鬼の手がかりの出し方。未設定時は方角のみ・距離帯のみ・断片のいずれかがランダム相当で切り替わります。「断片」は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが変わります。',
+                            helperMaxLines: 4,
                           ),
                           items: OniIntelMode.values
                               .map(
@@ -2985,7 +3062,14 @@ class _GameMapScreenState extends State<GameMapScreen>
                           onChanged: (v) =>
                               setModalState(() => selectedCustomRuleMode = v),
                         ),
-                        Text('制限時間: ${selectedDurationMinutes.round()} 分'),
+                        Text(
+                          '制限時間: ${selectedDurationMinutes.round()} 分',
+                          style: Theme.of(ctx).textTheme.titleSmall,
+                        ),
+                        const Text(
+                          '試合の長さはここで決めます。準備画面にも同じ値が表示されます。',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         Slider(
                           min: 1,
                           max: 20,
@@ -3576,7 +3660,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         _gameState == GameState.runnerWin ||
         _gameState == GameState.caughtByOni;
     final showHudPanel = running;
-    final showBottomControlSheet = running || _prepControlSheetOpen;
+    final panelHidden = _controlSheetMode == _ControlSheetMode.hidden;
+    final showBottomControlSheet =
+        (running || _prepControlSheetOpen) && !panelHidden;
+    final showControlFab =
+        (!running && !_prepControlSheetOpen) || (running && panelHidden);
     final showGameMap =
         _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
     final appTitle = switch (_gameState) {
@@ -3645,6 +3733,15 @@ class _GameMapScreenState extends State<GameMapScreen>
                   break;
                 case 'test':
                   _toggleTestMode();
+                  break;
+                case 'result':
+                  if (ended) await _openMatchResultScreen();
+                  break;
+                case 'dev_reset':
+                  if (_testMode) _resetGame();
+                  break;
+                case 'dev_abort':
+                  if (_testMode) await _requestAbortByVote();
                   break;
                 case 'import':
                   if (_gameState == GameState.running) {
@@ -3729,6 +3826,33 @@ class _GameMapScreenState extends State<GameMapScreen>
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              if (ended)
+                const PopupMenuItem(
+                  value: 'result',
+                  child: ListTile(
+                    leading: Icon(Icons.emoji_events_outlined),
+                    title: Text('リザルト画面'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              if (_testMode && running) ...[
+                const PopupMenuItem(
+                  value: 'dev_abort',
+                  child: ListTile(
+                    leading: Icon(Icons.how_to_vote_outlined),
+                    title: Text('中止提案（開発）'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'dev_reset',
+                  child: ListTile(
+                    leading: Icon(Icons.stop_circle_outlined),
+                    title: Text('強制リセット（開発）'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
               const PopupMenuDivider(),
               PopupMenuItem(
                 value: 'import',
@@ -3774,6 +3898,8 @@ class _GameMapScreenState extends State<GameMapScreen>
             _PrepLobbyPanel(
               roomLabel: _roomSession.modeLabel,
               playAreaLabel: _playAreaSummary(),
+              matchDurationLabel: _matchDurationLabel(),
+              onOpenCustomSettings: _openCustomMenu,
               onShowMap: () => setState(() {
                 _mapVisibleInLobby = true;
                 _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
@@ -3831,14 +3957,36 @@ class _GameMapScreenState extends State<GameMapScreen>
               top: 12,
               left: 12,
               right: 12,
-              child: _MatchOutcomeBanner(
-                outcome: _gameState,
-                detail: _statusMessage,
-                roleSummary:
-                    '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(_skillLabel).join("・")}',
-                onPrepareNext: _resetGame,
-                onOpenGallery: _openMatchGallery,
-                onOpenLobby: _openRoomLobby,
+              child: Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(10),
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.emoji_events_outlined),
+                  title: Text(_gameState.label),
+                  subtitle: Text(
+                    _statusMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: TextButton(
+                    onPressed: _openMatchResultScreen,
+                    child: const Text('リザルト'),
+                  ),
+                ),
+              ),
+            ),
+          if (ended &&
+              _gameState == GameState.caughtByOni &&
+              _afterCatchRule != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: showBottomControlSheet ? 200 : 24,
+              child: _GhostSpectatorBar(
+                rule: _afterCatchRule!,
+                onOpenResult: _openMatchResultScreen,
               ),
             ),
           if (_editingArea && !running && !ended)
@@ -3877,6 +4025,9 @@ class _GameMapScreenState extends State<GameMapScreen>
               left: 16,
               right: 16,
               child: _InfoPanel(
+                expanded: _hudExpanded,
+                onToggleExpanded: () =>
+                    setState(() => _hudExpanded = !_hudExpanded),
                 intelLine: _latestIntelLine(),
                 showIntelLine: _showOniIntelCard,
                 onDismissIntel: () => setState(() {
@@ -3887,7 +4038,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 statusText: _statusMessage,
                 areaText: isOutBeyondGrace
                     ? '猶予超過: +${overflowMeters.toStringAsFixed(0)}m'
-                    : 'エリア内（またはGPS猶予内）',
+                    : 'エリア内',
                 areaColor: isOutBeyondGrace
                     ? Colors.red.shade700
                     : Colors.green.shade700,
@@ -3895,7 +4046,17 @@ class _GameMapScreenState extends State<GameMapScreen>
                 editing: _editingArea,
                 safeZoneCharges: _safeZoneCharges,
                 conditionText: _conditionLine(),
-                spectatorLine: _afterCatchRule?.infoPanelLine,
+                werewolfBuffSeconds: _buffRemainingSeconds(
+                  _werewolfTransformEndsAt,
+                ),
+                werewolfCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastWerewolfTransformAt,
+                  GameConfig.werewolfTransformCooldownSeconds,
+                ),
+                fakeCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastFakeSkillAt,
+                  GameConfig.fakeSkillCooldownSeconds,
+                ),
               ),
             ),
           if (running && _remainingSeconds <= 10)
@@ -3969,58 +4130,68 @@ class _GameMapScreenState extends State<GameMapScreen>
               bottom: 16,
               left: 16,
               right: 16,
-              child: GestureDetector(
-                onVerticalDragEnd: (details) {
-                  if (details.primaryVelocity == null) return;
-                  if (details.primaryVelocity! > 180) {
-                    if (!_menuCollapsed) _toggleMenuCollapsed();
-                  } else if (details.primaryVelocity! < -180) {
-                    if (_menuCollapsed) _toggleMenuCollapsed();
-                  }
-                },
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 220),
-                  offset: _menuCollapsed ? const Offset(0, 0.74) : Offset.zero,
-                  child: _ControlPanel(
-                    onStart: _startGame,
-                    onReset: _resetGame,
-                    onFakeSkill: _activateFakeSkill,
-                    onFakeIntelReveal: _activateFakeIntelReveal,
-                    onWerewolfHunter: _activateWerewolfHunter,
-                    onCaptureZone: _activateCaptureZone,
-                    onBodyThrow: _activateBodyThrow,
-                    onAbortVote: _requestAbortByVote,
-                    onToggleAreaEdit: _toggleAreaEditor,
-                    onToggleCollapsed: _toggleMenuCollapsed,
-                    onOpenCustomMenu: _openCustomMenu,
-                    onOpenHelp: _showHowToPlaySheet,
-                    onDismissPrepSheet: () => setState(() {
-                      _prepControlSheetOpen = false;
-                    }),
-                    isRunning: running,
-                    canStartMatch: _gameState == GameState.waiting,
-                    isEditing: _editingArea,
-                    fakeSkillActive: _fakePositionActive,
-                    roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
-                    canFakeSkill: _skillLoadout.contains(SkillIds.fakePosition),
-                    canFakeIntelReveal: _skillLoadout.contains(
-                      SkillIds.fakeIntelReveal,
-                    ),
-                    canWerewolfHunter: _skillLoadout.contains(
-                      SkillIds.werewolfTransform,
-                    ),
-                    canCaptureZone: _skillLoadout.contains(
-                      SkillIds.captureZone,
-                    ),
-                    canBodyThrow: _skillLoadout.contains(SkillIds.bodyThrow),
-                    menuCollapsed: _menuCollapsed,
-                    prepLobbyMapHidden:
-                        _gameState == GameState.waiting && !showGameMap,
-                  ),
+              child: _ControlPanel(
+                sheetMode: _controlSheetMode,
+                onCycleSheetMode: _cycleControlSheetMode,
+                onStart: _startGame,
+                onReset: _resetGame,
+                onForceEnd: () =>
+                    _endGame(GameState.runnerWin, 'ホスト操作で試合を終了しました。'),
+                onOpenResult: _openMatchResultScreen,
+                onFakeSkill: _activateFakeSkill,
+                onFakeIntelReveal: _activateFakeIntelReveal,
+                onWerewolfHunter: _activateWerewolfHunter,
+                onCaptureZone: _activateCaptureZone,
+                onBodyThrow: _activateBodyThrow,
+                onRecenterGps: _recenterMapOnGps,
+                onToggleAreaEdit: _toggleAreaEditor,
+                onOpenCustomMenu: _openCustomMenu,
+                onOpenHelp: _showHowToPlaySheet,
+                onDismissPrepSheet: () => setState(() {
+                  _prepControlSheetOpen = false;
+                }),
+                isRunning: running,
+                matchEnded: ended,
+                canStartMatch: _gameState == GameState.waiting,
+                isEditing: _editingArea,
+                fakeSkillActive: _fakePositionActive,
+                roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
+                matchDurationLabel: _matchDurationLabel(),
+                canFakeSkill: _skillLoadout.contains(SkillIds.fakePosition),
+                canFakeIntelReveal: _skillLoadout.contains(
+                  SkillIds.fakeIntelReveal,
                 ),
+                canWerewolfHunter: _skillLoadout.contains(
+                  SkillIds.werewolfTransform,
+                ),
+                canCaptureZone: _skillLoadout.contains(
+                  SkillIds.captureZone,
+                ),
+                canBodyThrow: _skillLoadout.contains(SkillIds.bodyThrow),
+                fakeCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastFakeSkillAt,
+                  GameConfig.fakeSkillCooldownSeconds,
+                ),
+                captureCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastCaptureZoneAt,
+                  GameConfig.captureZoneCooldownSeconds,
+                ),
+                bodyThrowCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastBodyThrowAt,
+                  GameConfig.bodyThrowCooldownSeconds,
+                ),
+                werewolfBuffSeconds: _buffRemainingSeconds(
+                  _werewolfTransformEndsAt,
+                ),
+                werewolfCooldownSeconds: _cooldownRemainingSeconds(
+                  _lastWerewolfTransformAt,
+                  GameConfig.werewolfTransformCooldownSeconds,
+                ),
+                prepLobbyMapHidden:
+                    _gameState == GameState.waiting && !showGameMap,
               ),
-            )
-          else
+            ),
+          if (showControlFab)
             Positioned(
               left: controlFabOffset.dx,
               top: controlFabOffset.dy,
@@ -4035,8 +4206,14 @@ class _GameMapScreenState extends State<GameMapScreen>
                     });
                   },
                   child: FloatingActionButton.extended(
-                    onPressed: () =>
-                        setState(() => _prepControlSheetOpen = true),
+                    onPressed: () => setState(() {
+                      if (running) {
+                        _controlSheetMode = _ControlSheetMode.skillsOnly;
+                      } else {
+                        _prepControlSheetOpen = true;
+                        _controlSheetMode = _ControlSheetMode.expanded;
+                      }
+                    }),
                     icon: const Icon(Icons.tune),
                     label: const Text('操作'),
                   ),
@@ -4049,92 +4226,41 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 }
 
-class _MatchOutcomeBanner extends StatelessWidget {
-  const _MatchOutcomeBanner({
-    required this.outcome,
-    required this.detail,
-    required this.roleSummary,
-    required this.onPrepareNext,
-    required this.onOpenGallery,
-    required this.onOpenLobby,
+class _GhostSpectatorBar extends StatelessWidget {
+  const _GhostSpectatorBar({
+    required this.rule,
+    required this.onOpenResult,
   });
 
-  final GameState outcome;
-  final String detail;
-  final String roleSummary;
-  final VoidCallback onPrepareNext;
-  final VoidCallback onOpenGallery;
-  final VoidCallback onOpenLobby;
+  final EliminationAftermathRule rule;
+  final VoidCallback onOpenResult;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (IconData icon, String title) = switch (outcome) {
-      GameState.runnerWin => (Icons.emoji_events_outlined, '逃走成功'),
-      GameState.caughtByOni => (Icons.front_hand_outlined, '捕獲'),
-      _ => (Icons.flag_outlined, '試合終了'),
-    };
-
     return Material(
       elevation: 4,
       borderRadius: BorderRadius.circular(12),
-      color: theme.colorScheme.surfaceContainerHigh,
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.92),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 32, color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
+            Icon(Icons.visibility_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('幽霊・観戦モード', style: theme.textTheme.titleSmall),
                   Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(detail, style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    '開示: $roleSummary',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '次はリザルト確認、軌跡再生、またはルームロビーへ戻れます。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
+                    rule.infoPanelLine,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               ),
             ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              direction: Axis.vertical,
-              children: [
-                FilledButton(
-                  onPressed: onPrepareNext,
-                  child: const Text('Next setup'),
-                ),
-                OutlinedButton(
-                  onPressed: onOpenGallery,
-                  child: const Text('Replay'),
-                ),
-                OutlinedButton(
-                  onPressed: onOpenLobby,
-                  child: const Text('Lobby'),
-                ),
-              ],
-            ),
+            TextButton(onPressed: onOpenResult, child: const Text('リザルト')),
           ],
         ),
       ),
@@ -4146,12 +4272,16 @@ class _PrepLobbyPanel extends StatelessWidget {
   const _PrepLobbyPanel({
     required this.roomLabel,
     required this.playAreaLabel,
+    required this.matchDurationLabel,
+    required this.onOpenCustomSettings,
     required this.onShowMap,
     required this.onOpenLobby,
   });
 
   final String roomLabel;
   final String playAreaLabel;
+  final String matchDurationLabel;
+  final VoidCallback onOpenCustomSettings;
   final VoidCallback onShowMap;
   final VoidCallback onOpenLobby;
 
@@ -4221,6 +4351,20 @@ class _PrepLobbyPanel extends StatelessWidget {
                     title: const Text('プレイエリア'),
                     subtitle: Text(playAreaLabel),
                   ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.timer_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    title: const Text('制限時間'),
+                    subtitle: Text('$matchDurationLabel（カスタム設定で変更）'),
+                    trailing: IconButton(
+                      tooltip: '制限時間を変更',
+                      onPressed: onOpenCustomSettings,
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   FilledButton.icon(
                     onPressed: onOpenLobby,
@@ -4253,6 +4397,8 @@ class _PrepLobbyPanel extends StatelessWidget {
 
 class _InfoPanel extends StatelessWidget {
   const _InfoPanel({
+    required this.expanded,
+    required this.onToggleExpanded,
     required this.intelLine,
     required this.showIntelLine,
     required this.onDismissIntel,
@@ -4265,9 +4411,13 @@ class _InfoPanel extends StatelessWidget {
     required this.editing,
     required this.safeZoneCharges,
     required this.conditionText,
-    required this.spectatorLine,
+    required this.werewolfBuffSeconds,
+    required this.werewolfCooldownSeconds,
+    required this.fakeCooldownSeconds,
   });
 
+  final bool expanded;
+  final VoidCallback onToggleExpanded;
   final String intelLine;
   final bool showIntelLine;
   final VoidCallback onDismissIntel;
@@ -4280,99 +4430,209 @@ class _InfoPanel extends StatelessWidget {
   final bool editing;
   final int safeZoneCharges;
   final String conditionText;
-  final String? spectatorLine;
+  final int? werewolfBuffSeconds;
+  final int werewolfCooldownSeconds;
+  final int fakeCooldownSeconds;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!expanded) {
+      return Material(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(10),
+        elevation: 1,
+        child: InkWell(
+          onTap: onToggleExpanded,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: areaColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    timerText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    areaText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
+                  _CooldownChip(label: '鬼化', seconds: werewolfBuffSeconds!),
+                if (fakeCooldownSeconds > 0)
+                  _CooldownChip(label: 'CD', seconds: fakeCooldownSeconds),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: onToggleExpanded,
+                  icon: const Icon(Icons.expand_more, size: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
             children: [
               Chip(
-                label: Text(editing ? 'エリア編集中' : gameStateText),
+                label: Text(editing ? '編集中' : gameStateText),
                 visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
               ),
+              const SizedBox(width: 6),
               Text(
                 timerText,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              Text('暴露 $revealCount / ステルス $safeZoneCharges'),
+              const Spacer(),
+              Text(
+                '暴露$revealCount·ステルス$safeZoneCharges',
+                style: theme.textTheme.labelSmall,
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: onToggleExpanded,
+                icon: const Icon(Icons.expand_less, size: 20),
+              ),
             ],
           ),
+          if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0 ||
+              werewolfCooldownSeconds > 0 ||
+              fakeCooldownSeconds > 0) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
+                  _CooldownChip(label: '鬼化残', seconds: werewolfBuffSeconds!),
+                if (werewolfCooldownSeconds > 0)
+                  _CooldownChip(
+                    label: '鬼化CD',
+                    seconds: werewolfCooldownSeconds,
+                  ),
+                if (fakeCooldownSeconds > 0)
+                  _CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
+              ],
+            ),
+          ],
           if (showIntelLine) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
                     intelLine,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
-                  tooltip: '鬼情報をしまう',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
+                    minWidth: 28,
+                    minHeight: 28,
                   ),
                   onPressed: onDismissIntel,
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const Icon(Icons.close, size: 16),
                 ),
               ],
             ),
           ],
-          const SizedBox(height: 2),
-          Text(conditionText, style: Theme.of(context).textTheme.bodySmall),
-          if (spectatorLine != null) ...[
-            const SizedBox(height: 4),
-            Text(spectatorLine!, style: Theme.of(context).textTheme.bodySmall),
-          ],
-          const SizedBox(height: 4),
           Text(
-            statusText,
+            conditionText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: theme.textTheme.bodySmall,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
             decoration: BoxDecoration(
               color: areaColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               areaText,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
+                fontSize: 12,
               ),
             ),
           ),
+          if (statusText.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              statusText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall,
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _CooldownChip extends StatelessWidget {
+  const _CooldownChip({required this.label, required this.seconds});
+
+  final String label;
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text('$label ${seconds}s', style: const TextStyle(fontSize: 11)),
     );
   }
 }
@@ -4502,199 +4762,333 @@ class _AreaEditorCard extends StatelessWidget {
 
 class _ControlPanel extends StatelessWidget {
   const _ControlPanel({
+    required this.sheetMode,
+    required this.onCycleSheetMode,
     required this.onStart,
     required this.onReset,
+    required this.onForceEnd,
+    required this.onOpenResult,
     required this.onFakeSkill,
     required this.onFakeIntelReveal,
     required this.onWerewolfHunter,
     required this.onCaptureZone,
     required this.onBodyThrow,
-    required this.onAbortVote,
+    required this.onRecenterGps,
     required this.onToggleAreaEdit,
-    required this.onToggleCollapsed,
     required this.onOpenCustomMenu,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
     required this.isRunning,
+    required this.matchEnded,
     required this.canStartMatch,
     required this.isEditing,
     required this.fakeSkillActive,
     required this.roleLabel,
+    required this.matchDurationLabel,
     required this.canFakeSkill,
     required this.canFakeIntelReveal,
     required this.canWerewolfHunter,
     required this.canCaptureZone,
     required this.canBodyThrow,
-    required this.menuCollapsed,
+    required this.fakeCooldownSeconds,
+    required this.captureCooldownSeconds,
+    required this.bodyThrowCooldownSeconds,
+    required this.werewolfBuffSeconds,
+    required this.werewolfCooldownSeconds,
     required this.prepLobbyMapHidden,
   });
 
+  final _ControlSheetMode sheetMode;
+  final VoidCallback onCycleSheetMode;
   final VoidCallback onStart;
   final VoidCallback onReset;
+  final VoidCallback onForceEnd;
+  final VoidCallback onOpenResult;
   final VoidCallback onFakeSkill;
   final VoidCallback onFakeIntelReveal;
   final VoidCallback onWerewolfHunter;
   final VoidCallback onCaptureZone;
   final VoidCallback onBodyThrow;
-  final VoidCallback onAbortVote;
+  final VoidCallback onRecenterGps;
   final VoidCallback onToggleAreaEdit;
-  final VoidCallback onToggleCollapsed;
   final VoidCallback onOpenCustomMenu;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
   final bool isRunning;
+  final bool matchEnded;
   final bool canStartMatch;
   final bool isEditing;
   final bool fakeSkillActive;
   final String roleLabel;
+  final String matchDurationLabel;
   final bool canFakeSkill;
   final bool canFakeIntelReveal;
   final bool canWerewolfHunter;
   final bool canCaptureZone;
   final bool canBodyThrow;
-  final bool menuCollapsed;
+  final int fakeCooldownSeconds;
+  final int captureCooldownSeconds;
+  final int bodyThrowCooldownSeconds;
+  final int? werewolfBuffSeconds;
+  final int werewolfCooldownSeconds;
   final bool prepLobbyMapHidden;
+
+  String get _modeHint => switch (sheetMode) {
+        _ControlSheetMode.hidden => '非表示',
+        _ControlSheetMode.skillsOnly => 'スキル',
+        _ControlSheetMode.expanded => 'すべて',
+      };
 
   @override
   Widget build(BuildContext context) {
+    final expanded = sheetMode == _ControlSheetMode.expanded;
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isRunning)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onDismissPrepSheet,
-                icon: const Icon(Icons.expand_more, size: 20),
-                label: const Text('操作パネルを閉じる'),
+          Row(
+            children: [
+              if (!isRunning)
+                TextButton.icon(
+                  onPressed: onDismissPrepSheet,
+                  icon: const Icon(Icons.expand_more, size: 18),
+                  label: const Text('閉じる'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  ),
+                )
+              else
+                const SizedBox.shrink(),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onCycleSheetMode,
+                icon: Icon(
+                  sheetMode == _ControlSheetMode.expanded
+                      ? Icons.unfold_less
+                      : Icons.unfold_more,
+                  size: 18,
+                ),
+                label: Text(_modeHint),
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
               ),
-            ),
-          Center(
-            child: IconButton(
-              onPressed: onToggleCollapsed,
-              icon: Icon(
-                menuCollapsed
-                    ? Icons.keyboard_arrow_up
-                    : Icons.keyboard_arrow_down,
-              ),
-              visualDensity: VisualDensity.compact,
-            ),
+            ],
           ),
           if (prepLobbyMapHidden) ...[
             Text(
-              '準備フェーズ（地図はオフ）',
+              '準備（地図オフ）· 制限時間 $matchDurationLabel',
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.labelMedium,
             ),
             const SizedBox(height: 6),
           ],
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: isRunning
-                ? Wrap(
-                    key: const ValueKey('in_game_controls'),
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (canFakeSkill)
-                        FilledButton.tonalIcon(
-                          onPressed: !isEditing ? onFakeSkill : null,
-                          icon: const Icon(Icons.flare),
-                          label: Text(fakeSkillActive ? '偽位置: 作動中' : '偽位置'),
-                        ),
-                      if (canFakeIntelReveal)
-                        OutlinedButton.icon(
-                          onPressed: !isEditing ? onFakeIntelReveal : null,
-                          icon: const Icon(Icons.report),
-                          label: const Text('偽情報暴露'),
-                        ),
-                      if (canWerewolfHunter)
-                        OutlinedButton.icon(
-                          onPressed: !isEditing ? onWerewolfHunter : null,
-                          icon: const Icon(Icons.nightlight),
-                          label: const Text('鬼化'),
-                        ),
-                      if (canCaptureZone)
-                        OutlinedButton.icon(
-                          onPressed: !isEditing ? onCaptureZone : null,
-                          icon: const Icon(Icons.trip_origin),
-                          label: const Text('捕獲結界'),
-                        ),
-                      if (canBodyThrow)
-                        OutlinedButton.icon(
-                          onPressed: !isEditing ? onBodyThrow : null,
-                          icon: const Icon(Icons.near_me),
-                          label: const Text('体投げ'),
-                        ),
-                      Chip(label: Text('役職: $roleLabel')),
+          if (!isRunning) ...[
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('試合進行（ローカルホスト）'),
+              subtitle: const Text('開始・終了・リザルト（本格同期は今後）'),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: (isEditing || !canStartMatch) ? null : onStart,
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('開始'),
+                    ),
+                    if (matchEnded)
                       OutlinedButton.icon(
-                        onPressed: onOpenHelp,
-                        icon: const Icon(Icons.help_outline),
-                        label: const Text('遊び方'),
+                        onPressed: onOpenResult,
+                        icon: const Icon(Icons.emoji_events_outlined),
+                        label: const Text('リザルト'),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: onAbortVote,
-                        icon: const Icon(Icons.how_to_vote_outlined),
-                        label: const Text('中止提案'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onReset,
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        label: const Text('強制リセット'),
-                      ),
-                    ],
-                  )
-                : Wrap(
-                    key: const ValueKey('pre_game_controls'),
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: (isEditing || !canStartMatch)
-                            ? null
-                            : onStart,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('開始'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onReset,
-                        icon: const Icon(Icons.restart_alt),
-                        label: const Text('リセット'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: onToggleAreaEdit,
-                        icon: Icon(
-                          isEditing ? Icons.check_circle : Icons.map_outlined,
-                        ),
-                        label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: onOpenCustomMenu,
-                        icon: const Icon(Icons.settings),
-                        label: const Text('カスタム設定'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onOpenHelp,
-                        icon: const Icon(Icons.help_outline),
-                        label: const Text('遊び方'),
-                      ),
-                    ],
+                    OutlinedButton.icon(
+                      onPressed: onReset,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('リセット'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            if (isRunning && expanded)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OutlinedButton.icon(
+                  onPressed: onForceEnd,
+                  icon: const Icon(Icons.stop),
+                  label: const Text('強制終了'),
+                ),
+              ),
+            if (!isRunning && expanded)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: onToggleAreaEdit,
+                    icon: Icon(
+                      isEditing ? Icons.check_circle : Icons.map_outlined,
+                    ),
+                    label: Text(isEditing ? '編集閉じる' : 'エリア編集'),
                   ),
+                  FilledButton.tonalIcon(
+                    onPressed: onOpenCustomMenu,
+                    icon: const Icon(Icons.timer_outlined),
+                    label: Text('設定 ($matchDurationLabel)'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onOpenHelp,
+                    icon: const Icon(Icons.help_outline),
+                    label: const Text('遊び方'),
+                  ),
+                ],
+              ),
+          ] else ...[
+            Row(
+              children: [
+                Chip(
+                  label: Text(roleLabel),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  tooltip: '現在地へ',
+                  onPressed: isEditing ? null : onRecenterGps,
+                  icon: const Icon(Icons.my_location, size: 20),
+                  visualDensity: VisualDensity.compact,
+                ),
+                if (expanded) ...[
+                  IconButton(
+                    tooltip: '遊び方',
+                    onPressed: onOpenHelp,
+                    icon: const Icon(Icons.help_outline, size: 20),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  OutlinedButton(
+                    onPressed: onForceEnd,
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('終了', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (canFakeSkill)
+                      _SkillActionButton(
+                        label: _skillShortLabel(SkillIds.fakePosition),
+                        icon: Icons.flare,
+                        active: fakeSkillActive,
+                        cooldownSeconds: fakeCooldownSeconds,
+                        onPressed: isEditing ? null : onFakeSkill,
+                      ),
+                    if (canFakeIntelReveal)
+                      _SkillActionButton(
+                        label: _skillShortLabel(SkillIds.fakeIntelReveal),
+                        icon: Icons.report,
+                        onPressed: isEditing ? null : onFakeIntelReveal,
+                      ),
+                    if (canWerewolfHunter)
+                      _SkillActionButton(
+                        label: _skillShortLabel(SkillIds.werewolfTransform),
+                        icon: Icons.nightlight,
+                        buffSeconds: werewolfBuffSeconds,
+                        cooldownSeconds: werewolfCooldownSeconds,
+                        onPressed: isEditing ? null : onWerewolfHunter,
+                      ),
+                    if (canCaptureZone)
+                      _SkillActionButton(
+                        label: _skillShortLabel(SkillIds.captureZone),
+                        icon: Icons.trip_origin,
+                        cooldownSeconds: captureCooldownSeconds,
+                        onPressed: isEditing ? null : onCaptureZone,
+                      ),
+                    if (canBodyThrow)
+                      _SkillActionButton(
+                        label: _skillShortLabel(SkillIds.bodyThrow),
+                        icon: Icons.near_me,
+                        cooldownSeconds: bodyThrowCooldownSeconds,
+                        onPressed: isEditing ? null : onBodyThrow,
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkillActionButton extends StatelessWidget {
+  const _SkillActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.active = false,
+    this.cooldownSeconds = 0,
+    this.buffSeconds,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool active;
+  final int cooldownSeconds;
+  final int? buffSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final onCd = cooldownSeconds > 0;
+    final onBuff = buffSeconds != null && buffSeconds! > 0;
+    final enabled = onPressed != null && !onCd;
+    return SizedBox(
+      width: 88,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FilledButton.tonal(
+            onPressed: enabled ? onPressed : null,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              minimumSize: const Size(88, 44),
+            ),
+            child: Icon(icon, size: 22),
           ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 10),
+          ),
+          if (onBuff)
+            Text('${buffSeconds}s', style: const TextStyle(fontSize: 9))
+          else if (onCd)
+            Text('CD $cooldownSeconds', style: const TextStyle(fontSize: 9))
+          else if (active)
+            const Text('作動中', style: TextStyle(fontSize: 9)),
         ],
       ),
     );

@@ -192,8 +192,6 @@ class FirestoreRoomSession implements RoomSessionPort {
             .delete();
       }
     } catch (_) {}
-    try {
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
+    // 匿名 Auth は維持する。signOut すると再参加のたびに別 UID になり別人扱いになる。
   }
 }
