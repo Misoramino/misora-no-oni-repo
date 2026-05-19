@@ -31,6 +31,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
 
   /// トラックIDごとの線・マーカー表示（参加者が増えても対応）。
   late Map<String, bool> _trackVisible;
+  bool _showEventMarkers = true;
+  bool _showPlayArea = true;
+  bool _panelExpanded = false;
 
   @override
   void initState() {
@@ -38,6 +41,13 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
     _trackVisible = {
       for (final k in widget.record.tracks.keys) k: true,
     };
+  }
+
+  Future<void> _fitMapToContent() async {
+    final bounds = _computeFitBounds();
+    final c = _controller;
+    if (bounds == null || c == null) return;
+    await c.animateCamera(CameraUpdate.newLatLngBounds(bounds, 54));
   }
 
   (DateTime, DateTime) get _timeline {
@@ -188,16 +198,28 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.record.outcome.label),
-            Text(
-              '${widget.record.startedAtUtc.toLocal()} 〜',
-              style: Theme.of(context).textTheme.bodySmall,
+        title: Text(widget.record.outcome.label),
+        actions: [
+          IconButton(
+            tooltip: _showEventMarkers ? 'イベントを隠す' : 'イベントを表示',
+            onPressed: () => setState(() => _showEventMarkers = !_showEventMarkers),
+            icon: Icon(
+              _showEventMarkers ? Icons.flag : Icons.flag_outlined,
             ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: _showPlayArea ? 'エリアを隠す' : 'エリアを表示',
+            onPressed: () => setState(() => _showPlayArea = !_showPlayArea),
+            icon: Icon(
+              _showPlayArea ? Icons.crop_free : Icons.crop_free_outlined,
+            ),
+          ),
+          IconButton(
+            tooltip: '全体を表示（ピンチでも拡大縮小できます）',
+            onPressed: () => unawaited(_fitMapToContent()),
+            icon: const Icon(Icons.fit_screen),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -208,20 +230,22 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
             ),
             myLocationEnabled: false,
             myLocationButtonEnabled: false,
+            zoomGesturesEnabled: true,
+            scrollGesturesEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: false,
             onMapCreated: (c) {
               _controller = c;
               if (bounds != null) {
                 Future<void>.delayed(const Duration(milliseconds: 320), () {
                   if (!mounted || _controller == null) return;
-                  _controller!.animateCamera(
-                    CameraUpdate.newLatLngBounds(bounds, 54),
-                  );
+                  unawaited(_fitMapToContent());
                 });
               }
             },
             polylines: lines,
             markers: markers,
-            circles: playArea.type == PlayAreaType.circle
+            circles: _showPlayArea && playArea.type == PlayAreaType.circle
                 ? {
                     Circle(
                       circleId: const CircleId('replay-area'),
@@ -233,7 +257,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                     ),
                   }
                 : {},
-            polygons: playArea.type == PlayAreaType.polygon
+            polygons: _showPlayArea && playArea.type == PlayAreaType.polygon
                 ? {
                     Polygon(
                       polygonId: const PolygonId('replay-area'),
@@ -276,101 +300,128 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
             bottom: 0,
             child: Material(
               elevation: 10,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 12,
-                  right: 12,
-                  top: 10,
-                  bottom: 12 + MediaQuery.paddingOf(context).bottom,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '再生 ${_progressFraction()}  /  ${_speed.toStringAsFixed(0)}x',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    Slider(
-                      value: _progress.clamp(0, 1),
-                      onChanged: (v) {
-                        setState(() {
-                          _progress = v;
-                          _celebrationShown = false;
-                        });
-                      },
-                    ),
-                    Text(
-                      '表示する軌跡',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        for (final id in widget.record.tracks.keys)
-                          FilterChip(
-                            label: Text(_trackLabel(id)),
-                            selected: _trackVisible[id] ?? true,
-                            onSelected: (v) {
-                              setState(() => _trackVisible[id] = v);
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        IconButton.outlined(
-                          onPressed: () => _setPlaying(!_playing),
-                          icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
-                          tooltip: _playing ? '一時停止' : '再生',
-                        ),
-                        Text('速度'),
-                        Expanded(
-                          child: Slider(
-                            min: 1,
-                            max: 24,
-                            divisions: 23,
-                            value: _speed.clamp(1, 24),
-                            label: '${_speed.round()}x',
-                            onChanged: (v) => setState(() => _speed = v),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'ログ: consent=${widget.record.consentedToTrajectory} 開始=${range.$1.toLocal()} 経過${_progressLabel(range)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'イベント',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    if (recentEvents.isEmpty)
-                      Text(
-                        'この時刻帯のイベントなし',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      )
-                    else
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+              color: Theme.of(context).colorScheme.surface,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _panelExpanded = !_panelExpanded),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
                         children: [
-                          for (final e in recentEvents)
-                            Chip(
-                              label: Text(
-                                e.message,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              visualDensity: VisualDensity.compact,
+                          IconButton.outlined(
+                            onPressed: () => _setPlaying(!_playing),
+                            icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+                            tooltip: _playing ? '一時停止' : '再生',
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '${_progressFraction()} · ${_speed.round()}x · ${_progressLabel(range)}',
+                                  style: Theme.of(context).textTheme.labelMedium,
+                                ),
+                                Slider(
+                                  value: _progress.clamp(0, 1),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _progress = v;
+                                      _celebrationShown = false;
+                                    });
+                                  },
+                                ),
+                              ],
                             ),
+                          ),
+                          Icon(
+                            _panelExpanded
+                                ? Icons.expand_more
+                                : Icons.expand_less,
+                          ),
                         ],
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  if (_panelExpanded)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: 12,
+                        right: 12,
+                        bottom: 12 + MediaQuery.paddingOf(context).bottom,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final id in widget.record.tracks.keys)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: FilterChip(
+                                      label: Text(_trackLabel(id)),
+                                      selected: _trackVisible[id] ?? true,
+                                      onSelected: (v) {
+                                        setState(() => _trackVisible[id] = v);
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Text('速度'),
+                              Expanded(
+                                child: Slider(
+                                  min: 1,
+                                  max: 24,
+                                  divisions: 23,
+                                  value: _speed.clamp(1, 24),
+                                  label: '${_speed.round()}x',
+                                  onChanged: (v) => setState(() => _speed = v),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (recentEvents.isNotEmpty) ...[
+                            Text(
+                              'この時刻のイベント',
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 36,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: recentEvents.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(width: 6),
+                                itemBuilder: (_, i) {
+                                  final e = recentEvents[i];
+                                  return Chip(
+                                    label: Text(
+                                      e.message,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -421,6 +472,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   }
 
   Set<Marker> _buildEventMarkers(DateTime now) {
+    if (!_showEventMarkers) return {};
     final out = <Marker>{};
     for (final e in _eventsNear(now, const Duration(seconds: 90))) {
       out.add(

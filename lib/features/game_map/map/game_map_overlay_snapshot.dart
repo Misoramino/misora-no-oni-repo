@@ -6,6 +6,7 @@ import '../../../game/oni_intel_trace.dart';
 import '../../../game/play_area.dart';
 import '../../../sync/remote_member_snapshot.dart';
 import '../../../theme/world_profile_tokens.dart';
+import 'game_map_layer_toggles.dart';
 
 /// [GameMapOverlayBuilder] 用の地図描画スナップショット（1 フレーム分）。
 class GameMapOverlaySnapshot {
@@ -43,6 +44,7 @@ class GameMapOverlaySnapshot {
     required this.playArea,
     required this.captureZoneCenter,
     required this.tokens,
+    this.layerToggles = GameMapLayerToggles.allOn,
   });
 
   final DateTime now;
@@ -78,4 +80,5 @@ class GameMapOverlaySnapshot {
   final PlayArea playArea;
   final LatLng? captureZoneCenter;
   final WorldProfileTokens tokens;
+  final GameMapLayerToggles layerToggles;
 }

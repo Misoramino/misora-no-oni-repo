@@ -8,7 +8,8 @@
 |------|------|--------|
 | ライブ GPS を `members` に保存 | **しない**（`locationVisibility: hidden`） | 低 |
 | プレゼンス書き込み | 12〜55 秒間隔 + 60 秒ハートビート（試合中のみ `publishPresence`） | 低〜中（人数×時間） |
-| リアルタイム購読 | ルーム doc 1 + `members` コレクション 1 | 低（10 人未満想定） |
+| リアルタイム購読 | ルーム doc 1 + `members` 1 + `events` 1（試合中のみ） | 低（10 人未満想定） |
+| `events` 複合インデックス | `sessionKey` + `emittedAtMs`（`firestore.indexes.json`） | 未作成だとクエリが失敗。Console のリンクから作成するか `firebase deploy --only firestore:indexes` |
 | 試合イベント / リプレイ一括 | オフラインキューは**端末内シミュレート**が多い | 低 |
 | ルーム `phase` | ホストの開始/終了で `running` / `ended` を 1 回ずつ | 低 |
 | Google Maps | Firestore とは別課金（API キー制限必須） | 地図表示回数による |

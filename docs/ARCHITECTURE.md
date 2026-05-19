@@ -42,6 +42,22 @@
 - `FirestoreRoomSession.publishRoomEvent` / `publishHostRoomEvent` — 参加者が書ける型とホスト専用型をルールで分離。
 - `GameMapScreen` — `roomMatchEvents` を受けて露出・偽情報・情報屋・捕獲結界を全員で揃える。常時 GPS は members に載せない方針は維持。
 
+### 捕獲結界（capture_zone）の target 判定
+
+| 段階 | 誰が決める | 内容 |
+|------|-----------|------|
+| 設置 | **結界を置いた端末**（スキル使用者） | 地図タップ位置を中心に、半径内の `'self'` と `_remoteMembers` の UID を `_captureZoneTargetsAt` で算出 |
+| 共有 | 同上 → Firestore | `capture_zone_placed` の `targetUids`（`'self'` は発行者の Auth UID に変換） |
+| 確定 | **ホスト**（2 秒バッファ後） | 設置イベントの `targetUids` をそのまま `capture_zone_bound` に載せる（再計算しない） |
+| 適用 | 各端末 | `bound` を受け取り、自分の UID が含まれていれば `captureZoneBoundIds` に `'self'` を入れる |
+
+後から入った参加者は設置時点の `targetUids` に含まれない（設置時スナップショットが権威）。
+
+### 地図レイヤー表示
+
+- 試合中 HUD の「詳細」展開 → `MapLayerToggleStrip` でピン・円の種類ごとに ON/OFF（`GameMapLayerToggles`）。
+- 下部パネルの「詳細」→ スキル以外（GPS 再取得・地図を現在地へ・痕跡クリア等）。ボタンラベルは「スキル ⇄ 詳細」で切替。
+
 今後さらに分ける候補:
 
 - スキル発動 UI コールバックの整理（画面から Match 層へ）

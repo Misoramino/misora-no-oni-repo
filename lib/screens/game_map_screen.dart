@@ -9,6 +9,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/game_map/control_sheet_mode.dart';
+import '../features/game_map/map/game_map_layer_toggles.dart';
 import '../features/game_map/map/game_map_overlay_builder.dart';
 import '../features/game_map/map/game_map_overlay_snapshot.dart';
 import '../features/game_map/map/map_geo_format.dart';
@@ -150,6 +151,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   late WorldProfile _activeProfile;
   ControlSheetMode _controlSheetMode = ControlSheetMode.skillsOnly;
   bool _hudExpanded = false;
+  GameMapLayerToggles _mapLayerToggles = GameMapLayerToggles.allOn;
   String? _hudRevealAlert;
   Timer? _hudRevealAlertTimer;
 
@@ -2674,6 +2676,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       playArea: _playArea,
       captureZoneCenter: _rt.captureZoneCenter,
       tokens: tokens,
+      layerToggles: _mapLayerToggles,
     );
   }
 
@@ -3327,6 +3330,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                   _rt.lastFakeSkillAt,
                   GameConfig.fakeSkillCooldownSeconds,
                 ),
+                mapLayerToggles: _mapLayerToggles,
+                onMapLayersChanged: (t) => setState(() => _mapLayerToggles = t),
+                onRecenterMap: _recenterMapOnGps,
               ),
             ),
           if (running && _rt.remainingSeconds <= 10)

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../map/game_map_layer_toggles.dart';
 import 'cooldown_chip.dart';
+import 'map_layer_toggle_strip.dart';
 
 /// 試合中の上部 HUD（タイマー・エリア・情報）。
 class GameInfoPanel extends StatelessWidget {
@@ -25,6 +27,9 @@ class GameInfoPanel extends StatelessWidget {
     required this.werewolfBuffSeconds,
     required this.werewolfCooldownSeconds,
     required this.fakeCooldownSeconds,
+    this.mapLayerToggles,
+    this.onMapLayersChanged,
+    this.onRecenterMap,
     super.key,
   });
 
@@ -48,6 +53,9 @@ class GameInfoPanel extends StatelessWidget {
   final int? werewolfBuffSeconds;
   final int werewolfCooldownSeconds;
   final int fakeCooldownSeconds;
+  final GameMapLayerToggles? mapLayerToggles;
+  final ValueChanged<GameMapLayerToggles>? onMapLayersChanged;
+  final VoidCallback? onRecenterMap;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +268,31 @@ class GameInfoPanel extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall,
+            ),
+          ],
+          if (mapLayerToggles != null && onMapLayersChanged != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('地図の表示', style: theme.textTheme.labelSmall),
+                const Spacer(),
+                if (onRecenterMap != null)
+                  TextButton.icon(
+                    onPressed: onRecenterMap,
+                    icon: const Icon(Icons.center_focus_strong, size: 16),
+                    label: const Text('現在地へ', style: TextStyle(fontSize: 11)),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                  ),
+              ],
+            ),
+            MapLayerToggleStrip(
+              dense: true,
+              showTitle: false,
+              toggles: mapLayerToggles!,
+              onChanged: onMapLayersChanged!,
             ),
           ],
         ],

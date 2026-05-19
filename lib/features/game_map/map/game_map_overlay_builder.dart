@@ -10,6 +10,7 @@ import 'map_geo_format.dart';
 /// GoogleMap の markers / polylines / circles / polygons を組み立てる。
 abstract final class GameMapOverlayBuilder {
   static Set<Marker> buildMarkers(GameMapOverlaySnapshot s) {
+    final L = s.layerToggles;
     final markers = <Marker>{
       Marker(
         markerId: const MarkerId('player'),
@@ -26,118 +27,157 @@ abstract final class GameMapOverlayBuilder {
             snippet: s.remoteOniKnown ? 'オンライン同期' : 'テスト／デモ',
           ),
         ),
-      for (final e in s.remoteMembers.entries)
-        Marker(
-          markerId: MarkerId('remote_${e.key}'),
-          position: LatLng(e.value.lat, e.value.lng),
-          infoWindow: InfoWindow(
-            title: e.value.nickname.isEmpty ? '参加者' : e.value.nickname,
-            snippet: '${e.value.role} (online)',
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(switch (e.value.role) {
-            'oni' => BitmapDescriptor.hueRose,
-            'spectator' => BitmapDescriptor.hueAzure,
-            _ => BitmapDescriptor.hueMagenta,
-          }),
-        ),
     };
 
-    if (s.showGimmickMarkers) {
-      markers.addAll({
-        for (var i = 0; i < s.safeZonePositions.length; i++)
+    if (L.remotePlayers) {
+      for (final e in s.remoteMembers.entries) {
+        markers.add(
           Marker(
-            markerId: MarkerId('safe_zone_marker_$i'),
-            position: s.safeZonePositions[i],
+            markerId: MarkerId('remote_${e.key}'),
+            position: LatLng(e.value.lat, e.value.lng),
             infoWindow: InfoWindow(
-              title: '安全地帯 ${i + 1}',
-              snippet: s.safeZoneAvailable
-                  ? 'チャージ獲得地点'
-                  : '再出現まで ${MapGeoFormat.secondsUntil(s.safeZoneRespawnAt, s.now)} 秒',
+              title: e.value.nickname.isEmpty ? '参加者' : e.value.nickname,
+              snippet: '${e.value.role} (online)',
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
+            icon: BitmapDescriptor.defaultMarkerWithHue(switch (e.value.role) {
+              'oni' => BitmapDescriptor.hueRose,
+              'spectator' => BitmapDescriptor.hueAzure,
+              _ => BitmapDescriptor.hueMagenta,
+            }),
           ),
-        for (var i = 0; i < s.infoBrokerPositions.length; i++)
-          Marker(
-            markerId: MarkerId('info_broker_marker_$i'),
-            position: s.infoBrokerPositions[i],
-            infoWindow: InfoWindow(
-              title: '情報屋 ${i + 1}',
-              snippet: s.infoBrokerAvailable
-                  ? '鬼の方角ヒント'
-                  : '再出現まで ${MapGeoFormat.secondsUntil(s.infoBrokerRespawnAt, s.now)} 秒',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueViolet,
-            ),
-          ),
-        for (var i = 0; i < s.commJammingZonePositions.length; i++)
-          Marker(
-            markerId: MarkerId('comm_jamming_zone_marker_$i'),
-            position: s.commJammingZonePositions[i],
-            infoWindow: InfoWindow(
-              title: '通信障害地帯 ${i + 1}',
-              snippet: '情報が断片化する',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueOrange,
-            ),
-          ),
-        for (var i = 0; i < s.tracePoints.length; i++)
-          Marker(
-            markerId: MarkerId('trace_$i'),
-            position: s.tracePoints[i],
-            infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueCyan,
-            ),
-          ),
-        for (var i = 0; i < s.revealTraces.length; i++)
-          Marker(
-            markerId: MarkerId('reveal_trace_$i'),
-            position: s.revealTraces[i].position,
-            infoWindow: InfoWindow(
-              title:
-                  '${s.revealTraces[i].playerLabel} の位置暴露 #${s.revealTraces[i].sequence}',
-              snippet:
-                  '${MapGeoFormat.traceAge(s.revealTraces[i].timestamp, s.now)} / ${MapGeoFormat.latLng(s.revealTraces[i].position)}',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueViolet,
-            ),
-          ),
-        for (var i = 0; i < s.oniIntelTraces.length; i++)
-          Marker(
-            markerId: MarkerId('oni_intel_trace_$i'),
-            position: s.oniIntelTraces[i].position,
-            infoWindow: InfoWindow(
-              title: '情報屋の鬼情報',
-              snippet:
-                  '${MapGeoFormat.intelTraceAge(s.oniIntelTraces[i].timestamp, s.now)} / ${s.oniIntelTraces[i].text}',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed,
-            ),
-          ),
-        for (var i = 0; i < s.cameraPositions.length; i++)
-          Marker(
-            markerId: MarkerId('camera_$i'),
-            position: s.cameraPositions[i],
-            infoWindow: InfoWindow(
-              title: '監視カメラ ${i + 1}',
-              snippet: s.triggeredCameras.contains(i)
-                  ? '作動済み'
-                  : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueYellow,
-            ),
-          ),
-      });
+        );
+      }
     }
 
-    if (s.fakePositionActive && s.fakePositionLatLng != null) {
+    if (s.showGimmickMarkers) {
+      if (L.safeZones) {
+        for (var i = 0; i < s.safeZonePositions.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('safe_zone_marker_$i'),
+              position: s.safeZonePositions[i],
+              infoWindow: InfoWindow(
+                title: '安全地帯 ${i + 1}',
+                snippet: s.safeZoneAvailable
+                    ? 'チャージ獲得地点'
+                    : '再出現まで ${MapGeoFormat.secondsUntil(s.safeZoneRespawnAt, s.now)} 秒',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueGreen,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.infoBrokers) {
+        for (var i = 0; i < s.infoBrokerPositions.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('info_broker_marker_$i'),
+              position: s.infoBrokerPositions[i],
+              infoWindow: InfoWindow(
+                title: '情報屋 ${i + 1}',
+                snippet: s.infoBrokerAvailable
+                    ? '鬼の方角ヒント'
+                    : '再出現まで ${MapGeoFormat.secondsUntil(s.infoBrokerRespawnAt, s.now)} 秒',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueViolet,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.commJamming) {
+        for (var i = 0; i < s.commJammingZonePositions.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('comm_jamming_zone_marker_$i'),
+              position: s.commJammingZonePositions[i],
+              infoWindow: InfoWindow(
+                title: '通信障害地帯 ${i + 1}',
+                snippet: '情報が断片化する',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueOrange,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.traces) {
+        for (var i = 0; i < s.tracePoints.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('trace_$i'),
+              position: s.tracePoints[i],
+              infoWindow: const InfoWindow(title: '痕跡', snippet: '脱落地点の痕跡'),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueCyan,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.reveals) {
+        for (var i = 0; i < s.revealTraces.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('reveal_trace_$i'),
+              position: s.revealTraces[i].position,
+              infoWindow: InfoWindow(
+                title:
+                    '${s.revealTraces[i].playerLabel} の位置暴露 #${s.revealTraces[i].sequence}',
+                snippet:
+                    '${MapGeoFormat.traceAge(s.revealTraces[i].timestamp, s.now)} / ${MapGeoFormat.latLng(s.revealTraces[i].position)}',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueViolet,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.oniIntel) {
+        for (var i = 0; i < s.oniIntelTraces.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('oni_intel_trace_$i'),
+              position: s.oniIntelTraces[i].position,
+              infoWindow: InfoWindow(
+                title: '情報屋の鬼情報',
+                snippet:
+                    '${MapGeoFormat.intelTraceAge(s.oniIntelTraces[i].timestamp, s.now)} / ${s.oniIntelTraces[i].text}',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueRed,
+              ),
+            ),
+          );
+        }
+      }
+      if (L.cameras) {
+        for (var i = 0; i < s.cameraPositions.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('camera_$i'),
+              position: s.cameraPositions[i],
+              infoWindow: InfoWindow(
+                title: '監視カメラ ${i + 1}',
+                snippet: s.triggeredCameras.contains(i)
+                    ? '作動済み'
+                    : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueYellow,
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    if (L.skillMarkers && s.fakePositionActive && s.fakePositionLatLng != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('fake_position'),
@@ -147,7 +187,7 @@ abstract final class GameMapOverlayBuilder {
         ),
       );
     }
-    if (s.bodyThrowPosition != null) {
+    if (L.skillMarkers && s.bodyThrowPosition != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('body_throw_position'),
@@ -160,7 +200,7 @@ abstract final class GameMapOverlayBuilder {
       );
     }
 
-    if (s.afterCatchRule != null) {
+    if (L.ghostRough && s.afterCatchRule != null) {
       final rule = s.afterCatchRule!;
       final hue = rule == EliminationAftermathRule.joinOni
           ? BitmapDescriptor.hueRed
@@ -233,84 +273,126 @@ abstract final class GameMapOverlayBuilder {
   }
 
   static Set<Circle> buildCircles(GameMapOverlaySnapshot s) {
+    final L = s.layerToggles;
     final tokens = s.tokens;
-    final circles = <Circle>{
-      for (var i = 0; i < s.safeZonePositions.length; i++)
-        Circle(
-          circleId: CircleId('safe-zone-$i'),
-          center: s.safeZonePositions[i],
-          radius: GameConfig.safeZoneRadiusMeters,
-          strokeWidth: 2,
-          fillColor: tokens.safeColor.withValues(
-            alpha: s.safeZoneAvailable ? 0.12 : 0.04,
-          ),
-          strokeColor: tokens.safeColor,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < s.infoBrokerPositions.length; i++)
-        Circle(
-          circleId: CircleId('info-broker-$i'),
-          center: s.infoBrokerPositions[i],
-          radius: GameConfig.infoBrokerRadiusMeters,
-          strokeWidth: 2,
-          fillColor: tokens.infoColor.withValues(
-            alpha: s.infoBrokerAvailable ? 0.12 : 0.04,
-          ),
-          strokeColor: tokens.infoColor,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < s.commJammingZonePositions.length; i++)
-        Circle(
-          circleId: CircleId('comm-jamming-zone-$i'),
-          center: s.commJammingZonePositions[i],
-          radius: GameConfig.commJammingZoneRadiusMeters,
-          strokeWidth: 2,
-          fillColor: Colors.orange.withValues(alpha: 0.12),
-          strokeColor: Colors.orange.shade700,
-          zIndex: 1,
-        ),
-      for (var i = 0; i < s.cameraPositions.length; i++)
-        if (!s.triggeredCameras.contains(i))
-          Circle(
-            circleId: CircleId('camera-zone-$i'),
-            center: s.cameraPositions[i],
-            radius: GameConfig.cameraTriggerRadiusMeters,
-            strokeWidth: 1,
-            fillColor: Colors.yellow.withValues(alpha: 0.07),
-            strokeColor: Colors.yellow.shade800.withValues(alpha: 0.55),
-            zIndex: 1,
-          ),
-      for (var i = 0; i < s.tracePoints.length; i++)
-        Circle(
-          circleId: CircleId('trace_circle_$i'),
-          center: s.tracePoints[i],
-          radius: 18,
-          strokeWidth: 1,
-          fillColor: Colors.cyan.withValues(alpha: 0.2),
-          strokeColor: Colors.cyan.shade700,
-          zIndex: 2,
-        ),
-      for (var i = 0; i < s.revealTraces.length; i++)
-        Circle(
-          circleId: CircleId('reveal_trace_circle_$i'),
-          center: s.revealTraces[i].position,
-          radius: 24,
-          strokeWidth: 1,
-          fillColor: Colors.deepPurple.withValues(alpha: 0.16),
-          strokeColor: Colors.deepPurple.shade700,
-          zIndex: 2,
-        ),
-      for (var i = 0; i < s.oniIntelTraces.length; i++)
-        Circle(
-          circleId: CircleId('oni_intel_trace_circle_$i'),
-          center: s.oniIntelTraces[i].position,
-          radius: 30,
-          strokeWidth: 2,
-          fillColor: Colors.red.withValues(alpha: 0.12),
-          strokeColor: Colors.red.shade700,
-          zIndex: 3,
-        ),
-      if (s.captureZoneCenter != null)
+    final circles = <Circle>{};
+
+    if (s.showGimmickMarkers) {
+      if (L.safeZones) {
+        for (var i = 0; i < s.safeZonePositions.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('safe-zone-$i'),
+              center: s.safeZonePositions[i],
+              radius: GameConfig.safeZoneRadiusMeters,
+              strokeWidth: 2,
+              fillColor: tokens.safeColor.withValues(
+                alpha: s.safeZoneAvailable ? 0.12 : 0.04,
+              ),
+              strokeColor: tokens.safeColor,
+              zIndex: 1,
+            ),
+          );
+        }
+      }
+      if (L.infoBrokers) {
+        for (var i = 0; i < s.infoBrokerPositions.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('info-broker-$i'),
+              center: s.infoBrokerPositions[i],
+              radius: GameConfig.infoBrokerRadiusMeters,
+              strokeWidth: 2,
+              fillColor: tokens.infoColor.withValues(
+                alpha: s.infoBrokerAvailable ? 0.12 : 0.04,
+              ),
+              strokeColor: tokens.infoColor,
+              zIndex: 1,
+            ),
+          );
+        }
+      }
+      if (L.commJamming) {
+        for (var i = 0; i < s.commJammingZonePositions.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('comm-jamming-zone-$i'),
+              center: s.commJammingZonePositions[i],
+              radius: GameConfig.commJammingZoneRadiusMeters,
+              strokeWidth: 2,
+              fillColor: Colors.orange.withValues(alpha: 0.12),
+              strokeColor: Colors.orange.shade700,
+              zIndex: 1,
+            ),
+          );
+        }
+      }
+      if (L.cameras) {
+        for (var i = 0; i < s.cameraPositions.length; i++) {
+          if (!s.triggeredCameras.contains(i)) {
+            circles.add(
+              Circle(
+                circleId: CircleId('camera-zone-$i'),
+                center: s.cameraPositions[i],
+                radius: GameConfig.cameraTriggerRadiusMeters,
+                strokeWidth: 1,
+                fillColor: Colors.yellow.withValues(alpha: 0.07),
+                strokeColor: Colors.yellow.shade800.withValues(alpha: 0.55),
+                zIndex: 1,
+              ),
+            );
+          }
+        }
+      }
+      if (L.traces) {
+        for (var i = 0; i < s.tracePoints.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('trace_circle_$i'),
+              center: s.tracePoints[i],
+              radius: 18,
+              strokeWidth: 1,
+              fillColor: Colors.cyan.withValues(alpha: 0.2),
+              strokeColor: Colors.cyan.shade700,
+              zIndex: 2,
+            ),
+          );
+        }
+      }
+      if (L.reveals) {
+        for (var i = 0; i < s.revealTraces.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('reveal_trace_circle_$i'),
+              center: s.revealTraces[i].position,
+              radius: 24,
+              strokeWidth: 1,
+              fillColor: Colors.deepPurple.withValues(alpha: 0.16),
+              strokeColor: Colors.deepPurple.shade700,
+              zIndex: 2,
+            ),
+          );
+        }
+      }
+      if (L.oniIntel) {
+        for (var i = 0; i < s.oniIntelTraces.length; i++) {
+          circles.add(
+            Circle(
+              circleId: CircleId('oni_intel_trace_circle_$i'),
+              center: s.oniIntelTraces[i].position,
+              radius: 30,
+              strokeWidth: 2,
+              fillColor: Colors.red.withValues(alpha: 0.12),
+              strokeColor: Colors.red.shade700,
+              zIndex: 3,
+            ),
+          );
+        }
+      }
+    }
+
+    if (L.captureZone && s.captureZoneCenter != null) {
+      circles.add(
         Circle(
           circleId: const CircleId('capture-zone'),
           center: s.captureZoneCenter!,
@@ -320,9 +402,12 @@ abstract final class GameMapOverlayBuilder {
           strokeColor: Colors.red.shade700,
           zIndex: 12,
         ),
-    };
+      );
+    }
 
-    if (s.playArea.type == PlayAreaType.circle && !s.editingArea) {
+    if (L.playArea &&
+        s.playArea.type == PlayAreaType.circle &&
+        !s.editingArea) {
       circles.add(
         Circle(
           circleId: const CircleId('play-area'),
@@ -353,7 +438,9 @@ abstract final class GameMapOverlayBuilder {
   }
 
   static Set<Polygon> buildPolygons(GameMapOverlaySnapshot s) {
-    if (!s.editingArea && s.playArea.type == PlayAreaType.polygon) {
+    if (!s.editingArea &&
+        s.layerToggles.playArea &&
+        s.playArea.type == PlayAreaType.polygon) {
       return {
         Polygon(
           polygonId: const PolygonId('play-area-poly'),

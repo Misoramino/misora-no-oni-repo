@@ -254,31 +254,42 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                 ],
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               'メンバー (${_members.length})',
-              style: theme.textTheme.titleMedium,
+              style: theme.textTheme.titleSmall,
             ),
-            const SizedBox(height: 8),
-            if (!_joined)
-              Text('参加するとメンバー一覧が表示されます', style: theme.textTheme.bodySmall)
-            else if (_members.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: Text('メンバー同期中です。表示されない場合は再参加してください。')),
-              )
-            else
-              ..._members.map(
-                (v) => _MemberTile(
-                  view: v,
-                  canTransferHost:
-                      _session?.isHost == true &&
-                      !v.isSelf &&
-                      !v.isHost,
-                  onTransferHost: () => _transferHostTo(v),
-                ),
-              ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 6),
+            Expanded(
+              child: !_joined
+                  ? Align(
+                      alignment: Alignment.topLeft,
+                      child: Text(
+                        '参加するとメンバー一覧が表示されます',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    )
+                  : _members.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'メンバー同期中です。\n表示されない場合は再参加してください。',
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: _members.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
+                      itemBuilder: (ctx, i) => _MemberTile(
+                        view: _members[i],
+                        canTransferHost:
+                            _session?.isHost == true &&
+                            !_members[i].isSelf &&
+                            !_members[i].isHost,
+                        onTransferHost: () => _transferHostTo(_members[i]),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 12),
             FilledButton.tonalIcon(
               onPressed: _joined ? _openMap : null,
               icon: const Icon(Icons.map),
@@ -308,48 +319,64 @@ class _MemberTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtitle = view.hasHeartbeat
-        ? 'オンライン ・ 位置は秘匿 ・ ${view.proximityBand ?? "近接帯未設定"}'
-        : 'オンライン ・ 位置は秘匿（ゲーム画面で心拍更新）';
+    final name = view.nickname.isEmpty ? '(名前なし)' : view.nickname;
+    final band = view.proximityBand;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: view.isSelf
-              ? theme.colorScheme.primaryContainer
-              : theme.colorScheme.surfaceContainerHighest,
-          child: const Icon(Icons.person_outline, size: 20),
-        ),
-        title: Text(
-          '${view.nickname.isEmpty ? "(名前なし)" : view.nickname}'
-          '${view.isSelf ? "（あなた）" : ""}',
-        ),
-        subtitle: Text(subtitle),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
           children: [
-            if (view.isHost)
-              Chip(
-                avatar: Icon(
-                  Icons.star,
-                  size: 14,
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-                label: const Text('ホスト'),
-                visualDensity: VisualDensity.compact,
-                backgroundColor: theme.colorScheme.secondaryContainer,
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: view.isSelf
+                  ? theme.colorScheme.primaryContainer
+                  : theme.colorScheme.surfaceContainerHighest,
+              child: Icon(
+                view.isHost ? Icons.star : Icons.person_outline,
+                size: 16,
+                color: view.isHost
+                    ? theme.colorScheme.onSecondaryContainer
+                    : theme.colorScheme.onSurfaceVariant,
               ),
-            if (view.isSelf)
-              Chip(
-                label: const Text('自分'),
-                visualDensity: VisualDensity.compact,
-                backgroundColor: theme.colorScheme.primaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    [
+                      if (view.isSelf) 'あなた',
+                      if (view.isHost) 'ホスト',
+                      if (band != null && band.isNotEmpty) band,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
+            ),
             if (canTransferHost && onTransferHost != null)
               IconButton(
                 tooltip: 'ホストを譲渡',
-                icon: const Icon(Icons.swap_horiz),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.swap_horiz, size: 20),
                 onPressed: onTransferHost,
               ),
           ],
