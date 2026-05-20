@@ -1,5 +1,7 @@
 # Oni Game — コード構成
 
+> **引き継ぎの入口:** [HANDBOOK.md](./HANDBOOK.md) → 変更の当たり付けは [CHANGE_MAP.md](./CHANGE_MAP.md)
+
 ## ディレクトリ概要
 
 | パス | 役割 |
@@ -108,11 +110,13 @@
 
 ## テスト
 
-- `test/` — ドメイン（`play_area`, `polygon_area_resolver`）と契約テスト
-- 画面ウィジェットテストは未整備（分割後に追加しやすい）
+- `test/` — ドメイン（`play_area`, `polygon_area_resolver`）と契約テスト。ファイル早見は [CHANGE_MAP.md](./CHANGE_MAP.md) 末尾。
+- 画面ウィジェットテストは未整備（分割後に追加しやすい）。変更後は `flutter test` 全文 + [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md) を推奨。
 
 ## 運用・課金
 
+- [HANDBOOK.md](HANDBOOK.md) — 引き継ぎ入口と必須コマンド
+- [CHANGE_MAP.md](CHANGE_MAP.md) — 領域別のファイルとテスト
 - [FIRESTORE_AND_PERFORMANCE.md](FIRESTORE_AND_PERFORMANCE.md) — Firestore 書き込み頻度と端末負荷の目安
 - [OPERATIONS_CHECKLIST.md](OPERATIONS_CHECKLIST.md) — 実機・Firebase 設定
 

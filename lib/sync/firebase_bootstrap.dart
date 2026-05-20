@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 ///
 /// 優先順位:
 /// 1. すべて揃っている **dart-define**（CI やキーをビルドに埋めない運用向け）
-/// 2. それ以外では **`Firebase.initializeApp()` 引数なし**  
-///    → Android は `android/app/google-services.json`、iOS は `GoogleService-Info.plist` から読む標準経路
+/// 2. **Android / iOS** では **`Firebase.initializeApp()` 引数なし**  
+///    → `google-services.json` / `GoogleService-Info.plist` から読む標準経路
+/// 3. **Windows / macOS / Linux** では dart-define が無い **`initializeApp()` 引数なしは使わない**  
+///    （Firestore が「Unknown error…」だけ返す原因になりやすい）
 ///
 /// 失敗後も **[tryInit] を再度呼べる**（`google-services.json` を後から置いた場合など）。
 abstract final class FirebaseBootstrap {
@@ -17,6 +19,17 @@ abstract final class FirebaseBootstrap {
   static String? lastErrorBrief;
 
   static bool get isReady => _ready;
+
+  /// デスクトップは `google-services.json` が効かないため、明示オプション無しの初期化を避ける。
+  static bool get _needsExplicitFirebaseOptions {
+    if (kIsWeb) return false;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.windows ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS => true,
+      _ => false,
+    };
+  }
 
   static Future<void> tryInit() async {
     if (_ready) return;
@@ -43,6 +56,20 @@ abstract final class FirebaseBootstrap {
         appId.isNotEmpty &&
         senderId.isNotEmpty &&
         projectId.isNotEmpty;
+
+    if (!hasEnv && _needsExplicitFirebaseOptions) {
+      _ready = false;
+      lastErrorBrief =
+          'Windows / macOS / Linux では Firebase に dart-define（FIREBASE_API_KEY / '
+          'FIREBASE_APP_ID / FIREBASE_SENDER_ID / FIREBASE_PROJECT_ID）が必要です。'
+          '実機の Android / iOS では google-services.json 等で自動設定されます。'
+          '（Firestore の「Unknown error…」は未設定デスクトップで起きがちです）';
+      if (kDebugMode) {
+        debugPrint('FirebaseBootstrap: skipped default init on desktop (no dart-define)');
+      }
+      _inProgress = false;
+      return;
+    }
 
     try {
       if (hasEnv) {

@@ -27,7 +27,6 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.canStart,
     required this.onOpenCustomSettings,
     required this.participantRulesOpen,
-    required this.onShowMap,
     required this.worldVisualProfile,
     super.key,
   });
@@ -47,7 +46,6 @@ class PrepLobbyPanel extends StatefulWidget {
   final bool canStart;
   final VoidCallback onOpenCustomSettings;
   final bool participantRulesOpen;
-  final VoidCallback onShowMap;
   final WorldProfile worldVisualProfile;
 
   @override
@@ -61,13 +59,12 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final leg = MapHudContrast.prepLegibility(scheme, widget.worldVisualProfile);
     final minutes = widget.matchDurationMinutes.round();
 
     return Material(
-      color: MapHudContrast.prepScaffoldBg(
-        theme.colorScheme,
-        widget.worldVisualProfile,
-      ),
+      color: leg.background,
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -85,6 +82,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     '準備',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: leg.title,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -93,11 +91,12 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                         ? '制限時間とエリアを決めてから開始。エリアの形は誰でも保存、適用はホストのみ。'
                         : 'ホストの設定を待っています。エリアの形は地図で保存できます。',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: leg.muted,
                     ),
                   ),
                   const SizedBox(height: 12),
                   PrepSummaryTile(
+                    prepLegibility: leg,
                     icon: Icons.timer_outlined,
                     title: '制限時間',
                     value: '$minutes 分',
@@ -109,17 +108,30 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                             )
                         : null,
                     child: _durationExpanded && widget.isHost
-                        ? Slider(
-                            min: 1,
-                            max: 20,
-                            divisions: 19,
-                            value: widget.matchDurationMinutes.clamp(1, 20),
-                            onChanged: widget.onDurationChanged,
+                        ? Theme(
+                            data: theme.copyWith(
+                              sliderTheme: SliderThemeData(
+                                activeTrackColor: scheme.primary,
+                                inactiveTrackColor:
+                                    leg.muted.withValues(alpha: 0.35),
+                                thumbColor: scheme.primary,
+                                overlayColor: scheme.primary
+                                    .withValues(alpha: 0.14),
+                              ),
+                            ),
+                            child: Slider(
+                              min: 1,
+                              max: 20,
+                              divisions: 19,
+                              value: widget.matchDurationMinutes.clamp(1, 20),
+                              onChanged: widget.onDurationChanged,
+                            ),
                           )
                         : null,
                   ),
                   const SizedBox(height: 8),
                   PrepSummaryTile(
+                    prepLegibility: leg,
                     icon: Icons.crop_free,
                     title: 'プレイエリア',
                     value: widget.playAreaLabel,
@@ -137,7 +149,9 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                               if (widget.savedAreas.isEmpty)
                                 Text(
                                   '保存済みエリアがありません。地図で編集して「エリアを保存」してください。',
-                                  style: theme.textTheme.bodySmall,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: leg.body,
+                                  ),
                                 )
                               else
                                 ...widget.savedAreas.map((slot) {
@@ -146,9 +160,12 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 8),
                                     color: selected
-                                        ? theme.colorScheme.primaryContainer
-                                            .withValues(alpha: 0.35)
-                                        : null,
+                                        ? Color.alphaBlend(
+                                            scheme.primary
+                                                .withValues(alpha: 0.28),
+                                            leg.tileSurface,
+                                          )
+                                        : leg.tileSurface,
                                     child: Padding(
                                       padding: const EdgeInsets.all(8),
                                       child: Column(
@@ -161,14 +178,18 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                                 child: Text(
                                                   slot.name,
                                                   style: theme
-                                                      .textTheme.titleSmall,
+                                                      .textTheme.titleSmall
+                                                      ?.copyWith(
+                                                    color: leg.tileValue,
+                                                  ),
                                                 ),
                                               ),
                                               IconButton(
                                                 tooltip: '削除',
-                                                icon: const Icon(
+                                                icon: Icon(
                                                   Icons.delete_outline,
                                                   size: 20,
+                                                  color: leg.muted,
                                                 ),
                                                 onPressed: () =>
                                                     widget.onDeleteSavedArea(
@@ -220,10 +241,16 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.groups_outlined, size: 20),
+                    leading: Icon(
+                      Icons.groups_outlined,
+                      size: 20,
+                      color: leg.muted,
+                    ),
                     title: Text(
                       widget.roomLabel,
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: leg.body,
+                      ),
                     ),
                   ),
                   if (!widget.isHost)
@@ -233,7 +260,9 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                         widget.participantRulesOpen
                             ? 'ホストがカスタムルールの編集を開放しています'
                             : 'カスタムルールはホストの開放待ち',
-                        style: theme.textTheme.labelSmall,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: leg.muted,
+                        ),
                       ),
                     ),
                   SizedBox(
@@ -251,19 +280,22 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: widget.onShowMap,
-                    icon: const Icon(Icons.map_outlined, size: 18),
-                    label: const Text('地図（編集・エリア保存）'),
+                  Text(
+                    'プレイエリアの形は右下の「マップパネル」→「地図を表示」から開いて編集・保存してください。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: leg.muted,
+                      height: 1.35,
+                    ),
                   ),
                   TextButton(
+                    style: TextButton.styleFrom(foregroundColor: leg.link),
                     onPressed: widget.onOpenCustomSettings,
                     child: const Text('カスタム設定（役職・スキル・ルール）'),
                   ),
                   Text(
                     'オンラインルームは画面上部の Lobby から（退出せず確認できます）。',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: leg.muted,
                       height: 1.35,
                     ),
                   ),
@@ -271,8 +303,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                         Icon(
                           Icons.shield_moon_outlined,
                           size: 36,
-                          color: theme.colorScheme.outlineVariant
-                              .withValues(alpha: 0.5),
+                          color: leg.decorativeIcon,
                         ),
                         const SizedBox(height: 8),
                       ],

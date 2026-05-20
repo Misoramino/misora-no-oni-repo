@@ -1,5 +1,7 @@
 # Game Event Areas
 
+> 定数の一次ソース: `lib/game/game_config.dart` / 変更時の検証: [CHANGE_MAP.md](./CHANGE_MAP.md) § C
+
 This file summarizes the current local MVP behavior for map event areas.
 
 ## Safe Zone

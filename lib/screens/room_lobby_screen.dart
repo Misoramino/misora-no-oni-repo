@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../session/session_prefs.dart';
@@ -241,6 +243,18 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
               Text(
                 _error!,
                 style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+              ),
+            ],
+            if (kDebugMode &&
+                FirebaseBootstrap.isReady &&
+                Firebase.apps.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'DBG: Firebase projectId = ${Firebase.app().options.projectId}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                  fontSize: 11,
+                ),
               ),
             ],
             const SizedBox(height: 16),

@@ -6,10 +6,28 @@
 ## Firebase / Firestore
 
 - `android/app/google-services.json` を手元に配置する。
-- `ios/Runner/GoogleService-Info.plist` を手元に配置し、Xcode の Runner target resources に入っていることを確認する。
+- `ios/Runner/GoogleService-Info.plist` を手元に配置し、Xcode の Runner target resources に入っていることを確認する（**iPhone 実機テストでは必須**。別プロジェクトの plist だと別 DB に接続する）。
 - Firestore Rules を Firebase Console または Firebase CLI で deploy する。
 - Anonymous Auth を有効にする。
 - Firestore 使用量アラートを設定する。
+
+### デスクトップ（Windows / macOS / Linux）で `google-services.json` が無い場合
+
+`lib/sync/firebase_bootstrap.dart` のとおり、**dart-define 4 項目**（`FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_SENDER_ID`, `FIREBASE_PROJECT_ID`）を付けないと初期化をスキップします。実機検証は **Android / iOS ターゲット**推奨。
+
+```text
+flutter run -d <device> ^
+  --dart-define=FIREBASE_API_KEY=... ^
+  --dart-define=FIREBASE_APP_ID=... ^
+  --dart-define=FIREBASE_SENDER_ID=... ^
+  --dart-define=FIREBASE_PROJECT_ID=...
+```
+
+（値は Firebase Console のアプリ構成から。リポジトリやチャットに貼らないこと。）
+
+### アプリ内のルーム参加導線
+
+- **タイトル「オンラインルーム」** またはマップの **Lobby** から参加する（実装: `RoomLobbyScreen` / `FirestoreRoomSession.join`）。
 
 ## Google Maps API Key
 
@@ -40,3 +58,7 @@
 - live 座標は原則秘匿し、暴露・捕獲・情報屋・スキルなどのイベントだけで限定公開する。
 - 試合リプレイは端末ローカル保存を基本とし、クラウド同期は同意と明示イベントを前提にする。
 - 新ロールやスキルは、先に「誰に見えるか」を決めてから Firestore path / rules を追加する。
+
+---
+
+関連: [HANDBOOK.md](./HANDBOOK.md)（引き継ぎ入口） · [CHANGE_MAP.md](./CHANGE_MAP.md)（変更とテストの対応）

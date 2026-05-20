@@ -1,5 +1,7 @@
 # BLE 近接（Proximity）
 
+> 引き継ぎ索引: [HANDBOOK.md](./HANDBOOK.md) / コードとテスト: [CHANGE_MAP.md](./CHANGE_MAP.md) § G
+
 アプリの「BLE で近接を補助」は、**お互いの端末が BLE の広告／スキャンを動かしているか**で挙動が変わります。
 
 ## 両方オン

@@ -33,6 +33,9 @@
 
 ## オンライン（Firestore）
 
+- [ ] **Android / iOS 実機またはエミュレータ**で試す（Windows / macOS / Linux のデスクトップだけでは `google-services.json` が効かず、dart-define か `firebase_options` が無いと参加に失敗しやすい）
+- [ ] **iOS**: `ios/Runner/GoogleService-Info.plist` が正しい Firebase アプリのものか、Xcode の **Bundle Identifier** がコンソールの iOS アプリと一致するか（ヒューマンエラーで別プロジェクトの plist を置くと、接続は成功しても想定外の DB になる）
+- [ ] **デバッグ時**: ルームロビーに表示される `DBG: Firebase projectId` が、Firestore ルールをデプロイしたプロジェクトと同じか
 - [ ] ルーム参加・ニック表示・ホスト表示が正しい
 - [ ] ホストが試合開始すると、非ホストも同じエリア・ギミック密度で開始する
 - [ ] **試合中止投票**: 賛成が過半数でホスト側が終了処理される（反対・未投票の扱いも確認）
@@ -50,4 +53,4 @@
 
 ---
 
-関連: [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md)、[FIRESTORE_AND_PERFORMANCE.md](./FIRESTORE_AND_PERFORMANCE.md)
+関連: [HANDBOOK.md](./HANDBOOK.md)（入口） · [CHANGE_MAP.md](./CHANGE_MAP.md)（検証の当たり付け） · [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) · [FIRESTORE_AND_PERFORMANCE.md](./FIRESTORE_AND_PERFORMANCE.md)

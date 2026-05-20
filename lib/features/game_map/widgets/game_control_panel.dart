@@ -50,6 +50,7 @@ class GameControlPanel extends StatelessWidget {
     required this.werewolfCooldownSeconds,
     required this.prepLobbyMapHidden,
     required this.mapWorldProfile,
+    required this.onPrepShowMap,
     this.mapToolsOnlyPanel = false,
     super.key,
   });
@@ -91,6 +92,9 @@ class GameControlPanel extends StatelessWidget {
   final int? werewolfBuffSeconds;
   final int werewolfCooldownSeconds;
   final bool prepLobbyMapHidden;
+
+  /// 準備中かつ地図がオフのとき、地図を表示する（マップパネルから呼ぶ）。
+  final VoidCallback onPrepShowMap;
 
   /// 地図スタイル（HUD 背景のコントラスト調整用）。
   final WorldProfile mapWorldProfile;
@@ -182,6 +186,13 @@ class GameControlPanel extends StatelessWidget {
       );
     }
 
+    if (!isRunning && prepLobbyMapHidden) {
+      return _PrepMapPanelMapOff(
+        onDismissPrepSheet: onDismissPrepSheet,
+        onShowMap: onPrepShowMap,
+      );
+    }
+
     final expanded = sheetMode == ControlSheetMode.expanded;
     final scheme = Theme.of(context).colorScheme;
     final onDark = isRunning;
@@ -247,25 +258,41 @@ class GameControlPanel extends StatelessWidget {
                     style: TextStyle(color: fgMuted, fontSize: 12),
                   ),
                 ),
-              FilledButton.tonal(
-                onPressed: onCycleSheetMode,
-                style: FilledButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
+              if (isRunning)
+                FilledButton.tonal(
+                  onPressed: onCycleSheetMode,
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                  ),
+                  child: Text(
+                    sheetMode.hint,
+                    style: const TextStyle(fontSize: 12),
                   ),
                 ),
-                child: Text(
-                  isRunning ? sheetMode.hint : sheetMode.prepMapHint,
-                  style: const TextStyle(fontSize: 12),
+              if (!isRunning)
+                FilledButton.tonal(
+                  onPressed: onCycleSheetMode,
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                  ),
+                  child: Text(
+                    sheetMode.prepMapHint,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
-              ),
             ],
           ),
           if (!isRunning) ...[
             Text(
-              prepLobbyMapHidden ? 'マップパネル（地図オフ）' : 'マップ・位置',
+              'マップ・位置（試合後）',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 4),
@@ -367,6 +394,81 @@ class GameControlPanel extends StatelessWidget {
               ),
             ],
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 準備中・地図オフ時のマップパネル（2 段階: 閉じる / 地図表示のみ。カスタムルール等は準備画面へ）。
+class _PrepMapPanelMapOff extends StatelessWidget {
+  const _PrepMapPanelMapOff({
+    required this.onDismissPrepSheet,
+    required this.onShowMap,
+  });
+
+  final VoidCallback onDismissPrepSheet;
+  final VoidCallback onShowMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final fgMuted = scheme.onSurfaceVariant;
+    final panelBg = scheme.surfaceContainerHigh.withValues(alpha: 0.97);
+    final outlineAlpha = 0.5;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 12),
+      decoration: BoxDecoration(
+        color: panelBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: outlineAlpha),
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              TextButton(
+                onPressed: onDismissPrepSheet,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: const Text('閉じる'),
+              ),
+              const Spacer(),
+            ],
+          ),
+          Text(
+            'マップパネル',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'プレイエリアの編集・保存は地図上で行います。'
+            '役職・スキル・共有ルールは準備画面の「カスタム設定」から。',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: onShowMap,
+            icon: const Icon(Icons.map_outlined),
+            label: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Text('地図を表示（編集・エリア保存）'),
+            ),
+          ),
         ],
       ),
     );

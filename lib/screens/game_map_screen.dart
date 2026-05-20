@@ -3726,11 +3726,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                 canStart: !_editingArea && _isHost,
                 onOpenCustomSettings: _openCustomMenu,
                 participantRulesOpen: _participantRulesOpen,
-                onShowMap: () => setState(() {
-                  _mapVisibleInLobby = true;
-                  _prepControlSheetOpen = true;
-                  _statusMessage = '地図を表示しました。エリア編集や開始ができます。';
-                }),
                 worldVisualProfile: _mapVisual.pack.profile,
               ),
             if (showGameMap)
@@ -4114,6 +4109,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                   mapToolsOnlyPanel:
                       _gameState == GameState.waiting && showGameMap,
                   mapWorldProfile: _mapVisual.pack.profile,
+                  onPrepShowMap: () => setState(() {
+                    _mapVisibleInLobby = true;
+                    _prepControlSheetOpen = true;
+                    _controlSheetMode = ControlSheetMode.skillsOnly;
+                    _statusMessage =
+                        '地図を表示しました。エリアの編集と保存ができます。';
+                  }),
                 ),
               ),
             if (showControlFab)

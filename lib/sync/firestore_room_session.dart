@@ -15,6 +15,48 @@ import 'room_phase.dart';
 import 'room_session_port.dart';
 import 'shared_match_snapshot.dart';
 
+String _describeFirebaseException(FirebaseException e) {
+  final code = e.code;
+  final raw = e.message ?? '';
+  final buf = StringBuffer(code);
+  if (raw.isNotEmpty) {
+    buf.write(': ');
+    buf.write(raw);
+  }
+  final lower = raw.toLowerCase();
+  if (code == 'permission-denied' || lower.contains('permission')) {
+    buf.write(
+      '\n（Firestore ルールで拒否されている可能性。コンソールに firestore.rules を '
+      'デプロイ済みか確認してください）',
+    );
+  } else if (code == 'unavailable' || lower.contains('network')) {
+    buf.write('\n（ネットワーク・オフラインの可能性）');
+  } else if (code == 'failed-precondition' || raw.contains('index')) {
+    buf.write('\n（インデックス不足の可能性 — コンソールのエラーに出るリンクを確認）');
+  } else if (raw.contains('Unknown error') ||
+      raw.contains('different error domain')) {
+    buf.write(
+      '\n（デスクトップ(Windows/macOS/Linux)で Firebase オプション未設定、'
+      'または App Check 強制などで出ることがあります）',
+    );
+  }
+  return buf.toString();
+}
+
+String? _validateRoomDocId(String id) {
+  if (id.isEmpty) return 'ルームIDを入力してください';
+  if (id.contains('/') || id.contains('\\')) {
+    return 'ルームIDに / や \\ は使えません';
+  }
+  if (id.startsWith('.') || id.endsWith('.')) {
+    return 'ルームIDを . で始めたり終わったりできません';
+  }
+  if (id.codeUnits.length > 200) {
+    return 'ルームIDは200文字以内にしてください';
+  }
+  return null;
+}
+
 /// Firestore ルームの最小プレゼンス同期（匿名 UID + members ドキュメント）。
 ///
 /// セキュリティルールは必ず本番用に差し替えてください（現状は開発向け想定）。
@@ -127,44 +169,66 @@ class FirestoreRoomSession implements RoomSessionPort {
   }) async {
     if (!FirebaseBootstrap.isReady) {
       return 'Firebase が初期化されていません。\n'
-          'Android: android/app/google-services.json を置いてフル再ビルドするか、'
-          'dart-define で FIREBASE_* を指定してください。';
+          'Android / iOS: android/app/google-services.json 等を置いてフル再ビルドするか、'
+          'Windows / macOS / Linux: dart-define で FIREBASE_API_KEY 等を指定してください。';
     }
+    final trimmedId = roomId.trim();
+    final idErr = _validateRoomDocId(trimmedId);
+    if (idErr != null) return idErr;
+    final nick = nickname.trim();
+    if (nick.isEmpty) return '表示名を入力してください';
+
     try {
       await disconnect();
-      await FirebaseAuth.instance.signInAnonymously();
+      try {
+        await FirebaseAuth.instance.signInAnonymously();
+      } on FirebaseAuthException catch (e) {
+        return '認証エラー（匿名ログイン）: ${e.code} ${e.message ?? ''}';
+      }
       _uid = FirebaseAuth.instance.currentUser?.uid;
-      if (_uid == null) return '匿名ログインに失敗しました';
-      _roomId = roomId.trim();
-      _nickname = nickname.trim();
+      if (_uid == null) return '匿名ログインに失敗しました（UID なし）';
+
+      _roomId = trimmedId;
+      _nickname = nick;
       _role = role.trim().isEmpty ? 'runner' : role.trim();
 
       final roomRef = _db.collection('rooms').doc(_roomId);
-      await _db.runTransaction((tx) async {
-        final roomSnap = await tx.get(roomRef);
-        if (!roomSnap.exists) {
-          tx.set(roomRef, {
-            RoomDocFields.hostUid: _uid,
-            RoomDocFields.phase: 'lobby',
-          });
-        } else {
-          final data = roomSnap.data();
-          final existingHost = data?[RoomDocFields.hostUid] as String?;
-          if (existingHost == null || existingHost.isEmpty) {
-            tx.update(roomRef, {RoomDocFields.hostUid: _uid});
+      try {
+        await _db.runTransaction((tx) async {
+          final roomSnap = await tx.get(roomRef);
+          if (!roomSnap.exists) {
+            tx.set(roomRef, {
+              RoomDocFields.hostUid: _uid,
+              RoomDocFields.phase: 'lobby',
+            });
+          } else {
+            final data = roomSnap.data();
+            final existingHost = data?[RoomDocFields.hostUid] as String?;
+            if (existingHost == null || existingHost.isEmpty) {
+              tx.update(roomRef, {RoomDocFields.hostUid: _uid});
+            }
           }
-        }
-      });
+        });
+      } on FirebaseException catch (e) {
+        return 'ルーム情報の作成/更新に失敗: ${_describeFirebaseException(e)}';
+      }
 
       final memberRef = roomRef.collection('members').doc(_uid!);
-      await memberRef.set({
-        MemberPresenceFields.nickname: _nickname,
-        MemberPresenceFields.role: _role,
-        MemberPresenceFields.reportedAtUtc: DateTime.now()
-            .toUtc()
-            .toIso8601String(),
-        MemberPresenceFields.locationVisibility: 'hidden',
-      });
+      try {
+        await memberRef.set(
+          {
+            MemberPresenceFields.nickname: _nickname,
+            MemberPresenceFields.role: _role,
+            MemberPresenceFields.reportedAtUtc: DateTime.now()
+                .toUtc()
+                .toIso8601String(),
+            MemberPresenceFields.locationVisibility: 'hidden',
+          },
+          SetOptions(merge: true),
+        );
+      } on FirebaseException catch (e) {
+        return 'メンバー登録に失敗: ${_describeFirebaseException(e)}';
+      }
       _startHeartbeat();
       _bindRoomAndMembers();
       try {
@@ -186,7 +250,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     } on FirebaseAuthException catch (e) {
       return '認証エラー: ${e.message ?? e.code}';
     } on FirebaseException catch (e) {
-      return 'Firestore: ${e.message ?? e.code}';
+      return 'Firestore: ${_describeFirebaseException(e)}';
     } catch (e) {
       return '接続エラー: $e';
     }

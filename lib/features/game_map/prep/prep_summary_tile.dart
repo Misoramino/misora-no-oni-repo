@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/map_hud_contrast.dart';
+
 class PrepSummaryTile extends StatelessWidget {
   const PrepSummaryTile({
     required this.icon,
@@ -10,6 +12,7 @@ class PrepSummaryTile extends StatelessWidget {
     this.onTap,
     this.preview,
     this.child,
+    this.prepLegibility,
     super.key,
   });
 
@@ -22,11 +25,27 @@ class PrepSummaryTile extends StatelessWidget {
   final Widget? preview;
   final Widget? child;
 
+  /// 準備画面の下地に合わせたコントラスト（未指定なら通常の [Theme]）。
+  final MapHudPrepLegibility? prepLegibility;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pl = prepLegibility;
+    final surfaceColor = pl?.tileSurface ?? theme.colorScheme.surface;
+    final titleStyle = theme.textTheme.labelMedium?.copyWith(
+      color: pl?.tileTitle,
+    );
+    final valueStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: pl?.tileValue,
+    );
+    final iconColor = pl?.tileIcon ?? theme.colorScheme.primary;
+    final chevronColor =
+        pl?.tileMutedIcon ?? theme.colorScheme.onSurfaceVariant;
+
     return Material(
-      color: theme.colorScheme.surface,
+      color: surfaceColor,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -38,18 +57,16 @@ class PrepSummaryTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 22, color: theme.colorScheme.primary),
+                  Icon(icon, size: 22, color: iconColor),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: theme.textTheme.labelMedium),
+                        Text(title, style: titleStyle),
                         Text(
                           value,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: valueStyle,
                         ),
                       ],
                     ),
@@ -57,7 +74,7 @@ class PrepSummaryTile extends StatelessWidget {
                   if (canEdit)
                     Icon(
                       expanded ? Icons.expand_less : Icons.expand_more,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: chevronColor,
                     ),
                 ],
               ),

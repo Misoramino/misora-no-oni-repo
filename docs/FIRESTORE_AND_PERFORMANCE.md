@@ -1,5 +1,7 @@
 # Firestore 課金・性能の目安
 
+> 引き継ぎの全体像: [HANDBOOK.md](./HANDBOOK.md) / 変更の当たり付け: [CHANGE_MAP.md](./CHANGE_MAP.md)
+
 このドキュメントは現行実装（2026-05 時点）の**実測ではなく設計上の上限感**です。本番前に Firebase Console の使用量アラートを必ず設定してください。
 
 ## 課金リスク（Firestore）
@@ -35,6 +37,13 @@
 | 準備画面 | 地図非表示時は GoogleMap を構築しない |
 
 体感が重い場合: 開発者メニューの Test Mode をオフ、痕跡のクリア、端末の省電力除外を確認してください。
+
+## トラブルシュート: 「Unknown error or an error from a different error domain」
+
+1. **実行ターゲット**: Windows / macOS / Linux の**デスクトップ**では Android 用の `google-services.json` が読み込まれず、Firebase オプションが空のまま Firestore だけ失敗し、このメッセージだけ返ることがあります。**Android / iOS 実機またはエミュレータ**で試すか、ビルドに `FIREBASE_API_KEY` 等の **dart-define 4 項目**を付与してください（`lib/sync/firebase_bootstrap.dart` のコメント参照）。
+2. **iOS 実機**: Xcode プロジェクトに **`GoogleService-Info.plist`** が入り、**Bundle ID** が Firebase コンソールのアプリと一致しているか。別プロジェクトの plist を置いていると、ルールは通っても別 DB に書いていることになります（デバッグビルドではルームロビーに `DBG: Firebase projectId` を表示）。
+3. **セキュリティルール**: Firebase Console に `firestore.rules` をデプロイ済みか。拒否時は `permission-denied` になることが多いですが、端末によっては上記の曖昧な文言になる場合があります。
+4. **App Check**: 本番で強制している場合、デバッグ用トークンが無いと接続できないことがあります。
 
 ## 仕様変更について
 

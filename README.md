@@ -22,16 +22,21 @@ Urban GPS tag game prototype with tension-focused design:
 - Per-track visibility toggle in replay
 - Dynamic GPS sampling tiers + marker smoothing
 
-## Key Paths
+## Key paths
 
-- `lib/screens/game_map_screen.dart`: game runtime and area editor
-- `lib/screens/match_gallery_screen.dart`: saved matches list
-- `lib/screens/match_replay_screen.dart`: replay/timelapse
-- `lib/game`: rules/data model/simplification
-- `lib/services`: location and local persistence
-- `lib/theme`: worldview-ready app theme entry
-- `docs/AI_HANDOFF.md`: architecture + intent for handoff
-- `docs/BLE_PROXIMITY.md`: BLE on/off の挙動メモ
+- **`lib/screens/game_map_screen.dart`** — main game loop + map orchestration (large file; see [docs/CHANGE_MAP.md](docs/CHANGE_MAP.md) section H)
+- **`lib/screens/title_screen.dart`** — app entry, online lobby navigation
+- **`lib/screens/match_gallery_screen.dart`** — saved matches list
+- **`lib/screens/match_replay_screen.dart`** — replay / timelapse
+- **`lib/game/`** — rules, config, play area, match record
+- **`lib/features/game_map/`** — map-only UI (HUD, prep, match bridge)
+- **`lib/sync/`** — Firestore room session and events
+- **`lib/services/`** — location, recording, local persistence
+- **`lib/theme/`** — worldview profiles and `AppThemeFactory`
+- **`docs/HANDBOOK.md`** — **start here** for handoff (humans & AI): doc index + verification commands
+- **`docs/FILE_STRUCTURE.md`** — directory tree + Firebase plist/json cheat sheet (for sharing)
+- **`docs/AI_HANDOFF.md`** — short English design priorities + links to the docs above
+- **`docs/BLE_PROXIMITY.md`** — BLE proximity behavior notes
 
 ## Run
 

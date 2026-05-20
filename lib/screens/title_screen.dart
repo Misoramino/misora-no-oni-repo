@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../session/world_profile_prefs.dart';
@@ -77,11 +75,14 @@ class _TitleScreenState extends State<TitleScreen> {
                   minHeight: constraints.maxHeight,
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 16,
+                  ),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 20),
                       Icon(
                         TitleProfileChrome.iconFor(_profile),
                         size: 56,
@@ -176,16 +177,7 @@ class _TitleScreenState extends State<TitleScreen> {
                           ),
                         ],
                       ],
-                      SizedBox(height: math.max(24, constraints.maxHeight * 0.08)),
-                      Center(
-                        child: Icon(
-                          Icons.grid_4x4_outlined,
-                          size: 40,
-                          color: theme.colorScheme.outlineVariant
-                              .withValues(alpha: 0.45),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
