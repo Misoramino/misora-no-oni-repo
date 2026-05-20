@@ -11,7 +11,7 @@ enum MatchTickAction {
   resetOutsideTracking,
 }
 
-/// エリア外猶予の入力。
+/// エリア外が続いた秒数など、ティック判定への入力。
 class OutsideAreaTickInput {
   const OutsideAreaTickInput({
     required this.overflowMeters,

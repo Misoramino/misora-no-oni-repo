@@ -62,6 +62,15 @@ class _TitleScreenState extends State<TitleScreen> {
       body: ResponsivePage(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 380;
+            final titleStyle = theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: narrow ? 22 : null,
+            );
+            final subStyle = theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: narrow ? 14 : null,
+            );
             return SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
@@ -82,17 +91,13 @@ class _TitleScreenState extends State<TitleScreen> {
                       Text(
                         'Oni Game',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: titleStyle,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         '都市型 GPS 鬼ごっこ',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        style: subStyle,
                       ),
                       const SizedBox(height: 20),
                       if (!_booting)

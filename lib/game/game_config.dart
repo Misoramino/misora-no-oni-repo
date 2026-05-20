@@ -47,6 +47,7 @@ class GameConfig {
   static const int cameraMaxCount = 16;
   static const int fakeSkillCooldownSeconds = 75;
   static const int fakeSkillDurationSeconds = 14;
+  static const int fakeIntelRevealCooldownSeconds = 75;
 
   static const int werewolfTransformDurationSeconds = 20;
   static const int werewolfTransformCooldownSeconds = 90;

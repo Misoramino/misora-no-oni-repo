@@ -24,6 +24,17 @@ abstract final class AppThemeFactory {
       useMaterial3: true,
     );
 
+    final dialogTextStyle = TextStyle(
+      color: base.colorScheme.onSurface,
+      fontSize: 15,
+      height: 1.35,
+    );
+    final dialogTitleStyle = TextStyle(
+      color: base.colorScheme.onSurface,
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+    );
+
     return base.copyWith(
       appBarTheme: base.appBarTheme.copyWith(centerTitle: false),
       snackBarTheme: base.snackBarTheme.copyWith(
@@ -31,6 +42,11 @@ abstract final class AppThemeFactory {
       ),
       cardTheme: base.cardTheme.copyWith(
         elevation: profile == WorldProfile.sport ? 2 : 0,
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: base.colorScheme.surfaceContainerHigh,
+        titleTextStyle: dialogTitleStyle,
+        contentTextStyle: dialogTextStyle,
       ),
     );
   }

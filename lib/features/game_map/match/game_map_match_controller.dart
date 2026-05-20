@@ -262,7 +262,7 @@ class GameMapMatchController {
       SkillTickBodyThrowPlacementTimeout(:final playerPositionAtCast) => [
         MatchLocationRevealEmitEffect(
           type: 'body_throw_placement_timeout',
-          message: '体投げ: 配置期限超過で位置暴露（発動地点）',
+          message: '体投げ: 配置の時間切れで位置が露見（発動地点）',
           position: playerPositionAtCast,
         ),
       ],

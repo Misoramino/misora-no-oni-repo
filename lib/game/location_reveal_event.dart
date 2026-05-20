@@ -1,6 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-/// エリア外猶予超過による「位置暴露」。将来 Firestore / FCM へそのまま載せやすい形。
+/// エリア外が続いた・罠・偽情報などによる「位置暴露」。将来 Firestore / FCM へそのまま載せやすい形。
 class LocationRevealEvent {
   LocationRevealEvent({
     required this.sequence,
@@ -8,6 +8,7 @@ class LocationRevealEvent {
     required this.position,
     required this.overflowMeters,
     this.playerLabel = 'player1',
+    this.reasonSummary,
   });
 
   final int sequence;
@@ -15,6 +16,9 @@ class LocationRevealEvent {
   final LatLng position;
   final double overflowMeters;
   final String playerLabel;
+
+  /// プレイヤー向け短い説明（例: エリア外、監視カメラ、偽情報暴露）。
+  final String? reasonSummary;
 
   Map<String, dynamic> toJson() => {
         'type': 'location_reveal',
@@ -24,6 +28,7 @@ class LocationRevealEvent {
         'lat': position.latitude,
         'lng': position.longitude,
         'overflowMeters': overflowMeters,
+        if (reasonSummary != null) 'reasonSummary': reasonSummary,
       };
 
   factory LocationRevealEvent.fromJson(Map<String, dynamic> json) {
@@ -36,9 +41,11 @@ class LocationRevealEvent {
       ),
       overflowMeters: (json['overflowMeters'] as num).toDouble(),
       playerLabel: json['playerLabel'] as String? ?? 'player1',
+      reasonSummary: json['reasonSummary'] as String?,
     );
   }
 
   @override
-  String toString() => 'LocationReveal(#$sequence ${overflowMeters.toStringAsFixed(0)}m @ $position)';
+  String toString() =>
+      'LocationReveal(#$sequence ${overflowMeters.toStringAsFixed(0)}m @ $position)';
 }

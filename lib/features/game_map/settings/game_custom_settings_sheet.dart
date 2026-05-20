@@ -18,20 +18,10 @@ import '../../../theme/world_profile.dart';
 import '../../../theme/world_visual_pack_factory.dart';
 import 'game_custom_settings_models.dart';
 
-typedef JoinFirestoreRoomCallback =
-    Future<String?> Function({
-      required String roomId,
-      required String nickname,
-      required String role,
-    });
-
-/// カスタム設定ボトムシート。適用で [GameCustomSettingsResult]、キャンセルで null。
 Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   required BuildContext context,
   required GameCustomSettingsInitial initial,
   required bool isHost,
-  required JoinFirestoreRoomCallback onJoinRoom,
-  required Future<void> Function() onLeaveRoom,
   Future<void> Function()? onRequestGameDefaultsReset,
 }) async {
   WorldProfile selectedProfile = initial.profile;
@@ -47,13 +37,10 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   var selectedUseBle = initial.useBleScan;
   var selectedAvatarPath = initial.avatarImagePath;
   var selectedGimmickDensity = initial.gimmickDensity.clamp(0.45, 1.55);
-  final roomController = TextEditingController();
-  final nickController = TextEditingController(text: 'player1');
   var firebaseWarmScheduled = false;
 
   bool? ok;
-  try {
-    ok = await showModalBottomSheet<bool>(
+  ok = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -73,7 +60,6 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                 );
               });
             }
-            final messenger = ScaffoldMessenger.of(ctx);
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -389,231 +375,34 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                             : null,
                       ),
                       const SizedBox(height: 10),
-                      ExpansionTile(
-                        initiallyExpanded: true,
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text('オンラインルーム（Firestore）'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              FirebaseBootstrap.isReady
-                                  ? '接続済み ・ 下のボタンでルームに参加できます'
-                                  : '未接続 ・ 「参加」で Firebase を再初期化します',
-                              style: Theme.of(ctx).textTheme.bodySmall,
-                            ),
-                            Text(
-                              'まだ誰も使っていないルームIDで参加すると、Firestore に rooms と members が作成されます。',
-                              style: Theme.of(ctx).textTheme.bodySmall
-                                  ?.copyWith(
-                                    fontSize: 11,
-                                    color: Theme.of(
-                                      ctx,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ],
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.cloud_outlined,
+                          color: Theme.of(ctx).colorScheme.primary,
                         ),
-                        children: [
-                          if (!FirebaseBootstrap.isReady &&
-                              FirebaseBootstrap.lastErrorBrief != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: SelectableText(
-                                FirebaseBootstrap.lastErrorBrief!,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(ctx).colorScheme.error,
-                                ),
+                        title: const Text('オンラインルーム'),
+                        subtitle: Text(
+                          '参加・メンバー一覧は「タイトル」画面のオンラインルーム、'
+                          'またはゲーム画面上部の Lobby から行います。'
+                          'ホームに戻るとルームから退出した扱いになります。',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                height: 1.35,
                               ),
-                            ),
-                          TextField(
-                            controller: roomController,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'ルームID',
-                              hintText: '例: demo-room-1',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: nickController,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: '表示名',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FilledButton(
-                                  style: FilledButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                  onPressed: () async {
-                                    FocusScope.of(ctx).unfocus();
-                                    await FirebaseBootstrap.tryInit();
-                                    if (!ctx.mounted) return;
-                                    setModalState(() {});
-                                    if (!FirebaseBootstrap.isReady) {
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Firebase に接続できません。\n\n'
-                                            '1) android/app/google-services.json を配置してフル再ビルド\n'
-                                            '2) または dart-define で FIREBASE_* を指定\n\n'
-                                            '${FirebaseBootstrap.lastErrorBrief ?? ""}',
-                                          ),
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: const EdgeInsets.fromLTRB(
-                                            16,
-                                            0,
-                                            16,
-                                            220,
-                                          ),
-                                          duration: const Duration(seconds: 10),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    final rid = roomController.text.trim();
-                                    final nick = nickController.text.trim();
-                                    if (rid.isEmpty || nick.isEmpty) {
-                                      messenger.showSnackBar(
-                                        const SnackBar(
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: EdgeInsets.fromLTRB(
-                                            16,
-                                            0,
-                                            16,
-                                            220,
-                                          ),
-                                          content: Text('ルームIDと表示名を入力してください'),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    showDialog<void>(
-                                      context: ctx,
-                                      barrierDismissible: false,
-                                      useRootNavigator: true,
-                                      builder: (dCtx) => const AlertDialog(
-                                        content: Row(
-                                          children: [
-                                            CircularProgressIndicator(),
-                                            SizedBox(width: 16),
-                                            Expanded(
-                                              child: Text('ルームに参加しています…'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                    String? err;
-                                    try {
-                                      err = await onJoinRoom(
-                                        roomId: rid,
-                                        nickname: nick,
-                                        role: 'runner',
-                                      );
-                                    } finally {
-                                      if (ctx.mounted) {
-                                        Navigator.of(
-                                          ctx,
-                                          rootNavigator: true,
-                                        ).pop();
-                                      }
-                                    }
-                                    if (!ctx.mounted) return;
-                                    if (err != null) {
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(err),
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: const EdgeInsets.fromLTRB(
-                                            16,
-                                            0,
-                                            16,
-                                            220,
-                                          ),
-                                          duration: const Duration(seconds: 10),
-                                        ),
-                                      );
-                                    } else {
-                                      await showDialog<void>(
-                                        context: ctx,
-                                        builder: (dCtx) => AlertDialog(
-                                          icon: Icon(
-                                            Icons.check_circle,
-                                            color: Theme.of(
-                                              dCtx,
-                                            ).colorScheme.primary,
-                                            size: 40,
-                                          ),
-                                          title: const Text('ルームに接続しました'),
-                                          content: SingleChildScrollView(
-                                            child: Text(
-                                              'ルームID「$rid」への参加が完了しました。\n\n'
-                                              'Firestore では次のパスにメンバーが作成されています。\n'
-                                              'rooms / $rid / members / （あなたの UID）\n\n'
-                                              'このシートの「適用」で閉じたあと、地図画面で「開始」から鬼ごっこを始められます。',
-                                            ),
-                                          ),
-                                          actions: [
-                                            FilledButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(dCtx),
-                                              child: const Text('OK'),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }
-                                    if (ctx.mounted) setModalState(() {});
-                                  },
-                                  child: const Text('ルームに参加'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton(
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                  onPressed: () async {
-                                    FocusScope.of(ctx).unfocus();
-                                    await onLeaveRoom();
-                                    if (!ctx.mounted) return;
-                                    setModalState(() {});
-                                    messenger.showSnackBar(
-                                      const SnackBar(
-                                        behavior: SnackBarBehavior.floating,
-                                        margin: EdgeInsets.fromLTRB(
-                                          16,
-                                          0,
-                                          16,
-                                          220,
-                                        ),
-                                        content: Text('オフラインに戻しました'),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text('退出'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        ),
                       ),
+                      if (!FirebaseBootstrap.isReady &&
+                          FirebaseBootstrap.lastErrorBrief != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: SelectableText(
+                            FirebaseBootstrap.lastErrorBrief!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(ctx).colorScheme.error,
+                            ),
+                          ),
+                        ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(
@@ -655,10 +444,6 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
         );
       },
     );
-  } finally {
-    roomController.dispose();
-    nickController.dispose();
-  }
 
   if (ok != true) return null;
 

@@ -167,6 +167,21 @@ class FirestoreRoomSession implements RoomSessionPort {
       });
       _startHeartbeat();
       _bindRoomAndMembers();
+      try {
+        final rid = _roomId;
+        if (rid != null) {
+          final snap = await _db
+              .collection('rooms')
+              .doc(rid)
+              .collection('members')
+              .get();
+          if (_roomId == rid) {
+            _emitLobbyFromSnapshot(snap);
+          }
+        }
+      } catch (_) {
+        // 一覧は snapshots 購読で追いつく。ここは初回表示のベストエフォート。
+      }
       return null;
     } on FirebaseAuthException catch (e) {
       return '認証エラー: ${e.message ?? e.code}';
@@ -284,7 +299,7 @@ class FirestoreRoomSession implements RoomSessionPort {
       await _db.collection('rooms').doc(_roomId).collection('events').add({
         RoomEventsFields.type: type,
         RoomEventsFields.emittedAtUtc: DateTime.now().toUtc().toIso8601String(),
-        RoomEventsFields.emittedAtMs: DateTime.now().microsecondsSinceEpoch,
+        RoomEventsFields.emittedAtMs: DateTime.now().millisecondsSinceEpoch,
         RoomEventsFields.actorUid: _uid,
         RoomEventsFields.sessionKey: sessionKey,
         RoomEventsFields.payload: payload,

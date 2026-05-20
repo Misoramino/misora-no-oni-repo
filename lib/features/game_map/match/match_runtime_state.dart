@@ -37,6 +37,7 @@ class MatchRuntimeState {
   bool fakePositionActive;
   DateTime? fakePositionEndsAt;
   DateTime? lastFakeSkillAt;
+  DateTime? lastFakeIntelRevealAt;
   LatLng? fakePositionLatLng;
 
   DateTime? werewolfTransformEndsAt;
@@ -93,6 +94,7 @@ class MatchRuntimeState {
     this.fakePositionActive = false,
     this.fakePositionEndsAt,
     this.lastFakeSkillAt,
+    this.lastFakeIntelRevealAt,
     this.fakePositionLatLng,
     this.werewolfTransformEndsAt,
     this.lastWerewolfTransformAt,
@@ -165,6 +167,7 @@ class MatchRuntimeState {
     fakePositionActive = false;
     fakePositionEndsAt = null;
     lastFakeSkillAt = null;
+    lastFakeIntelRevealAt = null;
     fakePositionLatLng = null;
     werewolfTransformEndsAt = null;
     lastWerewolfTransformAt = null;
@@ -199,5 +202,6 @@ class MatchRuntimeState {
     commJammingZonePositions = List<LatLng>.from(gimmicks.eventAreas);
     cameraPositions = List<LatLng>.from(gimmicks.cameras);
     lastFakeSkillAt = null;
+    lastFakeIntelRevealAt = null;
   }
 }

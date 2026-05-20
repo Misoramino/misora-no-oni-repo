@@ -28,7 +28,6 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.onOpenCustomSettings,
     required this.participantRulesOpen,
     required this.onShowMap,
-    required this.onOpenLobby,
     required this.worldVisualProfile,
     super.key,
   });
@@ -49,7 +48,6 @@ class PrepLobbyPanel extends StatefulWidget {
   final VoidCallback onOpenCustomSettings;
   final bool participantRulesOpen;
   final VoidCallback onShowMap;
-  final VoidCallback onOpenLobby;
   final WorldProfile worldVisualProfile;
 
   @override
@@ -262,12 +260,14 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     onPressed: widget.onOpenCustomSettings,
                     child: const Text('カスタム設定（役職・スキル・ルール）'),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: widget.onOpenLobby,
-                    icon: const Icon(Icons.groups_2_outlined, size: 20),
-                    label: const Text('オンラインルーム（参加・退出）'),
+                  Text(
+                    'オンラインルームは画面上部の Lobby から（退出せず確認できます）。',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.35,
+                    ),
                   ),
-                        SizedBox(height: math.max(16, constraints.maxHeight * 0.06)),
+                  SizedBox(height: math.max(16, constraints.maxHeight * 0.06)),
                         Icon(
                           Icons.shield_moon_outlined,
                           size: 36,

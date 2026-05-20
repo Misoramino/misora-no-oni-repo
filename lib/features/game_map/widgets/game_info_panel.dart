@@ -30,6 +30,9 @@ class GameInfoPanel extends StatelessWidget {
     required this.werewolfBuffSeconds,
     required this.werewolfCooldownSeconds,
     required this.fakeCooldownSeconds,
+    required this.fakeIntelRevealCooldownSeconds,
+    required this.intelLineSuppressed,
+    required this.onRestoreIntelLine,
     required this.mapWorldProfile,
     this.mapLayerToggles,
     this.onMapLayersChanged,
@@ -59,6 +62,10 @@ class GameInfoPanel extends StatelessWidget {
   final int? werewolfBuffSeconds;
   final int werewolfCooldownSeconds;
   final int fakeCooldownSeconds;
+  final int fakeIntelRevealCooldownSeconds;
+  /// 鬼情報一行をユーザーが隠した状態。
+  final bool intelLineSuppressed;
+  final VoidCallback onRestoreIntelLine;
   final WorldProfile mapWorldProfile;
   final GameMapLayerToggles? mapLayerToggles;
   final ValueChanged<GameMapLayerToggles>? onMapLayersChanged;
@@ -141,8 +148,19 @@ class GameInfoPanel extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
+                if (intelLineSuppressed)
+                  TextButton(
+                    onPressed: onRestoreIntelLine,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('鬼情報表示', style: TextStyle(fontSize: 10)),
+                  ),
                 IconButton(
-                  tooltip: '鬼情報・ログ',
+                  tooltip: '鬼情報・暴露ログ',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints:
@@ -153,7 +171,12 @@ class GameInfoPanel extends StatelessWidget {
                 if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
                   CooldownChip(label: '鬼化', seconds: werewolfBuffSeconds!),
                 if (fakeCooldownSeconds > 0)
-                  CooldownChip(label: 'CD', seconds: fakeCooldownSeconds),
+                  CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
+                if (fakeIntelRevealCooldownSeconds > 0)
+                  CooldownChip(
+                    label: '偽情報CD',
+                    seconds: fakeIntelRevealCooldownSeconds,
+                  ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -220,7 +243,8 @@ class GameInfoPanel extends StatelessWidget {
           ),
           if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0 ||
               werewolfCooldownSeconds > 0 ||
-              fakeCooldownSeconds > 0) ...[
+              fakeCooldownSeconds > 0 ||
+              fakeIntelRevealCooldownSeconds > 0) ...[
             const SizedBox(height: 4),
             Wrap(
               spacing: 6,
@@ -235,6 +259,11 @@ class GameInfoPanel extends StatelessWidget {
                   ),
                 if (fakeCooldownSeconds > 0)
                   CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
+                if (fakeIntelRevealCooldownSeconds > 0)
+                  CooldownChip(
+                    label: '偽情報CD',
+                    seconds: fakeIntelRevealCooldownSeconds,
+                  ),
               ],
             ),
           ],
@@ -262,6 +291,20 @@ class GameInfoPanel extends StatelessWidget {
                   icon: const Icon(Icons.visibility_off_outlined, size: 18),
                 ),
               ],
+            ),
+          ] else if (intelLineSuppressed) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onRestoreIntelLine,
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('鬼情報を再表示'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+              ),
             ),
           ],
           Text(

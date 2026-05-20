@@ -257,7 +257,7 @@ class GameControlPanel extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  sheetMode.hint,
+                  isRunning ? sheetMode.hint : sheetMode.prepMapHint,
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -265,12 +265,12 @@ class GameControlPanel extends StatelessWidget {
           ),
           if (!isRunning) ...[
             Text(
-              prepLobbyMapHidden ? '詳細設定（地図オフ）' : '詳細設定',
+              prepLobbyMapHidden ? 'マップパネル（地図オフ）' : 'マップ・位置',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 4),
             Text(
-              '試合時間は $matchDurationLabel。エリア・カスタムルールは準備画面とここから変更できます。',
+              '試合時間・役職・スキル・共有ルールは準備の「カスタム設定」から。',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
