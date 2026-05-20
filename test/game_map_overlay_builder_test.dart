@@ -32,6 +32,7 @@ void main() {
       fakePositionActive: false,
       fakePositionLatLng: null,
       bodyThrowPosition: null,
+      bodyThrowAwaitingMapTap: false,
       afterCatchRule: null,
       ghostRoughPositions: const [],
       editingArea: false,

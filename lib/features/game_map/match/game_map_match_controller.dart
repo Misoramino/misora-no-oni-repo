@@ -15,7 +15,7 @@ import 'match_tick_evaluator.dart';
 /// 試合ランタイムと 1 ティック分の判定。
 class GameMapMatchController {
   GameMapMatchController({MatchRuntimeState? runtime})
-      : runtime = runtime ?? MatchRuntimeState();
+    : runtime = runtime ?? MatchRuntimeState();
 
   final MatchRuntimeState runtime;
 
@@ -106,14 +106,10 @@ class GameMapMatchController {
         ),
       );
       effects.add(
-        const MatchStatusMessageEffect(
-          '鬼に捕捉され、移動範囲が制限されました。BLE接触で捕獲。',
-        ),
+        const MatchStatusMessageEffect('鬼に捕捉され、移動範囲が制限されました。BLE接触で捕獲。'),
       );
     } else if (touchOutcome is SkillTickTouchLockNotice) {
-      effects.add(
-        const MatchStatusMessageEffect('鬼の接触圏に入りました。離脱してください。'),
-      );
+      effects.add(const MatchStatusMessageEffect('鬼の接触圏に入りました。離脱してください。'));
     }
 
     final captureTriggered = MatchGeoHelpers.isCaptureTriggered(
@@ -162,11 +158,7 @@ class GameMapMatchController {
         runtime.outsideAreaSince = null;
         runtime.revealedInCurrentOutside = false;
         effects.add(const MatchConsumeSafeChargeEffect());
-        effects.add(
-          const MatchStatusMessageEffect(
-            '安全地帯チャージを消費して位置暴露を回避しました',
-          ),
-        );
+        effects.add(const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'));
       case MatchTickAction.triggerLocationReveal:
         effects.add(MatchAreaRevealEffect(overflowMeters));
       case MatchTickAction.resetOutsideTracking:
@@ -260,17 +252,23 @@ class GameMapMatchController {
           heavyHaptic: false,
         ),
       ],
-      SkillTickBodyThrowMiss() => [
-        const MatchLocationRevealEmitEffect(
+      SkillTickBodyThrowMiss(:final puppetPosition) => [
+        MatchLocationRevealEmitEffect(
           type: 'body_throw_miss',
-          message: '体投げ未回収で位置暴露',
+          message: '体投げ未回収で位置暴露（人形側）',
+          position: puppetPosition,
+        ),
+      ],
+      SkillTickBodyThrowPlacementTimeout(:final playerPositionAtCast) => [
+        MatchLocationRevealEmitEffect(
+          type: 'body_throw_placement_timeout',
+          message: '体投げ: 配置期限超過で位置暴露（発動地点）',
+          position: playerPositionAtCast,
         ),
       ],
       SkillTickTouchLockNotice() => const [],
       SkillTickTouchLockStart() => const [],
-      SkillTickInfectionPulse() => [
-        const MatchInfectionPulseRevealEffect(),
-      ],
+      SkillTickInfectionPulse() => [const MatchInfectionPulseRevealEffect()],
       SkillTickInfectionStarted() => [
         MatchEmitEventEffect(
           type: 'infection_start',

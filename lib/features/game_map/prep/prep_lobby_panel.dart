@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../../theme/map_hud_contrast.dart';
+import '../../../theme/world_profile.dart';
 import '../../../game/play_area.dart';
 import '../../../services/play_area_slot_store.dart';
 import '../../../widgets/play_area_shape_preview.dart';
@@ -25,6 +29,7 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.participantRulesOpen,
     required this.onShowMap,
     required this.onOpenLobby,
+    required this.worldVisualProfile,
     super.key,
   });
 
@@ -45,6 +50,7 @@ class PrepLobbyPanel extends StatefulWidget {
   final bool participantRulesOpen;
   final VoidCallback onShowMap;
   final VoidCallback onOpenLobby;
+  final WorldProfile worldVisualProfile;
 
   @override
   State<PrepLobbyPanel> createState() => _PrepLobbyPanelState();
@@ -60,16 +66,23 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
     final minutes = widget.matchDurationMinutes.round();
 
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
+      color: MapHudContrast.prepScaffoldBg(
+        theme.colorScheme,
+        widget.worldVisualProfile,
+      ),
       child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                   Text(
                     '準備',
                     style: theme.textTheme.titleLarge?.copyWith(
@@ -243,20 +256,32 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   OutlinedButton.icon(
                     onPressed: widget.onShowMap,
                     icon: const Icon(Icons.map_outlined, size: 18),
-                    label: const Text('地図（位置・エリア保存）'),
+                    label: const Text('地図（編集・エリア保存）'),
                   ),
                   TextButton(
                     onPressed: widget.onOpenCustomSettings,
                     child: const Text('カスタム設定（役職・スキル・ルール）'),
                   ),
-                  TextButton(
+                  OutlinedButton.icon(
                     onPressed: widget.onOpenLobby,
-                    child: const Text('ルームロビー'),
+                    icon: const Icon(Icons.groups_2_outlined, size: 20),
+                    label: const Text('オンラインルーム（参加・退出）'),
                   ),
-                ],
+                        SizedBox(height: math.max(16, constraints.maxHeight * 0.06)),
+                        Icon(
+                          Icons.shield_moon_outlined,
+                          size: 36,
+                          color: theme.colorScheme.outlineVariant
+                              .withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

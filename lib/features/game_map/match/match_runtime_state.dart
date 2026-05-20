@@ -55,6 +55,10 @@ class MatchRuntimeState {
   LatLng? bodyThrowPosition;
   DateTime? bodyThrowEndsAt;
   DateTime? lastBodyThrowAt;
+  bool bodyThrowAwaitingMapTap;
+  DateTime? bodyThrowTapDeadline;
+  /// 体投げ発動時のプレイヤー位置（配置猶予切れの暴露座標）。
+  LatLng? bodyThrowSkillOriginLatLng;
 
   int infectionExposureSeconds;
   DateTime? infectionEndsAt;
@@ -104,6 +108,9 @@ class MatchRuntimeState {
     this.bodyThrowPosition,
     this.bodyThrowEndsAt,
     this.lastBodyThrowAt,
+    this.bodyThrowAwaitingMapTap = false,
+    this.bodyThrowTapDeadline,
+    this.bodyThrowSkillOriginLatLng,
     this.infectionExposureSeconds = 0,
     this.infectionEndsAt,
     this.lastInfectionRevealAt,
@@ -173,6 +180,9 @@ class MatchRuntimeState {
     bodyThrowPosition = null;
     bodyThrowEndsAt = null;
     lastBodyThrowAt = null;
+    bodyThrowAwaitingMapTap = false;
+    bodyThrowTapDeadline = null;
+    bodyThrowSkillOriginLatLng = null;
     infectionExposureSeconds = 0;
     infectionEndsAt = null;
     lastInfectionRevealAt = null;

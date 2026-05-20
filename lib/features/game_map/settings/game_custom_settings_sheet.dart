@@ -18,11 +18,12 @@ import '../../../theme/world_profile.dart';
 import '../../../theme/world_visual_pack_factory.dart';
 import 'game_custom_settings_models.dart';
 
-typedef JoinFirestoreRoomCallback = Future<String?> Function({
-  required String roomId,
-  required String nickname,
-  required String role,
-});
+typedef JoinFirestoreRoomCallback =
+    Future<String?> Function({
+      required String roomId,
+      required String nickname,
+      required String role,
+    });
 
 /// カスタム設定ボトムシート。適用で [GameCustomSettingsResult]、キャンセルで null。
 Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
@@ -31,11 +32,13 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   required bool isHost,
   required JoinFirestoreRoomCallback onJoinRoom,
   required Future<void> Function() onLeaveRoom,
+  Future<void> Function()? onRequestGameDefaultsReset,
 }) async {
   WorldProfile selectedProfile = initial.profile;
   OniIntelMode selectedIntel = initial.oniIntelMode;
   bool selectedConsent = initial.trajectoryConsent;
-  EliminationAftermathRule selectedElimination = initial.eliminationAftermathRule;
+  EliminationAftermathRule selectedElimination =
+      initial.eliminationAftermathRule;
   PlayerRole selectedRole = initial.localRole;
   bool selectedCustomRuleMode = initial.customRuleMode;
   var selectedParticipantRulesOpen = initial.participantRulesOpen;
@@ -43,6 +46,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   final selectedSkills = Set<String>.from(initial.skillLoadout);
   var selectedUseBle = initial.useBleScan;
   var selectedAvatarPath = initial.avatarImagePath;
+  var selectedGimmickDensity = initial.gimmickDensity.clamp(0.45, 1.55);
   final roomController = TextEditingController();
   final nickController = TextEditingController(text: 'player1');
   var firebaseWarmScheduled = false;
@@ -85,11 +89,18 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
                       Text(
-                        'カスタム設定',
-                        style: Theme.of(ctx).textTheme.titleLarge,
+                        '個人向け（端末）とホスト向け（ルーム共有）に分けています。',
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
+                      Text(
+                        '個人向け（この端末）',
+                        style: Theme.of(ctx).textTheme.titleSmall,
+                      ),
                       DropdownButtonFormField<WorldProfile>(
                         initialValue: selectedProfile,
                         decoration: const InputDecoration(labelText: '世界観'),
@@ -140,8 +151,8 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                                 if (file == null) return;
                                 final stored =
                                     await AvatarImageStore.persistFromPicker(
-                                  file.path,
-                                );
+                                      file.path,
+                                    );
                                 setModalState(
                                   () => selectedAvatarPath = stored,
                                 );
@@ -166,6 +177,50 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         style: Theme.of(ctx).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('実機 BLE スキャン（近接推定）'),
+                        subtitle: const Text(
+                          'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
+                        ),
+                        value: selectedUseBle,
+                        onChanged: (v) =>
+                            setModalState(() => selectedUseBle = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('軌跡を端末保存（同意）'),
+                        value: selectedConsent,
+                        onChanged: (v) =>
+                            setModalState(() => selectedConsent = v),
+                      ),
+                      const Divider(height: 28),
+                      Text(
+                        'ホスト向け・ルーム共有',
+                        style: Theme.of(ctx).textTheme.titleSmall,
+                      ),
+                      if (!isHost)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6, top: 2),
+                          child: Text(
+                            '試合時間・共有ルール・脱落後ルールはホストのみ変更できます。「参加者にルール編集を許可」がオンなら、開かれた項目も調整できます。',
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      if (isHost)
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('参加者にカスタムルール編集を許可'),
+                          subtitle: const Text(
+                            '役職固定・スキル・脱落ルールなど。制限時間とエリアはホストが準備画面で設定',
+                          ),
+                          value: selectedParticipantRulesOpen,
+                          onChanged: (v) => setModalState(
+                            () => selectedParticipantRulesOpen = v,
+                          ),
+                        ),
                       DropdownButtonFormField<OniIntelMode>(
                         initialValue: selectedIntel,
                         decoration: InputDecoration(
@@ -182,10 +237,12 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               ),
                             )
                             .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setModalState(() => selectedIntel = v);
-                        },
+                        onChanged: (isHost || selectedParticipantRulesOpen)
+                            ? (v) {
+                                if (v == null) return;
+                                setModalState(() => selectedIntel = v);
+                              }
+                            : null,
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<PlayerRole>(
@@ -202,7 +259,9 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               ),
                             )
                             .toList(),
-                        onChanged: selectedCustomRuleMode
+                        onChanged:
+                            selectedCustomRuleMode &&
+                                (isHost || selectedParticipantRulesOpen)
                             ? (v) {
                                 if (v == null) return;
                                 setModalState(() {
@@ -210,9 +269,9 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                                   selectedSkills
                                     ..clear()
                                     ..addAll(
-                                      skillCandidatesForRole(v).take(
-                                        v == PlayerRole.hunter ? 2 : 1,
-                                      ),
+                                      skillCandidatesForRole(
+                                        v,
+                                      ).take(v == PlayerRole.hunter ? 2 : 1),
                                     );
                                 });
                               }
@@ -225,7 +284,9 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                             FilterChip(
                               label: Text(skillLabel(s)),
                               selected: selectedSkills.contains(s),
-                              onSelected: selectedCustomRuleMode
+                              onSelected:
+                                  selectedCustomRuleMode &&
+                                      (isHost || selectedParticipantRulesOpen)
                                   ? (v) {
                                       setModalState(() {
                                         if (v) {
@@ -250,27 +311,15 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                             ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      if (isHost)
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('参加者にカスタムルール編集を許可'),
-                          subtitle: const Text(
-                            '役職固定・スキル・脱落ルールなど。制限時間とエリアはホストが準備画面で設定',
-                          ),
-                          value: selectedParticipantRulesOpen,
-                          onChanged: (v) => setModalState(
-                            () => selectedParticipantRulesOpen = v,
-                          ),
-                        ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('カスタム公開ルール'),
                         subtitle: const Text('オフ時は開始時に役職/スキル/ルールを秘密ランダム割当'),
                         value: selectedCustomRuleMode,
                         onChanged: (isHost || selectedParticipantRulesOpen)
-                            ? (v) =>
-                                setModalState(() => selectedCustomRuleMode = v)
+                            ? (v) => setModalState(
+                                () => selectedCustomRuleMode = v,
+                              )
                             : null,
                       ),
                       Text(
@@ -286,9 +335,38 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         max: 20,
                         divisions: 19,
                         value: selectedDurationMinutes.clamp(1, 20),
-                        onChanged: (v) =>
-                            setModalState(() => selectedDurationMinutes = v),
+                        onChanged: isHost
+                            ? (v) => setModalState(
+                                () => selectedDurationMinutes = v,
+                              )
+                            : null,
                       ),
+                      if (isHost) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'ギミック密度: ${selectedGimmickDensity.toStringAsFixed(2)}',
+                          style: Theme.of(ctx).textTheme.titleSmall,
+                        ),
+                        Text(
+                          '安全地帯・情報屋・監視カメラ・イベントエリアの個数に掛けられます（次の試合開始で全員に同じ配置が適用されます）。',
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        Tooltip(
+                          message:
+                              '低いほどマップがすっきり、高いほどギミックが増えます（試合開始時にホストが同期した値が使われます）。',
+                          child: Slider(
+                            min: 0.45,
+                            max: 1.55,
+                            divisions: 22,
+                            value: selectedGimmickDensity.clamp(0.45, 1.55),
+                            onChanged: (v) => setModalState(
+                              () => selectedGimmickDensity = v.clamp(0.45, 1.55),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       DropdownButtonFormField<EliminationAftermathRule>(
                         initialValue: selectedElimination,
@@ -303,22 +381,14 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               ),
                             )
                             .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setModalState(() => selectedElimination = v);
-                        },
+                        onChanged: (isHost || selectedParticipantRulesOpen)
+                            ? (v) {
+                                if (v == null) return;
+                                setModalState(() => selectedElimination = v);
+                              }
+                            : null,
                       ),
                       const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('実機 BLE スキャン（近接推定）'),
-                        subtitle: const Text(
-                          'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
-                        ),
-                        value: selectedUseBle,
-                        onChanged: (v) =>
-                            setModalState(() => selectedUseBle = v),
-                      ),
                       ExpansionTile(
                         initiallyExpanded: true,
                         tilePadding: EdgeInsets.zero,
@@ -334,10 +404,12 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                             ),
                             Text(
                               'まだ誰も使っていないルームIDで参加すると、Firestore に rooms と members が作成されます。',
-                              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(ctx).textTheme.bodySmall
+                                  ?.copyWith(
                                     fontSize: 11,
-                                    color:
-                                        Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(
+                                      ctx,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                           ],
@@ -542,14 +614,6 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('軌跡を端末保存（同意）'),
-                        value: selectedConsent,
-                        onChanged: (v) =>
-                            setModalState(() => selectedConsent = v),
-                      ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(
@@ -562,6 +626,19 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         ),
                       ),
                       const SizedBox(height: 10),
+                      if (isHost && onRequestGameDefaultsReset != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              await onRequestGameDefaultsReset();
+                            },
+                            icon: const Icon(Icons.settings_backup_restore),
+                            label: const Text('ゲーム設定をデフォルトに戻す'),
+                          ),
+                        ),
+                      if (isHost && onRequestGameDefaultsReset != null)
+                        const SizedBox(height: 8),
                       Align(
                         alignment: Alignment.centerRight,
                         child: FilledButton(
@@ -593,11 +670,9 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
     selectedElimination.name,
   );
   await prefs.setBool(GameMapPrefs.useBleScanProximity, selectedUseBle);
+  await prefs.setDouble(GameMapPrefs.gimmickDensity, selectedGimmickDensity);
   if (selectedAvatarPath != null && selectedAvatarPath!.isNotEmpty) {
-    await prefs.setString(
-      GameMapPrefs.avatarImagePath,
-      selectedAvatarPath!,
-    );
+    await prefs.setString(GameMapPrefs.avatarImagePath, selectedAvatarPath!);
   } else {
     await prefs.remove(GameMapPrefs.avatarImagePath);
     await AvatarImageStore.deleteStored();
@@ -615,6 +690,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
     skillLoadout: selectedSkills,
     useBleScan: selectedUseBle,
     avatarImagePath: selectedAvatarPath,
+    gimmickDensity: selectedGimmickDensity,
   );
 }
 

@@ -22,68 +22,134 @@ class SkillActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final onCd = cooldownSeconds > 0;
     final onBuff = buffSeconds != null && buffSeconds! > 0;
     final enabled = onPressed != null && !onCd;
+    final semanticLabel = _semanticLabel(
+      onCd: onCd,
+      onBuff: onBuff,
+    );
+    final compactFg = scheme.onSurface;
+    final compactBg = scheme.surfaceContainerHighest.withValues(alpha: 0.98);
     final btn = Material(
-      color: compact ? Colors.white.withValues(alpha: 0.14) : null,
+      color: compact ? compactBg : null,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            vertical: compact ? 6 : 10,
-            horizontal: compact ? 4 : 8,
+            vertical: compact ? 14 : 10,
+            horizontal: compact ? 6 : 8,
           ),
           child: Icon(
             icon,
-            size: compact ? 18 : 22,
-            color: compact ? Colors.white : null,
+            size: 22,
+            color: compact ? compactFg : null,
           ),
         ),
       ),
     );
     if (compact) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(width: double.infinity, child: btn),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 8, color: Colors.white70),
-          ),
-          if (onBuff)
-            Text('${buffSeconds}s', style: const TextStyle(fontSize: 8))
-          else if (onCd)
-            Text('$cooldownSeconds', style: const TextStyle(fontSize: 8)),
-        ],
+      return Semantics(
+        button: true,
+        enabled: enabled,
+        label: semanticLabel,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ExcludeSemantics(child: btn),
+            ),
+            ExcludeSemantics(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (onBuff)
+              ExcludeSemantics(
+                child: Text(
+                  '${buffSeconds}s',
+                  style: TextStyle(fontSize: 9, color: scheme.primary),
+                ),
+              )
+            else if (onCd)
+              ExcludeSemantics(
+                child: Text(
+                  '$cooldownSeconds',
+                  style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
+                ),
+              ),
+          ],
+        ),
       );
     }
-    return SizedBox(
-      width: 88,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn,
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10),
-          ),
-          if (onBuff)
-            Text('${buffSeconds}s', style: const TextStyle(fontSize: 9))
-          else if (onCd)
-            Text('CD $cooldownSeconds', style: const TextStyle(fontSize: 9))
-          else if (active)
-            const Text('作動中', style: TextStyle(fontSize: 9)),
-        ],
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: semanticLabel,
+      child: SizedBox(
+        width: 88,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(child: btn),
+            const SizedBox(height: 2),
+            ExcludeSemantics(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+            if (onBuff)
+              ExcludeSemantics(
+                child: Text(
+                  '${buffSeconds}s',
+                  style: const TextStyle(fontSize: 9),
+                ),
+              )
+            else if (onCd)
+              ExcludeSemantics(
+                child: Text(
+                  'CD $cooldownSeconds',
+                  style: const TextStyle(fontSize: 9),
+                ),
+              )
+            else if (active)
+              ExcludeSemantics(
+                child: const Text('作動中', style: TextStyle(fontSize: 9)),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _semanticLabel({
+    required bool onCd,
+    required bool onBuff,
+  }) {
+    if (onBuff) {
+      return '$label、効果残り$buffSeconds秒';
+    }
+    if (onCd) {
+      return '$label、クールダウン$cooldownSeconds秒';
+    }
+    if (active && !compact) {
+      return '$label、作動中';
+    }
+    return label;
   }
 }

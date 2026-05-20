@@ -27,6 +27,8 @@ abstract final class RoomDocFields {
   static const matchStart = 'matchStart';
 
   static const matchStartGimmickSeed = 'gimmickSeed';
+  /// ギミック個数スケール（全端末同一）。省略時は 1.0。
+  static const matchStartGimmickDensity = 'gimmickDensity';
   static const matchStartPlayArea = 'playArea';
   static const matchStartDurationSec = 'matchDurationSeconds';
   static const matchStartOniIntelMode = 'oniIntelMode';

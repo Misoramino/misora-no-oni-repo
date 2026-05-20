@@ -35,6 +35,7 @@ class GameMapOverlaySnapshot {
     required this.fakePositionActive,
     required this.fakePositionLatLng,
     required this.bodyThrowPosition,
+    this.bodyThrowAwaitingMapTap = false,
     required this.afterCatchRule,
     required this.ghostRoughPositions,
     required this.editingArea,
@@ -77,6 +78,7 @@ class GameMapOverlaySnapshot {
   final bool fakePositionActive;
   final LatLng? fakePositionLatLng;
   final LatLng? bodyThrowPosition;
+  final bool bodyThrowAwaitingMapTap;
   final EliminationAftermathRule? afterCatchRule;
   final List<LatLng> ghostRoughPositions;
   final bool editingArea;

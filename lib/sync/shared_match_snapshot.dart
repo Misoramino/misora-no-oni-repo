@@ -15,6 +15,7 @@ class SharedMatchSnapshot {
     required this.eliminationAftermathRule,
     required this.assignments,
     this.startedAtUtc,
+    this.gimmickDensity = 1.0,
   });
 
   final int gimmickSeed;
@@ -22,6 +23,9 @@ class SharedMatchSnapshot {
   final int matchDurationSeconds;
   final OniIntelMode oniIntelMode;
   final EliminationAftermathRule eliminationAftermathRule;
+
+  /// ギミック配置の個数スケール（ホストが試合開始時に固定、1.0 が既定）。
+  final double gimmickDensity;
 
   /// uid → 割当
   final Map<String, SharedPlayerAssignment> assignments;
@@ -33,6 +37,7 @@ class SharedMatchSnapshot {
         RoomDocFields.matchStartDurationSec: matchDurationSeconds,
         RoomDocFields.matchStartOniIntelMode: oniIntelMode.name,
         RoomDocFields.matchStartAftermathRule: eliminationAftermathRule.name,
+        RoomDocFields.matchStartGimmickDensity: gimmickDensity,
         RoomDocFields.matchStartAssignments: {
           for (final e in assignments.entries) e.key: e.value.toMap(),
         },
@@ -59,6 +64,11 @@ class SharedMatchSnapshot {
     }
     if (assignments.isEmpty) return null;
 
+    final dRaw = raw[RoomDocFields.matchStartGimmickDensity];
+    final density = dRaw is num
+        ? dRaw.toDouble().clamp(0.45, 1.55)
+        : 1.0;
+
     return SharedMatchSnapshot(
       gimmickSeed: seed.toInt(),
       playArea: PlayArea.fromJson(Map<String, dynamic>.from(areaRaw)),
@@ -72,6 +82,7 @@ class SharedMatchSnapshot {
           EliminationAftermathRule.ghostSpectator,
       assignments: assignments,
       startedAtUtc: raw[RoomDocFields.matchStartStartedAtUtc] as String?,
+      gimmickDensity: density,
     );
   }
 

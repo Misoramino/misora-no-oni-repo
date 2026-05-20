@@ -62,4 +62,7 @@ abstract final class RoomMatchEventTypes {
   static const captureZonePlaced = 'capture_zone_placed';
   static const captureZoneAck = 'capture_zone_ack';
   static const captureZoneBound = 'capture_zone_bound';
+
+  /// 試合中止の賛否（payload: `{ agree: bool }`）。
+  static const abortVote = 'abort_vote';
 }

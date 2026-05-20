@@ -21,26 +21,52 @@ class GeneratedGimmicks {
   final List<LatLng> eventAreas;
 
   /// [seed] を指定すると全端末で同じ配置になる。
-  factory GeneratedGimmicks.create(PlayArea area, {int? seed}) {
+  /// [density] はギミック個数の倍率（0.5〜1.5 程度推奨、既定 1.0）。
+  factory GeneratedGimmicks.create(
+    PlayArea area, {
+    int? seed,
+    double density = 1.0,
+  }) {
+    final d = density.clamp(0.45, 1.55);
     final s = seed ?? DateTime.now().millisecondsSinceEpoch;
     final center = centerOf(area);
     final radius = effectiveRadiusMeters(area, center).clamp(180.0, 2400.0);
-    final safeCount = _scaledCount(
-      radius,
+    int densify(int count, int minC, int maxC) {
+      return (count * d).round().clamp(minC, maxC);
+    }
+    final safeCount = densify(
+      _scaledCount(
+        radius,
+        GameConfig.safeZoneMinCount,
+        GameConfig.safeZoneMaxCount,
+      ),
       GameConfig.safeZoneMinCount,
       GameConfig.safeZoneMaxCount,
     );
-    final brokerCount = _scaledCount(
-      radius,
+    final brokerCount = densify(
+      _scaledCount(
+        radius,
+        GameConfig.infoBrokerMinCount,
+        GameConfig.infoBrokerMaxCount,
+      ),
       GameConfig.infoBrokerMinCount,
       GameConfig.infoBrokerMaxCount,
     );
-    final cameraCount =
+    final cameraBase =
         (GameConfig.cameraMinCount + ((radius - 250) / 180).floor())
             .clamp(GameConfig.cameraMinCount, GameConfig.cameraMaxCount)
             .toInt();
-    final eventCount = _scaledCount(
-      radius,
+    final cameraCount = densify(
+      cameraBase,
+      GameConfig.cameraMinCount,
+      GameConfig.cameraMaxCount,
+    );
+    final eventCount = densify(
+      _scaledCount(
+        radius,
+        GameConfig.commJammingZoneMinCount,
+        GameConfig.commJammingZoneMaxCount,
+      ),
       GameConfig.commJammingZoneMinCount,
       GameConfig.commJammingZoneMaxCount,
     );

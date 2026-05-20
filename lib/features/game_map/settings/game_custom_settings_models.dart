@@ -17,6 +17,7 @@ class GameCustomSettingsInitial {
     required this.skillLoadout,
     required this.useBleScan,
     this.avatarImagePath,
+    this.gimmickDensity = 1.0,
   });
 
   final WorldProfile profile;
@@ -30,6 +31,8 @@ class GameCustomSettingsInitial {
   final Set<String> skillLoadout;
   final bool useBleScan;
   final String? avatarImagePath;
+  /// ギミック配置の個数倍率（ホスト向け、試合開始で固定）。
+  final double gimmickDensity;
 }
 
 /// 「適用」後に画面へ反映する値。
@@ -46,6 +49,7 @@ class GameCustomSettingsResult {
     required this.skillLoadout,
     required this.useBleScan,
     this.avatarImagePath,
+    this.gimmickDensity = 1.0,
   });
 
   final WorldProfile profile;
@@ -59,4 +63,5 @@ class GameCustomSettingsResult {
   final Set<String> skillLoadout;
   final bool useBleScan;
   final String? avatarImagePath;
+  final double gimmickDensity;
 }

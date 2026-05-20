@@ -35,15 +35,18 @@ abstract final class GameMapOverlayBuilder {
     final showGimmickIcons = lod.showGimmickIcons(z);
     final showDetail = lod.showDetailMarkers(z);
 
-    final playerIcon = s.usePhotoPlayerPin && s.playerMarkerIcon != null
-        ? s.playerMarkerIcon!
-        : _icon(
-            s,
-            s.usePhotoPlayerPin
-                ? MapMarkerKind.playerRevealed
-                : MapMarkerKind.player,
-            BitmapDescriptor.hueAzure,
-          );
+    final lowZoomPlayer = z < 14;
+    final playerIcon = lowZoomPlayer
+        ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)
+        : (s.usePhotoPlayerPin && s.playerMarkerIcon != null
+            ? s.playerMarkerIcon!
+            : _icon(
+                s,
+                s.usePhotoPlayerPin
+                    ? MapMarkerKind.playerRevealed
+                    : MapMarkerKind.player,
+                BitmapDescriptor.hueAzure,
+              ));
 
     final markers = <Marker>{
       Marker(
@@ -264,29 +267,6 @@ abstract final class GameMapOverlayBuilder {
       }
     }
 
-    if (s.editingArea && !s.editCircleMode) {
-      for (var i = 0; i < s.polygonDraft.length; i++) {
-        markers.add(
-          Marker(
-            markerId: MarkerId('draft_v_$i'),
-            position: s.polygonDraft[i],
-            infoWindow: InfoWindow(title: '頂点', snippet: '${i + 1}'),
-            icon: _icon(s, MapMarkerKind.safeZone, BitmapDescriptor.hueGreen),
-          ),
-        );
-      }
-    }
-
-    if (s.editingArea && s.editCircleMode) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('circle_center'),
-          position: s.circleDraftCenter,
-          infoWindow: const InfoWindow(title: '円の中心', snippet: '編集中'),
-          icon: _icon(s, MapMarkerKind.infoBroker, BitmapDescriptor.hueViolet),
-        ),
-      );
-    }
 
     return markers;
   }
@@ -456,6 +436,19 @@ abstract final class GameMapOverlayBuilder {
           );
         }
       }
+      if (L.skillMarkers && s.bodyThrowAwaitingMapTap) {
+        circles.add(
+          Circle(
+            circleId: const CircleId('body-throw-tap-range'),
+            center: s.playerMarkerPosition,
+            radius: GameConfig.bodyThrowDistanceMeters,
+            strokeWidth: 2,
+            fillColor: tokens.traceColor.withValues(alpha: 0.12),
+            strokeColor: tokens.traceColor.withValues(alpha: 0.88),
+            zIndex: 8,
+          ),
+        );
+      }
     }
 
     if (L.captureZone && s.captureZoneCenter != null) {
@@ -500,7 +493,35 @@ abstract final class GameMapOverlayBuilder {
           zIndex: 20,
         ),
       );
+      circles.add(
+        Circle(
+          circleId: const CircleId('draft-circle-center-dot'),
+          center: s.circleDraftCenter,
+          radius: 5,
+          strokeWidth: 2,
+          fillColor: tokens.editDraftColor.withValues(alpha: 0.9),
+          strokeColor: Colors.white.withValues(alpha: 0.85),
+          zIndex: 25,
+        ),
+      );
     }
+
+    if (s.editingArea && !s.editCircleMode) {
+      for (var i = 0; i < s.polygonDraft.length; i++) {
+        circles.add(
+          Circle(
+            circleId: CircleId('draft_v_$i'),
+            center: s.polygonDraft[i],
+            radius: 5,
+            strokeWidth: 2,
+            fillColor: tokens.safeColor.withValues(alpha: 0.85),
+            strokeColor: Colors.white.withValues(alpha: 0.8),
+            zIndex: 25,
+          ),
+        );
+      }
+    }
+
     return circles;
   }
 

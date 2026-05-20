@@ -11,7 +11,7 @@ import 'map_marker_kind_assets.dart';
 
 /// 世界観ごとのマーカー Bitmap（PNG があれば優先、なければプログラム生成）。
 abstract final class MapMarkerIconFactory {
-  static const double _size = 96;
+  static const double _size = 72;
 
   static Future<BitmapDescriptor> create({
     required MapMarkerKind kind,

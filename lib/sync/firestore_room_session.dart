@@ -31,6 +31,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   String _role = 'runner';
   Timer? _heartbeatTimer;
   List<RoomMemberView> _latestLobby = const [];
+  Map<String, RemoteMemberSnapshot> _latestRemoteMembers = const {};
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
@@ -47,15 +48,41 @@ class FirestoreRoomSession implements RoomSessionPort {
   final StreamController<RoomMatchEvent> _roomEventCtrl =
       StreamController<RoomMatchEvent>.broadcast();
 
-  RoomMatchState _latestRoomMatch = const RoomMatchState(phase: RoomPhase.lobby);
+  RoomMatchState _latestRoomMatch = const RoomMatchState(
+    phase: RoomPhase.lobby,
+  );
   SharedMatchSnapshot? _latestMatchStart;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventsSub;
 
+  /// 他プレイヤーの最新プレゼンス。購読時に直近値を再送する。
   Stream<Map<String, RemoteMemberSnapshot>> get remoteMembers =>
-      _remoteCtrl.stream;
+      Stream<Map<String, RemoteMemberSnapshot>>.multi((controller) {
+        controller.add(_latestRemoteMembers);
+        final sub = _remoteCtrl.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        controller.onCancel = () => sub.cancel();
+      }, isBroadcast: true);
 
   /// ルーム内の全メンバー（自分を含む）。ロビー UI 用。
-  Stream<List<RoomMemberView>> get lobbyMembers => _lobbyCtrl.stream;
+  ///
+  /// 購読直後に [currentLobbyMembers] を再送する（Firestore 初回スナップショットが
+  /// リスナー登録より先に届いた端末での一覧取りこぼし対策）。
+  Stream<List<RoomMemberView>> get lobbyMembers =>
+      Stream<List<RoomMemberView>>.multi((controller) {
+        controller.add(_latestLobby);
+        final sub = _lobbyCtrl.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        controller.onCancel = () => sub.cancel();
+      }, isBroadcast: true);
+
+  Map<String, RemoteMemberSnapshot> get currentRemoteMembers =>
+      Map<String, RemoteMemberSnapshot>.unmodifiable(_latestRemoteMembers);
   List<RoomMemberView> get currentLobbyMembers =>
       List.unmodifiable(_latestLobby);
 
@@ -195,13 +222,18 @@ class FirestoreRoomSession implements RoomSessionPort {
         .listen((snap) {
           _emitLobbyFromSnapshot(snap);
         });
+    // 購読直後にキャッシュ同期（初回イベントが遅い端末向け）
+    unawaited(
+      _db.collection('rooms').doc(rid).collection('members').get().then((snap) {
+        if (_roomId != rid) return;
+        _emitLobbyFromSnapshot(snap);
+      }),
+    );
   }
 
   QuerySnapshot<Map<String, dynamic>>? _lastMemberSnap;
 
-  void _emitLobbyFromSnapshot(
-    QuerySnapshot<Map<String, dynamic>> snap,
-  ) {
+  void _emitLobbyFromSnapshot(QuerySnapshot<Map<String, dynamic>> snap) {
     _lastMemberSnap = snap;
     _emitLobbyFromLastMembers();
   }
@@ -212,7 +244,6 @@ class FirestoreRoomSession implements RoomSessionPort {
     final host = _hostUid;
     final out = <String, RemoteMemberSnapshot>{};
     final lobby = <RoomMemberView>[];
-    final now = DateTime.now().toUtc();
     for (final d in snap.docs) {
       final isSelf = d.id == _uid;
       final view = RoomMemberView.parse(
@@ -221,7 +252,8 @@ class FirestoreRoomSession implements RoomSessionPort {
         isSelf: isSelf,
         isHost: host != null && d.id == host,
       );
-      if (!isSelf && view.isStale(now)) continue;
+      // ロビーでは全員表示（stale は UI でグレー表示）。iOS 等でハートビート遅延があると
+      // 他端末が一覧から消える問題を避ける。
       lobby.add(view);
       final remote = RemoteMemberSnapshot.tryParse(d.id, d.data());
       if (!isSelf && remote != null) out[d.id] = remote;
@@ -236,6 +268,7 @@ class FirestoreRoomSession implements RoomSessionPort {
       return a.nickname.compareTo(b.nickname);
     });
     _latestLobby = List.unmodifiable(lobby);
+    _latestRemoteMembers = Map<String, RemoteMemberSnapshot>.unmodifiable(out);
     if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(_latestLobby);
   }
@@ -250,8 +283,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     try {
       await _db.collection('rooms').doc(_roomId).collection('events').add({
         RoomEventsFields.type: type,
-        RoomEventsFields.emittedAtUtc:
-            DateTime.now().toUtc().toIso8601String(),
+        RoomEventsFields.emittedAtUtc: DateTime.now().toUtc().toIso8601String(),
         RoomEventsFields.emittedAtMs: DateTime.now().microsecondsSinceEpoch,
         RoomEventsFields.actorUid: _uid,
         RoomEventsFields.sessionKey: sessionKey,
@@ -272,7 +304,11 @@ class FirestoreRoomSession implements RoomSessionPort {
     required int sessionKey,
   }) async {
     if (!isHost) return 'ホストのみ書けます';
-    return publishRoomEvent(type: type, payload: payload, sessionKey: sessionKey);
+    return publishRoomEvent(
+      type: type,
+      payload: payload,
+      sessionKey: sessionKey,
+    );
   }
 
   /// 現在の試合 sessionKey（gimmickSeed）で events を購読（ルーム doc / members に加えて 1 本）。
@@ -310,8 +346,8 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (_roomId == null) return 'ルームに参加していません';
     if (!isHost) return 'ホストのみ開始できます';
     try {
-      final started = snapshot.startedAtUtc ??
-          DateTime.now().toUtc().toIso8601String();
+      final started =
+          snapshot.startedAtUtc ?? DateTime.now().toUtc().toIso8601String();
       final payload = snapshot.toMap()
         ..[RoomDocFields.matchStartStartedAtUtc] = started;
       await _db.collection('rooms').doc(_roomId).update({
@@ -332,10 +368,7 @@ class FirestoreRoomSession implements RoomSessionPort {
       if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
       final err = await publishHostRoomEvent(
         type: RoomMatchEventTypes.matchStart,
-        payload: {
-          'gimmickSeed': snapshot.gimmickSeed,
-          'startedAtUtc': started,
-        },
+        payload: {'gimmickSeed': snapshot.gimmickSeed, 'startedAtUtc': started},
         sessionKey: snapshot.gimmickSeed,
       );
       if (err != null) return err;
@@ -419,9 +452,7 @@ class FirestoreRoomSession implements RoomSessionPort {
       _latestRoomMatch = RoomMatchState(
         phase: _phase,
         matchStart: _latestMatchStart,
-        matchEnd: phase == RoomPhase.ended
-            ? _latestRoomMatch.matchEnd
-            : null,
+        matchEnd: phase == RoomPhase.ended ? _latestRoomMatch.matchEnd : null,
       );
       if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
       return null;
@@ -529,7 +560,9 @@ class FirestoreRoomSession implements RoomSessionPort {
     _latestRoomMatch = const RoomMatchState(phase: RoomPhase.lobby);
     _lastMemberSnap = null;
     _latestLobby = const [];
+    _latestRemoteMembers = const {};
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add([]);
+    if (!_remoteCtrl.isClosed) _remoteCtrl.add({});
     if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);
     if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
     final rid = _roomId;

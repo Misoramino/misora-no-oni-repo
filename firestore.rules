@@ -89,7 +89,8 @@ service cloud.firestore {
         || t == 'info_broker'
         || t == 'match_event'
         || t == 'capture_zone_placed'
-        || t == 'capture_zone_ack';
+        || t == 'capture_zone_ack'
+        || t == 'abort_vote';
     }
 
     function hostOnlyRoomEventType(t) {

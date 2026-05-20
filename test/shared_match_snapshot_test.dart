@@ -30,11 +30,14 @@ void main() {
           skills: ['fake_intel_reveal', 'capture_zone'],
         ),
       },
+      startedAtUtc: '2020-01-01T00:00:00.000Z',
+      gimmickDensity: 1.15,
     );
 
     final parsed = SharedMatchSnapshot.tryParse(original.toMap());
     expect(parsed, isNotNull);
     expect(parsed!.gimmickSeed, 42);
+    expect(parsed.gimmickDensity, closeTo(1.15, 0.001));
     expect(parsed.matchDurationSeconds, 180);
     expect(parsed.assignments.length, 2);
     expect(parsed.assignmentFor('uid-b')?.role, PlayerRole.hunter);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/map_hud_contrast.dart';
+import '../../../theme/world_profile.dart';
 import '../map/game_map_layer_toggles.dart';
 import 'cooldown_chip.dart';
 import 'map_layer_toggle_strip.dart';
@@ -15,6 +17,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.intelLine,
     required this.showIntelLine,
     required this.onDismissIntel,
+    required this.onOpenIntelLog,
     required this.timerText,
     required this.gameStateText,
     required this.statusText,
@@ -27,6 +30,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.werewolfBuffSeconds,
     required this.werewolfCooldownSeconds,
     required this.fakeCooldownSeconds,
+    required this.mapWorldProfile,
     this.mapLayerToggles,
     this.onMapLayersChanged,
     this.onRecenterMap,
@@ -41,6 +45,8 @@ class GameInfoPanel extends StatelessWidget {
   final String intelLine;
   final bool showIntelLine;
   final VoidCallback onDismissIntel;
+  /// 鬼情報・暴露ログをまとめて見る。
+  final VoidCallback onOpenIntelLog;
   final String timerText;
   final String gameStateText;
   final String statusText;
@@ -53,6 +59,7 @@ class GameInfoPanel extends StatelessWidget {
   final int? werewolfBuffSeconds;
   final int werewolfCooldownSeconds;
   final int fakeCooldownSeconds;
+  final WorldProfile mapWorldProfile;
   final GameMapLayerToggles? mapLayerToggles;
   final ValueChanged<GameMapLayerToggles>? onMapLayersChanged;
   final VoidCallback? onRecenterMap;
@@ -60,16 +67,17 @@ class GameInfoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     if (revealAlert != null && revealAlert!.isNotEmpty) {
       return Material(
-        color: theme.colorScheme.errorContainer.withValues(alpha: 0.95),
+        color: scheme.errorContainer.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(10),
         elevation: 2,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Row(
             children: [
-              Icon(Icons.campaign_outlined, color: theme.colorScheme.error),
+              Icon(Icons.campaign_outlined, color: scheme.error),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -98,14 +106,14 @@ class GameInfoPanel extends StatelessWidget {
 
     if (!expanded) {
       return Material(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
         borderRadius: BorderRadius.circular(10),
         elevation: 1,
         child: InkWell(
           onTap: onToggleExpanded,
           borderRadius: BorderRadius.circular(10),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
                 Container(
@@ -133,6 +141,15 @@ class GameInfoPanel extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
+                IconButton(
+                  tooltip: '鬼情報・ログ',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: onOpenIntelLog,
+                  icon: Icon(Icons.radar, size: 20, color: scheme.primary),
+                ),
                 if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
                   CooldownChip(label: '鬼化', seconds: werewolfBuffSeconds!),
                 if (fakeCooldownSeconds > 0)
@@ -155,7 +172,7 @@ class GameInfoPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.84),
+        color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
         borderRadius: BorderRadius.circular(12),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
@@ -180,6 +197,14 @@ class GameInfoPanel extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              TextButton(
+                onPressed: onOpenIntelLog,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                ),
+                child: const Text('鬼情報ログ', style: TextStyle(fontSize: 11)),
+              ),
               Text(
                 '暴露$revealCount・ステルス$safeZoneCharges',
                 style: theme.textTheme.labelSmall,
@@ -228,12 +253,13 @@ class GameInfoPanel extends StatelessWidget {
                   ),
                 ),
                 IconButton(
+                  tooltip: '一行表示を隠す（ログは開けます）',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints:
                       const BoxConstraints(minWidth: 28, minHeight: 28),
                   onPressed: onDismissIntel,
-                  icon: const Icon(Icons.close, size: 16),
+                  icon: const Icon(Icons.visibility_off_outlined, size: 18),
                 ),
               ],
             ),
@@ -271,28 +297,34 @@ class GameInfoPanel extends StatelessWidget {
             ),
           ],
           if (mapLayerToggles != null && onMapLayersChanged != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text('地図の表示', style: theme.textTheme.labelSmall),
-                const Spacer(),
-                if (onRecenterMap != null)
-                  TextButton.icon(
-                    onPressed: onRecenterMap,
-                    icon: const Icon(Icons.center_focus_strong, size: 16),
-                    label: const Text('現在地へ', style: TextStyle(fontSize: 11)),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+            const SizedBox(height: 4),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 4),
+              title: Row(
+                children: [
+                  Text('地図の表示', style: theme.textTheme.labelSmall),
+                  const Spacer(),
+                  if (onRecenterMap != null)
+                    TextButton.icon(
+                      onPressed: onRecenterMap,
+                      icon: const Icon(Icons.center_focus_strong, size: 16),
+                      label: const Text('現在地へ', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
                     ),
-                  ),
+                ],
+              ),
+              children: [
+                MapLayerToggleStrip(
+                  dense: true,
+                  showTitle: false,
+                  toggles: mapLayerToggles!,
+                  onChanged: onMapLayersChanged!,
+                ),
               ],
-            ),
-            MapLayerToggleStrip(
-              dense: true,
-              showTitle: false,
-              toggles: mapLayerToggles!,
-              onChanged: onMapLayersChanged!,
             ),
           ],
         ],

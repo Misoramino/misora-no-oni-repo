@@ -8,7 +8,6 @@ class GameMapOverflowMenu extends StatelessWidget {
     super.key,
     required this.gameState,
     required this.editingArea,
-    required this.mapVisibleInLobby,
     required this.testMode,
     required this.panelHidden,
     required this.prepControlSheetOpen,
@@ -17,7 +16,6 @@ class GameMapOverflowMenu extends StatelessWidget {
 
   final GameState gameState;
   final bool editingArea;
-  final bool mapVisibleInLobby;
   final bool testMode;
   final bool panelHidden;
   final bool prepControlSheetOpen;
@@ -27,8 +25,7 @@ class GameMapOverflowMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final running = gameState == GameState.running;
     final ended =
-        gameState == GameState.runnerWin ||
-        gameState == GameState.caughtByOni;
+        gameState == GameState.runnerWin || gameState == GameState.caughtByOni;
 
     return PopupMenuButton<String>(
       tooltip: 'More',
@@ -58,18 +55,6 @@ class GameMapOverflowMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
           ),
         ),
-        PopupMenuItem(
-          value: 'hide_map',
-          enabled:
-              gameState == GameState.waiting &&
-              !editingArea &&
-              mapVisibleInLobby,
-          child: const ListTile(
-            leading: Icon(Icons.dashboard_outlined),
-            title: Text('Map off / Setup'),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
         const PopupMenuItem(
           value: 'gallery',
           child: ListTile(
@@ -86,6 +71,16 @@ class GameMapOverflowMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
           ),
         ),
+        if (running)
+          const PopupMenuItem(
+            value: 'abort_vote',
+            child: ListTile(
+              leading: Icon(Icons.how_to_vote_outlined),
+              title: Text('試合中止の投票'),
+              subtitle: Text('離脱・ホームへは同意後に'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
         const PopupMenuItem(
           value: 'privacy',
           child: ListTile(
@@ -114,14 +109,6 @@ class GameMapOverflowMenu extends StatelessWidget {
             ),
           ),
         if (testMode && running) ...[
-          const PopupMenuItem(
-            value: 'dev_abort',
-            child: ListTile(
-              leading: Icon(Icons.how_to_vote_outlined),
-              title: Text('中止提案（開発）'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
           const PopupMenuItem(
             value: 'dev_reset',
             child: ListTile(

@@ -66,6 +66,10 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       if (!mounted) return;
       setState(() => _members = list);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _members = session.currentLobbyMembers);
+    });
   }
 
   Future<void> _join() async {
@@ -144,13 +148,11 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     final err = await fs.transferHost(target.uid);
     if (!mounted) return;
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(err)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${target.nickname} をホストにしました')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${target.nickname} をホストにしました')));
     }
   }
 
@@ -162,8 +164,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            GameMapScreen(profile: profile, onlineSession: fs),
+        builder: (_) => GameMapScreen(profile: profile, onlineSession: fs),
       ),
     );
     if (!mounted) return;
@@ -382,8 +383,9 @@ class _MemberTile extends StatelessWidget {
                     [
                       if (view.isSelf) 'あなた',
                       if (view.isHost) 'ホスト',
+                      if (view.isStale(DateTime.now().toUtc())) 'ハートビート遅延',
                       if (band != null && band.isNotEmpty) band,
-                    ].join(' · '),
+                    ].where((s) => s.isNotEmpty).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(

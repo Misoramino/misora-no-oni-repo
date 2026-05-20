@@ -56,6 +56,7 @@ class GameConfig {
   static const double bodyThrowDistanceMeters = 90;
   static const int bodyThrowDurationSeconds = 12;
   static const int bodyThrowCooldownSeconds = 75;
+  static const int bodyThrowMapTapWindowSeconds = 22;
 
   // Phase 2.5: infection and trace
   static const double infectionTriggerDistanceMeters = 38;

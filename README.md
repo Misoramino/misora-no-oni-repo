@@ -31,6 +31,7 @@ Urban GPS tag game prototype with tension-focused design:
 - `lib/services`: location and local persistence
 - `lib/theme`: worldview-ready app theme entry
 - `docs/AI_HANDOFF.md`: architecture + intent for handoff
+- `docs/BLE_PROXIMITY.md`: BLE on/off の挙動メモ
 
 ## Run
 

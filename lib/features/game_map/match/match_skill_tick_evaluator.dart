@@ -34,7 +34,16 @@ final class SkillTickCaptureZoneGameOver extends SkillTickOutcome {
 }
 
 final class SkillTickBodyThrowMiss extends SkillTickOutcome {
-  const SkillTickBodyThrowMiss();
+  const SkillTickBodyThrowMiss(this.puppetPosition);
+
+  final LatLng puppetPosition;
+}
+
+/// 人形を置くまでの時間切れ — 発動時点のプレイヤー位置を暴露。
+final class SkillTickBodyThrowPlacementTimeout extends SkillTickOutcome {
+  const SkillTickBodyThrowPlacementTimeout(this.playerPositionAtCast);
+
+  final LatLng playerPositionAtCast;
 }
 
 final class SkillTickTouchLockNotice extends SkillTickOutcome {
@@ -83,7 +92,8 @@ abstract final class MatchSkillTickEvaluator {
       out.add(const SkillTickWerewolfEnded());
     }
 
-    if (runtime.captureZoneEndsAt != null && now.isAfter(runtime.captureZoneEndsAt!)) {
+    if (runtime.captureZoneEndsAt != null &&
+        now.isAfter(runtime.captureZoneEndsAt!)) {
       runtime.captureZoneCenter = null;
       runtime.captureZoneEndsAt = null;
       runtime.captureZoneBoundIds = const {};
@@ -115,10 +125,27 @@ abstract final class MatchSkillTickEvaluator {
       }
     }
 
-    if (runtime.bodyThrowEndsAt != null && now.isAfter(runtime.bodyThrowEndsAt!)) {
+    if (runtime.bodyThrowEndsAt != null &&
+        now.isAfter(runtime.bodyThrowEndsAt!)) {
+      final puppet = runtime.bodyThrowPosition;
       runtime.bodyThrowPosition = null;
       runtime.bodyThrowEndsAt = null;
-      out.add(const SkillTickBodyThrowMiss());
+      runtime.bodyThrowSkillOriginLatLng = null;
+      if (puppet != null) {
+        out.add(SkillTickBodyThrowMiss(puppet));
+      }
+    }
+
+    if (runtime.bodyThrowAwaitingMapTap &&
+        runtime.bodyThrowTapDeadline != null &&
+        now.isAfter(runtime.bodyThrowTapDeadline!)) {
+      final anchor = runtime.bodyThrowSkillOriginLatLng;
+      runtime.bodyThrowAwaitingMapTap = false;
+      runtime.bodyThrowTapDeadline = null;
+      runtime.bodyThrowSkillOriginLatLng = null;
+      if (anchor != null) {
+        out.add(SkillTickBodyThrowPlacementTimeout(anchor));
+      }
     }
 
     return out;

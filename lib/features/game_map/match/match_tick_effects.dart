@@ -58,10 +58,13 @@ final class MatchLocationRevealEmitEffect extends MatchTickEffect {
   const MatchLocationRevealEmitEffect({
     required this.type,
     required this.message,
+    this.position,
   });
 
   final String type;
   final String message;
+  /// 非 null のときこの座標を暴露（体投げ未回収＝人形位置など）。
+  final LatLng? position;
 }
 
 final class MatchInfectionPulseRevealEffect extends MatchTickEffect {
