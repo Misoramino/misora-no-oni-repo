@@ -712,9 +712,14 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _loadHudDisplayPrefs() async {
-    final slot = await HudDisplayPrefs.loadCompactLineSlot();
+    final hud = await HudDisplayPrefs.load();
     if (!mounted) return;
-    setState(() => _hudCompactLineSlot = slot);
+    setState(() {
+      _hudCompactLineSlot = hud.compactLineSlot;
+      _hudShowIntelLine = hud.showIntelLine;
+      _hudShowStatusLine = hud.showStatusLine;
+      _hudShowConditionLine = hud.showConditionLine;
+    });
   }
 
   String _hudCompactLineText() {
@@ -3674,6 +3679,12 @@ class _GameMapScreenState extends State<GameMapScreen>
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () async {
+                        final hud = HudDisplaySettings(
+                          compactLineSlot: compactSlot,
+                          showIntelLine: showIntel,
+                          showStatusLine: showStatus,
+                          showConditionLine: showCondition,
+                        );
                         setState(() {
                           _hudShowIntelLine = showIntel;
                           _hudShowStatusLine = showStatus;
@@ -3681,7 +3692,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           _hudCompactLineSlot = compactSlot;
                           _mapLayerToggles = layers;
                         });
-                        await HudDisplayPrefs.saveCompactLineSlot(compactSlot);
+                        await HudDisplayPrefs.save(hud);
                         if (ctx.mounted) Navigator.pop(ctx);
                       },
                       child: const Text('適用'),

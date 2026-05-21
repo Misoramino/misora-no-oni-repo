@@ -102,11 +102,30 @@
 | 主ファイル | 注意 |
 |------------|------|
 | `lib/screens/game_map_screen.dart` | 状態・地図・オンライン束ね。分割時は ARCHITECTURE と本表を更新 |
+| `lib/screens/app_launch_shell.dart` | 起動演出 → タイトル遷移（`AnimatedBuilder` + `_introDone`） |
 | `lib/screens/title_screen.dart` | 入口・Firebase 表示 |
+| `lib/screens/room_lobby_screen.dart` | ロビー（`Expanded` なしのリストレイアウト） |
 | `lib/features/game_map/prep/prep_lobby_panel.dart` | 準備 UI |
 | `lib/features/game_map/widgets/game_info_panel.dart` | HUD |
+| `lib/features/game_map/widgets/hud_marquee_text.dart` | 一行スクロール（全文ループ） |
+| `lib/session/hud_display_prefs.dart` | HUD 表示トグル・一行モードの保存 |
 
-**テスト:** 画面専用テストは未整備。上記 A〜G のテスト + 実機 [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)
+**テスト:** `flutter test test/hud_compact_line_test.dart`  
+`flutter test test/hud_display_prefs_test.dart`  
++ 上記 A〜G + 実機 [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)
+
+### I. 起動ブランド・世界観スプラッシュ
+
+| 主ファイル | 注意 |
+|------------|------|
+| `lib/screens/app_launch_shell.dart` | 図形ロゴ・効果音・ハンドオフ |
+| `lib/widgets/themed_geometric_logo.dart` | 世界観別マーク |
+| `lib/features/branding/launch_effect_overlay.dart` | 起動オーバーレイ |
+| `lib/theme/world_launch_branding.dart` | 色・演出種別 |
+| `assets/branding/app_icon.png` | `dart run flutter_launcher_icons` |
+
+**テスト:** `flutter test test/world_launch_branding_test.dart`  
+`flutter test test/launch_sound_synth_test.dart`
 
 ## `test/` 全ファイル早見（カバレッジの感覚）
 
@@ -132,4 +151,8 @@
 | `shared_match_snapshot_test.dart` | 共有試合開始 |
 | `trajectory_simplify_test.dart` | 軌跡間引き |
 | `widget_test.dart` | プレースホルダ |
+| `hud_compact_line_test.dart` | 一行 HUD 文言（すべて／単体） |
+| `hud_display_prefs_test.dart` | HUD 設定デフォルト |
+| `launch_sound_synth_test.dart` | 起動効果音 WAV |
+| `world_launch_branding_test.dart` | 起動ブランド色 |
 | `world_visual_pack_factory_test.dart` | 世界観パック |

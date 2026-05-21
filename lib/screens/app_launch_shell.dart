@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../features/branding/launch_effect_overlay.dart';
 import '../features/branding/launch_sound_player.dart';
+import '../sync/firebase_bootstrap.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_launch_branding.dart';
 import '../theme/world_profile.dart';
@@ -28,16 +29,20 @@ class AppLaunchShell extends StatefulWidget {
 class _AppLaunchShellState extends State<AppLaunchShell>
     with TickerProviderStateMixin {
   WorldProfile _profile = WorldProfile.horror;
+  bool _introDone = false;
 
   late final AnimationController _effect;
   late final AnimationController _handoff;
+  late final Animation<double> _handoffAnim;
   final LaunchSoundPlayer _sound = LaunchSoundPlayer();
 
   Timer? _handoffStartTimer;
+  Timer? _watchdogTimer;
   bool _soundPlayed = false;
 
   static const _minLaunchHold = Duration(milliseconds: 1400);
   static const _handoffDuration = Duration(milliseconds: 880);
+  static const _maxIntroDuration = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -50,13 +55,37 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     _handoff = AnimationController(
       vsync: this,
       duration: _handoffDuration,
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
-          _effect.stop();
-        }
-      });
-    Future<void>.microtask(_loadProfile);
+    );
+    _handoffAnim = CurvedAnimation(
+      parent: _handoff,
+      curve: Curves.easeInOutCubic,
+    );
+    _handoff.addStatusListener(_onHandoffStatus);
+    Future<void>.microtask(_bootstrap);
     _handoffStartTimer = Timer(_minLaunchHold, _beginHandoff);
+    _watchdogTimer = Timer(_maxIntroDuration, _forceFinishIntro);
+  }
+
+  Future<void> _bootstrap() async {
+    await Future.wait([
+      _loadProfile(),
+      FirebaseBootstrap.tryInit(),
+    ]);
+  }
+
+  void _forceFinishIntro() {
+    if (!mounted || _introDone) return;
+    if (_handoff.value < 1 && !_handoff.isAnimating) {
+      unawaited(_handoff.forward());
+    }
+    setState(() => _introDone = true);
+  }
+
+  void _onHandoffStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) return;
+    _watchdogTimer?.cancel();
+    _effect.stop();
+    setState(() => _introDone = true);
   }
 
   Future<void> _loadProfile() async {
@@ -81,13 +110,19 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   }
 
   void _beginHandoff() {
-    if (!mounted || _handoff.isAnimating || _handoff.value >= 1) return;
-    _handoff.forward();
+    if (!mounted || _introDone) return;
+    if (_handoff.isAnimating) return;
+    if (_handoff.value >= 1) {
+      setState(() => _introDone = true);
+      return;
+    }
+    unawaited(_handoff.forward());
   }
 
   @override
   void dispose() {
     _handoffStartTimer?.cancel();
+    _watchdogTimer?.cancel();
     _effect.dispose();
     _handoff.dispose();
     unawaited(_sound.dispose());
@@ -96,9 +131,22 @@ class _AppLaunchShellState extends State<AppLaunchShell>
 
   @override
   Widget build(BuildContext context) {
+    if (_introDone) {
+      return TitleScreen(
+        initialProfile: _profile,
+        onProfileChanged: widget.onProfileChanged,
+      );
+    }
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_handoffAnim, _effect]),
+      builder: (context, _) => _buildIntro(context),
+    );
+  }
+
+  Widget _buildIntro(BuildContext context) {
     final branding = WorldLaunchBranding.of(_profile);
-    final handoff = CurvedAnimation(parent: _handoff, curve: Curves.easeInOutCubic);
-    final t = handoff.value;
+    final t = _handoffAnim.value;
     final effectFade = (1 - t * 1.15).clamp(0.0, 1.0);
     final titleFade = ((t - 0.28) / 0.72).clamp(0.0, 1.0);
     final logoSize = 96 + (56 - 96) * t;
@@ -108,6 +156,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
       t,
     )!;
     final showFloatingLogo = t < 0.97;
+    final blockTouches = effectFade > 0.02;
 
     return Stack(
       fit: StackFit.expand,
@@ -122,7 +171,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
           ),
         ),
         IgnorePointer(
-          ignoring: t > 0.04,
+          ignoring: blockTouches,
           child: Opacity(
             opacity: effectFade,
             child: DecoratedBox(
@@ -136,12 +185,9 @@ class _AppLaunchShellState extends State<AppLaunchShell>
                   ],
                 ),
               ),
-              child: AnimatedBuilder(
-                animation: _effect,
-                builder: (context, _) => LaunchEffectOverlay(
-                  branding: branding,
-                  progress: _effect.value,
-                ),
+              child: LaunchEffectOverlay(
+                branding: branding,
+                progress: _effect.value,
               ),
             ),
           ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// ONI PIN ブランドロゴ（PNG）。
+/// ONI PIN ブランドロゴ（PNG）。README・共有画像用。
+///
+/// アプリ内 UI は [ThemedGeometricLogo]（世界観別の図形マーク）を使用。
 class BrandLogo extends StatelessWidget {
   const BrandLogo({
     this.width = 280,
@@ -21,30 +23,6 @@ class BrandLogo extends StatelessWidget {
       fit: fit,
       filterQuality: FilterQuality.high,
       semanticLabel: 'ONI PIN — GPS × ONI GAME',
-    );
-  }
-}
-
-/// 起動画面用シンボル（文字なし）。
-class SplashLogo extends StatelessWidget {
-  const SplashLogo({
-    this.size = 112,
-    super.key,
-  });
-
-  final double size;
-
-  static const assetPath = 'assets/branding/splash_logo.png';
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      assetPath,
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
-      semanticLabel: 'ONI PIN',
     );
   }
 }
