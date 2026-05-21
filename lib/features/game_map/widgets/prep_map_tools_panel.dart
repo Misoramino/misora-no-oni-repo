@@ -68,7 +68,7 @@ class PrepMapToolsPanel extends StatelessWidget {
             icon: Icon(
               isEditing ? Icons.check_circle : Icons.edit_location_alt,
             ),
-            label: Text(isEditing ? '編集を終了' : 'エリア編集'),
+            label: Text(isEditing ? '編集をやめる（地図のまま）' : 'エリア編集'),
           ),
           const SizedBox(height: 10),
           Row(

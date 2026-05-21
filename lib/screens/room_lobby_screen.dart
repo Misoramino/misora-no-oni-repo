@@ -10,7 +10,6 @@ import '../sync/firestore_room_session.dart';
 import '../sync/room_member_view.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
-import '../widgets/responsive_page.dart';
 import 'game_map_screen.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
@@ -110,11 +109,19 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       });
       return;
     }
+    final members = List<RoomMemberView>.from(fs.currentLobbyMembers);
     setState(() {
       _session = fs;
+      _members = members;
       _joining = false;
     });
     _bindLobby(fs);
+    if (members.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _session != fs) return;
+        setState(() => _members = fs.currentLobbyMembers);
+      });
+    }
   }
 
   Future<void> _leave() async {
@@ -189,151 +196,200 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
         title: const Text('ルームロビー'),
         leading: BackButton(onPressed: () => Navigator.pop(context, _session)),
       ),
-      body: ResponsivePage(
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'ルームに参加すると、同じルームIDの端末が一覧に表示されます。'
-              '位置は標準では秘匿され、スキルやイベントでのみ公開されます。',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            InputDecorator(
-              decoration: const InputDecoration(
-                labelText: '地図の世界観',
-                border: OutlineInputBorder(),
-              ),
-              child: Text(
-                _worldProfile.label,
-                style: theme.textTheme.bodyLarge,
-              ),
-            ),
-            Text(
-              'タイトル画面の世界観設定がマップに反映されます',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _roomController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'ルームID',
-                hintText: '例: friday-night-1',
-                border: OutlineInputBorder(),
-              ),
-              enabled: !_joining,
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _nickController,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: '表示名',
-                border: OutlineInputBorder(),
-              ),
-              enabled: !_joining,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
-              ),
-            ],
-            if (kDebugMode &&
-                FirebaseBootstrap.isReady &&
-                Firebase.apps.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SelectableText(
-                'DBG: Firebase projectId = ${Firebase.app().options.projectId}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _joining ? null : _join,
-                    child: _joining
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(_joined ? '再参加' : 'ルームに参加'),
-                  ),
-                ),
-                if (_joined) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _joining
-                          ? null
-                          : () async {
-                              await _leave();
-                              if (!mounted) return;
-                              setState(() {
-                                _session = null;
-                                _members = [];
-                              });
-                            },
-                      child: const Text('退出'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'メンバー (${_members.length})',
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(height: 6),
             Expanded(
-              child: !_joined
-                  ? Align(
-                      alignment: Alignment.topLeft,
-                      child: Text(
-                        '参加するとメンバー一覧が表示されます',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    )
-                  : _members.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'メンバー同期中です。\n表示されない場合は再参加してください。',
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: _members.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 4),
-                      itemBuilder: (ctx, i) => _MemberTile(
-                        view: _members[i],
-                        canTransferHost:
-                            _session?.isHost == true &&
-                            !_members[i].isSelf &&
-                            !_members[i].isHost,
-                        onTransferHost: () => _transferHostTo(_members[i]),
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'ルームに参加すると、同じルームIDの端末が一覧に表示されます。'
+                                '位置は標準では秘匿され、スキルやイベントでのみ公開されます。',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: '地図の世界観',
+                                  border: OutlineInputBorder(),
+                                ),
+                                child: Text(
+                                  _worldProfile.label,
+                                  style: theme.textTheme.bodyLarge,
+                                ),
+                              ),
+                              Text(
+                                'タイトル画面の世界観設定がマップに反映されます',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: _roomController,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'ルームID',
+                                  hintText: '例: friday-night-1',
+                                  border: OutlineInputBorder(),
+                                ),
+                                enabled: !_joining,
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: _nickController,
+                                textInputAction: TextInputAction.done,
+                                decoration: const InputDecoration(
+                                  labelText: '表示名',
+                                  border: OutlineInputBorder(),
+                                ),
+                                enabled: !_joining,
+                              ),
+                              if (_error != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.error,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              if (kDebugMode &&
+                                  FirebaseBootstrap.isReady &&
+                                  Firebase.apps.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                SelectableText(
+                                  'DBG: Firebase projectId = ${Firebase.app().options.projectId}',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: _joining ? null : _join,
+                                      child: _joining
+                                          ? const SizedBox(
+                                              height: 22,
+                                              width: 22,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Text(
+                                              _joined ? '再参加' : 'ルームに参加',
+                                            ),
+                                    ),
+                                  ),
+                                  if (_joined) ...[
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: _joining
+                                            ? null
+                                            : () async {
+                                                await _leave();
+                                                if (!mounted) return;
+                                                setState(() {
+                                                  _session = null;
+                                                  _members = [];
+                                                });
+                                              },
+                                        child: const Text('退出'),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'メンバー (${_members.length})',
+                                style: theme.textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+                  ),
+                  if (!_joined)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            '参加するとメンバー一覧が表示されます',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (_members.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text(
+                            'メンバー同期中です。\n表示されない場合は再参加してください。',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      sliver: SliverList.separated(
+                        itemCount: _members.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 4),
+                        itemBuilder: (ctx, i) => _MemberTile(
+                          view: _members[i],
+                          canTransferHost:
+                              _session?.isHost == true &&
+                              !_members[i].isSelf &&
+                              !_members[i].isHost,
+                          onTransferHost: () => _transferHostTo(_members[i]),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: _joined ? _openMap : null,
-              icon: const Icon(Icons.map),
-              label: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('ゲーム画面へ'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: FilledButton.tonalIcon(
+                    onPressed: _joined ? _openMap : null,
+                    icon: const Icon(Icons.map),
+                    label: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('ゲーム画面へ'),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

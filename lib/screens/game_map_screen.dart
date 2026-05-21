@@ -26,11 +26,12 @@ import '../features/game_map/prep/prep_lobby_panel.dart';
 import '../features/game_map/widgets/how_to_play_sheet.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
 import '../features/game_map/settings/game_custom_settings_sheet.dart';
-import '../features/game_map/widgets/area_editor_card.dart';
 import '../features/game_map/widgets/diagnostics_card.dart';
 import '../features/game_map/widgets/game_control_panel.dart';
 import '../features/game_map/widgets/game_info_panel.dart';
 import '../features/game_map/widgets/game_map_overflow_menu.dart';
+import '../features/game_map/widgets/map_layer_toggle_strip.dart';
+import '../features/game_map/widgets/prep_map_bottom_panel.dart';
 import '../features/game_map/widgets/ghost_spectator_bar.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
@@ -162,6 +163,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   String? _hudRevealAlert;
   Timer? _hudRevealAlertTimer;
   bool _oniIntelLineHidden = false;
+  bool _areaEditorPanelExpanded = true;
+  bool _hudShowIntelLine = true;
+  bool _hudShowStatusLine = true;
+  bool _hudShowConditionLine = true;
 
   /// ホストが参加者にカスタムルール（役職固定等）の編集を許可したか。
   bool _participantRulesOpen = false;
@@ -661,6 +666,19 @@ class _GameMapScreenState extends State<GameMapScreen>
       _prepControlSheetOpen = false;
       _statusMessage = '準備画面に戻りました';
     });
+  }
+
+  /// エリア編集だけ終了し、地図表示＋マップパネルは維持する。
+  void _exitAreaEditKeepMap() {
+    if (_gameState != GameState.waiting) return;
+    setState(() {
+      _editingArea = false;
+      _waitingCircleCenterTap = false;
+      _polygonDraft.clear();
+      _polygonDraftClosed = false;
+      _statusMessage = 'エリア編集を終了しました（地図のまま）';
+    });
+    _retuneRenderPump();
   }
 
   void _pushHudRevealAlert(String message) {
@@ -2701,6 +2719,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (opening) {
         _mapVisibleInLobby = true;
         _prepControlSheetOpen = true;
+        _areaEditorPanelExpanded = true;
         _polygonDraft.clear();
         _polygonDraftClosed = false;
         _waitingCircleCenterTap = false;
@@ -2714,11 +2733,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         }
         _statusMessage = 'エリア編集モード（地図をタップして頂点追加 / 円はスライダー）';
       } else {
-        _polygonDraft.clear();
-        _polygonDraftClosed = false;
-        _waitingCircleCenterTap = false;
-        _statusMessage = '編集を終了しました';
-        _returnToPrepAfterAreaEdit();
+        _exitAreaEditKeepMap();
       }
     });
     _retuneRenderPump();
@@ -3515,6 +3530,89 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _showHowToPlaySheet() => showHowToPlaySheet(context);
 
+  Future<void> _openHudDisplaySheet() async {
+    if (_gameState != GameState.running) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        var showIntel = _hudShowIntelLine;
+        var showStatus = _hudShowStatusLine;
+        var showCondition = _hudShowConditionLine;
+        var layers = _mapLayerToggles;
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                16 + MediaQuery.viewInsetsOf(ctx).bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'HUD・地図の表示',
+                      style: Theme.of(ctx).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('鬼情報（一行）'),
+                      subtitle: const Text('ログはレーダーアイコンから開けます'),
+                      value: showIntel,
+                      onChanged: (v) => setModal(() => showIntel = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('状態メッセージ'),
+                      value: showStatus,
+                      onChanged: (v) => setModal(() => showStatus = v),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('コンディション行'),
+                      value: showCondition,
+                      onChanged: (v) => setModal(() => showCondition = v),
+                    ),
+                    const Divider(),
+                    Text(
+                      '地図のピン・円',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    MapLayerToggleStrip(
+                      dense: true,
+                      showTitle: false,
+                      toggles: layers,
+                      onChanged: (t) => setModal(() => layers = t),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () {
+                        setState(() {
+                          _hudShowIntelLine = showIntel;
+                          _hudShowStatusLine = showStatus;
+                          _hudShowConditionLine = showCondition;
+                          _mapLayerToggles = layers;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('適用'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _onOverflowMenuSelected(String value) async {
     switch (value) {
       case 'discord':
@@ -3697,7 +3795,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                       zoom: 16,
                     ),
                     myLocationEnabled: true,
-                    myLocationButtonEnabled: !_editingArea,
+                    myLocationButtonEnabled: true,
                     markers: GameMapOverlayBuilder.buildMarkers(overlay),
                     polylines: GameMapOverlayBuilder.buildPolylines(overlay),
                     circles: GameMapOverlayBuilder.buildCircles(overlay),
@@ -3825,36 +3923,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onOpenResult: _openMatchResultScreen,
                 ),
               ),
-            if (_editingArea && !running && !ended)
-              Positioned(
-                top: 12,
-                left: 12,
-                right: 12,
-                child: Material(
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(10),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.edit_location_alt_outlined,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text('エリア編集中 — 下部のカードと地図タップで形状を指定'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
             if (showHudPanel)
               Positioned(
                 top: 18,
@@ -3873,11 +3941,15 @@ class _GameMapScreenState extends State<GameMapScreen>
                   intelLine: _latestIntelLine(),
                   showIntelLine:
                       _rt.showOniIntelCard &&
+                      _hudShowIntelLine &&
                       !_oniIntelLineHidden &&
                       _latestIntelLine().isNotEmpty,
                   onDismissIntel: () =>
                       setState(() => _oniIntelLineHidden = true),
                   onOpenIntelLog: _openCombinedIntelRevealLogSheet,
+                  onOpenDisplaySettings: _openHudDisplaySheet,
+                  showStatusLine: _hudShowStatusLine,
+                  showConditionLine: _hudShowConditionLine,
                   timerText: MapGeoUtils.formatClock(_rt.remainingSeconds),
                   gameStateText: _gameState.label,
                   statusText: _statusMessage,
@@ -3902,18 +3974,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                     _rt.lastFakeSkillAt,
                     GameConfig.fakeSkillCooldownSeconds,
                   ),
-                  intelLineSuppressed: _oniIntelLineHidden &&
-                      _latestIntelLine().isNotEmpty,
-                  onRestoreIntelLine: () =>
-                      setState(() => _oniIntelLineHidden = false),
                   fakeIntelRevealCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastFakeIntelRevealAt,
                     GameConfig.fakeIntelRevealCooldownSeconds,
                   ),
-                  mapLayerToggles: _mapLayerToggles,
-                  onMapLayersChanged: (t) =>
-                      setState(() => _mapLayerToggles = t),
-                  onRecenterMap: _recenterMapOnGps,
                   mapWorldProfile: _mapVisual.pack.profile,
                 ),
               ),
@@ -3993,57 +4057,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                 ),
               ),
-            if (_editingArea)
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 200,
-                child: AreaEditorCard(
-                  editCircleMode: _editCircleMode,
-                  onModeChanged: (circle) {
-                    setState(() {
-                      _editCircleMode = circle;
-                      _waitingCircleCenterTap = false;
-                    });
-                  },
-                  circleRadiusMeters: _circleDraftRadiusMeters,
-                  onRadiusChanged: (v) => setState(() {
-                    _circleDraftRadiusMeters = v;
-                  }),
-                  waitingCenterTap: _waitingCircleCenterTap,
-                  onRequestCenterTap: () => setState(() {
-                    _waitingCircleCenterTap = true;
-                    _statusMessage = '地図をタップして円の中心を指定';
-                  }),
-                  onCenterGps: () => setState(() {
-                    _circleDraftCenter = _currentPosition;
-                    _statusMessage = '円の中心を現在地にしました';
-                  }),
-                  onUndo: _undoLastVertex,
-                  onClear: _clearPolygonDraft,
-                  polygonClosed: _polygonDraftClosed,
-                  onClosePolygon: _closePolygonDraft,
-                  onReopenPolygon: _reopenPolygonDraft,
-                  vertexCount: _polygonDraft.length,
-                  onApply: _applyEditedArea,
-                  onCancel: () {
-                    setState(() {
-                      _editingArea = false;
-                      _waitingCircleCenterTap = false;
-                      _polygonDraft.clear();
-                      _polygonDraftClosed = false;
-                      _statusMessage = '編集をキャンセルしました';
-                    });
-                    _returnToPrepAfterAreaEdit();
-                  },
-                ),
-              ),
             if (showBottomControlSheet)
               Positioned(
                 bottom: 16,
                 left: 16,
                 right: 16,
-                child: GameControlPanel(
+                child: running
+                    ? GameControlPanel(
                   sheetMode: _controlSheetMode,
                   onCycleSheetMode: _cycleControlSheetMode,
                   onStart: _startGame,
@@ -4116,7 +4136,99 @@ class _GameMapScreenState extends State<GameMapScreen>
                     _statusMessage =
                         '地図を表示しました。エリアの編集と保存ができます。';
                   }),
-                ),
+                    )
+                    : showGameMap
+                    ? PrepMapBottomPanel(
+                        isEditing: _editingArea,
+                        areaEditorExpanded: _areaEditorPanelExpanded,
+                        onToggleAreaEditorExpanded: () => setState(
+                          () => _areaEditorPanelExpanded =
+                              !_areaEditorPanelExpanded,
+                        ),
+                        editCircleMode: _editCircleMode,
+                        onModeChanged: (circle) {
+                          setState(() {
+                            _editCircleMode = circle;
+                            _waitingCircleCenterTap = false;
+                          });
+                        },
+                        circleRadiusMeters: _circleDraftRadiusMeters,
+                        onRadiusChanged: (v) => setState(() {
+                          _circleDraftRadiusMeters = v;
+                        }),
+                        waitingCenterTap: _waitingCircleCenterTap,
+                        onRequestCenterTap: () => setState(() {
+                          _waitingCircleCenterTap = true;
+                          _statusMessage = '地図をタップして円の中心を指定';
+                        }),
+                        onCenterGps: () => setState(() {
+                          _circleDraftCenter = _currentPosition;
+                          _statusMessage = '円の中心を現在地にしました';
+                        }),
+                        onUndo: _undoLastVertex,
+                        onClear: _clearPolygonDraft,
+                        polygonClosed: _polygonDraftClosed,
+                        onClosePolygon: _closePolygonDraft,
+                        onReopenPolygon: _reopenPolygonDraft,
+                        vertexCount: _polygonDraft.length,
+                        onApply: _applyEditedArea,
+                        onCancelEdit: _exitAreaEditKeepMap,
+                        onToggleAreaEdit: _toggleAreaEditor,
+                        onRecenterGps: _recenterMapOnGps,
+                        onRefreshGps: _setupLocation,
+                        onClearTraces: _clearTracePoints,
+                        onOpenHelp: _showHowToPlaySheet,
+                        onDismissPrepSheet: () => setState(() {
+                          _prepControlSheetOpen = false;
+                          if (_editingArea) _exitAreaEditKeepMap();
+                        }),
+                      )
+                    : GameControlPanel(
+                        sheetMode: _controlSheetMode,
+                        onCycleSheetMode: _cycleControlSheetMode,
+                        onStart: _startGame,
+                        onReset: _resetGame,
+                        onOpenResult: _openMatchResultScreen,
+                        onFakeSkill: _activateFakeSkill,
+                        onFakeIntelReveal: _activateFakeIntelReveal,
+                        onWerewolfHunter: _activateWerewolfHunter,
+                        onCaptureZone: _activateCaptureZone,
+                        onBodyThrow: _activateBodyThrow,
+                        onRecenterGps: _recenterMapOnGps,
+                        onRefreshGps: _setupLocation,
+                        onClearTraces: _clearTracePoints,
+                        onToggleAreaEdit: _toggleAreaEditor,
+                        onOpenCustomMenu: _openCustomMenu,
+                        onOpenHelp: _showHowToPlaySheet,
+                        onDismissPrepSheet: () => setState(() {
+                          _prepControlSheetOpen = false;
+                        }),
+                        onHidePanel: _hideControlPanel,
+                        isHost: _isHost,
+                        isRunning: false,
+                        matchEnded: ended,
+                        canStartMatch: _gameState == GameState.waiting,
+                        isEditing: _editingArea,
+                        fakeSkillActive: _rt.fakePositionActive,
+                        roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
+                        matchDurationLabel: _matchDurationLabel(),
+                        canFakeSkill: false,
+                        canFakeIntelReveal: false,
+                        canWerewolfHunter: false,
+                        canCaptureZone: false,
+                        canBodyThrow: false,
+                        fakeCooldownSeconds: 0,
+                        captureCooldownSeconds: 0,
+                        bodyThrowCooldownSeconds: 0,
+                        werewolfBuffSeconds: null,
+                        werewolfCooldownSeconds: 0,
+                        prepLobbyMapHidden: true,
+                        mapWorldProfile: _mapVisual.pack.profile,
+                        onPrepShowMap: () => setState(() {
+                          _mapVisibleInLobby = true;
+                          _prepControlSheetOpen = true;
+                        }),
+                      ),
               ),
             if (showControlFab)
               Positioned(
