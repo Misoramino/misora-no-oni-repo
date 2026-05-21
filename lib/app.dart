@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'screens/branded_launch_screen.dart';
 import 'screens/title_screen.dart';
 import 'session/world_profile_prefs.dart';
 import 'theme/app_theme_factory.dart';
@@ -14,6 +15,7 @@ class OniGameApp extends StatefulWidget {
 
 class _OniGameAppState extends State<OniGameApp> {
   WorldProfile _profile = WorldProfile.horror;
+  bool _launchDone = false;
 
   @override
   void initState() {
@@ -27,11 +29,29 @@ class _OniGameAppState extends State<OniGameApp> {
     setState(() => _profile = p);
   }
 
+  void _onLaunchFinished() {
+    if (!mounted) return;
+    setState(() => _launchDone = true);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = AppThemeFactory.create(_profile);
+
+    if (!_launchDone) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: BrandedLaunchScreen(
+          profile: _profile,
+          onFinished: _onLaunchFinished,
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'Oni Game',
-      theme: AppThemeFactory.create(_profile),
+      theme: theme,
       home: TitleScreen(
         initialProfile: _profile,
         onProfileChanged: (p) async {

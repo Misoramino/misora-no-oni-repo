@@ -1,6 +1,16 @@
-# Oni Game
+# ONI PIN
 
-Urban GPS tag game prototype with tension-focused design:
+**GPS × ONI GAME** — Urban GPS tag game prototype with tension-focused design:
+
+## Brand assets (`assets/branding/`)
+
+| File | Use |
+|------|-----|
+| `app_icon.png` | Home screen (1024×1024, symbol only) — `dart run flutter_launcher_icons` |
+| `brand_logo.png` | Title screen, README, share images (ONI PIN + subtitle) |
+| `splash_logo.png` | `BrandedLaunchScreen` symbol |
+
+Launch sound ON/OFF: volume icon on the title screen (persisted locally).
 
 - Far distance: coarse tracking is acceptable
 - Near distance: high-pressure experience is prioritized

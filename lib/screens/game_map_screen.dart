@@ -28,7 +28,9 @@ import '../features/game_map/settings/game_custom_settings_models.dart';
 import '../features/game_map/settings/game_custom_settings_sheet.dart';
 import '../features/game_map/widgets/diagnostics_card.dart';
 import '../features/game_map/widgets/game_control_panel.dart';
+import '../features/game_map/hud/hud_compact_line.dart';
 import '../features/game_map/widgets/game_info_panel.dart';
+import '../session/hud_display_prefs.dart';
 import '../features/game_map/widgets/game_map_overflow_menu.dart';
 import '../features/game_map/widgets/map_layer_toggle_strip.dart';
 import '../features/game_map/widgets/prep_map_bottom_panel.dart';
@@ -167,6 +169,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _hudShowIntelLine = true;
   bool _hudShowStatusLine = true;
   bool _hudShowConditionLine = true;
+  HudCompactLineSlot _hudCompactLineSlot = HudCompactLineSlot.auto;
 
   /// ホストが参加者にカスタムルール（役職固定等）の編集を許可したか。
   bool _participantRulesOpen = false;
@@ -237,6 +240,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     Future<void>.microtask(_loadOniOperatorPrefs);
     Future<void>.microtask(_loadPlayAreaSlots);
     Future<void>.microtask(_initWorldVisual);
+    Future<void>.microtask(_loadHudDisplayPrefs);
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
   }
@@ -706,6 +710,30 @@ class _GameMapScreenState extends State<GameMapScreen>
       _activeProfile = profile;
       _mapLayerToggles = _mapVisual.pack.layerDefaults;
     });
+  }
+
+  Future<void> _loadHudDisplayPrefs() async {
+    final slot = await HudDisplayPrefs.loadCompactLineSlot();
+    if (!mounted) return;
+    setState(() => _hudCompactLineSlot = slot);
+  }
+
+  String _hudCompactLineText() {
+    final intel = _latestIntelLine();
+    final showIntel =
+        _rt.showOniIntelCard &&
+        _hudShowIntelLine &&
+        !_oniIntelLineHidden &&
+        intel.isNotEmpty;
+    return resolveHudCompactLineText(
+      slot: _hudCompactLineSlot,
+      showIntelLine: showIntel,
+      showStatusLine: _hudShowStatusLine,
+      showConditionLine: _hudShowConditionLine,
+      intelLine: intel,
+      statusText: _statusMessage,
+      conditionText: _conditionLine(),
+    );
   }
 
   Future<void> _applyWorldProfile(WorldProfile profile) async {
@@ -3539,6 +3567,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         var showIntel = _hudShowIntelLine;
         var showStatus = _hudShowStatusLine;
         var showCondition = _hudShowConditionLine;
+        var compactSlot = _hudCompactLineSlot;
         var layers = _mapLayerToggles;
         return StatefulBuilder(
           builder: (ctx, setModal) {
@@ -3580,6 +3609,33 @@ class _GameMapScreenState extends State<GameMapScreen>
                     ),
                     const Divider(),
                     Text(
+                      '一行表示の内容',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'タイマー背景でエリア内外は分かります。長文は自動で横スクロールします。',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    ...HudCompactLineSlot.values.map(
+                      (s) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(s.label),
+                        trailing: compactSlot == s
+                            ? Icon(
+                                Icons.check_circle,
+                                color: Theme.of(ctx).colorScheme.primary,
+                                size: 20,
+                              )
+                            : null,
+                        onTap: () => setModal(() => compactSlot = s),
+                      ),
+                    ),
+                    const Divider(),
+                    Text(
                       '地図のピン・円',
                       style: Theme.of(ctx).textTheme.titleSmall,
                     ),
@@ -3592,14 +3648,16 @@ class _GameMapScreenState extends State<GameMapScreen>
                     ),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         setState(() {
                           _hudShowIntelLine = showIntel;
                           _hudShowStatusLine = showStatus;
                           _hudShowConditionLine = showCondition;
+                          _hudCompactLineSlot = compactSlot;
                           _mapLayerToggles = layers;
                         });
-                        Navigator.pop(ctx);
+                        await HudDisplayPrefs.saveCompactLineSlot(compactSlot);
+                        if (ctx.mounted) Navigator.pop(ctx);
                       },
                       child: const Text('適用'),
                     ),
@@ -3938,6 +3996,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     _hudRevealAlertTimer?.cancel();
                   }),
                   onOpenRevealLog: _showRevealLog,
+                  compactLineText: _hudCompactLineText(),
                   intelLine: _latestIntelLine(),
                   showIntelLine:
                       _rt.showOniIntelCard &&

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/world_profile.dart';
 import 'cooldown_chip.dart';
+import 'hud_marquee_text.dart';
 
 /// 試合中の上部 HUD（タイマー・エリア・情報）。
 class GameInfoPanel extends StatelessWidget {
@@ -12,6 +13,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.revealAlert,
     required this.onDismissRevealAlert,
     required this.onOpenRevealLog,
+    required this.compactLineText,
     required this.intelLine,
     required this.showIntelLine,
     required this.onDismissIntel,
@@ -41,6 +43,7 @@ class GameInfoPanel extends StatelessWidget {
   final String? revealAlert;
   final VoidCallback onDismissRevealAlert;
   final VoidCallback onOpenRevealLog;
+  final String compactLineText;
   final String intelLine;
   final bool showIntelLine;
   final VoidCallback onDismissIntel;
@@ -133,10 +136,8 @@ class GameInfoPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    showIntelLine ? intelLine : areaText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: HudMarqueeText(
+                    text: compactLineText,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),

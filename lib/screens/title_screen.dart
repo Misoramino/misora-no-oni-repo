@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../session/launch_branding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
-import '../theme/title_profile_chrome.dart';
 import '../theme/world_profile.dart';
+import '../widgets/brand_logo.dart';
 import 'game_map_screen.dart';
 import 'room_lobby_screen.dart';
 
@@ -24,6 +25,7 @@ class TitleScreen extends StatefulWidget {
 
 class _TitleScreenState extends State<TitleScreen> {
   bool _booting = true;
+  bool _launchSoundOn = true;
   late WorldProfile _profile;
 
   @override
@@ -37,9 +39,11 @@ class _TitleScreenState extends State<TitleScreen> {
     try {
       await FirebaseBootstrap.tryInit();
       final saved = await WorldProfilePrefs.load();
+      final soundOn = await LaunchBrandingPrefs.loadSoundEnabled();
       if (!mounted) return;
       setState(() {
         _profile = saved;
+        _launchSoundOn = soundOn;
         _booting = false;
       });
       widget.onProfileChanged?.call(saved);
@@ -66,14 +70,7 @@ class _TitleScreenState extends State<TitleScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final narrow = constraints.maxWidth < 380;
-            final titleStyle = theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: narrow ? 22 : null,
-            );
-            final subStyle = theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: narrow ? 14 : null,
-            );
+            final logoWidth = narrow ? 240.0 : 300.0;
             // ScrollView 内の Column は maxHeight が無限になり mainAxisAlignment.center が
             // 効かず上に詰まる。SliverFillRemaining でビューポート中央に置く。
             return CustomScrollView(
@@ -93,22 +90,37 @@ class _TitleScreenState extends State<TitleScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Icon(
-                              TitleProfileChrome.iconFor(_profile),
-                              size: 56,
-                              color: theme.colorScheme.primary,
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: IconButton(
+                                tooltip: _launchSoundOn
+                                    ? '起動音: ON（タップでOFF）'
+                                    : '起動音: OFF（タップでON）',
+                                onPressed: () async {
+                                  final next = !_launchSoundOn;
+                                  await LaunchBrandingPrefs.saveSoundEnabled(
+                                    next,
+                                  );
+                                  if (!mounted) return;
+                                  setState(() => _launchSoundOn = next);
+                                },
+                                icon: Icon(
+                                  _launchSoundOn
+                                      ? Icons.volume_up_outlined
+                                      : Icons.volume_off_outlined,
+                                  size: 22,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Oni Game',
-                              textAlign: TextAlign.center,
-                              style: titleStyle,
-                            ),
-                            const SizedBox(height: 8),
+                            BrandLogo(width: logoWidth),
+                            const SizedBox(height: 12),
                             Text(
                               '都市型 GPS 鬼ごっこ',
                               textAlign: TextAlign.center,
-                              style: subStyle,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontSize: narrow ? 14 : null,
+                              ),
                             ),
                             const SizedBox(height: 20),
                             if (!_booting)
