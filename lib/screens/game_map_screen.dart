@@ -164,12 +164,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   GameMapLayerToggles _mapLayerToggles = GameMapLayerToggles.allOn;
   String? _hudRevealAlert;
   Timer? _hudRevealAlertTimer;
-  bool _oniIntelLineHidden = false;
   bool _areaEditorPanelExpanded = true;
   bool _hudShowIntelLine = true;
   bool _hudShowStatusLine = true;
   bool _hudShowConditionLine = true;
-  HudCompactLineSlot _hudCompactLineSlot = HudCompactLineSlot.auto;
+  HudCompactLineSlot _hudCompactLineSlot = HudCompactLineSlot.all;
 
   /// ホストが参加者にカスタムルール（役職固定等）の編集を許可したか。
   bool _participantRulesOpen = false;
@@ -721,10 +720,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   String _hudCompactLineText() {
     final intel = _latestIntelLine();
     final showIntel =
-        _rt.showOniIntelCard &&
-        _hudShowIntelLine &&
-        !_oniIntelLineHidden &&
-        intel.isNotEmpty;
+        _rt.showOniIntelCard && _hudShowIntelLine && intel.isNotEmpty;
     return resolveHudCompactLineText(
       slot: _hudCompactLineSlot,
       showIntelLine: showIntel,
@@ -1121,7 +1117,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       _statusMessage = 'ゲーム開始。鬼から逃げてください。';
       _controlSheetMode = ControlSheetMode.skillsOnly;
       _hudExpanded = false;
-      _oniIntelLineHidden = false;
       _rt.showOniIntelCard = true;
       _abortVoteYesUids.clear();
     });
@@ -3258,8 +3253,15 @@ class _GameMapScreenState extends State<GameMapScreen>
     };
   }
 
+  void _dismissOpenModals() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    navigator.popUntil((route) => route is! PopupRoute);
+  }
+
   Future<void> _openMatchResultScreen() async {
     if (!mounted) return;
+    _dismissOpenModals();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => MatchResultScreen(
@@ -3569,6 +3571,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         var showCondition = _hudShowConditionLine;
         var compactSlot = _hudCompactLineSlot;
         var layers = _mapLayerToggles;
+        var compactLineExpanded = false;
         return StatefulBuilder(
           builder: (ctx, setModal) {
             return Padding(
@@ -3590,8 +3593,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                     const SizedBox(height: 8),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('鬼情報（一行）'),
-                      subtitle: const Text('ログはレーダーアイコンから開けます'),
+                      title: const Text('鬼情報'),
+                      subtitle: const Text(
+                        '一行表示・展開パネル。OFFで上部から非表示',
+                      ),
                       value: showIntel,
                       onChanged: (v) => setModal(() => showIntel = v),
                     ),
@@ -3609,33 +3614,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                     ),
                     const Divider(),
                     Text(
-                      '一行表示の内容',
-                      style: Theme.of(ctx).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'タイマー背景でエリア内外は分かります。長文は自動で横スクロールします。',
-                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    ...HudCompactLineSlot.values.map(
-                      (s) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: Text(s.label),
-                        trailing: compactSlot == s
-                            ? Icon(
-                                Icons.check_circle,
-                                color: Theme.of(ctx).colorScheme.primary,
-                                size: 20,
-                              )
-                            : null,
-                        onTap: () => setModal(() => compactSlot = s),
-                      ),
-                    ),
-                    const Divider(),
-                    Text(
                       '地図のピン・円',
                       style: Theme.of(ctx).textTheme.titleSmall,
                     ),
@@ -3645,6 +3623,53 @@ class _GameMapScreenState extends State<GameMapScreen>
                       showTitle: false,
                       toggles: layers,
                       onChanged: (t) => setModal(() => layers = t),
+                    ),
+                    const SizedBox(height: 4),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      initiallyExpanded: compactLineExpanded,
+                      onExpansionChanged: (v) =>
+                          setModal(() => compactLineExpanded = v),
+                      title: Text(
+                        '一行表示の内容',
+                        style: Theme.of(ctx).textTheme.titleSmall,
+                      ),
+                      subtitle: Text(
+                        compactSlot.label,
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                              color:
+                                  Theme.of(ctx).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'タイマー背景でエリア内外は分かります。「すべて」は有効な情報を続けてスクロールします。',
+                            style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(ctx)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                        ...HudCompactLineSlot.values.map(
+                          (s) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: Text(s.label),
+                            trailing: compactSlot == s
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color:
+                                        Theme.of(ctx).colorScheme.primary,
+                                    size: 20,
+                                  )
+                                : null,
+                            onTap: () => setModal(() => compactSlot = s),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     FilledButton(
@@ -4001,10 +4026,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   showIntelLine:
                       _rt.showOniIntelCard &&
                       _hudShowIntelLine &&
-                      !_oniIntelLineHidden &&
                       _latestIntelLine().isNotEmpty,
-                  onDismissIntel: () =>
-                      setState(() => _oniIntelLineHidden = true),
                   onOpenIntelLog: _openCombinedIntelRevealLogSheet,
                   onOpenDisplaySettings: _openHudDisplaySheet,
                   showStatusLine: _hudShowStatusLine,

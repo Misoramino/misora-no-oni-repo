@@ -8,7 +8,7 @@
 |------|-----|
 | `app_icon.png` | Home screen (1024×1024, symbol only) — `dart run flutter_launcher_icons` |
 | `brand_logo.png` | Title screen, README, share images (ONI PIN + subtitle) |
-| `splash_logo.png` | `BrandedLaunchScreen` symbol |
+| `splash_logo.png` | App icon source (launcher); in-app uses geometric `ThemedGeometricLogo` |
 
 Launch sound ON/OFF: volume icon on the title screen (persisted locally).
 

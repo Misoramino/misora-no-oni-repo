@@ -4,7 +4,8 @@ import '../session/launch_branding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../theme/world_profile.dart';
-import '../widgets/brand_logo.dart';
+import '../theme/world_launch_branding.dart';
+import '../widgets/themed_geometric_logo.dart';
 import 'game_map_screen.dart';
 import 'room_lobby_screen.dart';
 
@@ -13,11 +14,19 @@ class TitleScreen extends StatefulWidget {
   const TitleScreen({
     this.initialProfile = WorldProfile.horror,
     this.onProfileChanged,
+    this.showBrandHeader = true,
+    this.reserveBrandHeaderSpace = false,
     super.key,
   });
 
   final WorldProfile initialProfile;
   final ValueChanged<WorldProfile>? onProfileChanged;
+
+  /// false のときロゴ行を隠す（起動→タイトル遷移中のフローティングロゴ用）。
+  final bool showBrandHeader;
+
+  /// 起動遷移中にレイアウト高さだけ確保する。
+  final bool reserveBrandHeaderSpace;
 
   @override
   State<TitleScreen> createState() => _TitleScreenState();
@@ -70,7 +79,16 @@ class _TitleScreenState extends State<TitleScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final narrow = constraints.maxWidth < 380;
-            final logoWidth = narrow ? 240.0 : 300.0;
+            final branding = WorldLaunchBranding.of(_profile);
+            final titleStyle = theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: narrow ? 22 : null,
+              letterSpacing: 4,
+            );
+            final subBrandStyle = theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: 1.6,
+            );
             // ScrollView 内の Column は maxHeight が無限になり mainAxisAlignment.center が
             // 効かず上に詰まる。SliverFillRemaining でビューポート中央に置く。
             return CustomScrollView(
@@ -112,7 +130,13 @@ class _TitleScreenState extends State<TitleScreen> {
                                 ),
                               ),
                             ),
-                            BrandLogo(width: logoWidth),
+                            if (widget.showBrandHeader || widget.reserveBrandHeaderSpace)
+                              _TitleBrandHeader(
+                                visible: widget.showBrandHeader,
+                                branding: branding,
+                                titleStyle: titleStyle,
+                                subBrandStyle: subBrandStyle,
+                              ),
                             const SizedBox(height: 12),
                             Text(
                               '都市型 GPS 鬼ごっこ',
@@ -217,5 +241,39 @@ class _TitleScreenState extends State<TitleScreen> {
         ),
       ),
     );
+  }
+}
+
+class _TitleBrandHeader extends StatelessWidget {
+  const _TitleBrandHeader({
+    required this.visible,
+    required this.branding,
+    required this.titleStyle,
+    required this.subBrandStyle,
+  });
+
+  final bool visible;
+  final WorldLaunchBranding branding;
+  final TextStyle? titleStyle;
+  final TextStyle? subBrandStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final block = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ThemedGeometricLogo(branding: branding, size: 56),
+        const SizedBox(height: 12),
+        Text('ONI PIN', textAlign: TextAlign.center, style: titleStyle),
+        const SizedBox(height: 4),
+        Text(
+          'GPS × ONI GAME',
+          textAlign: TextAlign.center,
+          style: subBrandStyle,
+        ),
+      ],
+    );
+    if (visible) return block;
+    return Opacity(opacity: 0, child: IgnorePointer(child: block));
   }
 }

@@ -16,7 +16,6 @@ class GameInfoPanel extends StatelessWidget {
     required this.compactLineText,
     required this.intelLine,
     required this.showIntelLine,
-    required this.onDismissIntel,
     required this.onOpenIntelLog,
     required this.onOpenDisplaySettings,
     required this.timerText,
@@ -46,7 +45,6 @@ class GameInfoPanel extends StatelessWidget {
   final String compactLineText;
   final String intelLine;
   final bool showIntelLine;
-  final VoidCallback onDismissIntel;
   final VoidCallback onOpenIntelLog;
   final VoidCallback onOpenDisplaySettings;
   final String timerText;
@@ -268,28 +266,13 @@ class GameInfoPanel extends StatelessWidget {
           ],
           if (showIntelLine) ...[
             const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    intelLine,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '鬼情報一行を隠す（表示メニューから再表示）',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: onDismissIntel,
-                  icon: const Icon(Icons.visibility_off_outlined, size: 18),
-                ),
-              ],
+            Text(
+              intelLine,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
           if (showConditionLine) ...[

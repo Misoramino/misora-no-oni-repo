@@ -1,7 +1,7 @@
 /// 試合中 HUD 一行表示で出す情報の種類。
 enum HudCompactLineSlot {
-  /// 有効な行のうち優先度順で最初の1つ（鬼情報 → 状態 → コンディション）
-  auto,
+  /// 有効な行を連結して一行スクロール（鬼情報 → 状態 → コンディション）
+  all,
 
   intel,
   status,
@@ -10,22 +10,22 @@ enum HudCompactLineSlot {
 
 extension HudCompactLineSlotLabel on HudCompactLineSlot {
   String get label => switch (this) {
-        HudCompactLineSlot.auto => '自動（有効な行から1つ）',
-        HudCompactLineSlot.intel => '鬼情報',
-        HudCompactLineSlot.status => '状態メッセージ',
-        HudCompactLineSlot.condition => 'コンディション',
+        HudCompactLineSlot.all => 'すべて',
+        HudCompactLineSlot.intel => '鬼情報のみ',
+        HudCompactLineSlot.status => '状態メッセージのみ',
+        HudCompactLineSlot.condition => 'コンディションのみ',
       };
 
   static HudCompactLineSlot fromStorage(String? raw) {
-    if (raw == null) return HudCompactLineSlot.auto;
+    if (raw == null || raw == 'auto') return HudCompactLineSlot.all;
     for (final s in HudCompactLineSlot.values) {
       if (s.name == raw) return s;
     }
-    return HudCompactLineSlot.auto;
+    return HudCompactLineSlot.all;
   }
 }
 
-/// 一行 HUD に載せる文言を決める（エリア内外はタイマー背景色で示すため含めない）。
+/// 一行 HUD に載せる文言（エリア内外はタイマー背景色で示すため含めない）。
 String resolveHudCompactLineText({
   required HudCompactLineSlot slot,
   required bool showIntelLine,
@@ -34,6 +34,7 @@ String resolveHudCompactLineText({
   required String intelLine,
   required String statusText,
   required String conditionText,
+  String separator = '  ·  ',
 }) {
   String? lineFor(HudCompactLineSlot s) {
     return switch (s) {
@@ -43,21 +44,22 @@ String resolveHudCompactLineText({
         showStatusLine && statusText.isNotEmpty ? statusText : null,
       HudCompactLineSlot.condition =>
         showConditionLine && conditionText.isNotEmpty ? conditionText : null,
-      HudCompactLineSlot.auto => null,
+      HudCompactLineSlot.all => null,
     };
   }
 
-  if (slot != HudCompactLineSlot.auto) {
+  if (slot != HudCompactLineSlot.all) {
     return lineFor(slot) ?? '';
   }
 
+  final parts = <String>[];
   for (final s in [
     HudCompactLineSlot.intel,
     HudCompactLineSlot.status,
     HudCompactLineSlot.condition,
   ]) {
     final t = lineFor(s);
-    if (t != null) return t;
+    if (t != null) parts.add(t);
   }
-  return '';
+  return parts.join(separator);
 }
