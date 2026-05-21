@@ -13,15 +13,16 @@ class LaunchSoundPlayer {
   bool _played = false;
 
   Future<void> playIfEnabled(WorldProfile profile) async {
-    if (_played) return;
-    _played = true;
-    if (kIsWeb) return;
+    if (_played || kIsWeb) return;
     final enabled = await LaunchBrandingPrefs.loadSoundEnabled();
     if (!enabled) return;
+
     try {
-      await _player.setVolume(0.45);
+      await _player.setReleaseMode(ReleaseMode.stop);
+      await _player.setVolume(0.72);
       final bytes = LaunchSoundSynth.wavFor(profile);
-      await _player.play(BytesSource(bytes));
+      await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
+      _played = true;
     } catch (e, st) {
       debugPrint('LaunchSoundPlayer: $e\n$st');
     }

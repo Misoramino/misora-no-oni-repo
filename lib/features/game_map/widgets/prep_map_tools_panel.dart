@@ -115,7 +115,7 @@ class PrepMapToolsPanel extends StatelessWidget {
             ],
           ),
           Text(
-            '試合時間・ルール・役職方針は準備の「カスタム設定」のホスト向けから。',
+            '時間・ルールは準備のカスタムルールから。',
             style: Theme.of(
               context,
             ).textTheme.labelSmall?.copyWith(color: fgMuted, height: 1.35),

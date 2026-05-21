@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'world_launch_branding.dart';
 import 'world_profile.dart';
 
 /// 準備画面（地図オフ）の背景に対して読みやすい前景色セット。
@@ -137,45 +138,19 @@ abstract final class MapHudContrast {
     }
   }
 
-  /// 準備フェーズ（地図オフ）のメイン背景 — 単調な灰ではなく世界観色を薄く重ねる（ライトテーマの文字のまま読める明度帯）。
+  /// 準備フェーズ（地図オフ）— 起動画面と同系の暗い世界観色（灰一色の surface は使わない）。
   static Color prepScaffoldBg(ColorScheme scheme, WorldProfile profile) {
-    Color layer(Color base, Color mist, double a) =>
-        Color.alphaBlend(mist.withValues(alpha: a), base);
-
-    final canvas = scheme.surfaceContainerHighest;
-    switch (profile) {
-      case WorldProfile.horror:
-      case WorldProfile.astronomy:
-        return layer(
-          layer(canvas, const Color(0xFF4A148C), 0.055),
-          scheme.primary,
-          0.09,
-        );
-      case WorldProfile.sciFi:
-        return layer(
-          layer(canvas, const Color(0xFF004D60), 0.06),
-          scheme.secondary,
-          0.1,
-        );
-      case WorldProfile.arg:
-        return layer(
-          layer(canvas, const Color(0xFF263238), 0.05),
-          scheme.tertiary,
-          0.09,
-        );
-      case WorldProfile.magical:
-        return layer(
-          layer(canvas, const Color(0xFF4A148C), 0.045),
-          scheme.primary,
-          0.085,
-        );
-      case WorldProfile.sport:
-        return layer(
-          layer(canvas, const Color(0xFFE65100), 0.05),
-          scheme.tertiary,
-          0.09,
-        );
+    final launch = WorldLaunchBranding.of(profile);
+    if (launch.isLightBackground) {
+      return Color.alphaBlend(
+        launch.accent.withValues(alpha: 0.06),
+        launch.backgroundBottom,
+      );
     }
+    return Color.alphaBlend(
+      launch.glow.withValues(alpha: 0.12),
+      launch.backgroundBottom,
+    );
   }
 
   /// 準備画面の背景色に合わせた前景色（ライト／ダークの [ColorScheme] および世界観の下地の明度から算出）。

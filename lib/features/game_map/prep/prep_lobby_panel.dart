@@ -95,8 +95,8 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   const SizedBox(height: 4),
                   Text(
                     widget.isHost
-                        ? '制限時間とエリアを決めてから開始。エリアの形は誰でも保存、適用はホストのみ。'
-                        : 'ホストの設定を待っています。エリアの形は地図で保存できます。',
+                        ? '制限時間とエリアを設定して開始。'
+                        : 'ホストの開始を待っています。',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: leg.muted,
                     ),
@@ -155,7 +155,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                             children: [
                               if (widget.savedAreas.isEmpty)
                                 Text(
-                                  '保存済みエリアがありません。地図で編集して「エリアを保存」してください。',
+                                  '地図でエリアを編集・保存してください。',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: leg.body,
                                   ),
@@ -272,8 +272,8 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         widget.participantRulesOpen
-                            ? 'ホストがカスタムルールの編集を開放しています'
-                            : 'カスタムルールはホストの開放待ち',
+                            ? 'カスタムルール編集: 開放中'
+                            : 'カスタムルール編集: 待ち',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: leg.muted,
                         ),
@@ -295,7 +295,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'プレイエリアの形は右下の「マップパネル」→「地図を表示」から開いて編集・保存してください。',
+                    'エリアの形は右下「地図を表示」から編集。',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: leg.muted,
                       height: 1.35,
@@ -304,10 +304,10 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   TextButton(
                     style: TextButton.styleFrom(foregroundColor: leg.link),
                     onPressed: widget.onOpenCustomSettings,
-                    child: const Text('カスタム設定（役職・スキル・ルール）'),
+                    child: const Text('カスタムルール'),
                   ),
                   Text(
-                    'オンラインルームは画面上部の Lobby から（退出せず確認できます）。',
+                    'ルーム確認は上部 Lobby。',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: leg.muted,
                       height: 1.35,

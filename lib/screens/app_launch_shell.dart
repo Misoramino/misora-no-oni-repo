@@ -37,7 +37,6 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   final LaunchSoundPlayer _sound = LaunchSoundPlayer();
 
   Timer? _watchdogTimer;
-  bool _soundPlayed = false;
   bool _introStarted = false;
 
   static const _introDuration = Duration(
@@ -68,7 +67,9 @@ class _AppLaunchShellState extends State<AppLaunchShell>
       _loadProfile(),
       FirebaseBootstrap.tryInit(),
     ]);
+    if (!mounted) return;
     _startIntroIfReady();
+    unawaited(_playSoundOnce());
   }
 
   void _startIntroIfReady() {
@@ -101,8 +102,9 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     final p = await WorldProfilePrefs.load();
     if (!mounted) return;
     setState(() => _profile = p);
-    _playSoundOnce();
   }
+
+  Future<void> _playSoundOnce() => _sound.playIfEnabled(_profile);
 
   @override
   void didUpdateWidget(AppLaunchShell oldWidget) {
@@ -110,12 +112,6 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     if (oldWidget.initialProfile != widget.initialProfile) {
       setState(() => _profile = widget.initialProfile);
     }
-  }
-
-  void _playSoundOnce() {
-    if (_soundPlayed) return;
-    _soundPlayed = true;
-    unawaited(_sound.playIfEnabled(_profile));
   }
 
   @override

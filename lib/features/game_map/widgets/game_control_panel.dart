@@ -299,7 +299,7 @@ class GameControlPanel extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '名前・写真・BLE は準備の「個人設定」。役職・スキル・ルールは「カスタムルール」。',
+              '個人設定 / カスタムルールは準備画面から。',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
@@ -463,7 +463,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'プレイエリアの編集・保存は地図上で行います。'
-            '役職・スキル・共有ルールは準備画面の「カスタム設定」から。',
+            'ルールは準備のカスタムルールから。',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),

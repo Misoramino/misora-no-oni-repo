@@ -70,7 +70,7 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
                       style: Theme.of(ctx).textTheme.titleLarge,
                     ),
                     Text(
-                      '名前・写真・近接など、この端末だけの設定です。',
+                      'この端末だけの設定です。',
                       style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                             color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                           ),
@@ -157,9 +157,7 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
                         SwitchListTile(
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('実機 BLE スキャン（近接推定）'),
-                          subtitle: const Text(
-                            'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
-                          ),
+                          subtitle: const Text('オフ時はモック。Android は Bluetooth 権限'),
                           value: selectedUseBle,
                           onChanged: (v) => setModal(() => selectedUseBle = v),
                         ),
@@ -243,10 +241,9 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
 
 String _photoPinHelperText(WorldProfile profile) {
   final pack = WorldVisualPackFactory.of(profile);
-  final base =
-      '自分の地図ピンでは写真があれば常に表示します（端末のみ保存・他プレイヤーには送りません）。';
+  const base = '自分のピンに常時表示（端末のみ）。';
   if (pack.photoOnlyOnReveal || !pack.showPhotoPinByDefault) {
-    return '$base ${profile.label} では位置暴露後に枠が強調されます。';
+    return '$base 暴露後は枠が強調。';
   }
   return base;
 }

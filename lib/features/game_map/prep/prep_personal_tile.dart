@@ -73,7 +73,7 @@ class PrepPersonalTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '名前・写真をタップ / 展開で BLE など',
+                      '名前・写真・BLE',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: leg.muted,
                       ),

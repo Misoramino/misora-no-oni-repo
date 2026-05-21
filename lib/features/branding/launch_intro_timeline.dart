@@ -26,10 +26,10 @@ abstract final class LaunchIntroTimeline {
     if (intro <= effectEnd) return 1;
     if (intro <= logoHoldEnd) {
       final t = (intro - effectEnd) / (logoHoldEnd - effectEnd);
-      return 1 - t * 0.55;
+      return 1 - t * 0.18;
     }
     final t = layoutT(intro);
-    return (1 - Curves.easeOut.transform(t)) * 0.45;
+    return (1 - Curves.easeOut.transform(t)) * 0.72;
   }
 
   static double brandTextOpacity(double intro) {

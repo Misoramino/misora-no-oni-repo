@@ -67,7 +67,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                     children: [
                       Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
                       Text(
-                        '役職・スキル・エクストラルールなど。名前・写真・BLE は準備の「個人設定」から。',
+                        '役職・スキル・ルール。個人設定は準備画面から。',
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                           color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                         ),
@@ -81,7 +81,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         Padding(
                           padding: const EdgeInsets.only(bottom: 6, top: 2),
                           child: Text(
-                            '試合時間・共有ルール・脱落後ルールはホストのみ変更できます。「参加者にルール編集を許可」がオンなら、開かれた項目も調整できます。',
+                            'ホストのみ編集。開放中は参加者も一部変更可。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                               color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                             ),
@@ -91,9 +91,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('参加者にカスタムルール編集を許可'),
-                          subtitle: const Text(
-                            '役職固定・スキル・脱落ルールなど。制限時間とエリアはホストが準備画面で設定',
-                          ),
+                          subtitle: const Text('時間・エリアは準備画面'),
                           value: selectedParticipantRulesOpen,
                           onChanged: (v) => setModalState(
                             () => selectedParticipantRulesOpen = v,
@@ -104,8 +102,8 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         decoration: InputDecoration(
                           labelText: '情報屋の鬼情報モード',
                           helperText:
-                              '情報屋で入手する鬼の手がかりの出し方。未設定時は方角のみ・距離帯のみ・断片のいずれかがランダム相当で切り替わります。「断片」は約${GameConfig.fragmentedPhaseSeconds}秒ごとにフェーズが変わります。',
-                          helperMaxLines: 4,
+                              '情報屋の鬼情報の出し方。断片は約${GameConfig.fragmentedPhaseSeconds}秒で切替。',
+                          helperMaxLines: 2,
                         ),
                         items: OniIntelMode.values
                             .map(
@@ -127,7 +125,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         initialValue: selectedRole,
                         decoration: const InputDecoration(
                           labelText: 'ローカル役職',
-                          helperText: 'カスタム公開ルールON時だけ固定されます',
+                          helperText: '公開ルールON時のみ固定',
                         ),
                         items: assignablePlayerRoles
                             .map(
@@ -192,7 +190,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('カスタム公開ルール'),
-                        subtitle: const Text('オフ時は開始時に役職/スキル/ルールを秘密ランダム割当'),
+                        subtitle: const Text('オフ時は開始時にランダム割当'),
                         value: selectedCustomRuleMode,
                         onChanged: (isHost || selectedParticipantRulesOpen)
                             ? (v) => setModalState(
@@ -205,7 +203,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         style: Theme.of(ctx).textTheme.titleSmall,
                       ),
                       const Text(
-                        'ホストは準備画面のスライダーで変更するのが基本です。ここは上級者向けの同じ設定です。',
+                        '準備画面と同じ設定（上級者向け）',
                         style: TextStyle(fontSize: 12),
                       ),
                       Slider(

@@ -183,8 +183,8 @@ class _TitleScreenState extends State<TitleScreen> {
                                     alignment: Alignment.centerRight,
                                     child: IconButton(
                                       tooltip: _launchSoundOn
-                                          ? '起動音: ON（タップでOFF）'
-                                          : '起動音: OFF（タップでON）',
+                                          ? '起動音 ON'
+                                          : '起動音 OFF',
                                       onPressed: handoff == null
                                           ? () async {
                                               final next = !_launchSoundOn;
@@ -248,8 +248,7 @@ class _TitleScreenState extends State<TitleScreen> {
                                           decoration: const InputDecoration(
                                             labelText: '世界観',
                                             border: OutlineInputBorder(),
-                                            helperText:
-                                                '地図・ピン・雰囲気のテーマ（ゲーム中も変更可）',
+                                            helperText: '地図・ピン・演出のテーマ',
                                           ),
                                           items: WorldProfile.values
                                               .map(
@@ -303,8 +302,8 @@ class _TitleScreenState extends State<TitleScreen> {
                                         const SizedBox(height: 20),
                                         Text(
                                           FirebaseBootstrap.isReady
-                                              ? 'Firebase: 接続準備 OK（匿名ログインはルーム参加時）'
-                                              : 'Firebase: 未接続 — ルーム参加時に再試行します',
+                                              ? 'Firebase: 接続 OK'
+                                              : 'Firebase: 未接続（参加時に再試行）',
                                           textAlign: TextAlign.center,
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(
