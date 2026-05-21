@@ -7,6 +7,7 @@ import '../../../theme/world_profile.dart';
 import '../../../game/play_area.dart';
 import '../../../services/play_area_slot_store.dart';
 import '../../../widgets/play_area_shape_preview.dart';
+import 'prep_personal_tile.dart';
 import 'prep_summary_tile.dart';
 
 /// 準備フェーズ（地図オフ）のメインパネル。
@@ -26,6 +27,9 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.onStart,
     required this.canStart,
     required this.onOpenCustomSettings,
+    required this.onOpenPersonalSettings,
+    required this.displayName,
+    required this.avatarImagePath,
     required this.participantRulesOpen,
     required this.worldVisualProfile,
     super.key,
@@ -45,6 +49,9 @@ class PrepLobbyPanel extends StatefulWidget {
   final VoidCallback onStart;
   final bool canStart;
   final VoidCallback onOpenCustomSettings;
+  final VoidCallback onOpenPersonalSettings;
+  final String displayName;
+  final String? avatarImagePath;
   final bool participantRulesOpen;
   final WorldProfile worldVisualProfile;
 
@@ -236,6 +243,13 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                             ],
                           )
                         : null,
+                  ),
+                  const SizedBox(height: 8),
+                  PrepPersonalTile(
+                    displayName: widget.displayName,
+                    avatarImagePath: widget.avatarImagePath,
+                    prepLegibility: leg,
+                    onOpenSettings: widget.onOpenPersonalSettings,
                   ),
                   const SizedBox(height: 8),
                   ListTile(

@@ -256,6 +256,33 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
+  /// 表示名のみ更新（ルーム参加済みのとき）。
+  Future<String?> updateNickname(String nickname) async {
+    final nick = nickname.trim();
+    if (nick.isEmpty) return '表示名を入力してください';
+    if (_roomId == null || _uid == null) return null;
+    _nickname = nick;
+    try {
+      await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('members')
+          .doc(_uid!)
+          .set(
+        {
+          MemberPresenceFields.nickname: nick,
+          MemberPresenceFields.reportedAtUtc: DateTime.now()
+              .toUtc()
+              .toIso8601String(),
+        },
+        SetOptions(merge: true),
+      );
+      return null;
+    } on FirebaseException catch (e) {
+      return '名前の更新に失敗: ${_describeFirebaseException(e)}';
+    }
+  }
+
   void _bindRoomAndMembers() {
     if (_roomId == null) return;
     final rid = _roomId!;

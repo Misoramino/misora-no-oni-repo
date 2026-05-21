@@ -26,6 +26,10 @@ import '../features/game_map/prep/prep_lobby_panel.dart';
 import '../features/game_map/widgets/how_to_play_sheet.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
 import '../features/game_map/settings/game_custom_settings_sheet.dart';
+import '../features/game_map/settings/player_personal_settings_models.dart';
+import '../features/game_map/settings/player_personal_settings_sheet.dart';
+import '../session/avatar_image_store.dart';
+import '../session/session_prefs.dart';
 import '../features/game_map/widgets/diagnostics_card.dart';
 import '../features/game_map/widgets/game_control_panel.dart';
 import '../features/game_map/hud/hud_compact_line.dart';
@@ -751,11 +755,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
+  /// 自分の地図ピン用。写真があれば常に表示（他プレイヤーには送らない）。
   bool _shouldUsePhotoPlayerPin() {
-    final p = _mapVisual.pack;
-    if (_avatarImagePath == null || _avatarImagePath!.isEmpty) return false;
-    if (p.showPhotoPinByDefault && !p.photoOnlyOnReveal) return true;
-    return _isPlayerRevealedForPhoto();
+    return _avatarImagePath != null && _avatarImagePath!.isNotEmpty;
   }
 
   Future<void> _refreshPlayerAvatarIcon() async {
@@ -3303,6 +3305,57 @@ class _GameMapScreenState extends State<GameMapScreen>
     _toast('現在地へ移動しました');
   }
 
+  Future<void> _openPersonalSettings() async {
+    final prefs0 = await SharedPreferences.getInstance();
+    final form = await SessionPrefs.loadForm();
+    if (!mounted) return;
+    final result = await showPlayerPersonalSettingsSheet(
+      context: context,
+      initial: PlayerPersonalSettingsInitial(
+        displayName: _localPlayerLabel,
+        profile: _activeProfile,
+        useBleScan: prefs0.getBool(GameMapPrefs.useBleScanProximity) ?? false,
+        trajectoryConsent: _trajectoryConsent,
+        avatarImagePath: _avatarImagePath,
+      ),
+    );
+    if (!mounted || result == null) return;
+
+    await SessionPrefs.saveForm(
+      nickname: result.displayName,
+      roomId: form.roomId,
+      role: form.role,
+    );
+
+    final fs = _firestoreSession;
+    if (fs is FirestoreRoomSession) {
+      final err = await fs.updateNickname(result.displayName);
+      if (err != null && mounted) _toast(err);
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(GameMapPrefs.useBleScanProximity, result.useBleScan);
+    if (result.avatarImagePath != null && result.avatarImagePath!.isNotEmpty) {
+      await prefs.setString(GameMapPrefs.avatarImagePath, result.avatarImagePath!);
+    } else {
+      await prefs.remove(GameMapPrefs.avatarImagePath);
+      await AvatarImageStore.deleteStored();
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _avatarImagePath = result.avatarImagePath;
+      _activeProfile = result.profile;
+    });
+    await _applyWorldProfile(result.profile);
+    await _refreshPlayerAvatarIcon();
+    await _reloadProximityStackFromPrefs();
+    if (_trajectoryConsent != result.trajectoryConsent) {
+      await _setTrajectoryConsent(result.trajectoryConsent);
+    }
+    if (mounted) _toast('個人設定を適用しました');
+  }
+
   Future<void> _openCustomMenu() async {
     if (_gameState == GameState.running) {
       _toast('ゲーム中はカスタム設定を変更できません');
@@ -3312,22 +3365,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('カスタムルールの編集はホストが開放するまで待ってください');
       return;
     }
-    final prefs0 = await SharedPreferences.getInstance();
-    if (!mounted) return;
     final result = await showGameCustomSettingsSheet(
       context: context,
       initial: GameCustomSettingsInitial(
-        profile: _activeProfile,
         oniIntelMode: _oniIntelMode,
-        trajectoryConsent: _trajectoryConsent,
         eliminationAftermathRule: _eliminationAftermathRule,
         localRole: _localRole,
         customRuleMode: _customRuleMode,
         participantRulesOpen: _participantRulesOpen,
         matchDurationMinutes: _matchDurationSeconds / 60,
         skillLoadout: _skillLoadout,
-        useBleScan: prefs0.getBool(GameMapPrefs.useBleScanProximity) ?? false,
-        avatarImagePath: _avatarImagePath,
         gimmickDensity: _gimmickDensity,
       ),
       isHost: _isHost,
@@ -3362,7 +3409,6 @@ class _GameMapScreenState extends State<GameMapScreen>
           : null,
     );
     if (!mounted || result == null) return;
-    await WorldProfilePrefs.save(result.profile);
     final prefsPersist = await SharedPreferences.getInstance();
     await prefsPersist.setDouble(
       GameMapPrefs.gimmickDensity,
@@ -3370,7 +3416,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     if (!mounted) return;
     setState(() {
-      _activeProfile = result.profile;
       _oniIntelMode = result.oniIntelMode;
       _eliminationAftermathRule = result.eliminationAftermathRule;
       _customRuleMode = result.customRuleMode;
@@ -3392,13 +3437,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         preferredSkills: result.skillLoadout.toList(),
       );
       if (err != null && mounted) _toast(err);
-    }
-    _avatarImagePath = result.avatarImagePath;
-    await _applyWorldProfile(result.profile);
-    await _refreshPlayerAvatarIcon();
-    await _reloadProximityStackFromPrefs();
-    if (_trajectoryConsent != result.trajectoryConsent) {
-      await _setTrajectoryConsent(result.trajectoryConsent);
     }
     _toast('カスタム設定を適用しました');
   }
@@ -3917,6 +3955,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                 onStart: _startGame,
                 canStart: !_editingArea && _isHost,
                 onOpenCustomSettings: _openCustomMenu,
+                onOpenPersonalSettings: _openPersonalSettings,
+                displayName: _localPlayerLabel,
+                avatarImagePath: _avatarImagePath,
                 participantRulesOpen: _participantRulesOpen,
                 worldVisualProfile: _mapVisual.pack.profile,
               ),
@@ -4171,6 +4212,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onClearTraces: _clearTracePoints,
                   onToggleAreaEdit: _toggleAreaEditor,
                   onOpenCustomMenu: _openCustomMenu,
+                  onOpenPersonalSettings: _openPersonalSettings,
                   onOpenHelp: _showHowToPlaySheet,
                   onDismissPrepSheet: () => setState(() {
                     _prepControlSheetOpen = false;
@@ -4291,6 +4333,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         onClearTraces: _clearTracePoints,
                         onToggleAreaEdit: _toggleAreaEditor,
                         onOpenCustomMenu: _openCustomMenu,
+                        onOpenPersonalSettings: _openPersonalSettings,
                         onOpenHelp: _showHowToPlaySheet,
                         onDismissPrepSheet: () => setState(() {
                           _prepControlSheetOpen = false;

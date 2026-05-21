@@ -27,6 +27,7 @@ class GameControlPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onToggleAreaEdit,
     required this.onOpenCustomMenu,
+    required this.onOpenPersonalSettings,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
     required this.onHidePanel,
@@ -70,6 +71,7 @@ class GameControlPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onToggleAreaEdit;
   final VoidCallback onOpenCustomMenu;
+  final VoidCallback onOpenPersonalSettings;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
   final VoidCallback onHidePanel;
@@ -297,7 +299,7 @@ class GameControlPanel extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '試合時間・役職・スキル・共有ルールは準備の「カスタム設定」から。',
+              '名前・写真・BLE は準備の「個人設定」。役職・スキル・ルールは「カスタムルール」。',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
@@ -308,6 +310,12 @@ class GameControlPanel extends StatelessWidget {
                 onPressed: onToggleAreaEdit,
                 icon: Icon(isEditing ? Icons.check_circle : Icons.map_outlined),
                 label: Text(isEditing ? '編集を閉じる' : 'エリア編集'),
+              ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                onPressed: onOpenPersonalSettings,
+                icon: const Icon(Icons.person_outline, size: 18),
+                label: const Text('個人設定'),
               ),
               const SizedBox(height: 6),
               OutlinedButton.icon(

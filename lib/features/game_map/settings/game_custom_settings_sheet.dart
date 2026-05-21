@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
@@ -10,12 +8,8 @@ import '../../../game/game_config.dart';
 import '../../../game/oni_intel_mode.dart';
 import '../../../game/player_role.dart';
 import '../../../game/skill_ids.dart';
-import '../../../session/avatar_image_store.dart';
 import '../../../session/game_map_prefs.dart';
-import '../../../session/world_profile_prefs.dart';
 import '../../../sync/firebase_bootstrap.dart';
-import '../../../theme/world_profile.dart';
-import '../../../theme/world_visual_pack_factory.dart';
 import 'game_custom_settings_models.dart';
 
 Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
@@ -24,9 +18,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   required bool isHost,
   Future<void> Function()? onRequestGameDefaultsReset,
 }) async {
-  WorldProfile selectedProfile = initial.profile;
   OniIntelMode selectedIntel = initial.oniIntelMode;
-  bool selectedConsent = initial.trajectoryConsent;
   EliminationAftermathRule selectedElimination =
       initial.eliminationAftermathRule;
   PlayerRole selectedRole = initial.localRole;
@@ -34,8 +26,6 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   var selectedParticipantRulesOpen = initial.participantRulesOpen;
   double selectedDurationMinutes = initial.matchDurationMinutes;
   final selectedSkills = Set<String>.from(initial.skillLoadout);
-  var selectedUseBle = initial.useBleScan;
-  var selectedAvatarPath = initial.avatarImagePath;
   var selectedGimmickDensity = initial.gimmickDensity.clamp(0.45, 1.55);
   var firebaseWarmScheduled = false;
 
@@ -77,112 +67,14 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                     children: [
                       Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
                       Text(
-                        '個人向け（端末）とホスト向け（ルーム共有）に分けています。',
+                        '役職・スキル・エクストラルールなど。名前・写真・BLE は準備の「個人設定」から。',
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                           color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '個人向け（この端末）',
-                        style: Theme.of(ctx).textTheme.titleSmall,
-                      ),
-                      DropdownButtonFormField<WorldProfile>(
-                        initialValue: selectedProfile,
-                        decoration: const InputDecoration(labelText: '世界観'),
-                        items: WorldProfile.values
-                            .map(
-                              (p) => DropdownMenuItem(
-                                value: p,
-                                child: Text(p.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setModalState(() => selectedProfile = v);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      if (selectedAvatarPath != null &&
-                          selectedAvatarPath!.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            File(selectedAvatarPath!),
-                            height: 72,
-                            width: 72,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const SizedBox(
-                              height: 72,
-                              width: 72,
-                              child: Icon(Icons.broken_image_outlined),
-                            ),
-                          ),
-                        ),
-                      if (selectedAvatarPath != null &&
-                          selectedAvatarPath!.isNotEmpty)
-                        const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final file = await ImagePicker().pickImage(
-                                  source: ImageSource.gallery,
-                                  maxWidth: 512,
-                                  maxHeight: 512,
-                                  imageQuality: 85,
-                                );
-                                if (file == null) return;
-                                final stored =
-                                    await AvatarImageStore.persistFromPicker(
-                                      file.path,
-                                    );
-                                setModalState(
-                                  () => selectedAvatarPath = stored,
-                                );
-                              },
-                              icon: const Icon(Icons.photo_camera_outlined),
-                              label: const Text('ピン用写真を選ぶ'),
-                            ),
-                          ),
-                          if (selectedAvatarPath != null &&
-                              selectedAvatarPath!.isNotEmpty)
-                            IconButton(
-                              tooltip: '写真をクリア',
-                              onPressed: () => setModalState(
-                                () => selectedAvatarPath = null,
-                              ),
-                              icon: const Icon(Icons.close),
-                            ),
-                        ],
-                      ),
-                      Text(
-                        _photoPinHelperText(selectedProfile),
-                        style: Theme.of(ctx).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('実機 BLE スキャン（近接推定）'),
-                        subtitle: const Text(
-                          'オフ時はモック BLE。Android では Bluetooth 権限が必要です。',
-                        ),
-                        value: selectedUseBle,
-                        onChanged: (v) =>
-                            setModalState(() => selectedUseBle = v),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('軌跡を端末保存（同意）'),
-                        value: selectedConsent,
-                        onChanged: (v) =>
-                            setModalState(() => selectedConsent = v),
-                      ),
-                      const Divider(height: 28),
-                      Text(
-                        'ホスト向け・ルーム共有',
+                        'ルーム共有',
                         style: Theme.of(ctx).textTheme.titleSmall,
                       ),
                       if (!isHost)
@@ -447,46 +339,21 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
 
   if (ok != true) return null;
 
-  await WorldProfilePrefs.save(selectedProfile);
-
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(
     GameMapPrefs.eliminationAftermathRule,
     selectedElimination.name,
   );
-  await prefs.setBool(GameMapPrefs.useBleScanProximity, selectedUseBle);
   await prefs.setDouble(GameMapPrefs.gimmickDensity, selectedGimmickDensity);
-  if (selectedAvatarPath != null && selectedAvatarPath!.isNotEmpty) {
-    await prefs.setString(GameMapPrefs.avatarImagePath, selectedAvatarPath!);
-  } else {
-    await prefs.remove(GameMapPrefs.avatarImagePath);
-    await AvatarImageStore.deleteStored();
-  }
 
   return GameCustomSettingsResult(
-    profile: selectedProfile,
     oniIntelMode: selectedIntel,
-    trajectoryConsent: selectedConsent,
     eliminationAftermathRule: selectedElimination,
     localRole: selectedRole,
     customRuleMode: selectedCustomRuleMode,
     participantRulesOpen: selectedParticipantRulesOpen,
     matchDurationMinutes: selectedDurationMinutes,
     skillLoadout: selectedSkills,
-    useBleScan: selectedUseBle,
-    avatarImagePath: selectedAvatarPath,
     gimmickDensity: selectedGimmickDensity,
   );
-}
-
-String _photoPinHelperText(WorldProfile profile) {
-  final pack = WorldVisualPackFactory.of(profile);
-  final base = '写真はこの端末だけに保存（Firestore には送りません）。';
-  if (pack.showPhotoPinByDefault && !pack.photoOnlyOnReveal) {
-    return '$base ${profile.label} では常時写真ピンを表示します。';
-  }
-  if (pack.photoOnlyOnReveal) {
-    return '$base ${profile.label} では位置暴露後のみ写真ピンを表示します。';
-  }
-  return '$base この世界観では位置暴露後に写真ピンが使えます。';
 }

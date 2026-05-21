@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../features/branding/launch_effect_overlay.dart';
 import '../features/branding/launch_sound_player.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_launch_branding.dart';
 import '../theme/world_profile.dart';
-import '../widgets/themed_geometric_logo.dart';
+import 'launch_handoff.dart';
 import 'title_screen.dart';
 
-/// 起動演出 → 図形ロゴが上へ移動 → タイトルへフェード（初回起動も同じ）。
+/// 起動演出 → タイトル（単一ロゴでスムーズに遷移）。
 class AppLaunchShell extends StatefulWidget {
   const AppLaunchShell({
     required this.initialProfile,
@@ -41,7 +40,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   bool _soundPlayed = false;
 
   static const _minLaunchHold = Duration(milliseconds: 1400);
-  static const _handoffDuration = Duration(milliseconds: 880);
+  static const _handoffDuration = Duration(milliseconds: 1000);
   static const _maxIntroDuration = Duration(seconds: 5);
 
   @override
@@ -140,82 +139,17 @@ class _AppLaunchShellState extends State<AppLaunchShell>
 
     return AnimatedBuilder(
       animation: Listenable.merge([_handoffAnim, _effect]),
-      builder: (context, _) => _buildIntro(context),
-    );
-  }
-
-  Widget _buildIntro(BuildContext context) {
-    final branding = WorldLaunchBranding.of(_profile);
-    final t = _handoffAnim.value;
-    final effectFade = (1 - t * 1.15).clamp(0.0, 1.0);
-    final titleFade = ((t - 0.28) / 0.72).clamp(0.0, 1.0);
-    final logoSize = 96 + (56 - 96) * t;
-    final logoAlign = Alignment.lerp(
-      const Alignment(0, 0.06),
-      const Alignment(0, -0.42),
-      t,
-    )!;
-    final showFloatingLogo = t < 0.97;
-    final blockTouches = effectFade > 0.02;
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Opacity(
-          opacity: titleFade,
-          child: TitleScreen(
-            initialProfile: _profile,
-            onProfileChanged: widget.onProfileChanged,
-            showBrandHeader: titleFade > 0.88,
-            reserveBrandHeaderSpace: true,
+      builder: (context, _) {
+        return TitleScreen(
+          initialProfile: _profile,
+          onProfileChanged: widget.onProfileChanged,
+          handoff: LaunchHandoffView(
+            progress: _handoffAnim.value,
+            effectProgress: _effect.value,
+            branding: WorldLaunchBranding.of(_profile),
           ),
-        ),
-        IgnorePointer(
-          ignoring: blockTouches,
-          child: Opacity(
-            opacity: effectFade,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    branding.backgroundTop,
-                    branding.backgroundBottom,
-                  ],
-                ),
-              ),
-              child: LaunchEffectOverlay(
-                branding: branding,
-                progress: _effect.value,
-              ),
-            ),
-          ),
-        ),
-        if (showFloatingLogo)
-          Align(
-            alignment: logoAlign,
-            child: Opacity(
-              opacity: (1 - titleFade * 1.2).clamp(0.0, 1.0),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: branding.glow,
-                      blurRadius: 28,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: ThemedGeometricLogo(
-                  branding: branding,
-                  size: logoSize,
-                  pulse: _effect.value,
-                ),
-              ),
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 }

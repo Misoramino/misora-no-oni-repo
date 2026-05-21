@@ -24,7 +24,7 @@ extension LaunchEffectKindLabel on LaunchEffectKind {
       };
 }
 
-/// 起動画面用の色・オーバーレイ・サウンド方針。
+/// 起動画面用の色・オーバーレイ・ロゴ配色。
 class WorldLaunchBranding {
   const WorldLaunchBranding({
     required this.profile,
@@ -39,6 +39,9 @@ class WorldLaunchBranding {
     required this.pulseColor,
     required this.particleColor,
     required this.subtitleColor,
+    required this.pinStroke,
+    required this.coreColor,
+    required this.coreGlow,
     required this.isLightBackground,
     required this.showReadyLabel,
   });
@@ -55,6 +58,9 @@ class WorldLaunchBranding {
   final Color pulseColor;
   final Color particleColor;
   final Color subtitleColor;
+  final Color pinStroke;
+  final Color coreColor;
+  final Color coreGlow;
   final bool isLightBackground;
   final bool showReadyLabel;
 
@@ -94,6 +100,9 @@ class WorldLaunchBranding {
       pulseColor: const Color(0xFF18FFFF),
       particleColor: const Color(0xFF40C4FF),
       subtitleColor: Colors.white.withValues(alpha: 0.68),
+      pinStroke: const Color(0xFFE0FFFF),
+      coreColor: const Color(0xFFFF1744),
+      coreGlow: const Color(0x8800E5FF),
       isLightBackground: false,
       showReadyLabel: false,
     );
@@ -114,25 +123,32 @@ class WorldLaunchBranding {
       pulseColor: pack.tokens.alertColor,
       particleColor: const Color(0xFFFF5252),
       subtitleColor: Colors.white.withValues(alpha: 0.52),
+      pinStroke: const Color(0xFFF5F5F5),
+      coreColor: const Color(0xFFE53935),
+      coreGlow: const Color(0x99E53935),
       isLightBackground: false,
       showReadyLabel: false,
     );
   }
 
+  /// 明るくポップ（暗いグローは使わない）。
   static WorldLaunchBranding _pop(WorldProfile profile) {
     return WorldLaunchBranding(
       profile: profile,
       effect: LaunchEffectKind.pop,
       profileLabel: profile.label,
-      backgroundTop: const Color(0xFFFFF5FA),
-      backgroundBottom: const Color(0xFFE3F5FF),
+      backgroundTop: const Color(0xFFFFF8FC),
+      backgroundBottom: const Color(0xFFE8F7FF),
       accent: const Color(0xFFFF4081),
-      secondaryAccent: const Color(0xFF40C4FF),
-      glow: const Color(0x44FF4081),
-      scanLineColor: const Color(0x18000000),
-      pulseColor: const Color(0xFFFF6D9E),
+      secondaryAccent: const Color(0xFF29B6F6),
+      glow: const Color(0x55FFB3D9),
+      scanLineColor: const Color(0x12000000),
+      pulseColor: const Color(0xFFFF80AB),
       particleColor: const Color(0xFFFFD54F),
-      subtitleColor: const Color(0x99000000),
+      subtitleColor: const Color(0xFF5D4037),
+      pinStroke: const Color(0xFFFFFFFF),
+      coreColor: const Color(0xFFFF3366),
+      coreGlow: const Color(0x66FF80AB),
       isLightBackground: true,
       showReadyLabel: false,
     );
@@ -152,12 +168,14 @@ class WorldLaunchBranding {
       pulseColor: const Color(0xFFB0BEC5),
       particleColor: const Color(0xFF78909C),
       subtitleColor: Colors.white.withValues(alpha: 0.58),
+      pinStroke: const Color(0xFFECEFF1),
+      coreColor: const Color(0xFFEF5350),
+      coreGlow: const Color(0x6690A4AE),
       isLightBackground: false,
       showReadyLabel: true,
     );
   }
 
-  /// 魔法・不思議・キャンドルライト風（ハリーポッター的ムード、固有 IP は使わない）。
   static WorldLaunchBranding _magical(WorldProfile profile) {
     return WorldLaunchBranding(
       profile: profile,
@@ -166,18 +184,20 @@ class WorldLaunchBranding {
       backgroundTop: const Color(0xFF1A0A2E),
       backgroundBottom: const Color(0xFF0D0618),
       accent: const Color(0xFFD4AF37),
-      secondaryAccent: const Color(0xFF9C27B0),
-      glow: const Color(0x66D4AF37),
+      secondaryAccent: const Color(0xFFCE93D8),
+      glow: const Color(0x77D4AF37),
       scanLineColor: const Color(0x33CE93D8),
       pulseColor: const Color(0xFFFFD54F),
       particleColor: const Color(0xFFFFE082),
       subtitleColor: const Color(0xCCF3E5AB),
+      pinStroke: const Color(0xFFFFF8E1),
+      coreColor: const Color(0xFFFF5252),
+      coreGlow: const Color(0x88D4AF37),
       isLightBackground: false,
       showReadyLabel: false,
     );
   }
 
-  /// 星・宇宙・広大な空間。
   static WorldLaunchBranding _astronomy(WorldProfile profile) {
     return WorldLaunchBranding(
       profile: profile,
@@ -186,12 +206,15 @@ class WorldLaunchBranding {
       backgroundTop: const Color(0xFF050818),
       backgroundBottom: const Color(0xFF000208),
       accent: const Color(0xFF90CAF9),
-      secondaryAccent: const Color(0xFF5C6BC0),
+      secondaryAccent: const Color(0xFF7986CB),
       glow: const Color(0x5590CAF9),
       scanLineColor: const Color(0x334FC3F7),
       pulseColor: const Color(0xFFFFD54F),
       particleColor: Colors.white,
       subtitleColor: Colors.white.withValues(alpha: 0.62),
+      pinStroke: const Color(0xFFE3F2FD),
+      coreColor: const Color(0xFFFF5252),
+      coreGlow: const Color(0x8890CAF9),
       isLightBackground: false,
       showReadyLabel: false,
     );

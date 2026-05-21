@@ -10,9 +10,18 @@ void main() {
       expect(b.profile, p);
       expect(b.profileLabel, p.label);
       expect(b.accent, isA<Color>());
+      expect(b.pinStroke, isA<Color>());
+      expect(b.coreColor, isA<Color>());
       expect(b.backgroundTop.a, greaterThan(0));
       expect(b.effect, isA<LaunchEffectKind>());
     }
+  });
+
+  test('pop city uses bright logo colors', () {
+    final b = WorldLaunchBranding.of(WorldProfile.sport);
+    expect(b.isLightBackground, isTrue);
+    expect(b.pinStroke, const Color(0xFFFFFFFF));
+    expect(b.glow, isNot(const Color(0x66000000)));
   });
 
   test('each profile has a dedicated launch effect', () {
