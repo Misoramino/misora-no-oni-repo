@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/branding/launch_effect_overlay.dart';
+import '../features/branding/launch_intro_timeline.dart';
 import '../session/launch_branding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
@@ -34,7 +35,6 @@ class _TitleScreenState extends State<TitleScreen> {
   bool _booting = true;
   bool _launchSoundOn = true;
   late WorldProfile _profile;
-
   static const _titleLogoSize = 56.0;
   static const _launchLogoSize = 96.0;
 
@@ -80,26 +80,24 @@ class _TitleScreenState extends State<TitleScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final handoff = widget.handoff;
-    final t = handoff?.progress ?? 1.0;
+    final v = handoff == null
+        ? null
+        : LaunchIntroTimeline.visuals(handoff.introProgress);
+    final layoutT = v?.layoutT ?? 1.0;
     final launchBranding = handoff?.branding ?? WorldLaunchBranding.of(_profile);
     final uiBranding = WorldLaunchBranding.of(_profile);
 
-    final effectOpacity = handoff == null
-        ? 0.0
-        : (1 - Curves.easeOut.transform(t)).clamp(0.0, 1.0);
-    final brandTextOpacity = handoff == null
-        ? 1.0
-        : Curves.easeIn.transform(((t - 0.68) / 0.32).clamp(0.0, 1.0));
-    final bodyOpacity = handoff == null
-        ? 1.0
-        : Curves.easeIn.transform(((t - 0.78) / 0.22).clamp(0.0, 1.0));
+    final effectOpacity = v?.effectOpacity ?? 0.0;
+    final brandTextOpacity = v?.brandTextOpacity ?? 1.0;
+    final bodyOpacity = v?.bodyOpacity ?? 1.0;
+    final titleVeil = v?.titleVeil ?? 0.0;
 
     final scaffoldBg = handoff == null
         ? null
         : Color.lerp(
             launchBranding.backgroundBottom,
             theme.colorScheme.surface,
-            Curves.easeInOut.transform(t),
+            v!.scaffoldBlend,
           );
 
     return Scaffold(
@@ -108,16 +106,25 @@ class _TitleScreenState extends State<TitleScreen> {
         fit: StackFit.expand,
         children: [
           if (handoff != null && effectOpacity > 0.01)
-            IgnorePointer(
-              child: Opacity(
-                opacity: effectOpacity,
-                child: ColoredBox(
-                  color: launchBranding.backgroundBottom,
-                  child: LaunchEffectOverlay(
-                    branding: launchBranding,
-                    progress: handoff.effectProgress,
+            RepaintBoundary(
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: effectOpacity,
+                  child: ColoredBox(
+                    color: launchBranding.backgroundBottom,
+                    child: LaunchEffectOverlay(
+                      branding: launchBranding,
+                      progress: handoff.effectProgress,
+                    ),
                   ),
                 ),
+              ),
+            ),
+          if (handoff != null && titleVeil > 0.01)
+            IgnorePointer(
+              child: Opacity(
+                opacity: titleVeil,
+                child: ColoredBox(color: theme.colorScheme.surface),
               ),
             ),
           SafeArea(
@@ -132,7 +139,7 @@ class _TitleScreenState extends State<TitleScreen> {
                       ? Color.lerp(
                           launchBranding.subtitleColor,
                           theme.colorScheme.onSurface,
-                          t,
+                          layoutT,
                         )
                       : null,
                 );
@@ -141,17 +148,17 @@ class _TitleScreenState extends State<TitleScreen> {
                       ? Color.lerp(
                           launchBranding.subtitleColor,
                           theme.colorScheme.onSurfaceVariant,
-                          t,
+                          layoutT,
                         )
                       : theme.colorScheme.onSurfaceVariant,
                   letterSpacing: 1.6,
                 );
 
-                // 起動時は画面中央付近へ、完了時はタイトル列の定位置へ
-                final launchYOffset = constraints.maxHeight * 0.14 * (1 - t);
+                // 起動・ロゴ画面は視覚中心へ、タイトルへはフェードしながら移動
+                final launchYOffset = constraints.maxHeight * 0.06 * (1 - layoutT);
                 final logoScale =
                     _titleLogoSize +
-                    (_launchLogoSize - _titleLogoSize) * (1 - t);
+                    (_launchLogoSize - _titleLogoSize) * (1 - layoutT);
 
                 return CustomScrollView(
                   slivers: [
@@ -200,13 +207,16 @@ class _TitleScreenState extends State<TitleScreen> {
                                 ),
                                 Transform.translate(
                                   offset: Offset(0, launchYOffset),
-                                  child: _TitleBrandHeader(
-                                    branding: uiBranding,
-                                    logoSize: logoScale,
-                                    textOpacity: brandTextOpacity,
-                                    titleStyle: titleStyle,
-                                    subBrandStyle: subBrandStyle,
-                                    effectProgress: handoff?.effectProgress ?? 0,
+                                  child: RepaintBoundary(
+                                    child: _TitleBrandHeader(
+                                      branding: uiBranding,
+                                      logoSize: logoScale,
+                                      textOpacity: brandTextOpacity,
+                                      titleStyle: titleStyle,
+                                      subBrandStyle: subBrandStyle,
+                                      effectProgress:
+                                          handoff?.effectProgress ?? 0,
+                                    ),
                                   ),
                                 ),
                                 Opacity(

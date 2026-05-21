@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../features/branding/launch_intro_timeline.dart';
 import '../features/branding/launch_sound_player.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../session/world_profile_prefs.dart';
@@ -10,7 +11,7 @@ import '../theme/world_profile.dart';
 import 'launch_handoff.dart';
 import 'title_screen.dart';
 
-/// 起動演出 → タイトル（単一ロゴでスムーズに遷移）。
+/// 起動演出 → ロゴ画面 → タイトル（単一ロゴでスムーズに遷移）。
 class AppLaunchShell extends StatefulWidget {
   const AppLaunchShell({
     required this.initialProfile,
@@ -31,17 +32,18 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   bool _introDone = false;
 
   late final AnimationController _effect;
-  late final AnimationController _handoff;
-  late final Animation<double> _handoffAnim;
+  late final AnimationController _intro;
+  late final Animation<double> _introMotion;
   final LaunchSoundPlayer _sound = LaunchSoundPlayer();
 
-  Timer? _handoffStartTimer;
   Timer? _watchdogTimer;
   bool _soundPlayed = false;
+  bool _introStarted = false;
 
-  static const _minLaunchHold = Duration(milliseconds: 1400);
-  static const _handoffDuration = Duration(milliseconds: 1000);
-  static const _maxIntroDuration = Duration(seconds: 5);
+  static const _introDuration = Duration(
+    milliseconds: LaunchIntroTimeline.totalMs,
+  );
+  static const _maxIntroDuration = Duration(seconds: 9);
 
   @override
   void initState() {
@@ -49,19 +51,15 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     _profile = widget.initialProfile;
     _effect = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3200),
+      duration: const Duration(milliseconds: 3600),
     )..repeat();
-    _handoff = AnimationController(
-      vsync: this,
-      duration: _handoffDuration,
-    );
-    _handoffAnim = CurvedAnimation(
-      parent: _handoff,
+    _intro = AnimationController(vsync: this, duration: _introDuration)
+      ..addStatusListener(_onIntroStatus);
+    _introMotion = CurvedAnimation(
+      parent: _intro,
       curve: Curves.easeInOutCubic,
     );
-    _handoff.addStatusListener(_onHandoffStatus);
     Future<void>.microtask(_bootstrap);
-    _handoffStartTimer = Timer(_minLaunchHold, _beginHandoff);
     _watchdogTimer = Timer(_maxIntroDuration, _forceFinishIntro);
   }
 
@@ -70,18 +68,30 @@ class _AppLaunchShellState extends State<AppLaunchShell>
       _loadProfile(),
       FirebaseBootstrap.tryInit(),
     ]);
+    _startIntroIfReady();
+  }
+
+  void _startIntroIfReady() {
+    if (!mounted || _introStarted || _introDone) return;
+    _introStarted = true;
+    unawaited(_intro.forward());
   }
 
   void _forceFinishIntro() {
     if (!mounted || _introDone) return;
-    if (_handoff.value < 1 && !_handoff.isAnimating) {
-      unawaited(_handoff.forward());
+    if (_introMotion.value < 1) {
+      _intro.value = 1;
     }
-    setState(() => _introDone = true);
+    _finishIntro();
   }
 
-  void _onHandoffStatus(AnimationStatus status) {
+  void _onIntroStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
+    _finishIntro();
+  }
+
+  void _finishIntro() {
+    if (_introDone) return;
     _watchdogTimer?.cancel();
     _effect.stop();
     setState(() => _introDone = true);
@@ -108,22 +118,11 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     unawaited(_sound.playIfEnabled(_profile));
   }
 
-  void _beginHandoff() {
-    if (!mounted || _introDone) return;
-    if (_handoff.isAnimating) return;
-    if (_handoff.value >= 1) {
-      setState(() => _introDone = true);
-      return;
-    }
-    unawaited(_handoff.forward());
-  }
-
   @override
   void dispose() {
-    _handoffStartTimer?.cancel();
     _watchdogTimer?.cancel();
     _effect.dispose();
-    _handoff.dispose();
+    _intro.dispose();
     unawaited(_sound.dispose());
     super.dispose();
   }
@@ -137,16 +136,18 @@ class _AppLaunchShellState extends State<AppLaunchShell>
       );
     }
 
+    final branding = WorldLaunchBranding.of(_profile);
+
     return AnimatedBuilder(
-      animation: Listenable.merge([_handoffAnim, _effect]),
-      builder: (context, _) {
+      animation: Listenable.merge([_introMotion, _effect]),
+      builder: (context, child) {
         return TitleScreen(
           initialProfile: _profile,
           onProfileChanged: widget.onProfileChanged,
           handoff: LaunchHandoffView(
-            progress: _handoffAnim.value,
+            introProgress: _introMotion.value,
             effectProgress: _effect.value,
-            branding: WorldLaunchBranding.of(_profile),
+            branding: branding,
           ),
         );
       },

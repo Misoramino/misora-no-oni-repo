@@ -495,7 +495,7 @@ class _LaunchEffectPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LaunchEffectPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.branding.effect != branding.effect;
+    return oldDelegate.branding.effect != branding.effect ||
+        (oldDelegate.progress - progress).abs() > 0.006;
   }
 }
