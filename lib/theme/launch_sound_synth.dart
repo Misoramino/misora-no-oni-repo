@@ -21,7 +21,7 @@ abstract final class LaunchSoundSynth {
     return _encodeWav(_fadeTail(samples, 0.12));
   }
 
-  /// Cyber: マトリックス起動 — 低域の唸り → 緑のデジタル階段 → 上昇スイープ。
+  /// Cyber: ネオン起動 — 低域 → シアンのデジタル階段 → 上昇スイープ。
   static List<int> _cyberMatrixBoot() {
     return _mix([
       _tone(freq: 98, ms: 220, gain: 0.2, envelope: _Env.swell),

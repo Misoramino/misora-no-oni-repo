@@ -56,9 +56,9 @@ class OniPinMarkPainter extends CustomPainter {
     switch (branding.effect) {
       case LaunchEffectKind.cyber:
         final edge = Paint()
-          ..color = branding.accent.withValues(alpha: 0.45 + beat * 0.25)
+          ..color = branding.accent.withValues(alpha: 0.22 + beat * 0.1)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
+          ..strokeWidth = 0.8;
         canvas.drawPath(layers.leftHorn, edge);
         canvas.drawPath(layers.rightHorn, edge);
       case LaunchEffectKind.horror:
@@ -102,25 +102,20 @@ class OniPinMarkPainter extends CustomPainter {
 
   void _paintPinOutline(Canvas canvas, OniPinMarkLayers layers, double beat) {
     final sw = layers.strokeW;
+    final outlineGlow = branding.effect == LaunchEffectKind.tactical
+        ? 0.26 + beat * 0.06
+        : branding.effect == LaunchEffectKind.cyber
+            ? 0.32 + beat * 0.1
+            : 0.4 + beat * 0.16;
     canvas.drawPath(
       layers.outline,
       Paint()
-        ..color = branding.glow.withValues(alpha: 0.42 + beat * 0.18)
+        ..color = branding.glow.withValues(alpha: outlineGlow)
         ..style = PaintingStyle.stroke
         ..strokeWidth = sw + 3.2
         ..strokeJoin = StrokeJoin.round
         ..strokeCap = StrokeCap.round,
     );
-    if (branding.effect == LaunchEffectKind.cyber && beat > 0.85) {
-      canvas.drawPath(
-        layers.outline,
-        Paint()
-          ..color = branding.accent.withValues(alpha: 0.35)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = sw * 0.6
-          ..strokeJoin = StrokeJoin.round,
-      );
-    }
     canvas.drawPath(
       layers.outline,
       Paint()
@@ -157,16 +152,16 @@ class OniPinMarkPainter extends CustomPainter {
         _strokeCircle(
           canvas,
           core,
-          r * 1.45,
-          branding.accent.withValues(alpha: 0.35 + beat * 0.2),
-          0.8,
+          r * 1.4,
+          branding.accent.withValues(alpha: 0.22 + beat * 0.1),
+          0.65,
         );
         _strokeCircle(
           canvas,
           core,
-          r * 1.8,
-          branding.secondaryAccent.withValues(alpha: 0.15 + beat * 0.1),
-          0.5,
+          r * 1.65,
+          branding.secondaryAccent.withValues(alpha: 0.1 + beat * 0.06),
+          0.45,
         );
       case LaunchEffectKind.magical:
         canvas.save();
@@ -199,27 +194,22 @@ class OniPinMarkPainter extends CustomPainter {
           Paint()..color = branding.coreGlow.withValues(alpha: 0.35 + beat * 0.15),
         );
       case LaunchEffectKind.tactical:
-        _strokeCircle(
-          canvas,
-          core,
-          r * 1.2,
-          branding.pulseColor.withValues(alpha: 0.2 + beat * 0.08),
-          0.5,
-        );
+        break;
     }
 
+    final glowAlpha = branding.effect == LaunchEffectKind.tactical
+        ? 0.2 + beat * 0.08
+        : 0.38 + beat * 0.16;
     canvas.drawCircle(
       core,
       glowR,
-      Paint()..color = branding.coreGlow.withValues(alpha: 0.42 + beat * 0.2),
+      Paint()..color = branding.coreGlow.withValues(alpha: glowAlpha),
     );
     canvas.drawCircle(core, r, Paint()..color = branding.coreColor);
-    canvas.drawCircle(
-      core,
-      r * 0.42,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.35 + beat * 0.25),
-    );
+    final highlight = branding.effect == LaunchEffectKind.tactical
+        ? branding.pinStroke.withValues(alpha: 0.22 + beat * 0.08)
+        : Colors.white.withValues(alpha: 0.32 + beat * 0.2);
+    canvas.drawCircle(core, r * 0.42, Paint()..color = highlight);
   }
 
   void _paintBackdrop(Canvas canvas, OniPinMarkLayers layers, double beat) {
@@ -230,9 +220,9 @@ class OniPinMarkPainter extends CustomPainter {
         _strokeCircle(
           canvas,
           core,
-          w * (0.36 + beat * 0.02),
-          branding.accent.withValues(alpha: 0.2),
-          0.8,
+          w * 0.34,
+          branding.accent.withValues(alpha: 0.12),
+          0.55,
         );
       case LaunchEffectKind.magical:
         _strokeCircle(
@@ -257,13 +247,7 @@ class OniPinMarkPainter extends CustomPainter {
           Paint()..color = branding.accent.withValues(alpha: 0.12),
         );
       case LaunchEffectKind.tactical:
-        _strokeCircle(
-          canvas,
-          core,
-          w * 0.38,
-          branding.scanLineColor.withValues(alpha: 0.15),
-          0.5,
-        );
+        break;
     }
   }
 
@@ -298,27 +282,7 @@ class OniPinMarkPainter extends CustomPainter {
           0.55 + beat * 0.4,
         );
       case LaunchEffectKind.tactical:
-        final mark = Paint()
-          ..color = branding.accent.withValues(alpha: 0.45 + beat * 0.15)
-          ..strokeWidth = 0.85;
-        final r = w * 0.24;
-        canvas.drawLine(
-          Offset(core.dx - r, core.dy),
-          Offset(core.dx + r, core.dy),
-          mark,
-        );
-        canvas.drawLine(
-          Offset(core.dx, core.dy - r),
-          Offset(core.dx, core.dy + r),
-          mark,
-        );
-        _strokeCircle(
-          canvas,
-          core,
-          r * 0.55,
-          branding.accent.withValues(alpha: 0.2),
-          0.6,
-        );
+        break;
       case LaunchEffectKind.magical:
         _orbitParticles(
           canvas,
@@ -348,20 +312,13 @@ class OniPinMarkPainter extends CustomPainter {
           );
         }
       case LaunchEffectKind.cyber:
-        final scanY = core.dy + (beat - 0.5) * w * 0.9;
+        final scanY = core.dy + (beat - 0.5) * w * 0.5;
         canvas.drawLine(
           Offset(0, scanY),
           Offset(w, scanY),
           Paint()
-            ..color = branding.accent.withValues(alpha: 0.45)
-            ..strokeWidth = 1.4,
-        );
-        canvas.drawLine(
-          Offset(0, scanY + 3),
-          Offset(w, scanY + 3),
-          Paint()
-            ..color = branding.scanLineColor.withValues(alpha: 0.25)
-            ..strokeWidth = 0.8,
+            ..color = branding.accent.withValues(alpha: 0.18)
+            ..strokeWidth = 0.9,
         );
     }
   }

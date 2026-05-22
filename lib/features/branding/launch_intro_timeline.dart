@@ -3,13 +3,19 @@ import 'package:flutter/animation.dart';
 /// 起動シーケンス: 演出 → ロゴ画面 → タイトル（フェード付き遷移）。
 abstract final class LaunchIntroTimeline {
   /// 演出のみ（ロゴは小さくフェードイン）
-  static const effectEnd = 0.26;
+  static const effectEnd = 0.32;
 
-  /// ロゴ画面ホールド（文言フェードイン）
-  static const logoHoldEnd = 0.50;
+  /// ロゴ画面ホールド（文言は演出中から重なる）
+  static const logoHoldEnd = 0.48;
+
+  /// 文言が出始める（演出フェーズ内）
+  static const brandTextStart = 0.08;
+
+  /// 文言フェードイン完了
+  static const brandTextInEnd = 0.18;
 
   /// 全体の長さ（[AppLaunchShell] と一致）
-  static const totalMs = 4800;
+  static const totalMs = 5000;
 
   /// [intro] から UI 用の opacity / レイアウト値を一括算出。
   static LaunchHandoffVisuals visuals(double intro) =>
@@ -34,16 +40,20 @@ abstract final class LaunchIntroTimeline {
     if (intro <= effectEnd) return 1;
     if (intro <= logoHoldEnd) {
       final t = (intro - effectEnd) / (logoHoldEnd - effectEnd);
-      return 1 - t * 0.2;
+      return 1 - t * 0.22;
     }
     final t = layoutT(intro);
-    return (1 - Curves.easeOut.transform(t)) * 0.75;
+    return (1 - Curves.easeOut.transform(t)) * 0.72;
   }
 
+  /// 演出と重なるタイミングで ONI PIN 文言を表示。
   static double brandTextOpacity(double intro) {
-    if (intro < 0.20) return 0;
-    if (intro < 0.30) {
-      return Curves.easeIn.transform(((intro - 0.20) / 0.10).clamp(0.0, 1.0));
+    if (intro < brandTextStart) return 0;
+    if (intro < brandTextInEnd) {
+      return Curves.easeIn.transform(
+        ((intro - brandTextStart) / (brandTextInEnd - brandTextStart))
+            .clamp(0.0, 1.0),
+      );
     }
     return 1;
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../features/branding/launch_effect_overlay.dart';
+import '../features/branding/title_ambient_overlay.dart';
 import '../features/branding/launch_intro_timeline.dart';
 import '../session/launch_branding_prefs.dart';
 import '../session/world_profile_prefs.dart';
@@ -31,12 +32,12 @@ class TitleScreen extends StatefulWidget {
   State<TitleScreen> createState() => _TitleScreenState();
 }
 
-class _TitleScreenState extends State<TitleScreen>
-    with SingleTickerProviderStateMixin {
+class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin {
   bool _booting = true;
   bool _launchSoundOn = true;
   late WorldProfile _profile;
   AnimationController? _logoPulse;
+  AnimationController? _ambientEffect;
   static const _titleLogoSize = 56.0;
   static const _launchLogoSize = 96.0;
 
@@ -49,6 +50,10 @@ class _TitleScreenState extends State<TitleScreen>
         vsync: this,
         duration: const Duration(milliseconds: 2800),
       )..repeat();
+      _ambientEffect = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 5200),
+      )..repeat();
       Future<void>.microtask(_boot);
     }
   }
@@ -56,6 +61,7 @@ class _TitleScreenState extends State<TitleScreen>
   @override
   void dispose() {
     _logoPulse?.dispose();
+    _ambientEffect?.dispose();
     super.dispose();
   }
 
@@ -117,11 +123,24 @@ class _TitleScreenState extends State<TitleScreen>
             v!.scaffoldBlend,
           );
 
+    final ambientOpacity = branding.isLightBackground ? 0.22 : 0.3;
+
     return Scaffold(
       backgroundColor: scaffoldBg,
       body: Stack(
         fit: StackFit.expand,
         children: [
+          if (handoff == null && _ambientEffect != null)
+            RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _ambientEffect!,
+                builder: (context, _) => TitleAmbientOverlay(
+                  branding: branding,
+                  progress: _ambientEffect!.value,
+                  opacity: ambientOpacity,
+                ),
+              ),
+            ),
           if (handoff != null && effectOpacity > 0.01)
             RepaintBoundary(
               child: IgnorePointer(

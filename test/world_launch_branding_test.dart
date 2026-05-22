@@ -62,14 +62,16 @@ void main() {
     expect(astro.effect, LaunchEffectKind.astronomy);
   });
 
-  test('cyber core is matrix green without red glow', () {
+  test('cyber aligns with map neon palette', () {
     final b = WorldLaunchBranding.of(WorldProfile.sciFi);
-    expect(b.coreColor, const Color(0xFF00FF41));
-    expect(b.coreGlow, const Color(0xAA00FF41));
+    expect(b.backgroundTop, const Color(0xFF0B1020));
+    expect(b.coreColor, const Color(0xFF00E5FF));
+    expect(b.secondaryAccent, const Color(0xFF7C4DFF));
   });
 
-  test('tactical core is monochrome silver', () {
+  test('tactical logo uses calm monochrome', () {
     final b = WorldLaunchBranding.of(WorldProfile.arg);
-    expect(b.coreColor, const Color(0xFFECEFF1));
+    expect(b.coreColor, const Color(0xFF78909C));
+    expect(b.pinStroke, const Color(0xFF90A4AE));
   });
 }

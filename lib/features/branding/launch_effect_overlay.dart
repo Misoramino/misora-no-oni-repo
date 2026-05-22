@@ -58,86 +58,76 @@ class _LaunchEffectPainter extends CustomPainter {
     }
   }
 
-  // ── Cyber Night: マトリックス（緑のコード雨・フラットグリッド）──────────
+  // ── Cyber Night: マップ同系のネオン都市（シアン×深紺、控えめ）────────
   void _paintCyber(Canvas canvas, Size size) {
     final cx = size.width * 0.5;
-    final cy = size.height * 0.42;
+    final horizon = size.height * 0.38;
     final beat = _beat;
 
     _ambientWash(
       canvas,
       size,
       [
-        branding.accent.withValues(alpha: 0.08),
+        branding.secondaryAccent.withValues(alpha: 0.07),
+        branding.accent.withValues(alpha: 0.05),
         Colors.transparent,
       ],
-      const [0.0, 1.0],
+      const [0.0, 0.4, 1.0],
     );
 
-    final grid = Paint()
-      ..color = branding.scanLineColor.withValues(alpha: 0.35)
-      ..strokeWidth = 0.5;
-    const step = 24.0;
-    for (var x = 0.0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    canvas.drawRect(
+      Rect.fromLTWH(0, horizon - 1, size.width, 2),
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Colors.transparent,
+            branding.accent.withValues(alpha: 0.28 + beat * 0.12),
+            branding.secondaryAccent.withValues(alpha: 0.18),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromLTWH(0, horizon - 6, size.width, 12)),
+    );
+
+    final road = Paint()
+      ..color = branding.accent.withValues(alpha: 0.1 + beat * 0.05)
+      ..strokeWidth = 0.9;
+    for (var i = -4; i <= 4; i++) {
+      final spread = i * 0.1;
+      canvas.drawLine(
+        Offset(cx + spread * size.width * 0.14, size.height),
+        Offset(cx + spread * size.width * 0.02, horizon),
+        road,
+      );
     }
-    for (var y = 0.0; y < size.height; y += step) {
+
+    final grid = Paint()
+      ..color = branding.scanLineColor.withValues(alpha: 0.14)
+      ..strokeWidth = 0.5;
+    const step = 28.0;
+    for (var x = 0.0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, horizon), Offset(x, size.height), grid);
+    }
+    for (var y = horizon; y < size.height; y += step * 0.7) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
 
-    // コードの雨（下方向）
-    for (var col = 0; col < 18; col++) {
-      final phase = (progress * 2.4 + col * 0.13) % 1.0;
-      final x = size.width * (0.04 + col * 0.053);
-      final trailLen = size.height * (0.08 + (col % 4) * 0.03);
+    for (var col = 0; col < 9; col++) {
+      final phase = (progress * 1.6 + col * 0.15) % 1.0;
+      final x = size.width * (0.08 + col * 0.1);
+      final trailLen = size.height * 0.07;
       final headY = size.height * phase;
-      final tailY = headY - trailLen;
-      final bright = branding.accent.withValues(alpha: 0.55 + beat * 0.2);
-      final dim = branding.secondaryAccent.withValues(alpha: 0.18 + phase * 0.2);
       canvas.drawLine(
-        Offset(x, tailY.clamp(0.0, size.height)),
+        Offset(x, (headY - trailLen).clamp(0.0, size.height)),
         Offset(x, headY.clamp(0.0, size.height)),
         Paint()
-          ..color = dim
-          ..strokeWidth = 1
+          ..color = branding.particleColor.withValues(alpha: 0.12 + phase * 0.18)
+          ..strokeWidth = 0.9
           ..strokeCap = StrokeCap.round,
       );
-      canvas.drawCircle(
-        Offset(x, headY % size.height),
-        1.8,
-        Paint()..color = bright,
-      );
-      if (col % 3 == 0) {
-        for (var seg = 0; seg < 4; seg++) {
-          final sy = (headY - seg * 14) % size.height;
-          canvas.drawLine(
-            Offset(x - 3, sy),
-            Offset(x + 3, sy),
-            Paint()..color = bright.withValues(alpha: 0.35)..strokeWidth = 0.8,
-          );
-        }
-      }
     }
 
-    _cornerBrackets(canvas, size, branding.accent, 20);
+    _cornerBrackets(canvas, size, branding.accent.withValues(alpha: 0.14), 18);
     _dualScan(canvas, size, branding.accent, branding.secondaryAccent, progress);
-
-    canvas.save();
-    canvas.translate(cx, cy);
-    canvas.rotate(progress * math.pi * 0.35);
-    _strokePolygon(
-      canvas,
-      _hexagon(Offset.zero, 34 + beat * 6),
-      branding.accent.withValues(alpha: 0.2 + beat * 0.15),
-      1,
-    );
-    canvas.restore();
-
-    canvas.drawCircle(
-      Offset(cx, cy),
-      6 + beat * 2,
-      Paint()..color = branding.coreColor.withValues(alpha: 0.75),
-    );
   }
 
   // ── Urban Horror: VHS・赤い閃光・心拍 ───────────────────────────────────

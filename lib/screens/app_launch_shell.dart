@@ -50,7 +50,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     _profile = widget.initialProfile;
     _effect = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
+      duration: const Duration(milliseconds: 3200),
     )..repeat();
     _intro = AnimationController(vsync: this, duration: _introDuration)
       ..addStatusListener(_onIntroStatus);
