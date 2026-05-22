@@ -118,25 +118,25 @@ class WorldLaunchBranding {
   }
 
   static WorldLaunchBranding _horror(WorldProfile profile) {
-    final pack = WorldVisualPackFactory.of(profile);
+    final t = WorldVisualPackFactory.of(profile).tokens;
     return WorldLaunchBranding(
       profile: profile,
       effect: LaunchEffectKind.horror,
       profileLabel: profile.label,
-      backgroundTop: const Color(0xFF240008),
-      backgroundBottom: const Color(0xFF060102),
-      accent: const Color(0xFFE53935),
-      secondaryAccent: const Color(0xFF4A0000),
-      glow: const Color(0x66E53935),
-      scanLineColor: const Color(0x18FFFFFF),
-      pulseColor: pack.tokens.alertColor,
-      particleColor: const Color(0xFFFF5252),
-      subtitleColor: Colors.white.withValues(alpha: 0.52),
-      pinStroke: const Color(0xFFF5F5F5),
-      hornFill: const Color(0xFFFFCDD2),
-      titleHeadlineColor: Color(0xFFFFEBEE),
-      coreColor: const Color(0xFFE53935),
-      coreGlow: const Color(0xBBE53935),
+      backgroundTop: const Color(0xFF1A0A0A),
+      backgroundBottom: const Color(0xFF0D0D12),
+      accent: t.markerAccent,
+      secondaryAccent: const Color(0xFF4E342E),
+      glow: const Color(0x38B71C1C),
+      scanLineColor: const Color(0x14FFFFFF),
+      pulseColor: t.alertColor,
+      particleColor: const Color(0xFF8D6E63),
+      subtitleColor: Colors.white.withValues(alpha: 0.48),
+      pinStroke: const Color(0xFFEFEBE9),
+      hornFill: const Color(0xFF2A1515),
+      titleHeadlineColor: Color(0xFFBCAAA4),
+      coreColor: t.markerAccent,
+      coreGlow: const Color(0x886A1B9A),
       isLightBackground: false,
       showReadyLabel: false,
     );

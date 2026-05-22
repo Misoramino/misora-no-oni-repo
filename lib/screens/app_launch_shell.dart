@@ -42,7 +42,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   static const _introDuration = Duration(
     milliseconds: LaunchIntroTimeline.totalMs,
   );
-  static const _maxIntroDuration = Duration(seconds: 7);
+  static const _maxIntroDuration = Duration(seconds: 5);
 
   @override
   void initState() {

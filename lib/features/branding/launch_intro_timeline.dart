@@ -2,20 +2,20 @@ import 'package:flutter/animation.dart';
 
 /// 起動シーケンス: 演出 → ロゴ画面 → タイトル（フェード付き遷移）。
 abstract final class LaunchIntroTimeline {
-  /// 演出のみ（ロゴは小さくフェードイン）
-  static const effectEnd = 0.32;
+  /// 演出フル（ロゴはフェードイン）
+  static const effectEnd = 0.27;
 
-  /// ロゴ画面ホールド（文言は演出中から重なる）
-  static const logoHoldEnd = 0.48;
+  /// ロゴのみホールド（最小限 — すぐタイトルレイアウトへ）
+  static const logoHoldEnd = 0.33;
 
-  /// 文言が出始める（演出フェーズ内）
-  static const brandTextStart = 0.08;
+  /// 文言が出始める（演出と同時）
+  static const brandTextStart = 0.05;
 
   /// 文言フェードイン完了
-  static const brandTextInEnd = 0.18;
+  static const brandTextInEnd = 0.12;
 
   /// 全体の長さ（[AppLaunchShell] と一致）
-  static const totalMs = 5000;
+  static const totalMs = 3500;
 
   /// [intro] から UI 用の opacity / レイアウト値を一括算出。
   static LaunchHandoffVisuals visuals(double intro) =>
@@ -23,7 +23,7 @@ abstract final class LaunchIntroTimeline {
 
   static double layoutT(double intro) {
     if (intro <= logoHoldEnd) return 0;
-    return Curves.easeOutCubic.transform(
+    return Curves.easeOut.transform(
       ((intro - logoHoldEnd) / (1 - logoHoldEnd)).clamp(0.0, 1.0),
     );
   }
@@ -31,7 +31,7 @@ abstract final class LaunchIntroTimeline {
   /// 演出フェーズ中のロゴ出現（0→1）。
   static double logoReveal(double intro) {
     if (intro >= effectEnd) return 1;
-    return Curves.easeOutCubic.transform(
+    return Curves.easeOut.transform(
       (intro / effectEnd).clamp(0.0, 1.0),
     );
   }
@@ -40,10 +40,10 @@ abstract final class LaunchIntroTimeline {
     if (intro <= effectEnd) return 1;
     if (intro <= logoHoldEnd) {
       final t = (intro - effectEnd) / (logoHoldEnd - effectEnd);
-      return 1 - t * 0.22;
+      return 1 - t * 0.28;
     }
     final t = layoutT(intro);
-    return (1 - Curves.easeOut.transform(t)) * 0.72;
+    return (1 - Curves.easeOut.transform(t)) * 0.68;
   }
 
   /// 演出と重なるタイミングで ONI PIN 文言を表示。
@@ -59,19 +59,19 @@ abstract final class LaunchIntroTimeline {
   }
 
   static double bodyOpacity(double intro) {
-    if (intro < logoHoldEnd + 0.03) return 0;
+    if (intro < logoHoldEnd + 0.02) return 0;
     return Curves.easeIn.transform(
-      ((intro - (logoHoldEnd + 0.03)) / (1 - logoHoldEnd - 0.03)).clamp(0.0, 1.0),
+      ((intro - (logoHoldEnd + 0.02)) / (1 - logoHoldEnd - 0.02)).clamp(0.0, 1.0),
     );
   }
 
   static double scaffoldBlend(double intro) => layoutT(intro);
 
   static double titleVeil(double intro) {
-    if (intro < logoHoldEnd - 0.02) return 0;
-    if (intro < logoHoldEnd + 0.12) {
+    if (intro < logoHoldEnd - 0.01) return 0;
+    if (intro < logoHoldEnd + 0.08) {
       return Curves.easeInOut.transform(
-        ((intro - (logoHoldEnd - 0.02)) / 0.14).clamp(0.0, 1.0),
+        ((intro - (logoHoldEnd - 0.01)) / 0.09).clamp(0.0, 1.0),
       );
     }
     return (1 - layoutT(intro)).clamp(0.0, 1.0);

@@ -130,80 +130,68 @@ class _LaunchEffectPainter extends CustomPainter {
     _dualScan(canvas, size, branding.accent, branding.secondaryAccent, progress);
   }
 
-  // ── Urban Horror: VHS・赤い閃光・心拍 ───────────────────────────────────
+  // ── Urban Horror: VHS・ビネット・控えめな心拍（マップ同系）──────────────
   void _paintHorror(Canvas canvas, Size size) {
     final center = Offset(size.width * 0.5, size.height * 0.42);
-    final beat = 0.5 + 0.5 * math.sin(progress * math.pi * 3.5);
+    final beat = 0.5 + 0.5 * math.sin(progress * math.pi * 2.5);
 
     _ambientWash(
       canvas,
       size,
       [
-        branding.secondaryAccent.withValues(alpha: 0.2),
+        branding.accent.withValues(alpha: 0.06),
+        branding.secondaryAccent.withValues(alpha: 0.08),
         Colors.transparent,
       ],
-      const [0.0, 1.0],
+      const [0.0, 0.45, 1.0],
     );
 
-    if (math.sin(progress * math.pi * 7) > 0.92) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = branding.accent.withValues(alpha: 0.06),
-      );
-    }
+    _vignette(canvas, size, branding.secondaryAccent.withValues(alpha: 0.4));
 
-    _vignette(canvas, size, branding.secondaryAccent.withValues(alpha: 0.62));
-
-    final glitchY = (progress * 47) % size.height;
+    final glitchY = (progress * 31) % size.height;
     canvas.drawRect(
-      Rect.fromLTWH(0, glitchY, size.width, 6),
-      Paint()..color = branding.accent.withValues(alpha: 0.12 + beat * 0.1),
+      Rect.fromLTWH(0, glitchY, size.width, 3),
+      Paint()..color = branding.accent.withValues(alpha: 0.08 + beat * 0.05),
     );
 
-    final vhs = Paint()..color = Colors.black.withValues(alpha: 0.14);
-    for (var y = 0.0; y < size.height; y += 3) {
-      if ((y.toInt() + (progress * 50).toInt()) % 7 == 0) {
+    final vhs = Paint()..color = Colors.black.withValues(alpha: 0.08);
+    for (var y = 0.0; y < size.height; y += 5) {
+      if ((y.toInt() + (progress * 40).toInt()) % 9 == 0) {
         canvas.drawLine(Offset(0, y), Offset(size.width, y), vhs);
       }
     }
 
     const horrorDust = <Offset>[
-      Offset(0.12, 0.18),
-      Offset(0.88, 0.22),
-      Offset(0.35, 0.55),
-      Offset(0.72, 0.48),
-      Offset(0.5, 0.12),
-      Offset(0.2, 0.78),
-      Offset(0.8, 0.7),
+      Offset(0.1, 0.14),
+      Offset(0.9, 0.18),
+      Offset(0.14, 0.82),
+      Offset(0.86, 0.76),
+      Offset(0.5, 0.1),
+      Offset(0.72, 0.62),
     ];
     for (var i = 0; i < horrorDust.length; i++) {
-      final flicker = math.sin(progress * 18 + i * 2.1) > 0.55 ? 0.2 : 0.06;
+      final tw = 0.5 + 0.5 * math.sin(progress * 6 + i * 1.7);
       final p = horrorDust[i];
       canvas.drawCircle(
         Offset(p.dx * size.width, p.dy * size.height),
-        0.8 + (i % 3) * 0.5,
-        Paint()..color = Colors.white.withValues(alpha: flicker),
+        0.7 + (i % 2) * 0.4,
+        Paint()..color = Colors.white.withValues(alpha: 0.04 + tw * 0.08),
       );
     }
 
-    for (var ring = 1; ring <= 4; ring++) {
-      final r = 14.0 * ring + beat * 14;
+    for (var ring = 1; ring <= 2; ring++) {
+      final r = 22.0 * ring + beat * 8;
       canvas.drawCircle(
         center,
         r,
         Paint()
           ..color = branding.pulseColor.withValues(
-            alpha: (0.42 - ring * 0.07) * beat,
+            alpha: (0.22 - ring * 0.06) * beat,
           )
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4,
+          ..strokeWidth = 1,
       );
     }
-    canvas.drawCircle(
-      center,
-      4 + beat * 3,
-      Paint()..color = branding.particleColor.withValues(alpha: 0.85 + beat * 0.15),
-    );
   }
 
   // ── Pop City: マカロン・お菓子・やさしいパステル ─────────────────────────

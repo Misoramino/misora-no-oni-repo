@@ -63,7 +63,7 @@ class OniPinMarkPainter extends CustomPainter {
         canvas.drawPath(layers.rightHorn, edge);
       case LaunchEffectKind.horror:
         final bleed = Paint()
-          ..color = branding.coreColor.withValues(alpha: 0.12 * beat)
+          ..color = branding.coreColor.withValues(alpha: 0.06 * beat)
           ..style = PaintingStyle.fill
           ..blendMode = BlendMode.plus;
         canvas.drawPath(layers.leftHorn, bleed);
@@ -183,9 +183,9 @@ class OniPinMarkPainter extends CustomPainter {
         _strokeCircle(
           canvas,
           core,
-          r * 1.5,
-          branding.coreGlow.withValues(alpha: 0.15 * beat),
-          1,
+          r * 1.35,
+          branding.coreGlow.withValues(alpha: 0.12 + beat * 0.08),
+          0.65,
         );
       case LaunchEffectKind.pop:
         canvas.drawCircle(
@@ -197,9 +197,12 @@ class OniPinMarkPainter extends CustomPainter {
         break;
     }
 
-    final glowAlpha = branding.effect == LaunchEffectKind.tactical
-        ? 0.2 + beat * 0.08
-        : 0.38 + beat * 0.16;
+    final glowAlpha = switch (branding.effect) {
+      LaunchEffectKind.tactical => 0.2 + beat * 0.08,
+      LaunchEffectKind.horror => 0.28 + beat * 0.1,
+      LaunchEffectKind.cyber => 0.32 + beat * 0.1,
+      _ => 0.36 + beat * 0.14,
+    };
     canvas.drawCircle(
       core,
       glowR,
@@ -259,9 +262,9 @@ class OniPinMarkPainter extends CustomPainter {
         _strokeCircle(
           canvas,
           core,
-          w * (0.34 + beat * 6),
-          branding.coreGlow.withValues(alpha: 0.18 * beat),
-          1.2,
+          w * (0.32 + beat * 0.04),
+          branding.coreGlow.withValues(alpha: 0.1 + beat * 0.06),
+          0.55,
         );
       case LaunchEffectKind.pop:
         _orbitParticles(

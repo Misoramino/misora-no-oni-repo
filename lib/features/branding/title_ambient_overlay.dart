@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/world_launch_branding.dart';
 
-/// タイトル画面用の控えめな世界観モチーフ（起動演出の軽量版）。
-///
-/// 粒子数・描画レイヤーを抑え、1本の [AnimationController] のみで回す想定。
+/// タイトル画面用の控えめな世界観モチーフ（画面全体に散らす軽量版）。
 class TitleAmbientOverlay extends StatelessWidget {
   const TitleAmbientOverlay({
     required this.branding,
@@ -47,6 +45,9 @@ class _TitleAmbientPainter extends CustomPainter {
 
   double get _beat => 0.5 + 0.5 * math.sin(progress * math.pi * 2);
 
+  static Offset _n(Size size, double x, double y) =>
+      Offset(size.width * x, size.height * y);
+
   @override
   void paint(Canvas canvas, Size size) {
     switch (branding.effect) {
@@ -66,28 +67,38 @@ class _TitleAmbientPainter extends CustomPainter {
   }
 
   void _cyber(Canvas canvas, Size size) {
-    final horizon = size.height * 0.4;
     final beat = _beat;
+    final horizon = size.height * 0.42;
     canvas.drawRect(
       Rect.fromLTWH(0, horizon, size.width, 1),
-      Paint()..color = branding.accent.withValues(alpha: 0.14 + beat * 0.06),
+      Paint()..color = branding.accent.withValues(alpha: 0.12 + beat * 0.05),
     );
+    for (final x in [0.06, 0.94]) {
+      canvas.drawLine(
+        _n(size, x, 0.12),
+        _n(size, x, 0.88),
+        Paint()
+          ..color = branding.particleColor.withValues(alpha: 0.08)
+          ..strokeWidth = 0.7,
+      );
+    }
+    const step = 48.0;
     final grid = Paint()
-      ..color = branding.scanLineColor.withValues(alpha: 0.1)
-      ..strokeWidth = 0.5;
-    const step = 44.0;
+      ..color = branding.scanLineColor.withValues(alpha: 0.08)
+      ..strokeWidth = 0.45;
     for (var y = horizon; y < size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
-    for (var i = 0; i < 5; i++) {
-      final phase = (progress * 1.0 + i * 0.18) % 1.0;
-      final x = size.width * (0.15 + i * 0.16);
-      final y = size.height * (0.55 + phase * 0.35);
+    for (var i = 0; i < 6; i++) {
+      final phase = (progress * 0.9 + i * 0.16) % 1.0;
+      final anchor = [0.12, 0.88, 0.2, 0.8, 0.5, 0.15][i];
+      final x = size.width * anchor;
+      final y = size.height * (0.5 + phase * 0.4);
       canvas.drawLine(
-        Offset(x, y - 16),
+        Offset(x, y - 14),
         Offset(x, y),
         Paint()
-          ..color = branding.particleColor.withValues(alpha: 0.1)
+          ..color = branding.accent.withValues(alpha: 0.09)
           ..strokeWidth = 0.8
           ..strokeCap = StrokeCap.round,
       );
@@ -95,124 +106,190 @@ class _TitleAmbientPainter extends CustomPainter {
   }
 
   void _horror(Canvas canvas, Size size) {
-    final pulse = 0.5 + 0.5 * math.sin(progress * math.pi * 2);
+    final pulse = _beat;
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()
         ..shader = RadialGradient(
           colors: [
             Colors.transparent,
-            branding.secondaryAccent.withValues(alpha: 0.12 * pulse),
+            branding.secondaryAccent.withValues(alpha: 0.14 * pulse),
           ],
-          stops: const [0.5, 1.0],
+          stops: const [0.55, 1.0],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
+    final scanY = size.height * (0.15 + progress * 0.65);
+    canvas.drawLine(
+      Offset(0, scanY),
+      Offset(size.width, scanY),
+      Paint()..color = branding.accent.withValues(alpha: 0.06)..strokeWidth = 0.7,
+    );
+    const dust = [
+      Offset(0.08, 0.12),
+      Offset(0.92, 0.1),
+      Offset(0.1, 0.88),
+      Offset(0.9, 0.85),
+      Offset(0.5, 0.08),
+      Offset(0.18, 0.55),
+      Offset(0.82, 0.48),
+    ];
+    for (var i = 0; i < dust.length; i++) {
+      final tw = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(progress * 5 + i));
+      canvas.drawCircle(
+        _n(size, dust[i].dx, dust[i].dy),
+        1.2,
+        Paint()..color = Colors.white.withValues(alpha: 0.03 + tw * 0.07),
+      );
+    }
+    final hb = _n(size, 0.78, 0.28);
+    canvas.drawCircle(
+      hb,
+      18 + pulse * 6,
+      Paint()
+        ..color = branding.pulseColor.withValues(alpha: 0.08 * pulse)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
+    _cornerTicks(canvas, size, branding.accent.withValues(alpha: 0.12), 16);
   }
 
   void _pop(Canvas canvas, Size size) {
     final beat = _beat;
-    final orbs = [
-      (Offset(size.width * 0.2, size.height * 0.25), branding.accent),
-      (Offset(size.width * 0.78, size.height * 0.3), branding.secondaryAccent),
-      (Offset(size.width * 0.55, size.height * 0.7), branding.particleColor),
+    final spots = [
+      (0.14, 0.18, branding.accent),
+      (0.86, 0.22, branding.secondaryAccent),
+      (0.12, 0.78, branding.particleColor),
+      (0.88, 0.72, branding.pulseColor),
+      (0.5, 0.12, branding.coreGlow),
+      (0.72, 0.58, branding.accent),
     ];
-    for (final (o, c) in orbs) {
+    for (final (x, y, c) in spots) {
+      final drift = math.sin(progress * math.pi * 2 + x * 8) * 5;
       canvas.drawCircle(
-        o + Offset(0, math.sin(progress * math.pi * 2 + o.dx) * 6),
-        36 + beat * 4,
-        Paint()..color = c.withValues(alpha: 0.08),
+        _n(size, x, y) + Offset(0, drift),
+        28 + beat * 3,
+        Paint()..color = c.withValues(alpha: 0.07),
       );
     }
   }
 
   void _tactical(Canvas canvas, Size size) {
     final line = Paint()
-      ..color = branding.scanLineColor.withValues(alpha: 0.22)
-      ..strokeWidth = 0.55;
-    const step = 36.0;
+      ..color = branding.scanLineColor.withValues(alpha: 0.16)
+      ..strokeWidth = 0.5;
+    const step = 40.0;
     for (var x = 0.0; x < size.width; x += step) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
     }
     for (var y = 0.0; y < size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
     }
-    final y = size.height * (0.2 + progress * 0.55);
+    final y = size.height * (0.18 + progress * 0.6);
     canvas.drawLine(
       Offset(0, y),
       Offset(size.width, y),
-      Paint()..color = branding.accent.withValues(alpha: 0.25)..strokeWidth = 0.8,
+      Paint()..color = branding.accent.withValues(alpha: 0.18)..strokeWidth = 0.7,
     );
+    _cornerTicks(canvas, size, branding.pulseColor.withValues(alpha: 0.2), 14);
   }
 
   void _magical(Canvas canvas, Size size) {
     final cx = size.width * 0.5;
-    final cy = size.height * 0.38;
+    final cy = size.height * 0.36;
     canvas.save();
     canvas.translate(cx, cy);
-    canvas.rotate(progress * math.pi * 0.4);
+    canvas.rotate(progress * math.pi * 0.25);
     canvas.drawCircle(
       Offset.zero,
-      72,
+      64,
       Paint()
-        ..color = branding.accent.withValues(alpha: 0.2)
+        ..color = branding.accent.withValues(alpha: 0.14)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = 0.9,
     );
-    for (var i = 0; i < 8; i++) {
-      final a = i * math.pi / 4;
-      canvas.drawLine(
-        Offset(math.cos(a) * 60, math.sin(a) * 60),
-        Offset(math.cos(a) * 52, math.sin(a) * 52),
+    canvas.restore();
+    for (final (x, y) in [(0.12, 0.2), (0.88, 0.18), (0.15, 0.8), (0.85, 0.75)]) {
+      canvas.drawArc(
+        Rect.fromCircle(center: _n(size, x, y), radius: 22),
+        progress * math.pi,
+        math.pi * 0.6,
+        false,
         Paint()
-          ..color = branding.pulseColor.withValues(alpha: 0.3)
+          ..color = branding.accent.withValues(alpha: 0.12)
+          ..style = PaintingStyle.stroke
           ..strokeWidth = 0.8,
       );
     }
-    canvas.restore();
-    for (var i = 0; i < 6; i++) {
-      final tw = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(progress * 5 + i));
+    for (var i = 0; i < 8; i++) {
+      final tw = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(progress * 4 + i));
+      final anchors = [0.08, 0.25, 0.75, 0.92, 0.5, 0.18, 0.82, 0.62];
       canvas.drawCircle(
         Offset(
-          size.width * (0.2 + i * 0.12),
-          size.height * (0.55 + math.sin(i + progress * 3) * 0.08),
+          size.width * anchors[i],
+          size.height * (0.2 + (i % 4) * 0.18),
         ),
-        2,
-        Paint()..color = branding.particleColor.withValues(alpha: 0.2 * tw),
+        1.8,
+        Paint()..color = branding.particleColor.withValues(alpha: 0.12 * tw),
       );
     }
   }
 
   void _astronomy(Canvas canvas, Size size) {
-    final cx = size.width * 0.5;
-    final cy = size.height * 0.4;
     final rng = math.Random(42);
-    for (var i = 0; i < 36; i++) {
+    for (var i = 0; i < 40; i++) {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
-      final tw = 0.3 +
-          0.7 * (0.5 + 0.5 * math.sin(progress * 4 + i * 0.5));
+      final tw = 0.25 +
+          0.75 * (0.5 + 0.5 * math.sin(progress * 3.5 + i * 0.45));
       canvas.drawCircle(
         Offset(x, y),
-        0.6 + (i % 3) * 0.3,
-        Paint()..color = branding.particleColor.withValues(alpha: 0.25 * tw),
+        0.5 + (i % 3) * 0.25,
+        Paint()..color = branding.particleColor.withValues(alpha: 0.2 * tw),
       );
     }
-    for (var i = 0; i < 10; i++) {
-      final ang = i * 0.55 + progress * 0.25;
-      final len = 40.0 + (i % 4) * 18;
-      final start = Offset(cx, cy);
-      final end = Offset(
-        cx + math.cos(ang) * len,
-        cy + math.sin(ang) * len * 0.45,
+    for (var i = 0; i < 8; i++) {
+      final origin = _n(
+        size,
+        i.isEven ? 0.08 + (i % 4) * 0.02 : 0.92 - (i % 4) * 0.02,
+        0.15 + (i % 3) * 0.25,
       );
+      final ang = math.atan2(
+        size.height * 0.42 - origin.dy,
+        size.width * 0.5 - origin.dx,
+      );
+      final len = 36.0 + (i % 3) * 14;
+      final end = origin + Offset(math.cos(ang) * len, math.sin(ang) * len * 0.5);
       canvas.drawLine(
-        start,
+        origin,
         end,
         Paint()
-          ..color = branding.accent.withValues(alpha: 0.1)
-          ..strokeWidth = 0.7
+          ..color = branding.accent.withValues(alpha: 0.08)
+          ..strokeWidth = 0.65
           ..strokeCap = StrokeCap.round,
       );
+    }
+  }
+
+  void _cornerTicks(
+    Canvas canvas,
+    Size size,
+    Color color,
+    double inset,
+  ) {
+    final tick = Paint()
+      ..color = color
+      ..strokeWidth = 0.8
+      ..strokeCap = StrokeCap.round;
+    const len = 12.0;
+    final corners = [
+      (inset, inset, len, 0.0, 0.0, len),
+      (size.width - inset, inset, -len, 0.0, 0.0, len),
+      (inset, size.height - inset, len, 0.0, 0.0, -len),
+      (size.width - inset, size.height - inset, -len, 0.0, 0.0, -len),
+    ];
+    for (final (x, y, dx, dy, ox, oy) in corners) {
+      canvas.drawLine(Offset(x, y), Offset(x + dx, y + dy), tick);
+      canvas.drawLine(Offset(x, y), Offset(x + ox, y + oy), tick);
     }
   }
 
