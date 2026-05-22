@@ -123,21 +123,21 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
             v!.scaffoldBlend,
           );
 
-    final ambientOpacity = branding.isLightBackground ? 0.22 : 0.3;
-
     return Scaffold(
       backgroundColor: scaffoldBg,
       body: Stack(
         fit: StackFit.expand,
         children: [
           if (handoff == null && _ambientEffect != null)
-            RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: _ambientEffect!,
-                builder: (context, _) => TitleAmbientOverlay(
-                  branding: branding,
-                  progress: _ambientEffect!.value,
-                  opacity: ambientOpacity,
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _ambientEffect!,
+                  builder: (context, _) => TitleAmbientOverlay(
+                    branding: branding,
+                    progress: _ambientEffect!.value,
+                    strength: branding.isLightBackground ? 0.72 : 0.88,
+                  ),
                 ),
               ),
             ),

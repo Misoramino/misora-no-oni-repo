@@ -133,7 +133,7 @@ class WorldLaunchBranding {
       particleColor: const Color(0xFF8D6E63),
       subtitleColor: Colors.white.withValues(alpha: 0.48),
       pinStroke: const Color(0xFFEFEBE9),
-      hornFill: const Color(0xFF2A1515),
+      hornFill: const Color(0xFFFFCDD2),
       titleHeadlineColor: Color(0xFFBCAAA4),
       coreColor: t.markerAccent,
       coreGlow: const Color(0x886A1B9A),

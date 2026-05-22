@@ -1,23 +1,22 @@
 import 'package:flutter/animation.dart';
 
-/// 起動シーケンス: 演出 → ロゴ画面 → タイトル（フェード付き遷移）。
+/// 起動シーケンス: 演出 → ロゴ＋文言 → タイトル（フェード付き遷移）。
 abstract final class LaunchIntroTimeline {
-  /// 演出フル（ロゴはフェードイン）
-  static const effectEnd = 0.27;
+  /// 演出フル（背景エフェクト＋ロゴ出現）
+  static const effectEnd = 0.38;
 
-  /// ロゴのみホールド（最小限 — すぐタイトルレイアウトへ）
-  static const logoHoldEnd = 0.33;
+  /// ロゴ＋文言ホールド（短め — すぐタイトルレイアウトへ）
+  static const logoHoldEnd = 0.41;
 
-  /// 文言が出始める（演出と同時）
-  static const brandTextStart = 0.05;
+  /// 文言が出始める（演出と重なる）
+  static const brandTextStart = 0.06;
 
   /// 文言フェードイン完了
-  static const brandTextInEnd = 0.12;
+  static const brandTextInEnd = 0.14;
 
   /// 全体の長さ（[AppLaunchShell] と一致）
-  static const totalMs = 3500;
+  static const totalMs = 3800;
 
-  /// [intro] から UI 用の opacity / レイアウト値を一括算出。
   static LaunchHandoffVisuals visuals(double intro) =>
       LaunchHandoffVisuals._(intro);
 
@@ -28,7 +27,6 @@ abstract final class LaunchIntroTimeline {
     );
   }
 
-  /// 演出フェーズ中のロゴ出現（0→1）。
   static double logoReveal(double intro) {
     if (intro >= effectEnd) return 1;
     return Curves.easeOut.transform(
@@ -40,13 +38,12 @@ abstract final class LaunchIntroTimeline {
     if (intro <= effectEnd) return 1;
     if (intro <= logoHoldEnd) {
       final t = (intro - effectEnd) / (logoHoldEnd - effectEnd);
-      return 1 - t * 0.28;
+      return 1 - t * 0.3;
     }
     final t = layoutT(intro);
     return (1 - Curves.easeOut.transform(t)) * 0.68;
   }
 
-  /// 演出と重なるタイミングで ONI PIN 文言を表示。
   static double brandTextOpacity(double intro) {
     if (intro < brandTextStart) return 0;
     if (intro < brandTextInEnd) {
@@ -78,7 +75,6 @@ abstract final class LaunchIntroTimeline {
   }
 }
 
-/// 起動 handoff 中の opacity・レイアウト（毎フレームの重複計算を避ける）。
 final class LaunchHandoffVisuals {
   LaunchHandoffVisuals._(this.intro)
       : layoutT = LaunchIntroTimeline.layoutT(intro),
