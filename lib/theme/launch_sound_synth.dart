@@ -21,55 +21,63 @@ abstract final class LaunchSoundSynth {
 
   static List<int> _cyberChirp() {
     return _mix([
-      _tone(freq: 880, ms: 55, gain: 0.35),
-      _tone(freq: 1320, ms: 45, gain: 0.28, delayMs: 50),
-      _sweep(startHz: 400, endHz: 1200, ms: 70, gain: 0.18, delayMs: 90),
+      _tone(freq: 110, ms: 40, gain: 0.22),
+      _tone(freq: 880, ms: 50, gain: 0.38),
+      _tone(freq: 1320, ms: 45, gain: 0.3, delayMs: 48),
+      _tone(freq: 1760, ms: 35, gain: 0.18, delayMs: 88),
+      _sweep(startHz: 520, endHz: 1400, ms: 65, gain: 0.2, delayMs: 95),
     ]);
   }
 
   static List<int> _horrorPulse() {
     return _mix([
-      _tone(freq: 62, ms: 120, gain: 0.5),
-      _tone(freq: 48, ms: 90, gain: 0.35, delayMs: 130),
-      _noise(ms: 80, gain: 0.12, delayMs: 40),
+      _tone(freq: 55, ms: 110, gain: 0.55),
+      _tone(freq: 41, ms: 85, gain: 0.4, delayMs: 115),
+      _tone(freq: 220, ms: 45, gain: 0.12, delayMs: 60),
+      _noise(ms: 70, gain: 0.14, delayMs: 35),
+      _sweep(startHz: 900, endHz: 180, ms: 90, gain: 0.08, delayMs: 150),
     ]);
   }
 
   static List<int> _popBlip() {
     return _mix([
-      _tone(freq: 620, ms: 35, gain: 0.3),
-      _tone(freq: 980, ms: 40, gain: 0.22, delayMs: 28),
+      _tone(freq: 523, ms: 32, gain: 0.32),
+      _tone(freq: 784, ms: 36, gain: 0.26, delayMs: 26),
+      _tone(freq: 1047, ms: 42, gain: 0.2, delayMs: 58),
+      _tone(freq: 1319, ms: 30, gain: 0.14, delayMs: 88),
     ]);
   }
 
   static List<int> _tacticalClick() {
     return _mix([
-      _noise(ms: 18, gain: 0.55),
-      _tone(freq: 220, ms: 25, gain: 0.2, delayMs: 8),
+      _noise(ms: 14, gain: 0.6),
+      _tone(freq: 180, ms: 22, gain: 0.28, delayMs: 6),
+      _tone(freq: 320, ms: 18, gain: 0.16, delayMs: 22),
+      _noise(ms: 10, gain: 0.35, delayMs: 38),
     ]);
   }
 
-  /// 魔法のチャイム（上昇アルペジオ + きらめき）。
   static List<int> _magicalChime() {
     return _mix([
-      _tone(freq: 392, ms: 90, gain: 0.22),
-      _tone(freq: 494, ms: 85, gain: 0.2, delayMs: 75),
-      _tone(freq: 587, ms: 95, gain: 0.18, delayMs: 150),
-      _tone(freq: 784, ms: 130, gain: 0.14, delayMs: 235),
-      _tone(freq: 988, ms: 100, gain: 0.1, delayMs: 320),
-      _noise(ms: 120, gain: 0.05, delayMs: 180),
+      _tone(freq: 392, ms: 75, gain: 0.24),
+      _tone(freq: 494, ms: 70, gain: 0.22, delayMs: 65),
+      _tone(freq: 587, ms: 80, gain: 0.2, delayMs: 130),
+      _tone(freq: 784, ms: 110, gain: 0.16, delayMs: 200),
+      _tone(freq: 988, ms: 85, gain: 0.12, delayMs: 275),
+      _tone(freq: 1175, ms: 70, gain: 0.1, delayMs: 330),
+      _noise(ms: 90, gain: 0.06, delayMs: 160),
     ]);
   }
 
-  /// 宇宙の低音ドローン + 遠い星のティンクル。
   static List<int> _astronomySpace() {
     return _mix([
-      _tone(freq: 48, ms: 280, gain: 0.28),
-      _tone(freq: 72, ms: 200, gain: 0.15, delayMs: 60),
-      _sweep(startHz: 180, endHz: 520, ms: 350, gain: 0.08, delayMs: 100),
-      _tone(freq: 1047, ms: 70, gain: 0.1, delayMs: 280),
-      _tone(freq: 1318, ms: 90, gain: 0.07, delayMs: 340),
-      _noise(ms: 200, gain: 0.03, delayMs: 0),
+      _tone(freq: 44, ms: 200, gain: 0.32),
+      _tone(freq: 66, ms: 150, gain: 0.18, delayMs: 50),
+      _sweep(startHz: 200, endHz: 480, ms: 280, gain: 0.1, delayMs: 80),
+      _tone(freq: 1047, ms: 65, gain: 0.12, delayMs: 240),
+      _tone(freq: 1318, ms: 80, gain: 0.09, delayMs: 295),
+      _tone(freq: 1568, ms: 55, gain: 0.07, delayMs: 340),
+      _noise(ms: 160, gain: 0.035, delayMs: 0),
     ]);
   }
 

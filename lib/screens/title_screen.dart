@@ -31,10 +31,12 @@ class TitleScreen extends StatefulWidget {
   State<TitleScreen> createState() => _TitleScreenState();
 }
 
-class _TitleScreenState extends State<TitleScreen> {
+class _TitleScreenState extends State<TitleScreen>
+    with SingleTickerProviderStateMixin {
   bool _booting = true;
   bool _launchSoundOn = true;
   late WorldProfile _profile;
+  AnimationController? _logoPulse;
   static const _titleLogoSize = 56.0;
   static const _launchLogoSize = 96.0;
 
@@ -43,8 +45,18 @@ class _TitleScreenState extends State<TitleScreen> {
     super.initState();
     _profile = widget.initialProfile;
     if (widget.handoff == null) {
+      _logoPulse = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 2800),
+      )..repeat();
       Future<void>.microtask(_boot);
     }
+  }
+
+  @override
+  void dispose() {
+    _logoPulse?.dispose();
+    super.dispose();
   }
 
   Future<void> _boot() async {
@@ -84,8 +96,9 @@ class _TitleScreenState extends State<TitleScreen> {
         ? null
         : LaunchIntroTimeline.visuals(handoff.introProgress);
     final layoutT = v?.layoutT ?? 1.0;
-    final launchBranding = handoff?.branding ?? WorldLaunchBranding.of(_profile);
-    final uiBranding = WorldLaunchBranding.of(_profile);
+    final branding = handoff?.branding ?? WorldLaunchBranding.of(_profile);
+    final logoPulse = handoff?.effectProgress ?? _logoPulse?.value ?? 0;
+    final logoReveal = v?.logoReveal ?? 1.0;
 
     final effectOpacity = v?.effectOpacity ?? 0.0;
     final brandTextOpacity = v?.brandTextOpacity ?? 1.0;
@@ -93,9 +106,13 @@ class _TitleScreenState extends State<TitleScreen> {
     final titleVeil = v?.titleVeil ?? 0.0;
 
     final scaffoldBg = handoff == null
-        ? null
+        ? Color.lerp(
+            theme.colorScheme.surface,
+            branding.backgroundBottom,
+            branding.isLightBackground ? 0.42 : 0.38,
+          )
         : Color.lerp(
-            launchBranding.backgroundBottom,
+            branding.backgroundBottom,
             theme.colorScheme.surface,
             v!.scaffoldBlend,
           );
@@ -111,9 +128,9 @@ class _TitleScreenState extends State<TitleScreen> {
                 child: Opacity(
                   opacity: effectOpacity,
                   child: ColoredBox(
-                    color: launchBranding.backgroundBottom,
+                    color: branding.backgroundBottom,
                     child: LaunchEffectOverlay(
-                      branding: launchBranding,
+                      branding: branding,
                       progress: handoff.effectProgress,
                     ),
                   ),
@@ -131,34 +148,38 @@ class _TitleScreenState extends State<TitleScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final narrow = constraints.maxWidth < 380;
+                final headlineColor = handoff == null
+                    ? branding.titleHeadlineColor
+                    : Color.lerp(
+                        branding.titleHeadlineColor,
+                        theme.colorScheme.onSurface,
+                        layoutT,
+                      )!;
+                final subtitleColor = handoff == null
+                    ? branding.subtitleColor
+                    : Color.lerp(
+                        branding.subtitleColor,
+                        theme.colorScheme.onSurfaceVariant,
+                        layoutT,
+                      )!;
                 final titleStyle = theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: narrow ? 22 : null,
                   letterSpacing: 4,
-                  color: handoff != null && launchBranding.isLightBackground
-                      ? Color.lerp(
-                          launchBranding.subtitleColor,
-                          theme.colorScheme.onSurface,
-                          layoutT,
-                        )
-                      : null,
+                  color: headlineColor,
                 );
                 final subBrandStyle = theme.textTheme.labelMedium?.copyWith(
-                  color: handoff != null && launchBranding.isLightBackground
-                      ? Color.lerp(
-                          launchBranding.subtitleColor,
-                          theme.colorScheme.onSurfaceVariant,
-                          layoutT,
-                        )
-                      : theme.colorScheme.onSurfaceVariant,
+                  color: subtitleColor,
                   letterSpacing: 1.6,
                 );
 
                 // 起動・ロゴ画面は視覚中心へ、タイトルへはフェードしながら移動
                 final launchYOffset = constraints.maxHeight * 0.06 * (1 - layoutT);
                 final logoScale =
-                    _titleLogoSize +
-                    (_launchLogoSize - _titleLogoSize) * (1 - layoutT);
+                    (_titleLogoSize +
+                            (_launchLogoSize - _titleLogoSize) *
+                                (1 - layoutT)) *
+                        (0.82 + 0.18 * logoReveal);
 
                 return CustomScrollView(
                   slivers: [
@@ -208,15 +229,27 @@ class _TitleScreenState extends State<TitleScreen> {
                                 Transform.translate(
                                   offset: Offset(0, launchYOffset),
                                   child: RepaintBoundary(
-                                    child: _TitleBrandHeader(
-                                      branding: uiBranding,
-                                      logoSize: logoScale,
-                                      textOpacity: brandTextOpacity,
-                                      titleStyle: titleStyle,
-                                      subBrandStyle: subBrandStyle,
-                                      effectProgress:
-                                          handoff?.effectProgress ?? 0,
-                                    ),
+                                    child: _logoPulse == null
+                                        ? _TitleBrandHeader(
+                                            branding: branding,
+                                            logoSize: logoScale,
+                                            textOpacity: brandTextOpacity,
+                                            titleStyle: titleStyle,
+                                            subBrandStyle: subBrandStyle,
+                                            logoPulse: logoPulse,
+                                          )
+                                        : AnimatedBuilder(
+                                            animation: _logoPulse!,
+                                            builder: (context, _) =>
+                                                _TitleBrandHeader(
+                                              branding: branding,
+                                              logoSize: logoScale,
+                                              textOpacity: brandTextOpacity,
+                                              titleStyle: titleStyle,
+                                              subBrandStyle: subBrandStyle,
+                                              logoPulse: _logoPulse!.value,
+                                            ),
+                                          ),
                                   ),
                                 ),
                                 Opacity(
@@ -354,7 +387,7 @@ class _TitleBrandHeader extends StatelessWidget {
     required this.textOpacity,
     required this.titleStyle,
     required this.subBrandStyle,
-    required this.effectProgress,
+    required this.logoPulse,
   });
 
   final WorldLaunchBranding branding;
@@ -362,7 +395,7 @@ class _TitleBrandHeader extends StatelessWidget {
   final double textOpacity;
   final TextStyle? titleStyle;
   final TextStyle? subBrandStyle;
-  final double effectProgress;
+  final double logoPulse;
 
   @override
   Widget build(BuildContext context) {
@@ -374,15 +407,19 @@ class _TitleBrandHeader extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: branding.glow,
-                blurRadius: 24,
-                spreadRadius: 0,
+                blurRadius: 20 + logoPulse * 10,
+                spreadRadius: logoPulse * 2,
+              ),
+              BoxShadow(
+                color: branding.accent.withValues(alpha: 0.15 + logoPulse * 0.12),
+                blurRadius: 12,
               ),
             ],
           ),
           child: ThemedGeometricLogo(
             branding: branding,
             size: logoSize,
-            pulse: effectProgress,
+            pulse: logoPulse,
           ),
         ),
         SizedBox(height: 12 * textOpacity.clamp(0.0, 1.0)),

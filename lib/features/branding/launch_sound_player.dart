@@ -19,7 +19,7 @@ class LaunchSoundPlayer {
 
     try {
       await _player.setReleaseMode(ReleaseMode.stop);
-      await _player.setVolume(0.72);
+      await _player.setVolume(0.8);
       final bytes = LaunchSoundSynth.wavFor(profile);
       await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
       _played = true;

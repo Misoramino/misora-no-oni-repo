@@ -42,7 +42,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   static const _introDuration = Duration(
     milliseconds: LaunchIntroTimeline.totalMs,
   );
-  static const _maxIntroDuration = Duration(seconds: 9);
+  static const _maxIntroDuration = Duration(seconds: 7);
 
   @override
   void initState() {
@@ -50,13 +50,13 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     _profile = widget.initialProfile;
     _effect = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3600),
+      duration: const Duration(milliseconds: 2800),
     )..repeat();
     _intro = AnimationController(vsync: this, duration: _introDuration)
       ..addStatusListener(_onIntroStatus);
     _introMotion = CurvedAnimation(
       parent: _intro,
-      curve: Curves.easeInOutCubic,
+      curve: Curves.easeOutCubic,
     );
     Future<void>.microtask(_bootstrap);
     _watchdogTimer = Timer(_maxIntroDuration, _forceFinishIntro);

@@ -30,14 +30,28 @@ class OniPinMarkPainter extends CustomPainter {
 
   void _paintHorns(Canvas canvas, OniPinMarkLayers layers, double beat) {
     final glowFill = Paint()
-      ..color = branding.glow.withValues(alpha: 0.28 + beat * 0.1)
+      ..color = branding.glow.withValues(alpha: 0.34 + beat * 0.12)
       ..style = PaintingStyle.fill;
     canvas.drawPath(layers.leftHorn, glowFill);
     canvas.drawPath(layers.rightHorn, glowFill);
 
-    final fill = Paint()..color = branding.pinStroke;
+    final fill = Paint()..color = branding.hornFill;
     canvas.drawPath(layers.leftHorn, fill);
     canvas.drawPath(layers.rightHorn, fill);
+    canvas.drawPath(
+      layers.leftHorn,
+      Paint()
+        ..color = branding.pinStroke.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = layers.strokeW * 0.35,
+    );
+    canvas.drawPath(
+      layers.rightHorn,
+      Paint()
+        ..color = branding.pinStroke.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = layers.strokeW * 0.35,
+    );
 
     switch (branding.effect) {
       case LaunchEffectKind.cyber:

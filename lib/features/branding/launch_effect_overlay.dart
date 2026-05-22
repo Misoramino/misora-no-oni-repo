@@ -69,7 +69,7 @@ class _LaunchEffectPainter extends CustomPainter {
       canvas,
       size,
       [
-        branding.secondaryAccent.withValues(alpha: 0.14),
+        branding.secondaryAccent.withValues(alpha: 0.18),
         Colors.transparent,
       ],
       const [0.0, 1.0],
