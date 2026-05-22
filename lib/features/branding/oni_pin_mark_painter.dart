@@ -143,36 +143,46 @@ class OniPinMarkPainter extends CustomPainter {
 
     switch (branding.effect) {
       case LaunchEffectKind.astronomy:
-        for (var i = 0; i < 4; i++) {
-          final scale = 1.45 + i * 0.28 + beat * 0.08;
+        for (var i = 0; i < 3; i++) {
+          final scale = 1.5 + i * 0.32 + beat * 0.06;
           _strokeCircle(
             canvas,
             core,
             r * scale,
-            branding.accent.withValues(alpha: 0.32 - i * 0.04 + beat * 0.1),
-            0.9,
+            branding.coreGlow.withValues(alpha: 0.28 - i * 0.06 + beat * 0.08),
+            0.75,
           );
         }
       case LaunchEffectKind.cyber:
         _strokeCircle(
           canvas,
           core,
-          r * 1.4,
-          branding.secondaryAccent.withValues(alpha: 0.28 + beat * 0.15),
-          0.75,
+          r * 1.45,
+          branding.accent.withValues(alpha: 0.35 + beat * 0.2),
+          0.8,
         );
         _strokeCircle(
           canvas,
           core,
-          r * 1.75,
-          branding.accent.withValues(alpha: 0.12 + beat * 0.08),
+          r * 1.8,
+          branding.secondaryAccent.withValues(alpha: 0.15 + beat * 0.1),
           0.5,
         );
       case LaunchEffectKind.magical:
+        canvas.save();
+        canvas.translate(core.dx, core.dy);
+        canvas.rotate(pulse * math.pi * 0.25);
+        _strokePolygon(
+          canvas,
+          _logoStar(Offset.zero, r * 2.2, 5),
+          branding.accent.withValues(alpha: 0.35 + beat * 0.15),
+          0.7,
+        );
+        canvas.restore();
         canvas.drawCircle(
           core,
-          r * (1.3 + beat * 0.15),
-          Paint()..color = branding.glow.withValues(alpha: 0.28 + beat * 0.2),
+          r * (1.35 + beat * 0.12),
+          Paint()..color = branding.glow.withValues(alpha: 0.3 + beat * 0.18),
         );
       case LaunchEffectKind.horror:
         _strokeCircle(
@@ -185,16 +195,16 @@ class OniPinMarkPainter extends CustomPainter {
       case LaunchEffectKind.pop:
         canvas.drawCircle(
           core,
-          r * 1.2,
-          Paint()..color = branding.secondaryAccent.withValues(alpha: 0.2 + beat * 0.15),
+          r * 1.25,
+          Paint()..color = branding.coreGlow.withValues(alpha: 0.35 + beat * 0.15),
         );
       case LaunchEffectKind.tactical:
         _strokeCircle(
           canvas,
           core,
-          r * 1.25,
-          branding.accent.withValues(alpha: 0.25),
-          0.55,
+          r * 1.2,
+          branding.pulseColor.withValues(alpha: 0.2 + beat * 0.08),
+          0.5,
         );
     }
 
@@ -220,31 +230,20 @@ class OniPinMarkPainter extends CustomPainter {
         _strokeCircle(
           canvas,
           core,
-          w * (0.34 + beat * 0.02),
-          branding.secondaryAccent.withValues(alpha: 0.16),
-          1,
+          w * (0.36 + beat * 0.02),
+          branding.accent.withValues(alpha: 0.2),
+          0.8,
         );
+      case LaunchEffectKind.magical:
         _strokeCircle(
           canvas,
           core,
-          w * 0.46,
-          branding.accent.withValues(alpha: 0.1),
-          0.6,
-        );
-      case LaunchEffectKind.magical:
-        canvas.drawCircle(
-          core,
-          w * (0.36 + beat * 3),
-          Paint()..color = branding.glow.withValues(alpha: 0.22),
+          w * 0.4,
+          branding.accent.withValues(alpha: 0.18),
+          0.7,
         );
       case LaunchEffectKind.astronomy:
-        canvas.drawOval(
-          Rect.fromCenter(center: core, width: w * 0.64, height: w * 0.24),
-          Paint()
-            ..color = branding.accent.withValues(alpha: 0.28)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.9,
-        );
+        _paintWarpStreaks(canvas, core, w, beat);
       case LaunchEffectKind.horror:
         canvas.drawCircle(
           core,
@@ -252,8 +251,19 @@ class OniPinMarkPainter extends CustomPainter {
           Paint()..color = branding.coreGlow.withValues(alpha: 0.06),
         );
       case LaunchEffectKind.pop:
+        canvas.drawCircle(
+          core,
+          w * 0.32,
+          Paint()..color = branding.accent.withValues(alpha: 0.12),
+        );
       case LaunchEffectKind.tactical:
-        break;
+        _strokeCircle(
+          canvas,
+          core,
+          w * 0.38,
+          branding.scanLineColor.withValues(alpha: 0.15),
+          0.5,
+        );
     }
   }
 
@@ -323,19 +333,18 @@ class OniPinMarkPainter extends CustomPainter {
           0.55 + beat * 0.4,
         );
       case LaunchEffectKind.astronomy:
-        final tw = 0.4 + beat * 0.55;
+        final tw = 0.35 + beat * 0.5;
         for (var i = 0; i < OniPinMarkGeometry.astronomySparkleNorm.length; i++) {
           final n = OniPinMarkGeometry.astronomySparkleNorm[i];
           final phase = pulse * math.pi * 2 + i;
           canvas.drawCircle(
             Offset(
-              core.dx + n.dx * w + math.cos(phase) * 1.5,
-              core.dy + n.dy * w + math.sin(phase) * 1.5,
+              core.dx + n.dx * w + math.cos(phase) * 1.2,
+              core.dy + n.dy * w + math.sin(phase) * 1.2,
             ),
-            0.9 + (i.isEven ? 0.5 : 0),
+            0.7 + (i.isEven ? 0.4 : 0),
             Paint()
-              ..color = (i.isEven ? branding.pulseColor : Colors.white)
-                  .withValues(alpha: 0.4 * tw),
+              ..color = branding.particleColor.withValues(alpha: 0.45 * tw),
           );
         }
       case LaunchEffectKind.cyber:
@@ -354,6 +363,50 @@ class OniPinMarkPainter extends CustomPainter {
             ..color = branding.scanLineColor.withValues(alpha: 0.25)
             ..strokeWidth = 0.8,
         );
+    }
+  }
+
+  Path _logoStar(Offset c, double r, int points) {
+    final p = Path();
+    for (var i = 0; i < points * 2; i++) {
+      final rad = i.isEven ? r : r * 0.45;
+      final a = -math.pi / 2 + i * math.pi / points;
+      final pt = Offset(c.dx + math.cos(a) * rad, c.dy + math.sin(a) * rad);
+      if (i == 0) {
+        p.moveTo(pt.dx, pt.dy);
+      } else {
+        p.lineTo(pt.dx, pt.dy);
+      }
+    }
+    p.close();
+    return p;
+  }
+
+  void _strokePolygon(Canvas canvas, Path path, Color color, double width) {
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  void _paintWarpStreaks(Canvas canvas, Offset core, double w, double beat) {
+    for (var i = 0; i < 8; i++) {
+      final ang = i * math.pi / 4 + pulse * 0.5;
+      final len = w * (0.22 + beat * 0.08);
+      final start = core;
+      final end = Offset(core.dx + math.cos(ang) * len, core.dy + math.sin(ang) * len * 0.5);
+      canvas.drawLine(
+        start,
+        end,
+        Paint()
+          ..color = branding.accent.withValues(alpha: 0.2 + beat * 0.15)
+          ..strokeWidth = 0.7
+          ..strokeCap = StrokeCap.round,
+      );
     }
   }
 

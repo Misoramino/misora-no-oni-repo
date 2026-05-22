@@ -11,4 +11,17 @@ void main() {
       expect(String.fromCharCodes(wav.sublist(8, 12)), 'WAVE');
     }
   });
+
+  test('launch sounds are long enough to read the theme', () {
+    const minMs = 550;
+    const bytesPerMs = 22050 * 2 / 1000;
+    final minBytes = 44 + (minMs * bytesPerMs).round();
+    for (final p in WorldProfile.values) {
+      expect(
+        LaunchSoundSynth.wavFor(p).length,
+        greaterThan(minBytes),
+        reason: '${p.label} launch sound should be at least ~${minMs}ms',
+      );
+    }
+  });
 }

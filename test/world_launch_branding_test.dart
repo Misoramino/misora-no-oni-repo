@@ -54,10 +54,22 @@ void main() {
   test('magical and astronomy use dark premium palettes', () {
     final magical = WorldLaunchBranding.of(WorldProfile.magical);
     expect(magical.isLightBackground, isFalse);
-    expect(magical.accent, const Color(0xFFD4AF37));
+    expect(magical.accent, const Color(0xFFC9A227));
 
     final astro = WorldLaunchBranding.of(WorldProfile.astronomy);
     expect(astro.isLightBackground, isFalse);
+    expect(astro.coreColor, const Color(0xFFFFFFFF));
     expect(astro.effect, LaunchEffectKind.astronomy);
+  });
+
+  test('cyber core is matrix green without red glow', () {
+    final b = WorldLaunchBranding.of(WorldProfile.sciFi);
+    expect(b.coreColor, const Color(0xFF00FF41));
+    expect(b.coreGlow, const Color(0xAA00FF41));
+  });
+
+  test('tactical core is monochrome silver', () {
+    final b = WorldLaunchBranding.of(WorldProfile.arg);
+    expect(b.coreColor, const Color(0xFFECEFF1));
   });
 }

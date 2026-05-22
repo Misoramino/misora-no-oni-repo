@@ -5,7 +5,7 @@ import '../../session/launch_branding_prefs.dart';
 import '../../theme/launch_sound_synth.dart';
 import '../../theme/world_profile.dart';
 
-/// 起動時のみ使う短い効果音（合成 WAV、~300ms）。
+/// 起動時のみ使う世界観別効果音（合成 WAV、おおよそ 0.7〜1.3 秒）。
 class LaunchSoundPlayer {
   LaunchSoundPlayer() : _player = AudioPlayer();
 
