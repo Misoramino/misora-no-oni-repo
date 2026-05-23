@@ -10,12 +10,22 @@ class HudDisplaySettings {
     this.showIntelLine = true,
     this.showStatusLine = true,
     this.showConditionLine = true,
+    this.markerIconScale = 1.0,
   });
 
   final HudCompactLineSlot compactLineSlot;
   final bool showIntelLine;
   final bool showStatusLine;
   final bool showConditionLine;
+
+  /// 地図ピンの基準サイズ倍率（ズーム時の出し分けはそのまま）。
+  final double markerIconScale;
+
+  static const double markerIconScaleMin = 0.65;
+  static const double markerIconScaleMax = 1.5;
+
+  static double clampMarkerIconScale(double v) =>
+      v.clamp(markerIconScaleMin, markerIconScaleMax);
 }
 
 /// 試合中 HUD 一行表示・表示トグルの端末保存。
@@ -30,6 +40,9 @@ abstract final class HudDisplayPrefs {
       showStatusLine: prefs.getBool(GameMapPrefs.hudShowStatusLine) ?? true,
       showConditionLine:
           prefs.getBool(GameMapPrefs.hudShowConditionLine) ?? true,
+      markerIconScale: HudDisplaySettings.clampMarkerIconScale(
+        prefs.getDouble(GameMapPrefs.mapMarkerIconScale) ?? 1.0,
+      ),
     );
   }
 
@@ -47,6 +60,10 @@ abstract final class HudDisplayPrefs {
     await prefs.setBool(
       GameMapPrefs.hudShowConditionLine,
       settings.showConditionLine,
+    );
+    await prefs.setDouble(
+      GameMapPrefs.mapMarkerIconScale,
+      HudDisplaySettings.clampMarkerIconScale(settings.markerIconScale),
     );
   }
 

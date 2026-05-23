@@ -26,6 +26,7 @@ class GameMapMatchController {
     required bool testMode,
     required bool oniKnown,
     required bool isHunterNow,
+    required bool runnerProximityActive,
     required ProximityBand proximityBand,
     required DateTime now,
   }) {
@@ -39,6 +40,10 @@ class GameMapMatchController {
       now: now,
     )) {
       effects.addAll(_effectsForSkillOutcome(outcome, playerPosition));
+    }
+
+    if (!runnerProximityActive) {
+      return effects;
     }
 
     final infectionDistance = MatchGeoHelpers.effectiveInfectionDistance(

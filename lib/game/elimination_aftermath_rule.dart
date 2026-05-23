@@ -18,7 +18,7 @@ extension EliminationAftermathRuleX on EliminationAftermathRule {
         EliminationAftermathRule.spectralOperative => '残響体（カメラジャック）',
         EliminationAftermathRule.ghostSpectator => '幽霊（観戦のみ）',
         EliminationAftermathRule.joinOni => '鬼合流（索敵支援）',
-        EliminationAftermathRule.revenantOni => '復讐の鬼影（実験）',
+        EliminationAftermathRule.revenantOni => '復讐の鬼影（鬼側・実験）',
       };
 
   String get infoPanelLine => switch (this) {

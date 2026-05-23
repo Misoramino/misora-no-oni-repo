@@ -9,12 +9,13 @@ import '../../../theme/world_profile_tokens.dart';
 
 /// 端末ローカル写真から丸枠付きプレイヤーピンを生成（Firestore には送らない）。
 abstract final class AvatarPinCompositor {
-  static const double _size = 112;
+  static const double baseSize = 112;
 
   static Future<BitmapDescriptor?> fromFilePath({
     required String? path,
     required WorldProfileTokens tokens,
     required bool revealedStyle,
+    double iconScale = 1.0,
   }) async {
     if (path == null || path.isEmpty) return null;
     final file = File(path);
@@ -25,6 +26,7 @@ abstract final class AvatarPinCompositor {
         imageBytes: bytes,
         tokens: tokens,
         revealedStyle: revealedStyle,
+        iconScale: iconScale,
       );
       return descriptor;
     } catch (_) {
@@ -36,7 +38,9 @@ abstract final class AvatarPinCompositor {
     required Uint8List imageBytes,
     required WorldProfileTokens tokens,
     required bool revealedStyle,
+    double iconScale = 1.0,
   }) async {
+    final size = baseSize * iconScale.clamp(0.5, 2.0);
     try {
       final codec = await ui.instantiateImageCodec(
         imageBytes,
@@ -46,12 +50,12 @@ abstract final class AvatarPinCompositor {
       final frame = await codec.getNextFrame();
       final photo = frame.image;
 
-      final out = await _compose(photo, tokens, revealedStyle);
+      final out = await _compose(photo, tokens, revealedStyle, size: size);
       photo.dispose();
       return BitmapDescriptor.bytes(
         out,
-        width: _size,
-        height: _size,
+        width: size,
+        height: size,
       );
     } catch (_) {
       return null;
@@ -61,9 +65,9 @@ abstract final class AvatarPinCompositor {
   static Future<Uint8List> _compose(
     ui.Image photo,
     WorldProfileTokens tokens,
-    bool revealedStyle,
-  ) async {
-    const size = _size;
+    bool revealedStyle, {
+    required double size,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final center = Offset(size / 2, size / 2);

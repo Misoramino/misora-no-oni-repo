@@ -9,7 +9,8 @@ class EliminationSupportBar extends StatelessWidget {
   const EliminationSupportBar({
     required this.rule,
     required this.worldProfile,
-    required this.onOpenResult,
+    this.onOpenResult,
+    this.showResultButton = false,
     this.chargeProgress,
     this.chargeActive = false,
     this.matchJackUses = 0,
@@ -21,7 +22,8 @@ class EliminationSupportBar extends StatelessWidget {
 
   final EliminationAftermathRule rule;
   final WorldProfile worldProfile;
-  final VoidCallback onOpenResult;
+  final VoidCallback? onOpenResult;
+  final bool showResultButton;
   final double? chargeProgress;
   final bool chargeActive;
   final int matchJackUses;
@@ -64,10 +66,11 @@ class EliminationSupportBar extends StatelessWidget {
                     ],
                   ),
                 ),
-                TextButton(
-                  onPressed: onOpenResult,
-                  child: const Text('リザルト'),
-                ),
+                if (showResultButton && onOpenResult != null)
+                  TextButton(
+                    onPressed: onOpenResult,
+                    child: const Text('リザルト'),
+                  ),
               ],
             ),
             if (rule.supportsCameraJack) ...[

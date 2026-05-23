@@ -10,6 +10,8 @@ abstract final class GameMapPrefs {
   static const hudShowIntelLine = 'hud_show_intel_line_v1';
   static const hudShowStatusLine = 'hud_show_status_line_v1';
   static const hudShowConditionLine = 'hud_show_condition_line_v1';
+  /// 地図マーカー基準サイズ倍率（0.65〜1.5、既定 1.0）。
+  static const mapMarkerIconScale = 'map_marker_icon_scale_v1';
   /// ギミック個数倍率（ホスト、試合開始時に matchStart にも保存）。
   static const gimmickDensity = 'gimmick_density_v1';
 }

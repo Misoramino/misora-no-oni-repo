@@ -8,9 +8,10 @@ import 'map_marker_kind.dart';
 
 /// 試合中に使うマーカーアイコンのキャッシュ（profile 変更時に作り直す）。
 class MapMarkerIconRegistry {
-  MapMarkerIconRegistry(this.pack);
+  MapMarkerIconRegistry(this.pack, {this.iconScale = 1.0});
 
   final WorldVisualPack pack;
+  final double iconScale;
   final Map<MapMarkerKind, BitmapDescriptor> _icons = {};
   bool _ready = false;
 
@@ -26,6 +27,7 @@ class MapMarkerIconRegistry {
         kind: kind,
         tokens: pack.tokens,
         profileAssetKey: assetKey,
+        iconScale: iconScale,
       );
     }
     _ready = true;

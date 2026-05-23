@@ -53,11 +53,33 @@ class GeneratedGimmicks {
       density: density,
     );
     if (googleMapsApiKey.isEmpty) return base;
-    final snapped = await RoadsSnapService.snapToNearestRoads(
+    final eventAreas = await RoadsSnapService.snapToNearestRoads(
       candidates: base.eventAreas,
       apiKey: googleMapsApiKey,
     );
-    return base.copyWith(eventAreas: snapped);
+    final accusationFacilities = await RoadsSnapService.snapToNearestRoads(
+      candidates: base.accusationFacilities,
+      apiKey: googleMapsApiKey,
+    );
+    final cameras = await RoadsSnapService.snapToNearestRoads(
+      candidates: base.cameras,
+      apiKey: googleMapsApiKey,
+    );
+    final cameraJackSites = <LatLng>[];
+    for (var i = 0; i < cameras.length; i += 2) {
+      cameraJackSites.add(cameras[i]);
+    }
+    if (cameraJackSites.isEmpty && cameras.isNotEmpty) {
+      cameraJackSites.add(cameras.first);
+    }
+    return GeneratedGimmicks(
+      safeZones: base.safeZones,
+      infoBrokers: base.infoBrokers,
+      cameras: cameras,
+      eventAreas: eventAreas,
+      accusationFacilities: accusationFacilities,
+      cameraJackSites: cameraJackSites,
+    );
   }
 
   /// [seed] を指定すると全端末で同じ配置になる。
@@ -155,13 +177,13 @@ class GeneratedGimmicks {
     final accusationFacilities = group(
       count: accusationCount,
       angleSeed: 90 + ((s ~/ 23) % 360),
-      radiusFactor: 0.35,
+      radiusFactor: 0.30,
       minGapOverride: minGap * 1.1,
     );
     final cameras = group(
       count: cameraCount,
       angleSeed: 245 + ((s ~/ 13) % 360),
-      radiusFactor: 0.68,
+      radiusFactor: 0.48,
       minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
     );
     final cameraJackSites = <LatLng>[];

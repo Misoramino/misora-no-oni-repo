@@ -179,19 +179,31 @@ class _LaunchEffectPainter extends CustomPainter {
       );
     }
 
-    for (var ring = 1; ring <= 2; ring++) {
-      final r = 22.0 * ring + beat * 8;
+    for (var ring = 1; ring <= 3; ring++) {
+      final r = 28.0 * ring + beat * 10;
       canvas.drawCircle(
         center,
         r,
         Paint()
           ..color = branding.pulseColor.withValues(
-            alpha: (0.22 - ring * 0.06) * beat,
+            alpha: (0.28 - ring * 0.06) * beat,
           )
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+          ..strokeWidth = ring == 1 ? 1.4 : 1,
       );
     }
+
+    final pulseCore = Paint()
+      ..color = branding.accent.withValues(alpha: 0.05 + beat * 0.04);
+    canvas.drawCircle(center, 48 + beat * 14, pulseCore);
+    canvas.drawCircle(
+      center,
+      72 + beat * 20,
+      Paint()
+        ..color = branding.coreGlow.withValues(alpha: 0.04 * beat)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
   }
 
   // ── Pop City: マカロン・お菓子・やさしいパステル ─────────────────────────
@@ -743,7 +755,7 @@ class _LaunchEffectPainter extends CustomPainter {
     }
   }
 
-  void _fireworkBursts(Canvas canvas, Size size, double _, double __) {
+  void _fireworkBursts(Canvas canvas, Size size, double _, double _) {
     final bursts = [
       (0.12, 0.28, 0.22),
       (0.55, 0.18, 0.62),

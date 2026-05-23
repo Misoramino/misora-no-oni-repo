@@ -4,7 +4,20 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'game_config.dart';
 
-/// 告発施設の有効数（キャンプ対策・状況スケール）。
+/// 告発施設の**有効数**（マップ上で告発できる施設の数）。
+///
+/// 配置された [siteCount] のうち、次の条件で 1 ずつ増える（最大 [siteCount]）。
+/// 残響体の人数は**まだ**加算していません（今後の奪い合い設計用）。
+///
+/// | 条件 | 有効 +1 |
+/// |------|---------|
+/// | 常時 | 1（最低） |
+/// | 脱落 1 人以上 | +1 |
+/// | 経過 ≥ 試合時間の 60% | +1 |
+/// | 脱落 2 人以上 | +1 |
+///
+/// 例: 施設 5 箇所・10 分試合 → 開始直後は 1、脱落1+5分後は最大 3、
+/// 6 分経過（60%）で +1、脱落2 で +1 → 最大 4〜5。
 int activeAccusationSiteCount({
   required int siteCount,
   required int eliminationCount,

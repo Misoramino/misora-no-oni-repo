@@ -42,7 +42,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   static const _introDuration = Duration(
     milliseconds: LaunchIntroTimeline.totalMs,
   );
-  static const _maxIntroDuration = Duration(seconds: 5);
+  static const _maxIntroDuration = Duration(seconds: 7);
 
   @override
   void initState() {
@@ -50,7 +50,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
     _profile = widget.initialProfile;
     _effect = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3200),
+      duration: const Duration(milliseconds: 4200),
     )..repeat();
     _intro = AnimationController(vsync: this, duration: _introDuration)
       ..addStatusListener(_onIntroStatus);

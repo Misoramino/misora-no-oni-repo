@@ -136,7 +136,11 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                   builder: (context, _) => TitleAmbientOverlay(
                     branding: branding,
                     progress: _ambientEffect!.value,
-                    strength: branding.isLightBackground ? 0.72 : 0.88,
+                    strength: branding.isLightBackground
+                        ? 0.72
+                        : (branding.effect == LaunchEffectKind.horror
+                            ? 1.05
+                            : 0.92),
                   ),
                 ),
               ),

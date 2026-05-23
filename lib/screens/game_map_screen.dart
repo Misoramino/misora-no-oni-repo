@@ -199,6 +199,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _hudShowIntelLine = true;
   bool _hudShowStatusLine = true;
   bool _hudShowConditionLine = true;
+  double _mapMarkerIconScale = 1.0;
   HudCompactLineSlot _hudCompactLineSlot = HudCompactLineSlot.all;
 
   /// ホストが参加者にカスタムルール（役職固定等）の編集を許可したか。
@@ -567,6 +568,21 @@ class _GameMapScreenState extends State<GameMapScreen>
     return null;
   }
 
+  /// 逃走者・人狼など、鬼が追う対象が試合にいるか。
+  bool get _chaseTargetsPresent {
+    final snap = _firestoreSession?.currentMatchStart;
+    if (snap != null && snap.assignments.isNotEmpty) {
+      return snap.assignments.values.any(
+        (a) =>
+            a.role == PlayerRole.runner || a.role == PlayerRole.werewolf,
+      );
+    }
+    if (_localRole == PlayerRole.hunter) {
+      return _testMode;
+    }
+    return _localRole != PlayerRole.hunter;
+  }
+
   int get _activeMatchPlayerCount {
     final snap = _firestoreSession?.currentMatchStart;
     if (snap != null && snap.assignments.isNotEmpty) {
@@ -846,6 +862,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     final prefs = await SharedPreferences.getInstance();
     _avatarImagePath = prefs.getString(GameMapPrefs.avatarImagePath);
     final profile = await WorldProfilePrefs.load();
+    final hud = await HudDisplayPrefs.load();
+    _mapMarkerIconScale = hud.markerIconScale;
+    _mapVisual.markerIconScale = hud.markerIconScale;
     await _mapVisual.reloadForProfile(profile);
     await _refreshPlayerAvatarIcon();
     if (!mounted) return;
@@ -863,7 +882,19 @@ class _GameMapScreenState extends State<GameMapScreen>
       _hudShowIntelLine = hud.showIntelLine;
       _hudShowStatusLine = hud.showStatusLine;
       _hudShowConditionLine = hud.showConditionLine;
+      _mapMarkerIconScale = hud.markerIconScale;
     });
+    if (_mapVisual.markerIconScale != hud.markerIconScale) {
+      await _applyMapMarkerIconScale(hud.markerIconScale);
+    }
+  }
+
+  Future<void> _applyMapMarkerIconScale(double scale) async {
+    final clamped = HudDisplaySettings.clampMarkerIconScale(scale);
+    _mapVisual.markerIconScale = clamped;
+    await _mapVisual.applyMarkerIconScale(clamped);
+    await _refreshPlayerAvatarIcon();
+    if (mounted) setState(() => _mapMarkerIconScale = clamped);
   }
 
   String _hudCompactLineText() {
@@ -905,6 +936,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       localPath: _avatarImagePath,
       usePhoto: _shouldUsePhotoPlayerPin(),
       revealedStyle: _isPlayerRevealedForPhoto(),
+      iconScale: _mapVisual.markerIconScale,
     );
   }
 
@@ -1551,8 +1583,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _skillLoadout = _randomSkillsFor(_localRole, rnd);
     _oniIntelMode =
         OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
-    _eliminationAftermathRule = EliminationAftermathRule
-        .values[rnd.nextInt(EliminationAftermathRule.values.length)];
+    _eliminationAftermathRule = EliminationAftermathRule.spectralOperative;
   }
 
   Set<String> _randomSkillsFor(PlayerRole role, math.Random rnd) {
@@ -1881,6 +1912,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       testMode: _testMode,
       oniKnown: _remoteOniKnown,
       isHunterNow: _isHunterNow,
+      runnerProximityActive: _chaseTargetsPresent,
       proximityBand: _latestProximityBand,
       now: DateTime.now(),
     );
@@ -4071,8 +4103,16 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return null;
     if (!accusationEnabledForPlayerCount(_activeMatchPlayerCount)) return null;
     if (_rt.accusationUnlocked) {
-      return '告発: 解禁 — ${_accusationCopy.facilityName}（有効${_rt.activeAccusationSiteIndices.length}箇所）';
+      final total = _rt.accusationFacilityPositions.length;
+      return '告発: 解禁 — ${_accusationCopy.facilityName}（有効${_rt.activeAccusationSiteIndices.length}/${total > 0 ? total : "?"}箇所）';
     }
+    final previewActive = activeAccusationSiteCount(
+      siteCount: _rt.accusationFacilityPositions.length,
+      eliminationCount: _rt.syncedEliminationCount,
+      elapsedSeconds: _rt.elapsedSeconds,
+      matchDurationSeconds: _matchDurationSeconds,
+    );
+    final siteTotal = _rt.accusationFacilityPositions.length;
     final sec = secondsUntilAccusationUnlock(
       playerCount: _activeMatchPlayerCount,
       eliminationCount: _rt.syncedEliminationCount,
@@ -4082,10 +4122,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     if (sec == null) return null;
     final min = (sec / 60).ceil();
-  if (_rt.syncedEliminationCount < 1) {
-      return '情報収集フェーズ — 告発は約${min}分後（または脱落+5分後）';
+    final scaleHint = siteTotal > 0
+        ? '（解禁時 有効$previewActive〜$siteTotal箇所・脱落/経過で増加）'
+        : '';
+    if (_rt.syncedEliminationCount < 1) {
+      return '情報収集フェーズ — 告発は約$min分後（または脱落+5分後）$scaleHint';
     }
-    return '情報収集フェーズ — 告発は約${min}分後（脱落後5分経過で解禁）';
+    return '情報収集フェーズ — 告発は約$min分後（脱落後5分経過で解禁）$scaleHint';
   }
 
   String _conditionLine() {
@@ -4759,6 +4802,10 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _openMatchResultScreen() async {
     if (!mounted) return;
+    if (_gameState == GameState.caughtByOni && _isMatchStillActiveForLocalPlayer) {
+      _toast('リザルトは試合終了後に表示できます');
+      return;
+    }
     _dismissOpenModals();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -5105,6 +5152,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         var showCondition = _hudShowConditionLine;
         var compactSlot = _hudCompactLineSlot;
         var layers = _mapLayerToggles;
+        var iconScale = _mapMarkerIconScale;
         var compactLineExpanded = false;
         return StatefulBuilder(
           builder: (ctx, setModal) {
@@ -5157,6 +5205,40 @@ class _GameMapScreenState extends State<GameMapScreen>
                       showTitle: false,
                       toggles: layers,
                       onChanged: (t) => setModal(() => layers = t),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '地図アイコンの大きさ',
+                            style: Theme.of(ctx).textTheme.titleSmall,
+                          ),
+                        ),
+                        Text(
+                          '${(iconScale * 100).round()}%',
+                          style: Theme.of(ctx).textTheme.labelLarge,
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: iconScale,
+                      min: HudDisplaySettings.markerIconScaleMin,
+                      max: HudDisplaySettings.markerIconScaleMax,
+                      divisions: 17,
+                      label: '${(iconScale * 100).round()}%',
+                      onChanged: (v) {
+                        final next =
+                            HudDisplaySettings.clampMarkerIconScale(v);
+                        setModal(() => iconScale = next);
+                        unawaited(_applyMapMarkerIconScale(next));
+                      },
+                    ),
+                    Text(
+                      'ズームで見え方が変わるルールはそのまま。基準サイズだけ調整します。',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     ExpansionTile(
@@ -5213,6 +5295,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           showIntelLine: showIntel,
                           showStatusLine: showStatus,
                           showConditionLine: showCondition,
+                          markerIconScale: iconScale,
                         );
                         setState(() {
                           _hudShowIntelLine = showIntel;
@@ -5220,6 +5303,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           _hudShowConditionLine = showCondition;
                           _hudCompactLineSlot = compactSlot;
                           _mapLayerToggles = layers;
+                          _mapMarkerIconScale = iconScale;
                         });
                         await HudDisplayPrefs.save(hud);
                         if (ctx.mounted) Navigator.pop(ctx);
@@ -5546,7 +5630,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                 child: EliminationSupportBar(
                   rule: _afterCatchRule!,
                   worldProfile: _mapVisual.pack.profile,
-                  onOpenResult: _openMatchResultScreen,
                   chargeActive: _rt.cameraJackChargeStartedAt != null,
                   chargeProgress: _rt.cameraJackChargeStartedAt == null
                       ? null

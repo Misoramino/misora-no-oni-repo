@@ -23,6 +23,7 @@ void main() {
       testMode: true,
       oniKnown: true,
       isHunterNow: false,
+      runnerProximityActive: true,
       proximityBand: ProximityBand.none,
       now: DateTime(2026, 1, 1),
     );
@@ -55,11 +56,38 @@ void main() {
       testMode: true,
       oniKnown: true,
       isHunterNow: false,
+      runnerProximityActive: true,
       proximityBand: ProximityBand.none,
       now: DateTime(2026, 1, 1),
     );
 
     expect(effects.whereType<MatchConsumeSafeChargeEffect>().length, 1);
     expect(ctrl.runtime.safeZoneCharges, 0);
+  });
+
+  test('no self-capture when no runners to chase', () {
+    const area = PlayArea.circle(
+      center: LatLng(35.68, 139.76),
+      radiusMeters: 500,
+    );
+    final ctrl = GameMapMatchController();
+    ctrl.runtime.remainingSeconds = 60;
+    ctrl.runtime.captureZoneBoundIds = const {'self'};
+    const pos = LatLng(35.68, 139.76);
+
+    final effects = ctrl.evaluateRunningTick(
+      playArea: area,
+      playerPosition: pos,
+      oniPosition: pos,
+      testMode: false,
+      oniKnown: true,
+      isHunterNow: true,
+      runnerProximityActive: false,
+      proximityBand: ProximityBand.contact,
+      now: DateTime(2026, 1, 1),
+    );
+
+    expect(effects.whereType<MatchEndEffect>(), isEmpty);
+    expect(effects.whereType<MatchInfectionExposureWarnEffect>(), isEmpty);
   });
 }

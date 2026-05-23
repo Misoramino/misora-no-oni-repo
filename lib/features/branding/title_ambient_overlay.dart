@@ -133,16 +133,28 @@ class _TitleAmbientPainter extends CustomPainter {
         ..shader = RadialGradient(
           colors: [
             Colors.transparent,
-            _a(branding.secondaryAccent, 0.22 * pulse),
+            _a(branding.secondaryAccent, 0.28 * pulse),
+            _a(branding.accent, 0.12 * pulse),
           ],
-          stops: const [0.5, 1.0],
+          stops: const [0.45, 0.82, 1.0],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
+    final vhs = Paint()..color = _a(Colors.black, 0.12);
+    for (var y = 0.0; y < size.height; y += 6) {
+      if ((y.toInt() + (progress * 50).toInt()) % 11 == 0) {
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), vhs);
+      }
+    }
     final scanY = size.height * (0.14 + progress * 0.68);
     canvas.drawLine(
       Offset(0, scanY),
       Offset(size.width, scanY),
-      Paint()..color = _a(branding.accent, 0.14)..strokeWidth = 0.8,
+      Paint()..color = _a(branding.accent, 0.18)..strokeWidth = 1,
+    );
+    final glitchY = (progress * 37) % size.height;
+    canvas.drawRect(
+      Rect.fromLTWH(0, glitchY, size.width, 2.5),
+      Paint()..color = _a(branding.accent, 0.1 + pulse * 0.06),
     );
     const dust = [
       Offset(0.08, 0.12),
@@ -162,15 +174,18 @@ class _TitleAmbientPainter extends CustomPainter {
         Paint()..color = _a(Colors.white, 0.06 + tw * 0.12),
       );
     }
-    canvas.drawCircle(
-      _n(size, 0.78, 0.26),
-      20 + pulse * 8,
-      Paint()
-        ..color = _a(branding.pulseColor, 0.16 * pulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-    _cornerTicks(canvas, size, _a(branding.accent, 0.22), 16);
+    final center = Offset(size.width * 0.5, size.height * 0.38);
+    for (var ring = 1; ring <= 2; ring++) {
+      canvas.drawCircle(
+        center,
+        36.0 * ring + pulse * 10,
+        Paint()
+          ..color = _a(branding.pulseColor, (0.2 - ring * 0.05) * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+    _cornerTicks(canvas, size, _a(branding.accent, 0.26), 16);
   }
 
   void _pop(Canvas canvas, Size size) {

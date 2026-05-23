@@ -11,13 +11,15 @@ import 'map_marker_kind_assets.dart';
 
 /// 世界観ごとのマーカー Bitmap（PNG があれば優先、なければプログラム生成）。
 abstract final class MapMarkerIconFactory {
-  static const double _size = 72;
+  static const double baseSize = 72;
 
   static Future<BitmapDescriptor> create({
     required MapMarkerKind kind,
     required WorldProfileTokens tokens,
     String? profileAssetKey,
+    double iconScale = 1.0,
   }) async {
+    final size = baseSize * iconScale.clamp(0.5, 2.0);
     if (profileAssetKey != null) {
       final path = MapMarkerAssetLoader.assetPath(
         profileAssetKey,
@@ -27,8 +29,8 @@ abstract final class MapMarkerIconFactory {
       if (png != null) {
         return BitmapDescriptor.bytes(
           png,
-          width: _size,
-          height: _size,
+          width: size,
+          height: size,
         );
       }
     }
@@ -41,11 +43,12 @@ abstract final class MapMarkerIconFactory {
           : null,
       showRing:
           kind == MapMarkerKind.player || kind == MapMarkerKind.playerRevealed,
+      size: size,
     );
     return BitmapDescriptor.bytes(
       bytes,
-      width: _size,
-      height: _size,
+      width: size,
+      height: size,
     );
   }
 
@@ -87,12 +90,12 @@ abstract final class MapMarkerIconFactory {
     required IconData icon,
     required Color background,
     required Color foreground,
+    required double size,
     Color? ringColor,
     bool showRing = false,
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    const size = _size;
     final center = Offset(size / 2, size / 2);
 
     if (showRing && ringColor != null) {
