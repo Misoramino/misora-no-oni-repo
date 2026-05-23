@@ -68,6 +68,14 @@ final class SkillTickInfectionStarted extends SkillTickOutcome {
   const SkillTickInfectionStarted();
 }
 
+/// 感染確定前の至近警告（逃走者向け）。
+final class SkillTickInfectionExposureWarn extends SkillTickOutcome {
+  const SkillTickInfectionExposureWarn({required this.level});
+
+  /// `start` = 至近に入った直後 / `imminent` = 感染直前
+  final String level;
+}
+
 /// スキルタイマー・感染・捕獲結界・タッチロック（状態は [runtime] を更新）。
 abstract final class MatchSkillTickEvaluator {
   static List<SkillTickOutcome> evaluateTimers({
@@ -83,6 +91,7 @@ abstract final class MatchSkillTickEvaluator {
       runtime.fakePositionActive = false;
       runtime.fakePositionEndsAt = null;
       runtime.fakePositionLatLng = null;
+      runtime.fakePositionBearingDegrees = null;
       out.add(const SkillTickFakeEnded());
     }
 
@@ -200,7 +209,7 @@ abstract final class MatchSkillTickEvaluator {
     );
   }
 
-  static SkillTickOutcome evaluateInfection({
+  static List<SkillTickOutcome> evaluateInfection({
     required MatchRuntimeState runtime,
     required double distanceToOni,
     required DateTime now,
@@ -210,26 +219,33 @@ abstract final class MatchSkillTickEvaluator {
           now.difference(runtime.lastInfectionRevealAt!).inSeconds >=
               GameConfig.infectionRevealIntervalSeconds) {
         runtime.lastInfectionRevealAt = now;
-        return const SkillTickInfectionPulse();
+        return const [SkillTickInfectionPulse()];
       }
-      return const SkillTickNone();
+      return const [];
     }
 
     if (distanceToOni <= GameConfig.infectionTriggerDistanceMeters) {
       runtime.infectionExposureSeconds += 1;
-      if (runtime.infectionExposureSeconds >=
-          GameConfig.infectionExposureSeconds) {
+      final exp = runtime.infectionExposureSeconds;
+      final need = GameConfig.infectionExposureSeconds;
+      final out = <SkillTickOutcome>[];
+      if (exp == 1) {
+        out.add(const SkillTickInfectionExposureWarn(level: 'start'));
+      } else if (exp == need - 1) {
+        out.add(const SkillTickInfectionExposureWarn(level: 'imminent'));
+      }
+      if (exp >= need) {
         runtime.infectionEndsAt = now.add(
           const Duration(seconds: GameConfig.infectionDurationSeconds),
         );
         runtime.infectionExposureSeconds = 0;
         runtime.lastInfectionRevealAt = null;
-        return const SkillTickInfectionStarted();
+        out.add(const SkillTickInfectionStarted());
       }
-    } else {
-      runtime.infectionExposureSeconds = 0;
+      return out;
     }
-    return const SkillTickNone();
+    runtime.infectionExposureSeconds = 0;
+    return const [];
   }
 
   static String? evaluateDangerCue({

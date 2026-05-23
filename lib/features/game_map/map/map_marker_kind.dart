@@ -12,7 +12,9 @@ enum MapMarkerKind {
   commJamming,
   trace,
   reveal,
+  anonymousReveal,
   oniIntel,
   fakePosition,
   bodyThrow,
+  accusationFacility,
 }

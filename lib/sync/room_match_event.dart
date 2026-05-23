@@ -56,8 +56,10 @@ abstract final class RoomMatchEventTypes {
   static const matchStart = 'match_start';
   static const matchEnd = 'match_end';
   static const reveal = 'reveal';
+  static const anonymousReveal = 'anonymous_reveal';
   static const fakeIntelReveal = 'fake_intel_reveal';
   static const infoBroker = 'info_broker';
+  static const oniInfoBroker = 'oni_info_broker';
   static const matchEvent = 'match_event';
   static const captureZonePlaced = 'capture_zone_placed';
   static const captureZoneAck = 'capture_zone_ack';
@@ -65,4 +67,12 @@ abstract final class RoomMatchEventTypes {
 
   /// 試合中止の賛否（payload: `{ agree: bool }`）。
   static const abortVote = 'abort_vote';
+
+  /// 試合中止投票の開始（payload: `{ expiresAtMs: int }`）。
+  static const abortProposal = 'abort_proposal';
+  static const playerEliminated = 'player_eliminated';
+  static const accusationUnlocked = 'accusation_unlocked';
+  static const accusationAttempt = 'accusation_attempt';
+  static const accusationFailed = 'accusation_failed';
+  static const cameraJack = 'camera_jack';
 }

@@ -40,6 +40,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_blue_plus: ^2.3.2
+  ble_peripheral: ^2.3.3
   # Windows 向けフェデレート実装（ホストが Windows でも pub / プラグイン解決で警告が出ないようにする）
   flutter_blue_plus_winrt: ^0.0.20
   firebase_core: ^4.8.0
@@ -48,6 +49,7 @@ dependencies:
   permission_handler: ^12.0.1
   image_picker: ^1.1.2
   audioplayers: ^6.5.0
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

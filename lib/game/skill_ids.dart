@@ -29,7 +29,6 @@ String skillShortLabel(String id) => switch (id) {
 List<String> skillCandidatesForRole(PlayerRole role) => switch (role) {
       PlayerRole.runner => const [
           SkillIds.fakePosition,
-          SkillIds.bodyThrow,
           SkillIds.captureZone,
         ],
       PlayerRole.hunter => const [

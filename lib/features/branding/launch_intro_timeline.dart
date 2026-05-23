@@ -5,8 +5,8 @@ abstract final class LaunchIntroTimeline {
   /// 演出フル（背景エフェクト＋ロゴ出現）
   static const effectEnd = 0.38;
 
-  /// ロゴ＋文言ホールド（短め — すぐタイトルレイアウトへ）
-  static const logoHoldEnd = 0.41;
+  /// ロゴ専用ホールドなし（演出中からロゴ＋文言を表示）
+  static const logoHoldEnd = effectEnd;
 
   /// 文言が出始める（演出と重なる）
   static const brandTextStart = 0.06;
@@ -36,12 +36,8 @@ abstract final class LaunchIntroTimeline {
 
   static double effectOpacity(double intro) {
     if (intro <= effectEnd) return 1;
-    if (intro <= logoHoldEnd) {
-      final t = (intro - effectEnd) / (logoHoldEnd - effectEnd);
-      return 1 - t * 0.3;
-    }
     final t = layoutT(intro);
-    return (1 - Curves.easeOut.transform(t)) * 0.68;
+    return (1 - Curves.easeOut.transform(t)) * 0.88;
   }
 
   static double brandTextOpacity(double intro) {
@@ -56,19 +52,19 @@ abstract final class LaunchIntroTimeline {
   }
 
   static double bodyOpacity(double intro) {
-    if (intro < logoHoldEnd + 0.02) return 0;
+    if (intro < effectEnd + 0.02) return 0;
     return Curves.easeIn.transform(
-      ((intro - (logoHoldEnd + 0.02)) / (1 - logoHoldEnd - 0.02)).clamp(0.0, 1.0),
+      ((intro - (effectEnd + 0.02)) / (1 - effectEnd - 0.02)).clamp(0.0, 1.0),
     );
   }
 
   static double scaffoldBlend(double intro) => layoutT(intro);
 
   static double titleVeil(double intro) {
-    if (intro < logoHoldEnd - 0.01) return 0;
-    if (intro < logoHoldEnd + 0.08) {
+    if (intro < effectEnd) return 0;
+    if (intro < effectEnd + 0.06) {
       return Curves.easeInOut.transform(
-        ((intro - (logoHoldEnd - 0.01)) / 0.09).clamp(0.0, 1.0),
+        ((intro - effectEnd) / 0.06).clamp(0.0, 1.0),
       );
     }
     return (1 - layoutT(intro)).clamp(0.0, 1.0);

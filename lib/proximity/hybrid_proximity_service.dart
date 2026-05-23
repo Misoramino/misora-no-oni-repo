@@ -8,7 +8,7 @@ import 'proximity_signal.dart';
 /// GPS（粗い中距離）と BLE デリゲート（近距離〜接触）を合成する。
 ///
 /// [ingestGpsDistanceMeters] はゲームループ側から毎ティック呼ぶ想定。
-/// `contact` は BLE 側のみが立てる（GPS は `near` で頭打ち）。
+/// より脅威が高い帯を採用（BLE オフ時は GPS のみ。捕獲は別途 GPS 近距離フォールバックあり）。
 class HybridProximityService implements ProximityService {
   HybridProximityService({required ProximityService bleDelegate})
       : _ble = bleDelegate;

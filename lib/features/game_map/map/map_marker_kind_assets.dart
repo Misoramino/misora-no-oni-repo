@@ -15,8 +15,10 @@ extension MapMarkerKindAssets on MapMarkerKind {
         MapMarkerKind.commJamming => 'comm_jamming',
         MapMarkerKind.trace => 'trace',
         MapMarkerKind.reveal => 'reveal',
+        MapMarkerKind.anonymousReveal => 'anonymous_reveal',
         MapMarkerKind.oniIntel => 'oni_intel',
         MapMarkerKind.fakePosition => 'fake_position',
         MapMarkerKind.bodyThrow => 'body_throw',
+        MapMarkerKind.accusationFacility => 'info_broker',
       };
 }

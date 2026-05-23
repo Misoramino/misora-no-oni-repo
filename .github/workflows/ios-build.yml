@@ -29,7 +29,7 @@ jobs:
         working-directory: ios
 
       - name: Build iOS app (no codesign)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
 
       - name: Create Payload folder
         run: mkdir Payload

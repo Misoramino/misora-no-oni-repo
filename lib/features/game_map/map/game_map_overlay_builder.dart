@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../game/analyst_trace_format.dart';
 import '../../../game/elimination_aftermath_rule.dart';
 import '../../../game/game_config.dart';
 import '../../../game/play_area.dart';
@@ -135,6 +136,52 @@ abstract final class GameMapOverlayBuilder {
           );
         }
       }
+      if (L.infoBrokers && showGimmickIcons) {
+        for (var i = 0; i < s.accusationFacilityPositions.length; i++) {
+          final active = s.activeAccusationSiteIndices.contains(i);
+          markers.add(
+            Marker(
+              markerId: MarkerId('accusation_facility_$i'),
+              position: s.accusationFacilityPositions[i],
+              infoWindow: InfoWindow(
+                title: active
+                    ? '${s.accusationFacilityTitle}（有効）'
+                    : '${s.accusationFacilityTitle}（無効）',
+                snippet: active
+                    ? '告発可能（解禁後・逃走者）'
+                    : '現在は無効',
+              ),
+              icon: _icon(
+                s,
+                MapMarkerKind.accusationFacility,
+                active
+                    ? BitmapDescriptor.hueRose
+                    : BitmapDescriptor.hueOrange,
+              ),
+              alpha: active ? 1.0 : 0.45,
+            ),
+          );
+        }
+      }
+      if (s.showCameraJackSites && showGimmickIcons) {
+        for (var i = 0; i < s.cameraJackPositions.length; i++) {
+          markers.add(
+            Marker(
+              markerId: MarkerId('camera_jack_$i'),
+              position: s.cameraJackPositions[i],
+              infoWindow: const InfoWindow(
+                title: 'ジャック端子',
+                snippet: '残響体のみチャージ可',
+              ),
+              icon: _icon(
+                s,
+                MapMarkerKind.camera,
+                BitmapDescriptor.hueYellow,
+              ),
+            ),
+          );
+        }
+      }
       if (L.commJamming && showGimmickIcons) {
         for (var i = 0; i < s.commJammingZonePositions.length; i++) {
           markers.add(
@@ -166,6 +213,28 @@ abstract final class GameMapOverlayBuilder {
           );
         }
       }
+      if (L.traces && lod.showTraceMarkers(z)) {
+        for (var i = 0; i < s.anonymousRevealTraces.length; i++) {
+          final t = s.anonymousRevealTraces[i];
+          markers.add(
+            Marker(
+              markerId: MarkerId('anon_reveal_$i'),
+              position: t.position,
+              infoWindow: InfoWindow(
+                title: '不明な痕跡',
+                snippet: s.analystTraceDetail
+                    ? AnalystTraceFormat.summaryLine(t, s.now)
+                    : '${MapGeoFormat.traceAge(t.timestamp, s.now)} / ${t.reasonSummary}',
+              ),
+              icon: _icon(
+                s,
+                MapMarkerKind.anonymousReveal,
+                BitmapDescriptor.hueAzure,
+              ),
+            ),
+          );
+        }
+      }
       if (L.reveals && lod.showRevealMarkers(z)) {
         for (var i = 0; i < s.revealTraces.length; i++) {
           markers.add(
@@ -190,7 +259,7 @@ abstract final class GameMapOverlayBuilder {
               markerId: MarkerId('oni_intel_trace_$i'),
               position: s.oniIntelTraces[i].position,
               infoWindow: InfoWindow(
-                title: '情報屋の鬼情報',
+                title: '情報屋の手がかり',
                 snippet:
                     '${MapGeoFormat.intelTraceAge(s.oniIntelTraces[i].timestamp, s.now)} / ${s.oniIntelTraces[i].text}',
               ),
@@ -218,16 +287,6 @@ abstract final class GameMapOverlayBuilder {
       }
     }
 
-    if (L.skillMarkers && s.fakePositionActive && s.fakePositionLatLng != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('fake_position'),
-          position: s.fakePositionLatLng!,
-          infoWindow: const InfoWindow(title: '偽位置', snippet: 'デコイ発信中'),
-          icon: _icon(s, MapMarkerKind.fakePosition, BitmapDescriptor.hueRose),
-        ),
-      );
-    }
     if (L.skillMarkers && s.bodyThrowPosition != null) {
       markers.add(
         Marker(

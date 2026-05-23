@@ -60,9 +60,11 @@ abstract final class MapMarkerIconFactory {
         MapMarkerKind.commJamming => Icons.wifi_off,
         MapMarkerKind.trace => Icons.linear_scale,
         MapMarkerKind.reveal => Icons.location_on,
+        MapMarkerKind.anonymousReveal => Icons.help_outline,
         MapMarkerKind.oniIntel => Icons.radar,
         MapMarkerKind.fakePosition => Icons.flare,
         MapMarkerKind.bodyThrow => Icons.sports_martial_arts,
+        MapMarkerKind.accusationFacility => Icons.account_balance,
       };
 
   static Color _backgroundFor(MapMarkerKind kind, WorldProfileTokens t) =>

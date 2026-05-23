@@ -1,6 +1,7 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
+import '../../../game/anonymous_reveal_trace.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/oni_intel_trace.dart';
 import '../../../game/play_area.dart';
@@ -22,10 +23,16 @@ class GameMapOverlaySnapshot {
     required this.showGimmickMarkers,
     required this.safeZonePositions,
     required this.infoBrokerPositions,
+    required this.accusationFacilityPositions,
+    required this.activeAccusationSiteIndices,
+    this.accusationFacilityTitle = '告発施設',
+    required this.cameraJackPositions,
+    this.showCameraJackSites = false,
     required this.commJammingZonePositions,
     required this.cameraPositions,
     required this.tracePoints,
     required this.revealTraces,
+    required this.anonymousRevealTraces,
     required this.oniIntelTraces,
     required this.safeZoneAvailable,
     required this.infoBrokerAvailable,
@@ -54,6 +61,7 @@ class GameMapOverlaySnapshot {
     this.playerMarkerIcon,
     this.usePhotoPlayerPin = false,
     this.cameraPulsePhase = 0,
+    this.analystTraceDetail = false,
   });
 
   final DateTime now;
@@ -65,10 +73,16 @@ class GameMapOverlaySnapshot {
   final bool showGimmickMarkers;
   final List<LatLng> safeZonePositions;
   final List<LatLng> infoBrokerPositions;
+  final List<LatLng> accusationFacilityPositions;
+  final Set<int> activeAccusationSiteIndices;
+  final String accusationFacilityTitle;
+  final List<LatLng> cameraJackPositions;
+  final bool showCameraJackSites;
   final List<LatLng> commJammingZonePositions;
   final List<LatLng> cameraPositions;
   final List<LatLng> tracePoints;
   final List<LocationRevealEvent> revealTraces;
+  final List<AnonymousRevealTrace> anonymousRevealTraces;
   final List<OniIntelTrace> oniIntelTraces;
   final bool safeZoneAvailable;
   final bool infoBrokerAvailable;
@@ -99,4 +113,7 @@ class GameMapOverlaySnapshot {
 
   /// 0〜1。監視カメラのスキャン円アニメ用。
   final double cameraPulsePhase;
+
+  /// アナリスト: 匿名痕跡マーカーに時間帯・源を表示。
+  final bool analystTraceDetail;
 }

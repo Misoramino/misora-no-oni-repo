@@ -2,22 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oni_game/features/branding/launch_intro_timeline.dart';
 
 void main() {
-  test('animation phase is longer than logo hold', () {
-    expect(LaunchIntroTimeline.effectEnd, greaterThan(0.32));
-    expect(
-      LaunchIntroTimeline.effectEnd - LaunchIntroTimeline.logoHoldEnd,
-      lessThan(0),
-    );
+  test('logo-only hold is eliminated', () {
+    expect(LaunchIntroTimeline.logoHoldEnd, LaunchIntroTimeline.effectEnd);
     final animMs = LaunchIntroTimeline.effectEnd * LaunchIntroTimeline.totalMs;
-    final holdMs = (LaunchIntroTimeline.logoHoldEnd -
-            LaunchIntroTimeline.effectEnd) *
-        LaunchIntroTimeline.totalMs;
     expect(animMs, greaterThan(1200));
-    expect(holdMs, lessThan(200));
   });
 
-  test('logo hold is brief before title layout', () {
-    expect(LaunchIntroTimeline.layoutT(0.41), 0);
+  test('title layout begins when effect phase ends', () {
+    expect(LaunchIntroTimeline.layoutT(0.38), 0);
     expect(LaunchIntroTimeline.layoutT(0.55), greaterThan(0.25));
     expect(LaunchIntroTimeline.layoutT(1), closeTo(1, 0.001));
   });
@@ -34,8 +26,8 @@ void main() {
     expect(LaunchIntroTimeline.effectOpacity(0.16), 1);
   });
 
-  test('body fades in soon after layout handoff', () {
-    expect(LaunchIntroTimeline.bodyOpacity(0.42), 0);
+  test('body fades in soon after effect phase', () {
+    expect(LaunchIntroTimeline.bodyOpacity(0.39), 0);
     expect(LaunchIntroTimeline.bodyOpacity(0.85), greaterThan(0.5));
   });
 

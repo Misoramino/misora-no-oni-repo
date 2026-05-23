@@ -36,6 +36,11 @@ abstract final class RoomDocFields {
   static const matchStartAssignments = 'assignments';
   static const matchStartStartedAtUtc = 'startedAtUtc';
 
+  /// ホストが Roads API で寄せたイベントエリア（全員同一配置）。
+  static const matchStartEventAreas = 'eventAreas';
+  static const matchStartAccusationSites = 'accusationSites';
+  static const matchStartCameraJackSites = 'cameraJackSites';
+
   /// Phase A: 試合終了時（ホストのみ）。
   static const endReason = 'endReason';
   static const matchOutcome = 'matchOutcome';
@@ -48,6 +53,7 @@ abstract final class MatchEndReason {
   static const caught = 'caught';
   static const hostEnded = 'host_ended';
   static const hostAbort = 'host_abort';
+  static const accusationSuccess = 'accusation_success';
 }
 
 /// メンバー文書：`members/{uid}`。live 位置は置かず、接続状態だけを軽く同期する。

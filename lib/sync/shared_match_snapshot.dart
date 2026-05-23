@@ -1,8 +1,11 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
 import '../game/oni_intel_mode.dart';
 import '../game/play_area.dart';
 import '../game/player_role.dart';
+import '../game/runner_modifier.dart';
 import 'firestore_room_blueprint.dart';
 
 /// 1 試合分の役職・スキル・ギミック（ホストが room doc に 1 回書く）。
@@ -16,6 +19,9 @@ class SharedMatchSnapshot {
     required this.assignments,
     this.startedAtUtc,
     this.gimmickDensity = 1.0,
+    this.eventAreas,
+    this.accusationSites,
+    this.cameraJackSites,
   });
 
   final int gimmickSeed;
@@ -31,6 +37,11 @@ class SharedMatchSnapshot {
   final Map<String, SharedPlayerAssignment> assignments;
   final String? startedAtUtc;
 
+  /// 通信障害（イベント）エリア。省略時は各端末が seed から再計算。
+  final List<LatLng>? eventAreas;
+  final List<LatLng>? accusationSites;
+  final List<LatLng>? cameraJackSites;
+
   Map<String, dynamic> toMap() => {
         RoomDocFields.matchStartGimmickSeed: gimmickSeed,
         RoomDocFields.matchStartPlayArea: playArea.toJson(),
@@ -43,6 +54,21 @@ class SharedMatchSnapshot {
         },
         if (startedAtUtc != null)
           RoomDocFields.matchStartStartedAtUtc: startedAtUtc,
+        if (eventAreas != null && eventAreas!.isNotEmpty)
+          RoomDocFields.matchStartEventAreas: [
+            for (final p in eventAreas!)
+              {'lat': p.latitude, 'lng': p.longitude},
+          ],
+        if (accusationSites != null && accusationSites!.isNotEmpty)
+          RoomDocFields.matchStartAccusationSites: [
+            for (final p in accusationSites!)
+              {'lat': p.latitude, 'lng': p.longitude},
+          ],
+        if (cameraJackSites != null && cameraJackSites!.isNotEmpty)
+          RoomDocFields.matchStartCameraJackSites: [
+            for (final p in cameraJackSites!)
+              {'lat': p.latitude, 'lng': p.longitude},
+          ],
       };
 
   static SharedMatchSnapshot? tryParse(Map<String, dynamic>? raw) {
@@ -79,11 +105,34 @@ class SharedMatchSnapshot {
       eliminationAftermathRule: _parseAftermathRule(
             raw[RoomDocFields.matchStartAftermathRule] as String?,
           ) ??
-          EliminationAftermathRule.ghostSpectator,
+          EliminationAftermathRule.spectralOperative,
       assignments: assignments,
       startedAtUtc: raw[RoomDocFields.matchStartStartedAtUtc] as String?,
       gimmickDensity: density,
+      eventAreas: _parseLatLngList(
+        raw[RoomDocFields.matchStartEventAreas],
+      ),
+      accusationSites: _parseLatLngList(
+        raw[RoomDocFields.matchStartAccusationSites],
+      ),
+      cameraJackSites: _parseLatLngList(
+        raw[RoomDocFields.matchStartCameraJackSites],
+      ),
     );
+  }
+
+  static List<LatLng>? _parseLatLngList(Object? raw) {
+    if (raw is! List || raw.isEmpty) return null;
+    final out = <LatLng>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final lat = item['lat'];
+      final lng = item['lng'];
+      if (lat is num && lng is num) {
+        out.add(LatLng(lat.toDouble(), lng.toDouble()));
+      }
+    }
+    return out.isEmpty ? null : out;
   }
 
   static EliminationAftermathRule? _parseAftermathRule(String? raw) {
@@ -110,14 +159,17 @@ class SharedPlayerAssignment {
   const SharedPlayerAssignment({
     required this.role,
     required this.skills,
+    this.modifier = RunnerModifier.none,
   });
 
   final PlayerRole role;
   final List<String> skills;
+  final RunnerModifier modifier;
 
   Map<String, dynamic> toMap() => {
         'role': role.name,
         'skills': skills,
+        if (modifier != RunnerModifier.none) 'modifier': modifier.name,
       };
 
   static SharedPlayerAssignment? tryParse(Map<String, dynamic> json) {
@@ -135,7 +187,11 @@ class SharedPlayerAssignment {
     final skills = skillsRaw is List
         ? skillsRaw.map((e) => e.toString()).toList()
         : <String>[];
-    return SharedPlayerAssignment(role: role, skills: skills);
+    return SharedPlayerAssignment(
+      role: role,
+      skills: skills,
+      modifier: parseRunnerModifier(json['modifier'] as String?),
+    );
   }
 }
 

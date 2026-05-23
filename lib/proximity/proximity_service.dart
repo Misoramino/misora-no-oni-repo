@@ -49,5 +49,7 @@ class MockProximityService extends ProximityService {
   Future<void> stop() async {
     _timer?.cancel();
     _timer = null;
+    await _controller?.close();
+    _controller = null;
   }
 }

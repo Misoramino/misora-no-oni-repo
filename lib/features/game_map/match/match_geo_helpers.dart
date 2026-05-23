@@ -82,11 +82,14 @@ abstract final class MatchGeoHelpers {
     required bool isHunterNow,
     required Set<String> captureZoneBoundIds,
     required ProximityBand proximityBand,
+    required double gpsDistanceToOniMeters,
   }) {
     if (!running) return false;
     if (!testMode && !oniKnown && !isHunterNow) return false;
-    if (captureZoneBoundIds.contains('self') &&
-        proximityBand == ProximityBand.contact) {
+    if (!captureZoneBoundIds.contains('self')) return false;
+    if (proximityBand == ProximityBand.contact) return true;
+    // BLE オフ同士など: 拘束中は GPS でも捕獲可能（オンライン鬼位置同期と併用）
+    if (gpsDistanceToOniMeters <= GameConfig.captureDistanceMeters) {
       return true;
     }
     return false;

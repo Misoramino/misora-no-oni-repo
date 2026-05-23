@@ -85,18 +85,26 @@ service cloud.firestore {
 
     function participantRoomEventType(t) {
       return t == 'reveal'
+        || t == 'anonymous_reveal'
         || t == 'fake_intel_reveal'
         || t == 'info_broker'
+        || t == 'oni_info_broker'
+        || t == 'player_eliminated'
+        || t == 'accusation_attempt'
+        || t == 'accusation_failed'
+        || t == 'camera_jack'
         || t == 'match_event'
         || t == 'capture_zone_placed'
         || t == 'capture_zone_ack'
-        || t == 'abort_vote';
+        || t == 'abort_vote'
+        || t == 'abort_proposal';
     }
 
     function hostOnlyRoomEventType(t) {
       return t == 'capture_zone_bound'
         || t == 'match_start'
-        || t == 'match_end';
+        || t == 'match_end'
+        || t == 'accusation_unlocked';
     }
 
     function allowedRoomEventType(roomId, t) {
@@ -132,4 +140,4 @@ service cloud.firestore {
     }
   }
 }
-
+

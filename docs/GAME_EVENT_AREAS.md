@@ -22,10 +22,11 @@ This file summarizes the current local MVP behavior for map event areas.
 - Radius: `GameConfig.infoBrokerRadiusMeters`
 - Generated at match start, scaled by play area size.
 - When used:
-  - gives one temporary oni intel line according to `OniIntelMode`
-  - stores the oni intel trace on the map for about 10 minutes
+  - gives one temporary oni intel line according to `OniIntelMode` (direction, distance band, or fragmented text — not a live GPS pin on the oni)
+  - stores a **clue note** for about 10 minutes: HUD list + optional map pin at the pickup point (tap to re-read text; no need to travel there; info broker itself has already moved)
   - relocates to a new point in the play area
   - becomes unavailable until `infoBrokerRespawnSeconds` passes
+- Not implemented yet: true “10 minutes ago” path history from stored hunter positions; anonymous “someone was here” traces
 
 ## Surveillance Camera
 
@@ -40,9 +41,17 @@ This file summarizes the current local MVP behavior for map event areas.
 
 - Radius: `GameConfig.commJammingZoneRadiusMeters`
 - Generated at match start, scaled by play area size.
+- **Host only**: positions are snapped to the nearest road via Google Roads API (`GOOGLE_MAPS_API_KEY` dart-define) when configured, then stored in `matchStart.eventAreas` so all devices share the same points. Without the key or when no road is nearby, random in-play-area placement is used.
 - When inside the zone:
   - info broker intel may become noisy or partially locked depending on the current cycle
   - the zone alternates open/closed based on `commJammingCycleSeconds`
+
+## Accusation facility (告発施設)
+
+- One point per match (`GeneratedGimmicks.accusationFacility`), radius `GameConfig.accusationFacilityRadiusMeters`
+- **3+ players** only. Unlock: any elimination **or** 60% of match time (`accusation_unlocked` from host)
+- Runners enter radius → pick a player → accuse. Correct hunter UID → instant runner team win. Wrong → accuser full reveal + spent for match
+- Werewolf cannot accuse. Copy per world profile: `lib/theme/accusation_facility_copy.dart` (Astronomy: 宇宙連合・地球支部)
 
 ## Not Implemented Yet
 

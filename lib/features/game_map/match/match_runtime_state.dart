@@ -2,6 +2,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/game_config.dart';
 import '../../../game/generated_gimmicks.dart';
+import '../../../game/anonymous_reveal_trace.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/match_event.dart';
 import '../../../game/oni_intel_trace.dart';
@@ -12,6 +13,7 @@ class MatchRuntimeState {
   int elapsedSeconds;
   int revealCount;
   final List<LocationRevealEvent> revealLog;
+  final List<AnonymousRevealTrace> anonymousRevealTraces;
   final List<MatchEvent> matchEvents;
 
   DateTime? outsideAreaSince;
@@ -20,9 +22,20 @@ class MatchRuntimeState {
   List<LatLng> safeZonePositions;
   List<LatLng> infoBrokerPositions;
   List<LatLng> commJammingZonePositions;
+  List<LatLng> accusationFacilityPositions;
+  Set<int> activeAccusationSiteIndices;
+  bool accusationUnlocked;
+  bool accusationSpentByMe;
+  int syncedEliminationCount;
+  List<LatLng> cameraJackPositions;
+  int? cameraJackChargeSiteIndex;
+  DateTime? cameraJackChargeStartedAt;
+  DateTime? lastCameraJackAt;
+  int cameraJackMatchUses;
   int safeZoneCharges;
   DateTime? lastSafeChargeAt;
   DateTime? lastInfoBrokerAt;
+  DateTime? lastHunterInfoBrokerAt;
   String? lastOniIntelText;
   DateTime? lastOniIntelAt;
   bool showOniIntelCard;
@@ -39,6 +52,7 @@ class MatchRuntimeState {
   DateTime? lastFakeSkillAt;
   DateTime? lastFakeIntelRevealAt;
   LatLng? fakePositionLatLng;
+  double? fakePositionBearingDegrees;
 
   DateTime? werewolfTransformEndsAt;
   DateTime? lastWerewolfTransformAt;
@@ -67,17 +81,31 @@ class MatchRuntimeState {
 
   double? lastDangerDistance;
 
+  /// [GameConfig.periodicRevealIntervalSeconds] バケットの最終処理済み index。
+  int lastPeriodicAnonymousBucket = -1;
+
   MatchRuntimeState({
     int? remainingSeconds,
     this.elapsedSeconds = 0,
     this.revealCount = 0,
     List<LocationRevealEvent>? revealLog,
+    List<AnonymousRevealTrace>? anonymousRevealTraces,
     List<MatchEvent>? matchEvents,
     this.outsideAreaSince,
     this.revealedInCurrentOutside = false,
     List<LatLng>? safeZonePositions,
     List<LatLng>? infoBrokerPositions,
     List<LatLng>? commJammingZonePositions,
+    List<LatLng>? accusationFacilityPositions,
+    Set<int>? activeAccusationSiteIndices,
+    this.accusationUnlocked = false,
+    this.accusationSpentByMe = false,
+    this.syncedEliminationCount = 0,
+    List<LatLng>? cameraJackPositions,
+    this.cameraJackChargeSiteIndex,
+    this.cameraJackChargeStartedAt,
+    this.lastCameraJackAt,
+    this.cameraJackMatchUses = 0,
     this.safeZoneCharges = 0,
     this.lastSafeChargeAt,
     this.lastInfoBrokerAt,
@@ -96,6 +124,7 @@ class MatchRuntimeState {
     this.lastFakeSkillAt,
     this.lastFakeIntelRevealAt,
     this.fakePositionLatLng,
+    this.fakePositionBearingDegrees,
     this.werewolfTransformEndsAt,
     this.lastWerewolfTransformAt,
     this.captureZoneCenter,
@@ -120,6 +149,7 @@ class MatchRuntimeState {
   })  : remainingSeconds =
             remainingSeconds ?? GameConfig.matchDurationSeconds,
         revealLog = revealLog ?? [],
+        anonymousRevealTraces = anonymousRevealTraces ?? [],
         matchEvents = matchEvents ?? [],
         safeZonePositions =
             safeZonePositions ?? const [LatLng(35.6822, 139.7682)],
@@ -127,6 +157,10 @@ class MatchRuntimeState {
             infoBrokerPositions ?? const [LatLng(35.6804, 139.7657)],
         commJammingZonePositions =
             commJammingZonePositions ?? const [LatLng(35.6796, 139.7689)],
+        accusationFacilityPositions = accusationFacilityPositions ?? const [],
+        activeAccusationSiteIndices =
+            activeAccusationSiteIndices ?? <int>{},
+        cameraJackPositions = cameraJackPositions ?? const [],
         oniIntelTraces = oniIntelTraces ?? [],
         cameraPositions = cameraPositions ??
             const [
@@ -151,10 +185,13 @@ class MatchRuntimeState {
     revealedInCurrentOutside = false;
     revealCount = 0;
     revealLog.clear();
+    anonymousRevealTraces.clear();
     matchEvents.clear();
+    lastPeriodicAnonymousBucket = -1;
     safeZoneCharges = 0;
     lastSafeChargeAt = null;
     lastInfoBrokerAt = null;
+    lastHunterInfoBrokerAt = null;
     lastOniIntelText = null;
     lastOniIntelAt = null;
     showOniIntelCard = true;
@@ -169,6 +206,7 @@ class MatchRuntimeState {
     lastFakeSkillAt = null;
     lastFakeIntelRevealAt = null;
     fakePositionLatLng = null;
+    fakePositionBearingDegrees = null;
     werewolfTransformEndsAt = null;
     lastWerewolfTransformAt = null;
     captureZoneCenter = null;
@@ -190,6 +228,16 @@ class MatchRuntimeState {
     infectionEndsAt = null;
     lastInfectionRevealAt = null;
     lastDangerDistance = null;
+    accusationUnlocked = false;
+    accusationSpentByMe = false;
+    syncedEliminationCount = 0;
+    accusationFacilityPositions = const [];
+    activeAccusationSiteIndices = {};
+    cameraJackPositions = const [];
+    cameraJackChargeSiteIndex = null;
+    cameraJackChargeStartedAt = null;
+    lastCameraJackAt = null;
+    cameraJackMatchUses = 0;
   }
 
   void applyStartGimmicks({
@@ -200,7 +248,18 @@ class MatchRuntimeState {
     safeZonePositions = List<LatLng>.from(gimmicks.safeZones);
     infoBrokerPositions = List<LatLng>.from(gimmicks.infoBrokers);
     commJammingZonePositions = List<LatLng>.from(gimmicks.eventAreas);
+    accusationFacilityPositions =
+        List<LatLng>.from(gimmicks.accusationFacilities);
+    activeAccusationSiteIndices = {};
+    cameraJackPositions = List<LatLng>.from(gimmicks.cameraJackSites);
     cameraPositions = List<LatLng>.from(gimmicks.cameras);
+    accusationUnlocked = false;
+    accusationSpentByMe = false;
+    syncedEliminationCount = 0;
+    cameraJackChargeSiteIndex = null;
+    cameraJackChargeStartedAt = null;
+    lastCameraJackAt = null;
+    cameraJackMatchUses = 0;
     lastFakeSkillAt = null;
     lastFakeIntelRevealAt = null;
   }

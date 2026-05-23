@@ -4,16 +4,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'ble_game_protocol.dart';
+import 'ble_platform.dart';
 import 'proximity_service.dart';
 import 'proximity_signal.dart';
 
-/// 周辺 BLE のアドバタイズ RSSI から近接帯を推定する（鬼端末・逃走端末の双方でスキャン可能）。
+/// 周辺の **同一ルーム** BLE アドバタイズ RSSI から近接帯を推定する。
 ///
 /// Web / 非モバイルでは常に [ProximityBand.none]。
 class BleScanProximityService extends ProximityService {
+  BleScanProximityService({this.scanFilter});
+
+  BleGameScanFilter? scanFilter;
+
   StreamController<ProximitySignal>? _out;
   StreamSubscription<BluetoothAdapterState>? _adapterSub;
   Timer? _scanTimer;
+  bool _scanInFlight = false;
 
   @override
   Stream<ProximitySignal> watch() {
@@ -27,14 +34,15 @@ class BleScanProximityService extends ProximityService {
     await _adapterSub?.cancel();
     _scanTimer?.cancel();
 
-    if (kIsWeb ||
-        (!defaultTargetPlatformIsMobile)) {
+    if (kIsWeb || !defaultTargetPlatformIsMobile) {
       _emit(ProximityBand.none, 0.25, 'ble_unsupported_platform');
       return;
     }
 
     _adapterSub = FlutterBluePlus.adapterState.listen((state) {
-      if (state != BluetoothAdapterState.on) {
+      if (state == BluetoothAdapterState.on) {
+        unawaited(_scanOnce());
+      } else {
         _emit(ProximityBand.none, 0.3, 'ble_adapter_${state.name}');
       }
     });
@@ -51,6 +59,7 @@ class BleScanProximityService extends ProximityService {
     _scanTimer = null;
     await _adapterSub?.cancel();
     _adapterSub = null;
+    _scanInFlight = false;
     try {
       await FlutterBluePlus.stopScan();
     } catch (_) {}
@@ -59,6 +68,7 @@ class BleScanProximityService extends ProximityService {
   }
 
   Future<void> _scanOnce() async {
+    if (_scanInFlight) return;
     final ctrl = _out;
     if (ctrl == null || ctrl.isClosed) return;
 
@@ -67,6 +77,13 @@ class BleScanProximityService extends ProximityService {
       return;
     }
 
+    final filter = scanFilter;
+    if (filter == null) {
+      _emit(ProximityBand.none, 0.4, 'ble_no_match_filter');
+      return;
+    }
+
+    _scanInFlight = true;
     try {
       if (!await FlutterBluePlus.isSupported) {
         _emit(ProximityBand.none, 0.25, 'ble_not_supported');
@@ -88,6 +105,7 @@ class BleScanProximityService extends ProximityService {
       }
 
       await FlutterBluePlus.startScan(
+        withServices: [Guid(BleGameProtocol.serviceUuid)],
         timeout: const Duration(seconds: 2),
         androidUsesFineLocation: false,
       );
@@ -95,12 +113,28 @@ class BleScanProximityService extends ProximityService {
 
       final list = FlutterBluePlus.lastScanResults;
       if (list.isEmpty) {
-        _emit(ProximityBand.none, 0.4, 'ble_no_adv');
+        _emit(ProximityBand.none, 0.4, 'ble_no_peer');
         return;
       }
       var best = -1000;
       for (final r in list) {
+        final mfg = r.advertisementData.manufacturerData;
+        final match = mfg.entries.any(
+          (e) =>
+              e.key == BleGameProtocol.manufacturerId &&
+              BleGameProtocol.matchesPayload(
+                e.value,
+                roomId: filter.roomId,
+                sessionKey: filter.sessionKey,
+                requireOniBeacon: true,
+              ),
+        );
+        if (!match) continue;
         if (r.rssi > best) best = r.rssi;
+      }
+      if (best <= -1000) {
+        _emit(ProximityBand.none, 0.45, 'ble_no_room_peer');
+        return;
       }
       _emitFromRssi(best);
     } catch (e) {
@@ -108,6 +142,11 @@ class BleScanProximityService extends ProximityService {
       if (kDebugMode) {
         debugPrint('BleScanProximityService: $e');
       }
+    } finally {
+      _scanInFlight = false;
+      try {
+        await FlutterBluePlus.stopScan();
+      } catch (_) {}
     }
   }
 
@@ -140,7 +179,3 @@ class BleScanProximityService extends ProximityService {
     );
   }
 }
-
-bool get defaultTargetPlatformIsMobile =>
-    defaultTargetPlatform == TargetPlatform.android ||
-    defaultTargetPlatform == TargetPlatform.iOS;

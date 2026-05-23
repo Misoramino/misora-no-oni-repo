@@ -71,6 +71,12 @@ final class MatchInfectionPulseRevealEffect extends MatchTickEffect {
   const MatchInfectionPulseRevealEffect();
 }
 
+final class MatchInfectionExposureWarnEffect extends MatchTickEffect {
+  const MatchInfectionExposureWarnEffect({required this.level});
+
+  final String level;
+}
+
 final class MatchTouchLockStartEffect extends MatchTickEffect {
   const MatchTouchLockStartEffect({
     required this.radiusMeters,

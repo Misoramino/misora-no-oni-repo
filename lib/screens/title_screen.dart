@@ -146,12 +146,9 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
               child: IgnorePointer(
                 child: Opacity(
                   opacity: effectOpacity,
-                  child: ColoredBox(
-                    color: branding.backgroundBottom,
-                    child: LaunchEffectOverlay(
-                      branding: branding,
-                      progress: handoff.effectProgress,
-                    ),
+                  child: LaunchEffectOverlay(
+                    branding: branding,
+                    progress: handoff.effectProgress,
                   ),
                 ),
               ),

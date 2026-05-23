@@ -1,65 +1,111 @@
 import 'package:flutter/material.dart';
 
+import '../../../game/player_role.dart';
+import '../../../game/skill_catalog.dart';
+
 /// 遊び方の説明ボトムシート。
 void showHowToPlaySheet(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    builder: (ctx) => ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('遊び方', style: Theme.of(ctx).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        const ListTile(
-          leading: Icon(Icons.flag_outlined),
-          title: Text('流れ'),
-          subtitle: Text(
-            'タイトル → ルーム/エリア/ルール設定 → 開始 → 役職/スキル確認 → 試合 → 結果 → 軌跡再生',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.visibility_off_outlined),
-          title: Text('基本ルール'),
-          subtitle: Text(
-            '通常はライブ位置を見せません。位置暴露・情報屋・イベント・スキルで情報が出ます。',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.shield_outlined),
-          title: Text('安全地帯'),
-          subtitle: Text(
-            'ステルスチャージを得て、装備中スキルの再使用待ちを回復します。使用後は移動します。',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.storefront_outlined),
-          title: Text('情報屋'),
-          subtitle: Text(
-            '鬼情報を一時的に取得します。手に入れた情報はマップ上に10分ほど痕跡として残ります。',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.videocam_outlined),
-          title: Text('監視カメラ'),
-          subtitle: Text(
-            '小さい罠です。踏むとイベントログに残り、逃走中のルート選びに影響します。',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.front_hand_outlined),
-          title: Text('捕獲'),
-          subtitle: Text(
-            '鬼の接触圏に一定時間入るとロックされ、ロック中にBLE接触すると捕獲です。',
-          ),
-        ),
-        const ListTile(
-          leading: Icon(Icons.cloud_sync_outlined),
-          title: Text('オンラインルーム'),
-          subtitle: Text(
-            'ホストが開始・終了すると他の参加者の画面も連動します（各端末でギミック配置は独立）。',
-          ),
-        ),
-      ],
+    isScrollControlled: true,
+    builder: (ctx) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('遊び方', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              SkillCatalog.coreRule,
+              style: Theme.of(ctx).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            _sectionTitle(ctx, '流れ'),
+            _helpTile(ctx, SkillCatalog.matchFlow, icon: Icons.flag_outlined),
+            const SizedBox(height: 12),
+            _sectionTitle(ctx, '役職とスキル'),
+            _roleBlock(ctx, PlayerRole.runner),
+            _roleBlock(ctx, PlayerRole.hunter),
+            _roleBlock(ctx, PlayerRole.werewolf),
+            const SizedBox(height: 12),
+            _sectionTitle(ctx, 'マップ・ルール'),
+            for (final g in SkillCatalog.gimmicks) _entryTile(ctx, g),
+            const SizedBox(height: 12),
+            _sectionTitle(ctx, 'オンライン'),
+            _helpTile(
+              ctx,
+              'ホストが開始・終了すると役職・エリア・ギミック（イベントエリア含む）も同期します。'
+              '試合中止は投票で決まります。',
+              icon: Icons.cloud_sync_outlined,
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
     ),
   );
 }
+
+Widget _sectionTitle(BuildContext ctx, String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(text, style: Theme.of(ctx).textTheme.titleSmall),
+  );
+}
+
+Widget _roleBlock(BuildContext ctx, PlayerRole role) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Text(
+          role.displayName,
+          style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ),
+      for (final e in SkillCatalog.entriesForRole(role)) _entryTile(ctx, e),
+    ],
+  );
+}
+
+Widget _entryTile(BuildContext ctx, SkillHelpEntry e) {
+  return _helpTile(ctx, e.body, title: e.title, icon: _iconFor(e.iconName));
+}
+
+Widget _helpTile(
+  BuildContext ctx,
+  String body, {
+  String? title,
+  IconData? icon,
+}) {
+  return ListTile(
+    leading: icon != null ? Icon(icon) : null,
+    title: title != null ? Text(title) : null,
+    subtitle: Text(body),
+    isThreeLine: body.length > 72,
+  );
+}
+
+IconData _iconFor(String name) => switch (name) {
+      'scatter_plot' => Icons.scatter_plot_outlined,
+      'psychology_alt' => Icons.psychology_alt_outlined,
+      'near_me' => Icons.near_me_outlined,
+      'trip_origin' => Icons.trip_origin_outlined,
+      'nightlight' => Icons.nightlight_outlined,
+      'shield' => Icons.shield_outlined,
+      'storefront' => Icons.storefront_outlined,
+      'videocam' => Icons.videocam_outlined,
+      'bubble_chart' => Icons.bubble_chart_outlined,
+      'front_hand' => Icons.front_hand_outlined,
+      'schedule' => Icons.schedule_outlined,
+      _ => Icons.help_outline,
+    };

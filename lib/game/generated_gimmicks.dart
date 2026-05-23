@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../services/roads_snap_service.dart';
 import 'game_config.dart';
 import 'play_area.dart';
 
@@ -13,12 +14,51 @@ class GeneratedGimmicks {
     required this.infoBrokers,
     required this.cameras,
     required this.eventAreas,
+    required this.accusationFacilities,
+    required this.cameraJackSites,
   });
 
   final List<LatLng> safeZones;
   final List<LatLng> infoBrokers;
   final List<LatLng> cameras;
   final List<LatLng> eventAreas;
+  final List<LatLng> accusationFacilities;
+  final List<LatLng> cameraJackSites;
+
+  GeneratedGimmicks copyWith({
+    List<LatLng>? eventAreas,
+    List<LatLng>? accusationFacilities,
+    List<LatLng>? cameraJackSites,
+  }) =>
+      GeneratedGimmicks(
+        safeZones: safeZones,
+        infoBrokers: infoBrokers,
+        cameras: cameras,
+        eventAreas: eventAreas ?? this.eventAreas,
+        accusationFacilities:
+            accusationFacilities ?? this.accusationFacilities,
+        cameraJackSites: cameraJackSites ?? this.cameraJackSites,
+      );
+
+  /// 試合開始用。イベントエリアだけ道路に寄せる（API キー未設定時は従来のランダム）。
+  static Future<GeneratedGimmicks> createForMatchStart({
+    required PlayArea area,
+    required int seed,
+    required double density,
+    String googleMapsApiKey = '',
+  }) async {
+    final base = GeneratedGimmicks.create(
+      area,
+      seed: seed,
+      density: density,
+    );
+    if (googleMapsApiKey.isEmpty) return base;
+    final snapped = await RoadsSnapService.snapToNearestRoads(
+      candidates: base.eventAreas,
+      apiKey: googleMapsApiKey,
+    );
+    return base.copyWith(eventAreas: snapped);
+  }
 
   /// [seed] を指定すると全端末で同じ配置になる。
   /// [density] はギミック個数の倍率（0.5〜1.5 程度推奨、既定 1.0）。
@@ -70,6 +110,15 @@ class GeneratedGimmicks {
       GameConfig.commJammingZoneMinCount,
       GameConfig.commJammingZoneMaxCount,
     );
+    final accusationCount = densify(
+      _scaledCount(
+        radius,
+        GameConfig.accusationFacilityMinCount,
+        GameConfig.accusationFacilityMaxCount,
+      ),
+      GameConfig.accusationFacilityMinCount,
+      GameConfig.accusationFacilityMaxCount,
+    );
     final minGap = (radius * 0.18).clamp(60.0, 180.0);
 
     final used = <LatLng>[];
@@ -98,6 +147,31 @@ class GeneratedGimmicks {
       return out;
     }
 
+    final eventAreas = group(
+      count: eventCount,
+      angleSeed: 315 + ((s ~/ 19) % 360),
+      radiusFactor: 0.50,
+    );
+    final accusationFacilities = group(
+      count: accusationCount,
+      angleSeed: 90 + ((s ~/ 23) % 360),
+      radiusFactor: 0.35,
+      minGapOverride: minGap * 1.1,
+    );
+    final cameras = group(
+      count: cameraCount,
+      angleSeed: 245 + ((s ~/ 13) % 360),
+      radiusFactor: 0.68,
+      minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
+    );
+    final cameraJackSites = <LatLng>[];
+    for (var i = 0; i < cameras.length; i += 2) {
+      cameraJackSites.add(cameras[i]);
+    }
+    if (cameraJackSites.isEmpty && cameras.isNotEmpty) {
+      cameraJackSites.add(cameras.first);
+    }
+
     return GeneratedGimmicks(
       safeZones: group(
         count: safeCount,
@@ -109,17 +183,10 @@ class GeneratedGimmicks {
         angleSeed: 150 + ((s ~/ 7) % 360),
         radiusFactor: 0.58,
       ),
-      cameras: group(
-        count: cameraCount,
-        angleSeed: 245 + ((s ~/ 13) % 360),
-        radiusFactor: 0.68,
-        minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
-      ),
-      eventAreas: group(
-        count: eventCount,
-        angleSeed: 315 + ((s ~/ 19) % 360),
-        radiusFactor: 0.50,
-      ),
+      cameras: cameras,
+      eventAreas: eventAreas,
+      accusationFacilities: accusationFacilities,
+      cameraJackSites: cameraJackSites,
     );
   }
 

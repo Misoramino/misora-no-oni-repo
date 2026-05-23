@@ -50,12 +50,13 @@ class GameMapMatchController {
       ),
       proximityBand: proximityBand,
     );
-    final infectionOutcome = MatchSkillTickEvaluator.evaluateInfection(
+    for (final infectionOutcome in MatchSkillTickEvaluator.evaluateInfection(
       runtime: runtime,
       distanceToOni: infectionDistance,
       now: now,
-    );
-    effects.addAll(_effectsForSkillOutcome(infectionOutcome, playerPosition));
+    )) {
+      effects.addAll(_effectsForSkillOutcome(infectionOutcome, playerPosition));
+    }
 
     final cameraIndices = CameraTriggerEvaluator.newlyTriggeredIndices(
       cameraPositions: runtime.cameraPositions,
@@ -106,12 +107,20 @@ class GameMapMatchController {
         ),
       );
       effects.add(
-        const MatchStatusMessageEffect('鬼に捕捉され、移動範囲が制限されました。BLE接触で捕獲。'),
+        const MatchStatusMessageEffect(
+          '鬼に捕捉され、移動範囲が制限されました。至近距離または BLE 接触で捕獲。',
+        ),
       );
     } else if (touchOutcome is SkillTickTouchLockNotice) {
       effects.add(const MatchStatusMessageEffect('鬼の接触圏に入りました。離脱してください。'));
     }
 
+    final gpsToOni = MatchGeoHelpers.distanceToOni(
+      player: playerPosition,
+      oni: oniPosition,
+      oniKnown: oniKnown,
+      testMode: testMode,
+    );
     final captureTriggered = MatchGeoHelpers.isCaptureTriggered(
       running: true,
       testMode: testMode,
@@ -119,6 +128,7 @@ class GameMapMatchController {
       isHunterNow: isHunterNow,
       captureZoneBoundIds: runtime.captureZoneBoundIds,
       proximityBand: proximityBand,
+      gpsDistanceToOniMeters: gpsToOni,
     );
     final terminal = MatchTickEvaluator.evaluateTerminal(
       remainingSeconds: runtime.remainingSeconds,
@@ -269,6 +279,9 @@ class GameMapMatchController {
       SkillTickTouchLockNotice() => const [],
       SkillTickTouchLockStart() => const [],
       SkillTickInfectionPulse() => [const MatchInfectionPulseRevealEffect()],
+      SkillTickInfectionExposureWarn(:final level) => [
+        MatchInfectionExposureWarnEffect(level: level),
+      ],
       SkillTickInfectionStarted() => [
         MatchEmitEventEffect(
           type: 'infection_start',

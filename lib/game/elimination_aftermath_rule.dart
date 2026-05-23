@@ -1,22 +1,36 @@
-/// 脱落後の観戦ルール（ローカル1端末のルーム設定。将来はホストが同期）。
+/// 脱落後のルール（ホストが試合開始時に同期。カスタムでも選択可）。
 enum EliminationAftermathRule {
-  /// 中立の幽霊として、全員のざっくり位置だけを見る。
+  /// 残響体: カメラジャックで逃走陣営を支援（既定）。
+  spectralOperative,
+
+  /// 観戦のみ（ざっくり位置）。
   ghostSpectator,
 
-  /// 鬼側に合流した索敵支援として、同じざっくり位置を鬼視点で見る。
+  /// 鬼側索敵のざっくり位置。
   joinOni,
+
+  /// 脱落時に鬼として動く（実験・バランス要調整）。
+  revenantOni,
 }
 
 extension EliminationAftermathRuleX on EliminationAftermathRule {
   String get label => switch (this) {
-        EliminationAftermathRule.ghostSpectator => '幽霊（中立・全体ざっくり）',
-        EliminationAftermathRule.joinOni => '鬼合流（鬼側索敵のざっくり）',
+        EliminationAftermathRule.spectralOperative => '残響体（カメラジャック）',
+        EliminationAftermathRule.ghostSpectator => '幽霊（観戦のみ）',
+        EliminationAftermathRule.joinOni => '鬼合流（索敵支援）',
+        EliminationAftermathRule.revenantOni => '復讐の鬼影（実験）',
       };
 
   String get infoPanelLine => switch (this) {
+        EliminationAftermathRule.spectralOperative =>
+          '残響体: 監視端子で鬼の位置を露わにできる',
         EliminationAftermathRule.ghostSpectator => '幽霊: 全体のざっくり位置を表示中',
-        EliminationAftermathRule.joinOni => '鬼側合流: 索敵支援（ざっくり位置）を表示中',
+        EliminationAftermathRule.joinOni => '鬼側合流: 索敵支援（ざっくり位置）',
+        EliminationAftermathRule.revenantOni => '復讐の鬼影: 鬼として追跡（実験）',
       };
+
+  bool get supportsCameraJack =>
+      this == EliminationAftermathRule.spectralOperative;
 
   static EliminationAftermathRule? tryParseName(String? raw) {
     if (raw == null || raw.isEmpty) return null;

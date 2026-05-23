@@ -52,4 +52,30 @@ abstract final class OniIntelTextBuilder {
         }
     }
   }
+
+  /// ハッカー: 距離帯の解像度アップ + 鬼の向き（移動/方位ベース）。
+  static String buildHackerAugment({
+    required String baseIntel,
+    required String distanceBand,
+    required double distanceMeters,
+    String? oniFacingDirection,
+  }) {
+    final fine = _finerDistanceBand(distanceMeters, distanceBand);
+    final facing = oniFacingDirection != null && oniFacingDirection.isNotEmpty
+        ? ' / 鬼の向き: $oniFacingDirection'
+        : '';
+    return '$baseIntel（精密: $fine$facing）';
+  }
+
+  static String _finerDistanceBand(double meters, String fallback) {
+    if (meters <= GameConfig.dangerDistanceMeters * 0.55) return '至近（かなり近い）';
+    if (meters <= GameConfig.warningDistanceMeters * 0.7) {
+      return '中距離（やや近い）';
+    }
+    if (meters <= GameConfig.warningDistanceMeters) return '中距離';
+    if (meters <= GameConfig.warningDistanceMeters * 1.4) {
+      return '遠距離（やや近い）';
+    }
+    return fallback;
+  }
 }
