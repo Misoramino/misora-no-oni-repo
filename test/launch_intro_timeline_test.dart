@@ -33,10 +33,11 @@ void main() {
   });
 
   test('tagline slides up after brand', () {
-    expect(LaunchIntroTimeline.taglineOpacity(0.18), 0);
-    expect(LaunchIntroTimeline.taglineLayoutT(0.18), 0);
-    expect(LaunchIntroTimeline.taglineOpacity(0.35), 1);
-    expect(LaunchIntroTimeline.taglineLayoutT(0.35), 1);
+    expect(LaunchIntroTimeline.taglineOpacity(0.26), 0);
+    expect(LaunchIntroTimeline.taglineLayoutT(0.26), 0);
+    expect(LaunchIntroTimeline.brandTextOpacity(0.26), 1);
+    expect(LaunchIntroTimeline.taglineOpacity(0.48), 1);
+    expect(LaunchIntroTimeline.taglineLayoutT(0.48), 1);
   });
 
   test('no dark title veil', () {

@@ -63,8 +63,34 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
         _ambientEffect!.value = phase % 1.0;
       }
       _ambientEffect!.repeat();
-      Future<void>.microtask(_boot);
     }
+    // 起動演出中もバックグラウンドで初期化（handoff 解除後にスピナーが残らない）
+    Future<void>.microtask(_boot);
+  }
+
+  @override
+  void didUpdateWidget(TitleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.handoff != null && widget.handoff == null) {
+      _ensureTitleAmbientControllers();
+    }
+  }
+
+  void _ensureTitleAmbientControllers() {
+    if (_logoPulse != null) return;
+    _logoPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat();
+    _ambientEffect = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    );
+    final phase = widget.initialAmbientPhase;
+    if (phase != null) {
+      _ambientEffect!.value = phase % 1.0;
+    }
+    _ambientEffect!.repeat();
   }
 
   @override
@@ -283,21 +309,25 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           ),
                                   ),
                                 ),
-                                Transform.translate(
-                                  offset: Offset(
-                                    0,
-                                    28 * (1 - taglineLayoutT),
-                                  ),
-                                  child: Opacity(
-                                    opacity: taglineOpacity,
-                                    child: Text(
-                                      '都市型 GPS 鬼ごっこ',
-                                      textAlign: TextAlign.center,
-                                      style:
-                                          theme.textTheme.bodyLarge?.copyWith(
-                                        color: theme
-                                            .colorScheme.onSurfaceVariant,
-                                        fontSize: narrow ? 14 : null,
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 32,
+                                  child: ClipRect(
+                                    child: Align(
+                                      alignment:
+                                          Alignment(0, 1.0 - taglineLayoutT),
+                                      child: Opacity(
+                                        opacity: taglineOpacity,
+                                        child: Text(
+                                          '都市型 GPS 鬼ごっこ',
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.bodyLarge
+                                              ?.copyWith(
+                                            color: theme.colorScheme
+                                                .onSurfaceVariant,
+                                            fontSize: narrow ? 14 : null,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),

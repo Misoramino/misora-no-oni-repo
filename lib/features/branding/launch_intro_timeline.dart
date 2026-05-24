@@ -11,10 +11,10 @@ abstract final class LaunchIntroTimeline {
 
   static const brandTextInEnd = 0.09;
 
-  /// 「都市型 GPS…」はブランド文言の後に下からスライドイン
-  static const taglineStart = 0.20;
+  /// 「都市型 GPS…」はブランド文言の後に専用スロット内で下から浮かび上がる
+  static const taglineStart = 0.28;
 
-  static const taglineInEnd = 0.32;
+  static const taglineInEnd = 0.44;
 
   /// 操作ボタン（オンライン/オフライン）を早めに表示
   static const bodyFadeStart = 0.08;
