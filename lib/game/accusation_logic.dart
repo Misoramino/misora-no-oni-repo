@@ -1,6 +1,7 @@
 import 'player_role.dart';
 import '../sync/shared_match_snapshot.dart';
 import 'game_config.dart';
+import 'match_duration_scaling.dart';
 
 bool accusationEnabledForPlayerCount(int count) =>
     count >= GameConfig.accusationMinPlayers;
@@ -16,7 +17,10 @@ bool shouldUnlockAccusation({
       (matchDurationSeconds * GameConfig.accusationUnlockTimeRatio).floor();
   if (elapsedSeconds >= threshold) return true;
   if (eliminationCount >= 1 &&
-      elapsedSeconds >= GameConfig.accusationUnlockMinElapsedSeconds) {
+      elapsedSeconds >=
+          MatchDurationScaling.accusationUnlockMinElapsedSeconds(
+            matchDurationSeconds,
+          )) {
     return true;
   }
   return false;
@@ -43,14 +47,17 @@ int? secondsUntilAccusationUnlock({
               GameConfig.accusationUnlockTimeRatio)
           .floor() -
       elapsedSeconds;
+  final minElimElapsed = MatchDurationScaling.accusationUnlockMinElapsedSeconds(
+    matchDurationSeconds,
+  );
   final byElim = eliminationCount >= 1
-      ? GameConfig.accusationUnlockMinElapsedSeconds - elapsedSeconds
-      : GameConfig.accusationUnlockMinElapsedSeconds;
+      ? minElimElapsed - elapsedSeconds
+      : minElimElapsed;
   final candidates = <int>[];
   if (byRatio > 0) candidates.add(byRatio);
   if (eliminationCount < 1) {
     candidates.add(byElim);
-  } else if (elapsedSeconds < GameConfig.accusationUnlockMinElapsedSeconds) {
+  } else if (elapsedSeconds < minElimElapsed) {
     candidates.add(byElim);
   }
   if (candidates.isEmpty) return remainingSeconds;

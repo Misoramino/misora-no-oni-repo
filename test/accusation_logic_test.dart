@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oni_game/game/accusation_logic.dart';
-import 'package:oni_game/game/game_config.dart';
+import 'package:oni_game/game/match_duration_scaling.dart';
 import 'package:oni_game/game/player_role.dart';
 import 'package:oni_game/sync/shared_match_snapshot.dart';
 
@@ -38,13 +38,16 @@ void main() {
     );
   });
 
-  test('unlock requires elimination plus five minutes', () {
+  test('unlock requires elimination plus scaled min elapsed', () {
+    const duration = MatchDurationScaling.recommendedMatchSeconds;
+    final minElapsed =
+        MatchDurationScaling.accusationUnlockMinElapsedSeconds(duration);
     expect(
       shouldUnlockAccusation(
         playerCount: 3,
         eliminationCount: 1,
-        elapsedSeconds: 0,
-        matchDurationSeconds: GameConfig.matchDurationSeconds,
+        elapsedSeconds: minElapsed - 1,
+        matchDurationSeconds: duration,
       ),
       false,
     );
@@ -52,17 +55,8 @@ void main() {
       shouldUnlockAccusation(
         playerCount: 3,
         eliminationCount: 1,
-        elapsedSeconds: GameConfig.accusationUnlockMinElapsedSeconds - 1,
-        matchDurationSeconds: GameConfig.matchDurationSeconds,
-      ),
-      false,
-    );
-    expect(
-      shouldUnlockAccusation(
-        playerCount: 3,
-        eliminationCount: 1,
-        elapsedSeconds: GameConfig.accusationUnlockMinElapsedSeconds,
-        matchDurationSeconds: GameConfig.matchDurationSeconds,
+        elapsedSeconds: minElapsed,
+        matchDurationSeconds: duration,
       ),
       true,
     );

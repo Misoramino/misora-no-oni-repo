@@ -29,7 +29,8 @@ class GameInfoPanel extends StatelessWidget {
     required this.safeZoneCharges,
     required this.conditionText,
     required this.showConditionLine,
-    required this.werewolfBuffSeconds,
+    this.werewolfOniActive = false,
+    this.werewolfHudSummary,
     required this.werewolfCooldownSeconds,
     required this.fakeCooldownSeconds,
     required this.fakeIntelRevealCooldownSeconds,
@@ -58,7 +59,8 @@ class GameInfoPanel extends StatelessWidget {
   final int safeZoneCharges;
   final String conditionText;
   final bool showConditionLine;
-  final int? werewolfBuffSeconds;
+  final bool werewolfOniActive;
+  final String? werewolfHudSummary;
   final int werewolfCooldownSeconds;
   final int fakeCooldownSeconds;
   final int fakeIntelRevealCooldownSeconds;
@@ -140,7 +142,7 @@ class GameInfoPanel extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: '表示の切替（鬼情報・地図レイヤー等）',
+                  tooltip: '表示の切替（手がかり・地図レイヤー等）',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints:
@@ -149,7 +151,7 @@ class GameInfoPanel extends StatelessWidget {
                   icon: Icon(Icons.tune, size: 20, color: scheme.primary),
                 ),
                 IconButton(
-                  tooltip: '鬼情報・暴露ログ',
+                  tooltip: '位置情報・鬼の手がかりログ',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints:
@@ -157,8 +159,10 @@ class GameInfoPanel extends StatelessWidget {
                   onPressed: onOpenIntelLog,
                   icon: Icon(Icons.radar, size: 20, color: scheme.primary),
                 ),
-                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
-                  CooldownChip(label: '鬼化', seconds: werewolfBuffSeconds!),
+                if (werewolfHudSummary != null)
+                  CooldownChip(label: werewolfHudSummary!, seconds: 0),
+                if (werewolfOniActive && werewolfHudSummary == null)
+                  const CooldownChip(label: '鬼化中', seconds: 0),
                 if (fakeCooldownSeconds > 0)
                   CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
                 if (fakeIntelRevealCooldownSeconds > 0)
@@ -238,7 +242,8 @@ class GameInfoPanel extends StatelessWidget {
               ),
             ],
           ),
-          if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0 ||
+          if (werewolfHudSummary != null ||
+              werewolfOniActive ||
               werewolfCooldownSeconds > 0 ||
               fakeCooldownSeconds > 0 ||
               fakeIntelRevealCooldownSeconds > 0) ...[
@@ -247,11 +252,13 @@ class GameInfoPanel extends StatelessWidget {
               spacing: 6,
               runSpacing: 4,
               children: [
-                if (werewolfBuffSeconds != null && werewolfBuffSeconds! > 0)
-                  CooldownChip(label: '鬼化残', seconds: werewolfBuffSeconds!),
+                if (werewolfHudSummary != null)
+                  CooldownChip(label: werewolfHudSummary!, seconds: 0),
+                if (werewolfOniActive && werewolfHudSummary == null)
+                  const CooldownChip(label: '鬼化中', seconds: 0),
                 if (werewolfCooldownSeconds > 0)
                   CooldownChip(
-                    label: '鬼化CD',
+                    label: '切替CD',
                     seconds: werewolfCooldownSeconds,
                   ),
                 if (fakeCooldownSeconds > 0)

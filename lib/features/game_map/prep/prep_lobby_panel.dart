@@ -127,10 +127,10 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                               ),
                             ),
                             child: Slider(
-                              min: 1,
-                              max: 20,
-                              divisions: 19,
-                              value: widget.matchDurationMinutes.clamp(1, 20),
+                              min: 10,
+                              max: 90,
+                              divisions: 16,
+                              value: widget.matchDurationMinutes.clamp(10, 90),
                               onChanged: widget.onDurationChanged,
                             ),
                           )
@@ -305,6 +305,13 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     style: TextButton.styleFrom(foregroundColor: leg.link),
                     onPressed: widget.onOpenCustomSettings,
                     child: const Text('カスタムルール'),
+                  ),
+                  Text(
+                    'ギミック密度・脱落後ルールなどはカスタムルール内（マップ編集では変更しません）',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: leg.muted,
+                      height: 1.35,
+                    ),
                   ),
                   Text(
                     'ルーム確認は上部 Lobby。',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
+import '../game/werewolf_faction_logic.dart';
 import '../widgets/responsive_page.dart';
 
 /// 試合終了後の専用リザルト画面（ギャラリー・ロビー・次の準備への導線）。
@@ -15,6 +16,9 @@ class MatchResultScreen extends StatelessWidget {
     required this.onOpenGallery,
     required this.onOpenLobby,
     this.afterCatchRule,
+    this.factionAtDeath,
+    this.playerFactionAtEnd,
+    this.winningFaction,
     super.key,
   });
 
@@ -23,6 +27,9 @@ class MatchResultScreen extends StatelessWidget {
   final String roleSummary;
   final String matchDurationLabel;
   final EliminationAftermathRule? afterCatchRule;
+  final FactionSide? factionAtDeath;
+  final FactionSide? playerFactionAtEnd;
+  final FactionSide? winningFaction;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
   final VoidCallback onOpenLobby;
@@ -44,6 +51,13 @@ class MatchResultScreen extends StatelessWidget {
       _ => (Icons.flag_outlined, '試合終了', theme.colorScheme.primary),
     };
 
+    final factionWinLabel = winningFaction?.label;
+    final effectivePersonalFaction = factionAtDeath ?? playerFactionAtEnd;
+    final personalFactionLabel = effectivePersonalFaction?.label;
+    final personalWon = winningFaction != null &&
+        effectivePersonalFaction != null &&
+        winningFaction == effectivePersonalFaction;
+
     return Scaffold(
       appBar: AppBar(title: const Text('リザルト')),
       body: ResponsivePage(
@@ -62,6 +76,29 @@ class MatchResultScreen extends StatelessWidget {
                   color: accent,
                 ),
               ),
+              if (factionWinLabel != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '$factionWinLabel の勝利',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (personalFactionLabel != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  personalWon
+                      ? 'あなたの陣営（$personalFactionLabel）は勝利'
+                      : 'あなたの陣営（$personalFactionLabel）は敗北',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: personalWon ? Colors.green.shade700 : Colors.grey.shade700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(detail, textAlign: TextAlign.center),
               const SizedBox(height: 16),
@@ -74,6 +111,19 @@ class MatchResultScreen extends StatelessWidget {
                       Text('あなたの役職・スキル', style: theme.textTheme.titleSmall),
                       const SizedBox(height: 6),
                       Text(roleSummary),
+                      if (factionAtDeath != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '脱落時の陣営: ${factionAtDeath!.label}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ] else if (playerFactionAtEnd != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'あなたの陣営: ${playerFactionAtEnd!.label}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Text(
                         '制限時間: $matchDurationLabel',
@@ -99,16 +149,14 @@ class MatchResultScreen extends StatelessWidget {
                               color: theme.colorScheme.primary,
                             ),
                             const SizedBox(width: 8),
-                            Text('幽霊・観戦', style: theme.textTheme.titleSmall),
+                            Text('第二ゲーム', style: theme.textTheme.titleSmall),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text(afterCatchRule!.label),
                         const SizedBox(height: 6),
                         Text(
-                          afterCatchRule == EliminationAftermathRule.ghostSpectator
-                              ? '地図に戻ると、中立の幽霊として全体のざっくり位置マーカーが表示されます。'
-                              : '地図に戻ると、鬼側合流として索敵支援用のざっくり位置が表示されます。',
+                          _afterCatchBlurb(afterCatchRule!),
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
@@ -143,4 +191,16 @@ class MatchResultScreen extends StatelessWidget {
       ),
     );
   }
+
+  static String _afterCatchBlurb(EliminationAftermathRule rule) =>
+      switch (rule) {
+        EliminationAftermathRule.spectralOperative =>
+          '地図に戻ると、残響体として監視ジャックや告発施設の陣取りができます。',
+        EliminationAftermathRule.revenantOni =>
+          '地図に戻ると、復讐の鬼影として告発妨害やカメラ停止ができます。',
+        EliminationAftermathRule.ghostSpectator =>
+          '地図に戻ると、中立の幽霊として全体のざっくり位置マーカーが表示されます。',
+        EliminationAftermathRule.joinOni =>
+          '地図に戻ると、鬼側合流として索敵支援用のざっくり位置が表示されます。',
+      };
 }

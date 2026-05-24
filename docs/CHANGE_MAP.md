@@ -72,6 +72,34 @@
 `flutter test test/map_geo_utils_test.dart`  
 `flutter test test/trajectory_simplify_test.dart`
 
+### F2. 告発・第二ゲーム・ロビーエリア
+
+| 主ファイル | 関連 |
+|------------|------|
+| `lib/game/accusation_logic.dart` / `accusation_sites.dart` | 解禁・有効施設数 |
+| `lib/game/accusation_block_logic.dart` | 本鬼による施設単位ブロック |
+| `lib/game/facility_sabotage_logic.dart` / `spectral_territory_logic.dart` / `camera_shutdown_logic.dart` | 脱落後チャージ |
+| `lib/game/elimination_aftermath_rule.dart` | 残響体 vs 鬼影分岐 |
+| `lib/screens/game_map_screen.dart` | イベント配線・`lobby_play_area` |
+
+**テスト:** `flutter test test/accusation_logic_test.dart`  
+`flutter test test/accusation_sites_test.dart`  
+`flutter test test/accusation_block_logic_test.dart`
+
+### F3. 人狼・鬼軌跡・結界同期
+
+| 主ファイル | 関連 |
+|------------|------|
+| `lib/game/werewolf_forced_schedule.dart` | 強制間隔・任意CD |
+| `lib/game/oni_path_trail.dart` | 遅延軌跡 |
+| `lib/sync/room_match_event.dart` | `CaptureZoneEventPayload.fromSkill` |
+| `lib/features/game_map/match/match_runtime_state.dart` | `lockZone*` |
+
+**テスト:** `flutter test test/werewolf_forced_schedule_test.dart`  
+`flutter test test/oni_path_trail_test.dart`  
+`flutter test test/match_balance_test.dart`  
+`flutter test test/room_match_event_test.dart`
+
 ### F. オンライン（Firestore・ルーム）
 
 | 主ファイル | 関連 |
@@ -146,7 +174,11 @@
 | `play_area_test.dart` | エリア JSON |
 | `polygon_area_resolver_test.dart` | 多角形 |
 | `proximity_merge_test.dart` | 近接バンドマージ |
-| `room_match_event_test.dart` | ルームイベント |
+| `room_match_event_test.dart` | ルームイベント・`fromSkill` |
+| `accusation_block_logic_test.dart` | 本鬼の告発ブロック |
+| `oni_path_trail_test.dart` | 鬼遅延軌跡の表示帯 |
+| `werewolf_forced_schedule_test.dart` | 強制鬼化間隔・任意CD |
+| `facility_sabotage_logic_test.dart` | 鬼影・告発妨害チャージ |
 | `room_phase_test.dart` | フェーズ文字列 |
 | `shared_match_snapshot_test.dart` | 共有試合開始 |
 | `trajectory_simplify_test.dart` | 軌跡間引き |

@@ -93,6 +93,9 @@ service cloud.firestore {
         || t == 'accusation_attempt'
         || t == 'accusation_failed'
         || t == 'camera_jack'
+        || t == 'facility_sabotage'
+        || t == 'spectral_territory'
+        || t == 'camera_shutdown'
         || t == 'match_event'
         || t == 'capture_zone_placed'
         || t == 'capture_zone_ack'
@@ -104,7 +107,8 @@ service cloud.firestore {
       return t == 'capture_zone_bound'
         || t == 'match_start'
         || t == 'match_end'
-        || t == 'accusation_unlocked';
+        || t == 'accusation_unlocked'
+        || t == 'lobby_play_area';
     }
 
     function allowedRoomEventType(roomId, t) {

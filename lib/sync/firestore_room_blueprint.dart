@@ -82,6 +82,9 @@ abstract final class MemberPresenceFields {
 
   /// クライアントがセッション開始時のみ送る細かいログを貯めず、イベントとして送りたい場合
   static const lastEventHint = 'lastEventHint';
+
+  /// 人狼の鬼化状態（通知なし・陣営計算用のみ）。
+  static const werewolfOniForm = 'werewolfOniForm';
 }
 
 abstract final class RoomEventsFields {

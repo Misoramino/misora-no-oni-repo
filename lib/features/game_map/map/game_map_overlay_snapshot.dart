@@ -39,6 +39,7 @@ class GameMapOverlaySnapshot {
     required this.safeZoneRespawnAt,
     required this.infoBrokerRespawnAt,
     required this.triggeredCameras,
+    this.disabledCameraIndices = const {},
     required this.fakePositionActive,
     required this.fakePositionLatLng,
     required this.bodyThrowPosition,
@@ -52,7 +53,8 @@ class GameMapOverlaySnapshot {
     required this.circleDraftCenter,
     required this.circleDraftRadiusMeters,
     required this.playArea,
-    required this.captureZoneCenter,
+    required this.lockZoneCenter,
+    this.lockZoneDisplayRadiusMeters = 0,
     required this.tokens,
     this.layerToggles = GameMapLayerToggles.allOn,
     this.visualPack,
@@ -62,6 +64,8 @@ class GameMapOverlaySnapshot {
     this.usePhotoPlayerPin = false,
     this.cameraPulsePhase = 0,
     this.analystTraceDetail = false,
+    this.oniTrailPoints = const [],
+    this.oniMatchStartAnchor,
   });
 
   final DateTime now;
@@ -89,6 +93,7 @@ class GameMapOverlaySnapshot {
   final DateTime? safeZoneRespawnAt;
   final DateTime? infoBrokerRespawnAt;
   final Set<int> triggeredCameras;
+  final Set<int> disabledCameraIndices;
   final bool fakePositionActive;
   final LatLng? fakePositionLatLng;
   final LatLng? bodyThrowPosition;
@@ -102,7 +107,10 @@ class GameMapOverlaySnapshot {
   final LatLng circleDraftCenter;
   final double circleDraftRadiusMeters;
   final PlayArea playArea;
-  final LatLng? captureZoneCenter;
+  final LatLng? lockZoneCenter;
+  final double lockZoneDisplayRadiusMeters;
+  final List<LatLng> oniTrailPoints;
+  final LatLng? oniMatchStartAnchor;
   final WorldProfileTokens tokens;
   final GameMapLayerToggles layerToggles;
   final WorldVisualPack? visualPack;

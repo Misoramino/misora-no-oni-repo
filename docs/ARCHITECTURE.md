@@ -49,11 +49,21 @@
 | 段階 | 誰が決める | 内容 |
 |------|-----------|------|
 | 設置 | **結界を置いた端末**（スキル使用者） | 地図タップ位置を中心に、半径内の `'self'` と `_remoteMembers` の UID を `_captureZoneTargetsAt` で算出 |
-| 共有 | 同上 → Firestore | `capture_zone_placed` の `targetUids`（`'self'` は発行者の Auth UID に変換） |
+| 共有 | 同上 → Firestore | `capture_zone_placed`: `targetUids`, **`fromSkill: true`**（`CaptureZoneEventPayload`） |
 | 確定 | **ホスト**（2 秒バッファ後） | 設置イベントの `targetUids` をそのまま `capture_zone_bound` に載せる（再計算しない） |
-| 適用 | 各端末 | `bound` を受け取り、自分の UID が含まれていれば `captureZoneBoundIds` に `'self'` を入れる |
+| 適用 | 各端末 | `bound` で `lockZoneBoundIds` に `'self'`。`placed` で `lockZoneCenter` と **`lockZoneFromSkill`**（地図円半径・脱出判定に使用） |
+
+接触拘束（タッチロック）は Firestore を経由せず、ローカルで `lockZoneFromSkill = false`。
 
 後から入った参加者は設置時点の `targetUids` に含まれない（設置時スナップショットが権威）。
+
+### ロビー・第二ゲームイベント
+
+| イベント | sessionKey | 用途 |
+|----------|------------|------|
+| `lobby_play_area` | `0`（`lobbySessionKey`） | ホストが保存エリアを「適用」した形を試合前に全員へ |
+| `spectral_territory` / `facility_sabotage` | `gimmickSeed` | 告発 `territoryBonus` ±1 と有効施設数の再計算 |
+| `camera_shutdown` | 同上 | `disabledCameraIndices`（地図でグレー表示） |
 
 ### 地図レイヤー表示
 

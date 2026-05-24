@@ -49,7 +49,7 @@ void main() {
         center: LatLng(35.68, 139.76),
         radiusMeters: 500,
       ),
-      captureZoneCenter: null,
+      lockZoneCenter: null,
       tokens: tokens,
     );
 

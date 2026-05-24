@@ -207,10 +207,10 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         style: TextStyle(fontSize: 12),
                       ),
                       Slider(
-                        min: 1,
-                        max: 20,
-                        divisions: 19,
-                        value: selectedDurationMinutes.clamp(1, 20),
+                        min: 10,
+                        max: 90,
+                        divisions: 16,
+                        value: selectedDurationMinutes.clamp(10, 90),
                         onChanged: isHost
                             ? (v) => setModalState(
                                 () => selectedDurationMinutes = v,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
+import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
+import 'role_briefing_dialog.dart';
 
 /// 遊び方の説明ボトムシート。
 void showHowToPlaySheet(BuildContext context) {
@@ -26,13 +28,20 @@ void showHowToPlaySheet(BuildContext context) {
               style: Theme.of(ctx).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
+            _sectionTitle(ctx, '勝利と陣営'),
+            _helpTile(
+              ctx,
+              RoleBriefingCatalog.winConditions.trim(),
+              icon: Icons.emoji_events_outlined,
+            ),
+            const SizedBox(height: 12),
             _sectionTitle(ctx, '流れ'),
             _helpTile(ctx, SkillCatalog.matchFlow, icon: Icons.flag_outlined),
             const SizedBox(height: 12),
-            _sectionTitle(ctx, '役職とスキル'),
-            _roleBlock(ctx, PlayerRole.runner),
-            _roleBlock(ctx, PlayerRole.hunter),
-            _roleBlock(ctx, PlayerRole.werewolf),
+            _sectionTitle(ctx, '役職 — 目指すこと・やること'),
+            roleBriefingBlock(ctx, PlayerRole.runner),
+            roleBriefingBlock(ctx, PlayerRole.hunter),
+            roleBriefingBlock(ctx, PlayerRole.werewolf),
             const SizedBox(height: 12),
             _sectionTitle(ctx, 'マップ・ルール'),
             for (final g in SkillCatalog.gimmicks) _entryTile(ctx, g),
@@ -57,28 +66,6 @@ Widget _sectionTitle(BuildContext ctx, String text) {
     padding: const EdgeInsets.only(bottom: 6),
     child: Text(text, style: Theme.of(ctx).textTheme.titleSmall),
   );
-}
-
-Widget _roleBlock(BuildContext ctx, PlayerRole role) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 4),
-        child: Text(
-          role.displayName,
-          style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-      ),
-      for (final e in SkillCatalog.entriesForRole(role)) _entryTile(ctx, e),
-    ],
-  );
-}
-
-Widget _entryTile(BuildContext ctx, SkillHelpEntry e) {
-  return _helpTile(ctx, e.body, title: e.title, icon: _iconFor(e.iconName));
 }
 
 Widget _helpTile(

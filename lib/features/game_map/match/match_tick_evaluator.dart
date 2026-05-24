@@ -8,6 +8,8 @@ enum MatchTickAction {
   endCaughtByOni,
   consumeSafeChargeAvoidReveal,
   triggerLocationReveal,
+  triggerOutsidePeriodicReveal,
+  outsideElimination,
   resetOutsideTracking,
 }
 
@@ -18,12 +20,14 @@ class OutsideAreaTickInput {
     required this.outsideSeconds,
     required this.revealedInCurrentOutside,
     required this.safeZoneCharges,
+    required this.secondsSinceLastOutsideReveal,
   });
 
   final double overflowMeters;
   final int outsideSeconds;
   final bool revealedInCurrentOutside;
   final int safeZoneCharges;
+  final int secondsSinceLastOutsideReveal;
 }
 
 /// 試合中ティックの純粋判定（副作用なし）。
@@ -42,19 +46,30 @@ abstract final class MatchTickEvaluator {
   static MatchTickAction? evaluateOutsideArea(OutsideAreaTickInput input) {
     final isOut = input.overflowMeters > GameConfig.outsideAreaGraceMeters;
     if (!isOut) return MatchTickAction.resetOutsideTracking;
-    if (input.revealedInCurrentOutside) return null;
+    if (input.outsideSeconds >= GameConfig.outsideAreaEliminationSeconds) {
+      return MatchTickAction.outsideElimination;
+    }
     if (input.outsideSeconds < GameConfig.outsideAreaGraceSeconds) {
       return null;
     }
-    if (input.safeZoneCharges > 0) {
-      return MatchTickAction.consumeSafeChargeAvoidReveal;
+    if (!input.revealedInCurrentOutside) {
+      if (input.safeZoneCharges > 0) {
+        return MatchTickAction.consumeSafeChargeAvoidReveal;
+      }
+      return MatchTickAction.triggerLocationReveal;
     }
-    return MatchTickAction.triggerLocationReveal;
+    if (input.secondsSinceLastOutsideReveal >=
+        GameConfig.outsideAreaRepeatRevealSeconds) {
+      return MatchTickAction.triggerOutsidePeriodicReveal;
+    }
+    return null;
   }
 
   static String endMessageFor(MatchTickAction action) => switch (action) {
         MatchTickAction.endRunnerWin => '逃走成功。時間切れです。',
         MatchTickAction.endCaughtByOni => 'BLE接近で接触判定。鬼に捕まりました。',
+        MatchTickAction.outsideElimination =>
+          'プレイエリア外に長時間 — ルール上脱落しました。',
         _ => '',
       };
 

@@ -43,6 +43,9 @@ String _describeFirebaseException(FirebaseException e) {
   return buf.toString();
 }
 
+/// 試合前の共有イベント（プレイエリア適用など）用 sessionKey。
+const int lobbySessionKey = 0;
+
 String? _validateRoomDocId(String id) {
   if (id.isEmpty) return 'ルームIDを入力してください';
   if (id.contains('/') || id.contains('\\')) {
@@ -74,6 +77,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   Timer? _heartbeatTimer;
   List<RoomMemberView> _latestLobby = const [];
   Map<String, RemoteMemberSnapshot> _latestRemoteMembers = const {};
+  Map<String, bool> _werewolfOniFormByUid = const {};
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
@@ -125,6 +129,8 @@ class FirestoreRoomSession implements RoomSessionPort {
 
   Map<String, RemoteMemberSnapshot> get currentRemoteMembers =>
       Map<String, RemoteMemberSnapshot>.unmodifiable(_latestRemoteMembers);
+  Map<String, bool> get werewolfOniFormByUid =>
+      Map<String, bool>.unmodifiable(_werewolfOniFormByUid);
   List<RoomMemberView> get currentLobbyMembers =>
       List.unmodifiable(_latestLobby);
 
@@ -349,19 +355,25 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (snap == null) return;
     final host = _hostUid;
     final out = <String, RemoteMemberSnapshot>{};
+    final werewolfForms = <String, bool>{};
     final lobby = <RoomMemberView>[];
     for (final d in snap.docs) {
       final isSelf = d.id == _uid;
+      final data = d.data();
       final view = RoomMemberView.parse(
         uid: d.id,
-        data: d.data(),
+        data: data,
         isSelf: isSelf,
         isHost: host != null && d.id == host,
       );
       // ロビーでは全員表示（stale は UI でグレー表示）。iOS 等でハートビート遅延があると
       // 他端末が一覧から消える問題を避ける。
       lobby.add(view);
-      final remote = RemoteMemberSnapshot.tryParse(d.id, d.data());
+      final rawWolf = data[MemberPresenceFields.werewolfOniForm];
+      if (rawWolf is bool) {
+        werewolfForms[d.id] = rawWolf;
+      }
+      final remote = RemoteMemberSnapshot.tryParse(d.id, data);
       if (!isSelf && remote != null) out[d.id] = remote;
     }
     lobby.sort((a, b) {
@@ -375,6 +387,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     });
     _latestLobby = List.unmodifiable(lobby);
     _latestRemoteMembers = Map<String, RemoteMemberSnapshot>.unmodifiable(out);
+    _werewolfOniFormByUid = Map<String, bool>.unmodifiable(werewolfForms);
     if (!_remoteCtrl.isClosed) _remoteCtrl.add(out);
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add(_latestLobby);
   }
@@ -621,6 +634,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   Future<void> publishPresence({
     required bool tension,
     String? proximityBandName,
+    bool? werewolfOniForm,
   }) async {
     if (_roomId == null || _uid == null) return;
     final throttle = tension ? _tense : _calm;
@@ -640,6 +654,9 @@ class FirestoreRoomSession implements RoomSessionPort {
     };
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
+    }
+    if (werewolfOniForm != null) {
+      payload[MemberPresenceFields.werewolfOniForm] = werewolfOniForm;
     }
     await ref.set(payload, SetOptions(merge: true));
   }
@@ -667,6 +684,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     _lastMemberSnap = null;
     _latestLobby = const [];
     _latestRemoteMembers = const {};
+    _werewolfOniFormByUid = const {};
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add([]);
     if (!_remoteCtrl.isClosed) _remoteCtrl.add({});
     if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);

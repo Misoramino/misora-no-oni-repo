@@ -35,6 +35,7 @@ void main() {
         outsideSeconds: GameConfig.outsideAreaGraceSeconds,
         revealedInCurrentOutside: false,
         safeZoneCharges: 1,
+        secondsSinceLastOutsideReveal: 0,
       ),
     );
     expect(action, MatchTickAction.consumeSafeChargeAvoidReveal);
@@ -48,9 +49,41 @@ void main() {
           outsideSeconds: 99,
           revealedInCurrentOutside: true,
           safeZoneCharges: 0,
+          secondsSinceLastOutsideReveal: 0,
         ),
       ),
       MatchTickAction.resetOutsideTracking,
+    );
+  });
+
+  test('outside: periodic reveal after first exposure', () {
+    expect(
+      MatchTickEvaluator.evaluateOutsideArea(
+        OutsideAreaTickInput(
+          overflowMeters: GameConfig.outsideAreaGraceMeters + 5,
+          outsideSeconds: GameConfig.outsideAreaGraceSeconds + 30,
+          revealedInCurrentOutside: true,
+          safeZoneCharges: 0,
+          secondsSinceLastOutsideReveal:
+              GameConfig.outsideAreaRepeatRevealSeconds,
+        ),
+      ),
+      MatchTickAction.triggerOutsidePeriodicReveal,
+    );
+  });
+
+  test('outside: long stay eliminates', () {
+    expect(
+      MatchTickEvaluator.evaluateOutsideArea(
+        OutsideAreaTickInput(
+          overflowMeters: GameConfig.outsideAreaGraceMeters + 5,
+          outsideSeconds: GameConfig.outsideAreaEliminationSeconds,
+          revealedInCurrentOutside: true,
+          safeZoneCharges: 0,
+          secondsSinceLastOutsideReveal: 0,
+        ),
+      ),
+      MatchTickAction.outsideElimination,
     );
   });
 }

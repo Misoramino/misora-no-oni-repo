@@ -49,7 +49,7 @@ class EliminationRoleCopy {
     final (title, subtitle) = switch (rule) {
       EliminationAftermathRule.spectralOperative => (
           '残響体',
-          '遺志が監視網を走る。チャージで鬼の位置を露わにする',
+          '監視端子で鬼位置暴露 / 告発施設で陣取り（有効数+1）',
         ),
       EliminationAftermathRule.ghostSpectator => (
           '幽霊',
@@ -61,7 +61,7 @@ class EliminationRoleCopy {
         ),
       EliminationAftermathRule.revenantOni => (
           '復讐の鬼影',
-          '脱落と同時に鬼の力を得る（実験ルール）',
+          '告発妨害（3回）/ 監視カメラを停止してジャックを封じる',
         ),
     };
 

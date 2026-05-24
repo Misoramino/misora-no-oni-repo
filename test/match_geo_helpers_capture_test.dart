@@ -12,9 +12,11 @@ void main() {
         testMode: false,
         oniKnown: true,
         isHunterNow: false,
-        captureZoneBoundIds: {'self'},
+        lockZoneBoundIds: {'self'},
         proximityBand: ProximityBand.contact,
         gpsDistanceToOniMeters: 80,
+        proximityCapturePermitted: true,
+        lockZoneCapturePermitted: true,
       ),
       isTrue,
     );
@@ -27,9 +29,11 @@ void main() {
         testMode: false,
         oniKnown: true,
         isHunterNow: false,
-        captureZoneBoundIds: {'self'},
+        lockZoneBoundIds: {'self'},
         proximityBand: ProximityBand.none,
         gpsDistanceToOniMeters: GameConfig.captureDistanceMeters,
+        proximityCapturePermitted: true,
+        lockZoneCapturePermitted: true,
       ),
       isTrue,
     );
@@ -42,9 +46,45 @@ void main() {
         testMode: false,
         oniKnown: true,
         isHunterNow: false,
-        captureZoneBoundIds: {},
+        lockZoneBoundIds: {},
         proximityBand: ProximityBand.contact,
         gpsDistanceToOniMeters: 10,
+        proximityCapturePermitted: true,
+        lockZoneCapturePermitted: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('BLE-only capture blocked when proximity capture not permitted', () {
+    expect(
+      MatchGeoHelpers.isCaptureTriggered(
+        running: true,
+        testMode: false,
+        oniKnown: true,
+        isHunterNow: false,
+        lockZoneBoundIds: {'self'},
+        proximityBand: ProximityBand.contact,
+        gpsDistanceToOniMeters: 80,
+        proximityCapturePermitted: false,
+        lockZoneCapturePermitted: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('capture blocked when lock zone is non-lethal', () {
+    expect(
+      MatchGeoHelpers.isCaptureTriggered(
+        running: true,
+        testMode: false,
+        oniKnown: true,
+        isHunterNow: false,
+        lockZoneBoundIds: {'self'},
+        proximityBand: ProximityBand.contact,
+        gpsDistanceToOniMeters: 5,
+        proximityCapturePermitted: true,
+        lockZoneCapturePermitted: false,
       ),
       isFalse,
     );

@@ -2,37 +2,20 @@ import 'dart:math' as math;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'game_config.dart';
-
 /// 告発施設の**有効数**（マップ上で告発できる施設の数）。
 ///
-/// 配置された [siteCount] のうち、次の条件で 1 ずつ増える（最大 [siteCount]）。
-/// 残響体の人数は**まだ**加算していません（今後の奪い合い設計用）。
+/// - **解禁前**: 0（施設は地図にあっても告発不可）
+/// - **解禁時**: 基本 1 箇所
+/// - **脱落数・経過時間では増えない**（陣取りボーナス [territoryBonus] のみ）
 ///
-/// | 条件 | 有効 +1 |
-/// |------|---------|
-/// | 常時 | 1（最低） |
-/// | 脱落 1 人以上 | +1 |
-/// | 経過 ≥ 試合時間の 60% | +1 |
-/// | 脱落 2 人以上 | +1 |
-///
-/// 例: 施設 5 箇所・10 分試合 → 開始直後は 1、脱落1+5分後は最大 3、
-/// 6 分経過（60%）で +1、脱落2 で +1 → 最大 4〜5。
+/// 逃走側残響体（`spectral_territory`）と鬼側影（`facility_sabotage`）で [territoryBonus] を増減。
 int activeAccusationSiteCount({
+  required bool accusationUnlocked,
   required int siteCount,
-  required int eliminationCount,
-  required int elapsedSeconds,
-  required int matchDurationSeconds,
+  int territoryBonus = 0,
 }) {
-  if (siteCount <= 0) return 0;
-  var active = 1;
-  if (eliminationCount >= 1) active++;
-  if (elapsedSeconds >=
-      (matchDurationSeconds * GameConfig.accusationUnlockTimeRatio).floor()) {
-    active++;
-  }
-  if (eliminationCount >= 2) active++;
-  return active.clamp(1, siteCount);
+  if (!accusationUnlocked || siteCount <= 0) return 0;
+  return (1 + territoryBonus).clamp(0, siteCount);
 }
 
 /// [gimmickSeed] で決定的に有効インデックスを選ぶ。

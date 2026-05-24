@@ -24,7 +24,9 @@ void main() {
       oniKnown: true,
       isHunterNow: false,
       runnerProximityActive: true,
+      applyRunnerOutsideRules: true,
       proximityBand: ProximityBand.none,
+      proximityCapturePermitted: true,
       now: DateTime(2026, 1, 1),
     );
 
@@ -57,7 +59,9 @@ void main() {
       oniKnown: true,
       isHunterNow: false,
       runnerProximityActive: true,
+      applyRunnerOutsideRules: true,
       proximityBand: ProximityBand.none,
+      proximityCapturePermitted: true,
       now: DateTime(2026, 1, 1),
     );
 
@@ -72,7 +76,7 @@ void main() {
     );
     final ctrl = GameMapMatchController();
     ctrl.runtime.remainingSeconds = 60;
-    ctrl.runtime.captureZoneBoundIds = const {'self'};
+    ctrl.runtime.lockZoneBoundIds = const {'self'};
     const pos = LatLng(35.68, 139.76);
 
     final effects = ctrl.evaluateRunningTick(
@@ -83,7 +87,9 @@ void main() {
       oniKnown: true,
       isHunterNow: true,
       runnerProximityActive: false,
+      applyRunnerOutsideRules: false,
       proximityBand: ProximityBand.contact,
+      proximityCapturePermitted: true,
       now: DateTime(2026, 1, 1),
     );
 

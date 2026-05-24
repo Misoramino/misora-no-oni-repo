@@ -1,60 +1,42 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oni_game/game/accusation_sites.dart';
-import 'package:oni_game/game/game_config.dart';
 
 void main() {
-  test('active site count scales with eliminations and time', () {
+  test('active site count is 0 until unlock then 1', () {
     const sites = 5;
-    const duration = 600;
 
     expect(
       activeAccusationSiteCount(
+        accusationUnlocked: false,
         siteCount: sites,
-        eliminationCount: 0,
-        elapsedSeconds: 0,
-        matchDurationSeconds: duration,
+      ),
+      0,
+    );
+
+    expect(
+      activeAccusationSiteCount(
+        accusationUnlocked: true,
+        siteCount: sites,
       ),
       1,
     );
 
     expect(
       activeAccusationSiteCount(
+        accusationUnlocked: true,
         siteCount: sites,
-        eliminationCount: 1,
-        elapsedSeconds: 100,
-        matchDurationSeconds: duration,
-      ),
-      2,
-    );
-
-    expect(
-      activeAccusationSiteCount(
-        siteCount: sites,
-        eliminationCount: 1,
-        elapsedSeconds: 360,
-        matchDurationSeconds: duration,
+        territoryBonus: 2,
       ),
       3,
     );
 
     expect(
       activeAccusationSiteCount(
-        siteCount: sites,
-        eliminationCount: 2,
-        elapsedSeconds: 360,
-        matchDurationSeconds: duration,
+        accusationUnlocked: true,
+        siteCount: 2,
+        territoryBonus: 5,
       ),
-      4,
-    );
-
-    expect(
-      activeAccusationSiteCount(
-        siteCount: sites,
-        eliminationCount: 3,
-        elapsedSeconds: duration,
-        matchDurationSeconds: duration,
-      ),
-      4,
+      2,
     );
   });
 

@@ -17,7 +17,7 @@
 
 ### Fake position (`fake_position`)
 
-Runner skill: while active, **location reveals point at a wrong place** (decoy ahead on bearing, drifts ~2.8 m/s). Identified reveals during the effect use decoy coordinates. No “偽位置” map marker for others.
+Runner skill: while active, **location reveals point at a wrong place** (decoy ahead on bearing, drifts ~3.4 m/s per `GameConfig.fakePositionDriftSpeedMps`). Identified reveals during the effect use decoy coordinates. No “偽位置” map marker for others.
 
 ### Fake intel reveal (`fake_intel_reveal`) — **oni (hunter) skill only**
 
@@ -30,6 +30,8 @@ Alternative to pure fake position: one activation leaks **both** real and decoy 
 ### Infection
 
 Runner within ~`infectionTriggerDistanceMeters` of the oni for ~`infectionExposureSeconds`, then periodic **identified** reveals every `infectionRevealIntervalSeconds` (uses fake-position decoy if active). Pre-infection warnings for runners.
+
+**Not** the same as touch-lock bind or the **capture zone skill** — see `docs/GAME_DESIGN_SPEC.md` §接近・捕獲.
 
 ## Anonymous reveals (implemented)
 

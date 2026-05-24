@@ -19,6 +19,7 @@ class TitleScreen extends StatefulWidget {
     this.initialProfile = WorldProfile.horror,
     this.onProfileChanged,
     this.handoff,
+    this.initialAmbientPhase,
     super.key,
   });
 
@@ -27,6 +28,9 @@ class TitleScreen extends StatefulWidget {
 
   /// 非 null のとき起動演出から同一ロゴで遷移中。
   final LaunchHandoffView? handoff;
+
+  /// 起動演出の背景アニメ位相を引き継ぐ（ぷつ切れ防止）。
+  final double? initialAmbientPhase;
 
   @override
   State<TitleScreen> createState() => _TitleScreenState();
@@ -52,8 +56,13 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
       )..repeat();
       _ambientEffect = AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 5200),
-      )..repeat();
+        duration: const Duration(milliseconds: 4200),
+      );
+      final phase = widget.initialAmbientPhase;
+      if (phase != null) {
+        _ambientEffect!.value = phase % 1.0;
+      }
+      _ambientEffect!.repeat();
       Future<void>.microtask(_boot);
     }
   }
@@ -109,6 +118,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
     final effectOpacity = v?.effectOpacity ?? 0.0;
     final brandTextOpacity = v?.brandTextOpacity ?? 1.0;
     final bodyOpacity = v?.bodyOpacity ?? 1.0;
+    final taglineLayoutT = v?.taglineLayoutT ?? 1.0;
+    final taglineOpacity = v?.taglineOpacity ?? 1.0;
     final titleVeil = v?.titleVeil ?? 0.0;
 
     final scaffoldBg = handoff == null
@@ -272,23 +283,31 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           ),
                                   ),
                                 ),
+                                Transform.translate(
+                                  offset: Offset(
+                                    0,
+                                    28 * (1 - taglineLayoutT),
+                                  ),
+                                  child: Opacity(
+                                    opacity: taglineOpacity,
+                                    child: Text(
+                                      '都市型 GPS 鬼ごっこ',
+                                      textAlign: TextAlign.center,
+                                      style:
+                                          theme.textTheme.bodyLarge?.copyWith(
+                                        color: theme
+                                            .colorScheme.onSurfaceVariant,
+                                        fontSize: narrow ? 14 : null,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                                 Opacity(
                                   opacity: bodyOpacity,
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        '都市型 GPS 鬼ごっこ',
-                                        textAlign: TextAlign.center,
-                                        style:
-                                            theme.textTheme.bodyLarge?.copyWith(
-                                          color: theme
-                                              .colorScheme.onSurfaceVariant,
-                                          fontSize: narrow ? 14 : null,
-                                        ),
-                                      ),
                                       const SizedBox(height: 20),
                                       if (handoff == null && _booting)
                                         const Center(

@@ -13,8 +13,10 @@ class EliminationSupportBar extends StatelessWidget {
     this.showResultButton = false,
     this.chargeProgress,
     this.chargeActive = false,
+    this.chargeActionLabel,
     this.matchJackUses = 0,
     this.matchJackLimit = 5,
+    this.secondaryActionLine,
     this.personalCooldownSeconds,
     this.statusLine,
     super.key,
@@ -26,8 +28,10 @@ class EliminationSupportBar extends StatelessWidget {
   final bool showResultButton;
   final double? chargeProgress;
   final bool chargeActive;
+  final String? chargeActionLabel;
   final int matchJackUses;
   final int matchJackLimit;
+  final String? secondaryActionLine;
   final int? personalCooldownSeconds;
   final String? statusLine;
 
@@ -35,6 +39,11 @@ class EliminationSupportBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final copy = EliminationRoleCopy.forProfile(worldProfile, rule);
+    final primaryLine = rule.supportsFacilitySabotage
+        ? '告発妨害 — 試合 $matchJackUses / $matchJackLimit 回'
+        : '${copy.jackSiteLabel} — 試合 $matchJackUses / $matchJackLimit 回';
+    final chargeLabel = chargeActionLabel ?? copy.jackActionLabel;
+
     return Material(
       elevation: 4,
       borderRadius: BorderRadius.circular(12),
@@ -48,9 +57,11 @@ class EliminationSupportBar extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  rule.supportsCameraJack
-                      ? Icons.sensors
-                      : Icons.visibility_outlined,
+                  rule.supportsFacilitySabotage
+                      ? Icons.gpp_bad_outlined
+                      : rule.supportsCameraJack
+                          ? Icons.sensors
+                          : Icons.visibility_outlined,
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 10),
@@ -73,17 +84,23 @@ class EliminationSupportBar extends StatelessWidget {
                   ),
               ],
             ),
-            if (rule.supportsCameraJack) ...[
+            if (rule.supportsCameraJack || rule.supportsFacilitySabotage) ...[
               const SizedBox(height: 8),
-              Text(
-                '${copy.jackSiteLabel} — 試合 $matchJackUses / $matchJackLimit 回',
-                style: theme.textTheme.labelMedium,
-              ),
+              Text(primaryLine, style: theme.textTheme.labelMedium),
+              if (secondaryActionLine != null &&
+                  secondaryActionLine!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    secondaryActionLine!,
+                    style: theme.textTheme.labelMedium,
+                  ),
+                ),
               if (chargeActive && chargeProgress != null) ...[
                 const SizedBox(height: 6),
                 LinearProgressIndicator(value: chargeProgress),
                 Text(
-                  '${copy.jackActionLabel}… ${(chargeProgress! * 100).round()}%',
+                  '$chargeLabel… ${(chargeProgress! * 100).round()}%',
                   style: theme.textTheme.bodySmall,
                 ),
               ] else if (personalCooldownSeconds != null &&

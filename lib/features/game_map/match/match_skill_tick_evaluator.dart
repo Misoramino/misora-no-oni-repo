@@ -2,6 +2,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/game_config.dart';
+import '../../../game/play_area.dart';
+import 'match_geo_helpers.dart';
 import 'match_runtime_state.dart';
 
 /// スキル・感染・タッチロックの純粋判定結果。
@@ -22,15 +24,21 @@ final class SkillTickWerewolfEnded extends SkillTickOutcome {
 }
 
 final class SkillTickCaptureZoneEnded extends SkillTickOutcome {
-  const SkillTickCaptureZoneEnded();
+  const SkillTickCaptureZoneEnded({required this.placedBySkill});
+
+  final bool placedBySkill;
 }
 
 final class SkillTickCaptureZoneEscapeReveal extends SkillTickOutcome {
-  const SkillTickCaptureZoneEscapeReveal();
+  const SkillTickCaptureZoneEscapeReveal({required this.placedBySkill});
+
+  final bool placedBySkill;
 }
 
 final class SkillTickCaptureZoneGameOver extends SkillTickOutcome {
-  const SkillTickCaptureZoneGameOver();
+  const SkillTickCaptureZoneGameOver({required this.placedBySkill});
+
+  final bool placedBySkill;
 }
 
 final class SkillTickBodyThrowMiss extends SkillTickOutcome {
@@ -53,10 +61,14 @@ final class SkillTickTouchLockNotice extends SkillTickOutcome {
 final class SkillTickTouchLockStart extends SkillTickOutcome {
   const SkillTickTouchLockStart({
     required this.radiusMeters,
+    required this.restraintRadiusMeters,
+    required this.bindDurationSeconds,
     required this.endsAt,
   });
 
   final double radiusMeters;
+  final double restraintRadiusMeters;
+  final int bindDurationSeconds;
   final DateTime endsAt;
 }
 
@@ -81,6 +93,7 @@ abstract final class MatchSkillTickEvaluator {
   static List<SkillTickOutcome> evaluateTimers({
     required MatchRuntimeState runtime,
     required LatLng playerPosition,
+    required PlayArea playArea,
     required DateTime now,
   }) {
     final out = <SkillTickOutcome>[];
@@ -95,42 +108,49 @@ abstract final class MatchSkillTickEvaluator {
       out.add(const SkillTickFakeEnded());
     }
 
-    if (runtime.werewolfTransformEndsAt != null &&
-        now.isAfter(runtime.werewolfTransformEndsAt!)) {
-      runtime.werewolfTransformEndsAt = null;
-      out.add(const SkillTickWerewolfEnded());
+    if (runtime.lockZoneEndsAt != null &&
+        now.isAfter(runtime.lockZoneEndsAt!)) {
+      final wasSkill = runtime.lockZoneFromSkill;
+      runtime.lockZoneCenter = null;
+      runtime.lockZoneEndsAt = null;
+      runtime.lockZoneFromSkill = false;
+      runtime.lockZoneCapturePermitted = true;
+      runtime.lockZoneBoundIds = const {};
+      runtime.lockZoneTargetLeftAt = null;
+      runtime.lockZoneEscapeRevealed = false;
+      out.add(SkillTickCaptureZoneEnded(placedBySkill: wasSkill));
     }
 
-    if (runtime.captureZoneEndsAt != null &&
-        now.isAfter(runtime.captureZoneEndsAt!)) {
-      runtime.captureZoneCenter = null;
-      runtime.captureZoneEndsAt = null;
-      runtime.captureZoneBoundIds = const {};
-      runtime.captureZoneTargetLeftAt = null;
-      runtime.captureZoneEscapeRevealed = false;
-      out.add(const SkillTickCaptureZoneEnded());
-    }
-
-    if (runtime.captureZoneCenter != null &&
-        runtime.captureZoneBoundIds.contains('self')) {
-      final center = runtime.captureZoneCenter!;
+    if (runtime.lockZoneCenter != null &&
+        runtime.lockZoneBoundIds.contains('self')) {
+      final center = runtime.lockZoneCenter!;
+      final placedBySkill = runtime.lockZoneFromSkill;
+      final escapeRadius = MatchGeoHelpers.lockZoneEscapeRadiusMeters(
+        placedBySkill: placedBySkill,
+        playArea: playArea,
+      );
       final d = Geolocator.distanceBetween(
         playerPosition.latitude,
         playerPosition.longitude,
         center.latitude,
         center.longitude,
       );
-      if (d > GameConfig.captureZoneRadiusMeters) {
-        runtime.captureZoneTargetLeftAt ??= now;
-        if (now.difference(runtime.captureZoneTargetLeftAt!).inSeconds >= 8) {
-          out.add(const SkillTickCaptureZoneGameOver());
-        } else if (!runtime.captureZoneEscapeRevealed) {
-          runtime.captureZoneEscapeRevealed = true;
-          out.add(const SkillTickCaptureZoneEscapeReveal());
+      if (d > escapeRadius) {
+        runtime.lockZoneTargetLeftAt ??= now;
+        if (now.difference(runtime.lockZoneTargetLeftAt!).inSeconds >=
+            GameConfig.bindZoneEscapeGraceSeconds) {
+          if (runtime.lockZoneCapturePermitted) {
+            out.add(SkillTickCaptureZoneGameOver(placedBySkill: placedBySkill));
+          }
+        } else if (!runtime.lockZoneEscapeRevealed) {
+          runtime.lockZoneEscapeRevealed = true;
+          out.add(
+            SkillTickCaptureZoneEscapeReveal(placedBySkill: placedBySkill),
+          );
         }
       } else {
-        runtime.captureZoneTargetLeftAt = null;
-        runtime.captureZoneEscapeRevealed = false;
+        runtime.lockZoneTargetLeftAt = null;
+        runtime.lockZoneEscapeRevealed = false;
       }
     }
 
@@ -162,6 +182,7 @@ abstract final class MatchSkillTickEvaluator {
 
   static SkillTickOutcome evaluateTouchLock({
     required MatchRuntimeState runtime,
+    required PlayArea playArea,
     required double gpsDistance,
     required double touchRadiusMeters,
     required DateTime now,
@@ -172,7 +193,7 @@ abstract final class MatchSkillTickEvaluator {
       runtime.touchLockNoticeShown = false;
       return const SkillTickNone();
     }
-    if (runtime.captureZoneBoundIds.contains('self')) {
+    if (runtime.lockZoneBoundIds.contains('self')) {
       return const SkillTickNone();
     }
 
@@ -194,24 +215,28 @@ abstract final class MatchSkillTickEvaluator {
       return const SkillTickNone();
     }
 
-    runtime.captureZoneBoundIds = const {'self'};
-    runtime.captureZoneTargetLeftAt = null;
-    runtime.captureZoneEscapeRevealed = false;
-    runtime.captureZoneEndsAt = now.add(
-      const Duration(seconds: GameConfig.touchLockDurationSeconds),
-    );
+    runtime.lockZoneBoundIds = const {'self'};
+    runtime.lockZoneFromSkill = false;
+    runtime.lockZoneCapturePermitted = true;
+    runtime.lockZoneTargetLeftAt = null;
+    runtime.lockZoneEscapeRevealed = false;
+    final bindSec = MatchGeoHelpers.touchLockDurationSeconds(playArea);
+    runtime.lockZoneEndsAt = now.add(Duration(seconds: bindSec));
     runtime.touchLockStartedAt = null;
     runtime.touchLockNoticeShown = false;
 
     return SkillTickTouchLockStart(
       radiusMeters: touchRadiusMeters,
-      endsAt: runtime.captureZoneEndsAt!,
+      restraintRadiusMeters: MatchGeoHelpers.scaledRestraintRadiusMeters(playArea),
+      bindDurationSeconds: bindSec,
+      endsAt: runtime.lockZoneEndsAt!,
     );
   }
 
   static List<SkillTickOutcome> evaluateInfection({
     required MatchRuntimeState runtime,
-    required double distanceToOni,
+    required double gpsDistanceToOni,
+    required double infectionTriggerMeters,
     required DateTime now,
   }) {
     if (runtime.isInfectedNow) {
@@ -224,7 +249,7 @@ abstract final class MatchSkillTickEvaluator {
       return const [];
     }
 
-    if (distanceToOni <= GameConfig.infectionTriggerDistanceMeters) {
+    if (gpsDistanceToOni <= infectionTriggerMeters) {
       runtime.infectionExposureSeconds += 1;
       final exp = runtime.infectionExposureSeconds;
       final need = GameConfig.infectionExposureSeconds;
@@ -255,7 +280,7 @@ abstract final class MatchSkillTickEvaluator {
     required double dangerDistance,
   }) {
     if (!runtime.touchLockNoticeShown &&
-        !runtime.captureZoneBoundIds.contains('self')) {
+        !runtime.lockZoneBoundIds.contains('self')) {
       runtime.lastDangerDistance = currentDistance;
       return null;
     }

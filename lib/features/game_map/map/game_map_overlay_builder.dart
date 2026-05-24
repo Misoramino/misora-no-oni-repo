@@ -212,6 +212,20 @@ abstract final class GameMapOverlayBuilder {
             ),
           );
         }
+        final anchor = s.oniMatchStartAnchor;
+        if (anchor != null) {
+          markers.add(
+            Marker(
+              markerId: const MarkerId('oni_match_start_anchor'),
+              position: anchor,
+              infoWindow: const InfoWindow(
+                title: '鬼の試合開始付近',
+                snippet: '序盤の手がかり（遅延軌跡が出る前）',
+              ),
+              icon: _icon(s, MapMarkerKind.oniIntel, BitmapDescriptor.hueRed),
+            ),
+          );
+        }
       }
       if (L.traces && lod.showTraceMarkers(z)) {
         for (var i = 0; i < s.anonymousRevealTraces.length; i++) {
@@ -270,17 +284,29 @@ abstract final class GameMapOverlayBuilder {
       }
       if (L.cameras && showGimmickIcons) {
         for (var i = 0; i < s.cameraPositions.length; i++) {
+          final disabled = s.disabledCameraIndices.contains(i);
+          final triggered = s.triggeredCameras.contains(i);
           markers.add(
             Marker(
               markerId: MarkerId('camera_$i'),
               position: s.cameraPositions[i],
               infoWindow: InfoWindow(
-                title: '監視カメラ ${i + 1}',
-                snippet: s.triggeredCameras.contains(i)
-                    ? '作動済み'
-                    : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
+                title: disabled
+                    ? '監視カメラ ${i + 1}（停止）'
+                    : '監視カメラ ${i + 1}',
+                snippet: disabled
+                    ? '復讐の鬼影により無効化'
+                    : triggered
+                        ? '作動済み'
+                        : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
               ),
-              icon: _icon(s, MapMarkerKind.camera, BitmapDescriptor.hueYellow),
+              icon: _icon(
+                s,
+                MapMarkerKind.camera,
+                disabled
+                    ? BitmapDescriptor.hueOrange
+                    : BitmapDescriptor.hueYellow,
+              ),
             ),
           );
         }
@@ -331,13 +357,24 @@ abstract final class GameMapOverlayBuilder {
   }
 
   static Set<Polyline> buildPolylines(GameMapOverlaySnapshot s) {
+    final out = <Polyline>{};
+    if (s.oniTrailPoints.length >= 2) {
+      out.add(
+        Polyline(
+          polylineId: const PolylineId('oni_delayed_trail'),
+          points: s.oniTrailPoints,
+          width: 3,
+          color: s.tokens.traceColor.withValues(alpha: 0.55),
+        ),
+      );
+    }
     if (!s.editingArea || s.editCircleMode || s.polygonDraft.isEmpty) {
-      return {};
+      return out;
     }
     final pts = s.polygonDraftClosed
         ? MapGeoFormat.closedPolygonRing(s.polygonDraft)
         : s.polygonDraft;
-    return {
+    out.add(
       Polyline(
         polylineId: const PolylineId('draft_polyline'),
         points: pts,
@@ -346,7 +383,8 @@ abstract final class GameMapOverlayBuilder {
             ? s.tokens.editDraftColor
             : s.tokens.editDraftColor.withValues(alpha: 0.85),
       ),
-    };
+    );
+    return out;
   }
 
   static Set<Circle> buildCircles(GameMapOverlaySnapshot s) {
@@ -410,9 +448,22 @@ abstract final class GameMapOverlayBuilder {
         for (var i = 0; i < s.cameraPositions.length; i++) {
           final center = s.cameraPositions[i];
           final baseR = GameConfig.cameraTriggerRadiusMeters;
+          final disabled = s.disabledCameraIndices.contains(i);
           final triggered = s.triggeredCameras.contains(i);
           final scanR = baseR * (0.92 + 0.18 * wave);
-          if (!triggered) {
+          if (disabled) {
+            circles.add(
+              Circle(
+                circleId: CircleId('camera-disabled-$i'),
+                center: center,
+                radius: baseR * 0.85,
+                strokeWidth: 2,
+                fillColor: Colors.grey.withValues(alpha: 0.12),
+                strokeColor: Colors.grey.withValues(alpha: 0.55),
+                zIndex: 1,
+              ),
+            );
+          } else if (!triggered) {
             circles.add(
               Circle(
                 circleId: CircleId('camera-zone-$i'),
@@ -510,12 +561,14 @@ abstract final class GameMapOverlayBuilder {
       }
     }
 
-    if (L.captureZone && s.captureZoneCenter != null) {
+    if (L.captureZone &&
+        s.lockZoneCenter != null &&
+        s.lockZoneDisplayRadiusMeters > 0) {
       circles.add(
         Circle(
-          circleId: const CircleId('capture-zone'),
-          center: s.captureZoneCenter!,
-          radius: GameConfig.captureZoneRadiusMeters,
+          circleId: const CircleId('lock-zone'),
+          center: s.lockZoneCenter!,
+          radius: s.lockZoneDisplayRadiusMeters,
           strokeWidth: 3,
           fillColor: tokens.captureZoneColor.withValues(alpha: 0.16),
           strokeColor: tokens.captureZoneColor,

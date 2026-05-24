@@ -47,7 +47,7 @@ class GameControlPanel extends StatelessWidget {
     required this.fakeCooldownSeconds,
     required this.captureCooldownSeconds,
     required this.bodyThrowCooldownSeconds,
-    required this.werewolfBuffSeconds,
+    this.werewolfOniActive = false,
     required this.werewolfCooldownSeconds,
     required this.prepLobbyMapHidden,
     required this.mapWorldProfile,
@@ -91,7 +91,7 @@ class GameControlPanel extends StatelessWidget {
   final int fakeCooldownSeconds;
   final int captureCooldownSeconds;
   final int bodyThrowCooldownSeconds;
-  final int? werewolfBuffSeconds;
+  final bool werewolfOniActive;
   final int werewolfCooldownSeconds;
   final bool prepLobbyMapHidden;
 
@@ -124,9 +124,9 @@ class GameControlPanel extends StatelessWidget {
         ),
       if (canWerewolfHunter)
         SkillActionButton(
-          label: skillShortLabel(SkillIds.werewolfTransform),
+          label: werewolfTransformActionLabel(inOniForm: werewolfOniActive),
           icon: Icons.nightlight,
-          buffSeconds: werewolfBuffSeconds,
+          active: werewolfOniActive,
           cooldownSeconds: werewolfCooldownSeconds,
           compact: compact,
           onPressed: isEditing ? null : onWerewolfHunter,

@@ -27,7 +27,9 @@ class GameMapMatchController {
     required bool oniKnown,
     required bool isHunterNow,
     required bool runnerProximityActive,
+    required bool applyRunnerOutsideRules,
     required ProximityBand proximityBand,
+    required bool proximityCapturePermitted,
     required DateTime now,
   }) {
     final effects = <MatchTickEffect>[];
@@ -37,6 +39,7 @@ class GameMapMatchController {
     for (final outcome in MatchSkillTickEvaluator.evaluateTimers(
       runtime: runtime,
       playerPosition: playerPosition,
+      playArea: playArea,
       now: now,
     )) {
       effects.addAll(_effectsForSkillOutcome(outcome, playerPosition));
@@ -46,18 +49,27 @@ class GameMapMatchController {
       return effects;
     }
 
-    final infectionDistance = MatchGeoHelpers.effectiveInfectionDistance(
-      gpsDistance: MatchGeoHelpers.distanceToOni(
-        player: playerPosition,
-        oni: oniPosition,
-        oniKnown: oniKnown,
-        testMode: testMode,
-      ),
-      proximityBand: proximityBand,
+    final gpsToOniForInfection = MatchGeoHelpers.distanceToOni(
+      player: playerPosition,
+      oni: oniPosition,
+      oniKnown: oniKnown,
+      testMode: testMode,
+    );
+    final infectionDistance = switch (proximityBand) {
+      ProximityBand.contact => 0.0,
+      ProximityBand.near => MatchGeoHelpers.effectiveInfectionDistance(
+          gpsDistance: gpsToOniForInfection,
+          proximityBand: proximityBand,
+        ),
+      _ => gpsToOniForInfection,
+    };
+    final infectionTrigger = MatchGeoHelpers.scaledInfectionTriggerMeters(
+      playArea,
     );
     for (final infectionOutcome in MatchSkillTickEvaluator.evaluateInfection(
       runtime: runtime,
-      distanceToOni: infectionDistance,
+      gpsDistanceToOni: infectionDistance,
+      infectionTriggerMeters: infectionTrigger,
       now: now,
     )) {
       effects.addAll(_effectsForSkillOutcome(infectionOutcome, playerPosition));
@@ -70,6 +82,7 @@ class GameMapMatchController {
       triggerRadiusMeters: GameConfig.cameraTriggerRadiusMeters,
     );
     for (final i in cameraIndices) {
+      if (runtime.disabledCameraIndices.contains(i)) continue;
       runtime.triggeredCameras.add(i);
       final p = runtime.cameraPositions[i];
       effects.add(
@@ -85,6 +98,7 @@ class GameMapMatchController {
     final touchEnabled = testMode || oniKnown || isHunterNow;
     final touchOutcome = MatchSkillTickEvaluator.evaluateTouchLock(
       runtime: runtime,
+      playArea: playArea,
       gpsDistance: MatchGeoHelpers.distanceToOni(
         player: playerPosition,
         oni: oniPosition,
@@ -96,7 +110,9 @@ class GameMapMatchController {
       enabled: touchEnabled,
     );
     if (touchOutcome is SkillTickTouchLockStart) {
-      runtime.captureZoneCenter = playerPosition;
+      runtime.lockZoneCenter = playerPosition;
+      runtime.lockZoneFromSkill = false;
+      runtime.lockZoneCapturePermitted = true;
       effects.add(
         MatchTouchLockStartEffect(
           radiusMeters: touchOutcome.radiusMeters,
@@ -107,13 +123,13 @@ class GameMapMatchController {
         MatchEmitEventEffect(
           type: 'touch_lock_start',
           message:
-              'エリア連動タッチ範囲 ${touchOutcome.radiusMeters.toStringAsFixed(0)}m 内に一定時間入り、捕獲結界状態',
+              '接触圏 ${touchOutcome.radiusMeters.toStringAsFixed(0)}m → 拘束 ${touchOutcome.restraintRadiusMeters.toStringAsFixed(0)}m（${touchOutcome.bindDurationSeconds}秒）',
           position: playerPosition,
         ),
       );
       effects.add(
         const MatchStatusMessageEffect(
-          '鬼に捕捉され、移動範囲が制限されました。至近距離または BLE 接触で捕獲。',
+          '鬼に拘束されました。至近距離または BLE 接触で捕獲。スキルの捕獲結界とは別です。',
         ),
       );
     } else if (touchOutcome is SkillTickTouchLockNotice) {
@@ -131,9 +147,11 @@ class GameMapMatchController {
       testMode: testMode,
       oniKnown: oniKnown,
       isHunterNow: isHunterNow,
-      captureZoneBoundIds: runtime.captureZoneBoundIds,
+      lockZoneBoundIds: runtime.lockZoneBoundIds,
       proximityBand: proximityBand,
       gpsDistanceToOniMeters: gpsToOni,
+      proximityCapturePermitted: proximityCapturePermitted,
+      lockZoneCapturePermitted: runtime.lockZoneCapturePermitted,
     );
     final terminal = MatchTickEvaluator.evaluateTerminal(
       remainingSeconds: runtime.remainingSeconds,
@@ -150,40 +168,64 @@ class GameMapMatchController {
       return effects;
     }
 
-    final overflowMeters = playArea.overflowDistanceMeters(playerPosition);
-    if (overflowMeters > GameConfig.outsideAreaGraceMeters) {
-      runtime.outsideAreaSince ??= now;
-    }
-    final outsideSec = runtime.outsideAreaSince == null
-        ? 0
-        : now.difference(runtime.outsideAreaSince!).inSeconds;
-    final outsideAction = MatchTickEvaluator.evaluateOutsideArea(
-      OutsideAreaTickInput(
-        overflowMeters: overflowMeters,
-        outsideSeconds: outsideSec,
-        revealedInCurrentOutside: runtime.revealedInCurrentOutside,
-        safeZoneCharges: runtime.safeZoneCharges,
-      ),
-    );
-    switch (outsideAction) {
-      case null:
-        break;
-      case MatchTickAction.consumeSafeChargeAvoidReveal:
-        runtime.safeZoneCharges -= 1;
-        runtime.outsideAreaSince = null;
-        runtime.revealedInCurrentOutside = false;
-        effects.add(const MatchConsumeSafeChargeEffect());
-        effects.add(const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'));
-      case MatchTickAction.triggerLocationReveal:
-        effects.add(MatchAreaRevealEffect(overflowMeters));
-      case MatchTickAction.resetOutsideTracking:
-        runtime.outsideAreaSince = null;
-        runtime.revealedInCurrentOutside = false;
-        effects.add(const MatchResetOutsideTrackingEffect());
-      case MatchTickAction.none:
-      case MatchTickAction.endRunnerWin:
-      case MatchTickAction.endCaughtByOni:
-        break;
+    if (applyRunnerOutsideRules) {
+      final overflowMeters = playArea.overflowDistanceMeters(playerPosition);
+      if (overflowMeters > GameConfig.outsideAreaGraceMeters) {
+        runtime.outsideAreaSince ??= now;
+      }
+      final outsideSec = runtime.outsideAreaSince == null
+          ? 0
+          : now.difference(runtime.outsideAreaSince!).inSeconds;
+      final sinceReveal = runtime.lastOutsideRevealAt == null
+          ? outsideSec
+          : now.difference(runtime.lastOutsideRevealAt!).inSeconds;
+      final outsideAction = MatchTickEvaluator.evaluateOutsideArea(
+        OutsideAreaTickInput(
+          overflowMeters: overflowMeters,
+          outsideSeconds: outsideSec,
+          revealedInCurrentOutside: runtime.revealedInCurrentOutside,
+          safeZoneCharges: runtime.safeZoneCharges,
+          secondsSinceLastOutsideReveal: sinceReveal,
+        ),
+      );
+      switch (outsideAction) {
+        case null:
+          break;
+        case MatchTickAction.consumeSafeChargeAvoidReveal:
+          runtime.safeZoneCharges -= 1;
+          runtime.outsideAreaSince = null;
+          runtime.revealedInCurrentOutside = false;
+          runtime.lastOutsideRevealAt = null;
+          effects.add(const MatchConsumeSafeChargeEffect());
+          effects.add(
+            const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'),
+          );
+        case MatchTickAction.triggerLocationReveal:
+        case MatchTickAction.triggerOutsidePeriodicReveal:
+          runtime.revealedInCurrentOutside = true;
+          runtime.lastOutsideRevealAt = now;
+          effects.add(MatchAreaRevealEffect(overflowMeters));
+        case MatchTickAction.outsideElimination:
+          effects.add(
+            MatchEndEffect(
+              state: GameState.caughtByOni,
+              message: MatchTickEvaluator.endMessageFor(
+                MatchTickAction.outsideElimination,
+              ),
+              heavyHaptic: true,
+            ),
+          );
+          return effects;
+        case MatchTickAction.resetOutsideTracking:
+          runtime.outsideAreaSince = null;
+          runtime.revealedInCurrentOutside = false;
+          runtime.lastOutsideRevealAt = null;
+          effects.add(const MatchResetOutsideTrackingEffect());
+        case MatchTickAction.none:
+        case MatchTickAction.endRunnerWin:
+        case MatchTickAction.endCaughtByOni:
+          break;
+      }
     }
 
     final distance = MatchGeoHelpers.distanceToOni(
@@ -192,14 +234,16 @@ class GameMapMatchController {
       oniKnown: oniKnown,
       testMode: testMode,
     );
-    final cue = MatchSkillTickEvaluator.evaluateDangerCue(
-      runtime: runtime,
-      currentDistance: distance,
-      warningDistance: touchRadius,
-      dangerDistance: GameConfig.captureDistanceMeters,
-    );
-    if (cue != null) {
-      effects.add(MatchOniCueEffect(cue));
+    if (runnerProximityActive) {
+      final cue = MatchSkillTickEvaluator.evaluateDangerCue(
+        runtime: runtime,
+        currentDistance: distance,
+        warningDistance: touchRadius,
+        dangerDistance: GameConfig.captureDistanceMeters,
+      );
+      if (cue != null) {
+        effects.add(MatchOniCueEffect(cue));
+      }
     }
 
     return effects;
@@ -240,30 +284,29 @@ class GameMapMatchController {
         ),
         const MatchStatusMessageEffect('偽位置スキル終了'),
       ],
-      SkillTickWerewolfEnded() => [
-        MatchEmitEventEffect(
-          type: 'werewolf_transform_end',
-          message: '人狼の一時鬼化が終了',
-          position: playerPosition,
-        ),
-      ],
-      SkillTickCaptureZoneEnded() => [
+      SkillTickWerewolfEnded() => const [],
+      SkillTickCaptureZoneEnded(:final placedBySkill) => [
         MatchEmitEventEffect(
           type: 'capture_zone_end',
-          message: '捕獲結界が終了',
+          message:
+              placedBySkill ? '捕獲結界が終了' : '接触拘束が解除',
           position: playerPosition,
         ),
       ],
-      SkillTickCaptureZoneEscapeReveal() => [
-        const MatchLocationRevealEmitEffect(
+      SkillTickCaptureZoneEscapeReveal(:final placedBySkill) => [
+        MatchLocationRevealEmitEffect(
           type: 'capture_zone_escape',
-          message: '捕獲結界から離脱して位置暴露',
+          message: placedBySkill
+              ? '捕獲結界から離脱して位置暴露'
+              : '接触拘束から離脱して位置暴露',
         ),
       ],
-      SkillTickCaptureZoneGameOver() => [
+      SkillTickCaptureZoneGameOver(:final placedBySkill) => [
         MatchEndEffect(
           state: GameState.caughtByOni,
-          message: '捕獲結界から長時間離脱しました。',
+          message: placedBySkill
+              ? '捕獲結界から長時間離脱しました。'
+              : '接触拘束から長時間離脱しました。',
           heavyHaptic: false,
         ),
       ],

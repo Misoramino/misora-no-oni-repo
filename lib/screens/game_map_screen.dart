@@ -27,6 +27,8 @@ import '../features/game_map/match/match_tick_evaluator.dart';
 import '../features/game_map/play_area/geo_json_actions.dart';
 import '../features/game_map/prep/prep_lobby_panel.dart';
 import '../features/game_map/widgets/how_to_play_sheet.dart';
+import '../game/role_briefing.dart';
+import '../features/game_map/widgets/role_briefing_dialog.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
 import '../features/game_map/settings/game_custom_settings_sheet.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
@@ -44,10 +46,18 @@ import '../features/game_map/widgets/prep_map_bottom_panel.dart';
 import '../features/game_map/widgets/elimination_support_bar.dart';
 import '../game/accusation_sites.dart';
 import '../game/camera_jack_logic.dart';
+import '../game/camera_shutdown_logic.dart';
+import '../game/facility_sabotage_logic.dart';
+import '../game/spectral_territory_logic.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
+import '../game/accusation_block_logic.dart';
 import '../game/accusation_logic.dart';
+import '../game/oni_path_trail.dart';
+import '../game/werewolf_forced_schedule.dart';
+import '../game/werewolf_faction_logic.dart';
 import '../game/analyst_trace_format.dart';
+import '../game/match_duration_scaling.dart';
 import '../game/match_role_mix.dart';
 import '../game/oni_info_broker.dart';
 import '../game/runner_modifier.dart';
@@ -90,6 +100,7 @@ import '../sync/offline_sync_queue.dart';
 import '../features/game_map/visual/map_visual_controller.dart';
 import '../features/game_map/visual/reveal_flash_controller.dart';
 import '../features/game_map/widgets/world_map_atmosphere.dart';
+import '../theme/elimination_role_copy.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import '../widgets/confirm_dialog.dart';
@@ -181,6 +192,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   PlayerRole _localRole = PlayerRole.runner;
   Set<String> _skillLoadout = const {SkillIds.fakePosition};
   final List<LatLng> _tracePoints = [];
+  final List<OniPathSample> _oniPathSamples = [];
+  LatLng? _oniMatchStartAnchor;
 
   MatchRecorder? _matchRecorder;
   Future<void>? _finalizeRecordingFuture;
@@ -254,6 +267,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   EliminationAftermathRule _eliminationAftermathRule =
       EliminationAftermathRule.spectralOperative;
   EliminationAftermathRule? _afterCatchRule;
+  FactionSide? _factionAtDeath;
+  final Set<String> _eliminatedUids = {};
 
   late final AnimationController _dangerPulseController;
 
@@ -331,7 +346,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _loadEliminationAftermathRule() async {
     final prefs = await SharedPreferences.getInstance();
-    final parsed = EliminationAftermathRuleX.tryParseName(
+    final parsed = EliminationAftermathRule.tryParseName(
       prefs.getString(GameMapPrefs.eliminationAftermathRule),
     );
     if (!mounted) return;
@@ -418,7 +433,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     return BleGameScanFilter(
       roomId: roomId,
       sessionKey: sk,
-      advertiseAsOni: _isHunterNow,
+      advertiseAsOni: _isPerceivedOniNow,
     );
   }
 
@@ -481,7 +496,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     _roomEventSub = session.roomMatchEvents.listen(_onRemoteRoomMatchEvent);
 
     final rm = session.currentRoomMatch;
-    if (rm.phase == RoomPhase.running && rm.matchStart != null) {
+    if (rm.phase == RoomPhase.lobby) {
+      session.startRoomEventsListener(lobbySessionKey);
+    } else if (rm.phase == RoomPhase.running && rm.matchStart != null) {
       session.startRoomEventsListener(rm.matchStart!.gimmickSeed);
     }
     if (!_isHost) {
@@ -492,6 +509,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _onRemoteRoomMatchState(RoomMatchState state) {
     if (!mounted || _isHost) return;
     switch (state.phase) {
+      case RoomPhase.lobby:
+        _firestoreSession?.startRoomEventsListener(lobbySessionKey);
+        if (_gameState != GameState.waiting) {
+          _resetGame(skipFirestoreSync: true);
+          _toast('ルームがロビーに戻りました');
+        }
+        break;
       case RoomPhase.running:
         if (state.matchStart != null) {
           _firestoreSession?.startRoomEventsListener(
@@ -518,12 +542,6 @@ class _GameMapScreenState extends State<GameMapScreen>
             endReason: end.endReason,
             skipFirestoreSync: true,
           );
-        }
-        break;
-      case RoomPhase.lobby:
-        if (_gameState != GameState.waiting) {
-          _resetGame(skipFirestoreSync: true);
-          _toast('ルームがロビーに戻りました');
         }
         break;
     }
@@ -810,12 +828,55 @@ class _GameMapScreenState extends State<GameMapScreen>
       _statusMessage = 'ホストが「${applied.name}」を適用しました';
     });
     unawaited(_areaStore.save(applied.area));
+    unawaited(_publishLobbyPlayArea(slotName: applied.name, slotId: applied.id));
+  }
+
+  Future<void> _publishLobbyPlayArea({
+    required String slotName,
+    required String slotId,
+  }) async {
+    final fs = _firestoreSession;
+    if (fs == null || !_isOnlineFirestore) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.lobbyPlayArea,
+      payload: {
+        'slotId': slotId,
+        'slotName': slotName,
+        'playArea': _playArea.toJson(),
+      },
+      sessionKey: lobbySessionKey,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  void _applyRemoteLobbyPlayArea(RoomMatchEvent ev) {
+    final raw = ev.payload['playArea'];
+    if (raw is! Map<String, dynamic>) return;
+    try {
+      final area = PlayArea.fromJson(raw);
+      final name = ev.payload['slotName'] as String? ?? 'ホスト';
+      if (!mounted) return;
+      setState(() {
+        _playArea = area;
+        if (_playArea.type == PlayAreaType.circle) {
+          _circleDraftCenter = _playArea.center;
+          _circleDraftRadiusMeters = _playArea.radiusMeters;
+        }
+        _statusMessage = 'ホストが「$name」のエリアを共有しました';
+      });
+      unawaited(_areaStore.save(area));
+    } catch (_) {
+      _logDebug('lobby_play_area parse failed');
+    }
   }
 
   void _setPrepDurationMinutes(double minutes) {
     if (!_isHost) return;
     setState(() {
-      _matchDurationSeconds = (minutes.round() * 60).clamp(60, 20 * 60);
+      _matchDurationSeconds = (minutes.round() * 60).clamp(
+        MatchDurationScaling.minMatchSeconds,
+        MatchDurationScaling.maxMatchSeconds,
+      );
       if (_gameState == GameState.waiting) {
         _rt.remainingSeconds = _matchDurationSeconds;
       }
@@ -1134,10 +1195,111 @@ class _GameMapScreenState extends State<GameMapScreen>
     return null;
   }
 
-  bool get _isHunterNow =>
+  bool get _isPerceivedOniNow =>
+      WerewolfFactionLogic.isPerceivedOni(
+        assignmentRole: _localRole,
+        werewolfInOniForm: _rt.werewolfInOniForm,
+      );
+
+  bool get _isHunterNow => _isPerceivedOniNow;
+
+  List<MatchParticipantState> _matchParticipants() {
+    final fs = _firestoreSession;
+    final assignments = fs?.currentMatchStart?.assignments ?? {};
+    final myUid = fs?.myUid ?? 'local';
+    if (assignments.isEmpty) {
+      return [
+        MatchParticipantState(
+          uid: myUid,
+          assignmentRole: _localRole,
+          werewolfInOniForm: _rt.werewolfInOniForm,
+          eliminated: false,
+        ),
+      ];
+    }
+    final remoteWolf = fs?.werewolfOniFormByUid ?? const {};
+    return assignments.entries
+        .map(
+          (e) => MatchParticipantState(
+            uid: e.key,
+            assignmentRole: e.value.role,
+            werewolfInOniForm: e.key == myUid
+                ? _rt.werewolfInOniForm
+                : (remoteWolf[e.key] ?? false),
+            eliminated: _eliminatedUids.contains(e.key),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  FactionSide _localFactionNow() => WerewolfFactionLogic.factionFor(
+        assignmentRole: _localRole,
+        players: _matchParticipants(),
+        uid: _firestoreSession?.myUid ?? 'local',
+      );
+
+  /// 脱落後は [ _factionAtDeath ] を固定（第二ゲーム中に人数変動で変わらない）。
+  FactionSide _effectiveLocalFaction() =>
+      _factionAtDeath ?? _localFactionNow();
+
+  bool get _werewolfCanCaptureNow =>
       _localRole == PlayerRole.hunter ||
-      (_rt.werewolfTransformEndsAt != null &&
-          DateTime.now().isBefore(_rt.werewolfTransformEndsAt!));
+      (_localRole == PlayerRole.werewolf &&
+          _rt.werewolfInOniForm &&
+          WerewolfFactionLogic.werewolfCanCaptureInOniForm(
+            _effectiveLocalFaction(),
+          ));
+
+  bool _proximityCapturePermittedForRunner() {
+    return WerewolfFactionLogic.proximityCapturePermittedForRunner(
+      gpsDistanceToHunterMeters: _distanceToOni(),
+      captureDistanceMeters: GameConfig.captureDistanceMeters,
+      bleContactBand: _latestProximityBand == ProximityBand.contact,
+      participants: _matchParticipants(),
+      runnerUid: _firestoreSession?.myUid ?? 'local',
+    );
+  }
+
+  String? _werewolfHudSummary() {
+    if (_localRole != PlayerRole.werewolf || _gameState != GameState.running) {
+      return null;
+    }
+    final faction = _effectiveLocalFaction().label;
+    final form = _rt.werewolfInOniForm ? '鬼化' : '人';
+    if (_rt.werewolfInOniForm) {
+      final cap = _werewolfCanCaptureNow ? '捕獲可' : '感染のみ';
+      return '$faction・$form・$cap';
+    }
+    return '$faction・$form';
+  }
+
+  bool get _captureZoneLethalForLocal {
+    if (_localRole == PlayerRole.hunter || _localRole == PlayerRole.runner) {
+      return true;
+    }
+    if (_localRole == PlayerRole.werewolf) {
+      return _rt.werewolfInOniForm && _werewolfCanCaptureNow;
+    }
+    return true;
+  }
+
+  String _werewolfStatusSuffix() {
+    if (_localRole != PlayerRole.werewolf) return '';
+    final faction = _effectiveLocalFaction();
+    final perceived = WerewolfFactionLogic.perceivedRoleFor(
+      MatchParticipantState(
+        uid: _firestoreSession?.myUid ?? 'local',
+        assignmentRole: _localRole,
+        werewolfInOniForm: _rt.werewolfInOniForm,
+        eliminated: _factionAtDeath != null,
+      ),
+    );
+    final capture = _rt.werewolfInOniForm && _werewolfCanCaptureNow
+        ? '捕獲可'
+        : (_rt.werewolfInOniForm ? '感染のみ' : '');
+    final frozen = _factionAtDeath != null ? '（固定）' : '';
+    return ' / ${faction.label}$frozen / ${perceived.label}${capture.isEmpty ? "" : "・$capture"}';
+  }
 
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
@@ -1304,10 +1466,12 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _startGameCore() {
     _processedRoomEventDocIds.clear();
+    _eliminatedUids.clear();
+    _factionAtDeath = null;
     setState(() {
       _gameState = GameState.running;
       _afterCatchRule = null;
-      _statusMessage = 'ゲーム開始。鬼から逃げてください。';
+      _statusMessage = RoleBriefingCatalog.matchStartStatusLine(_localRole);
       _controlSheetMode = ControlSheetMode.skillsOnly;
       _hudExpanded = false;
       _rt.showOniIntelCard = true;
@@ -1319,6 +1483,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     _abortProposalTimer = null;
     _captureAcksByPlace.clear();
     _lastKnownHunterPositions.clear();
+    _oniPathSamples.clear();
+    _oniMatchStartAnchor = null;
+    if (_localRole == PlayerRole.hunter) {
+      _oniMatchStartAnchor = _currentPosition;
+    }
     if (_isOnlineFirestore) {
       final sk = _matchEventSessionKey;
       if (sk != null) {
@@ -1370,7 +1539,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (_gameState == GameState.running) {
         _evaluateGame();
       } else {
-        _evaluateCameraJack();
+        _evaluateEliminationAftermathCharges();
         _maybeHostPublishAccusationUnlock();
       }
       _retuneGpsIfNeeded();
@@ -1535,6 +1704,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     _abortProposalTimer?.cancel();
     _abortProposalTimer = null;
     _captureAcksByPlace.clear();
+    _eliminatedUids.clear();
+    _factionAtDeath = null;
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
     if (!skipFirestoreSync && _isOnlineFirestore && _isHost) {
@@ -1546,29 +1717,15 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _showRoleSkillDialog() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _gameState != GameState.running) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) {
-          final scheme = Theme.of(ctx).colorScheme;
-          final bodyStyle = TextStyle(color: scheme.onSurface, height: 1.4);
-          return AlertDialog(
-            title: Text(
-              'あなたの役職 / スキル',
-              style: TextStyle(color: scheme.onSurface),
-            ),
-            content: Text(
-              '役職: ${_localRole.displayName}\n'
-              'スキル: ${_skillLoadout.map(skillLabel).join(" / ")}',
-              style: bodyStyle,
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
+      unawaited(
+        showRoleBriefingDialog(
+          context,
+          role: _localRole,
+          skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
+          werewolfCurrentFaction: _localRole == PlayerRole.werewolf
+              ? _localFactionNow()
+              : null,
+        ),
       );
     });
   }
@@ -1890,7 +2047,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _evaluateGame() {
     if (_gameState == GameState.caughtByOni) {
-      _evaluateCameraJack();
+      _evaluateEliminationAftermathCharges();
       return;
     }
     if (_gameState != GameState.running) return;
@@ -1904,6 +2061,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _evaluateInfoBroker(distance);
     _maybeHostPublishAccusationUnlock();
     _evaluateAccusationFacility();
+    _maybeWerewolfForcedTransform();
 
     final effects = _matchCtrl.evaluateRunningTick(
       playArea: _playArea,
@@ -1911,9 +2069,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       oniPosition: _oniPosition,
       testMode: _testMode,
       oniKnown: _remoteOniKnown,
-      isHunterNow: _isHunterNow,
-      runnerProximityActive: _chaseTargetsPresent,
+      isHunterNow: _isPerceivedOniNow,
+      runnerProximityActive:
+          _chaseTargetsPresent && !_isPerceivedOniNow,
+      applyRunnerOutsideRules:
+          WerewolfFactionLogic.subjectToOniProximityRules(
+            assignmentRole: _localRole,
+            werewolfInOniForm: _rt.werewolfInOniForm,
+          ),
       proximityBand: _latestProximityBand,
+      proximityCapturePermitted: _proximityCapturePermittedForRunner(),
       now: DateTime.now(),
     );
     _applyMatchTickEffects(effects);
@@ -2361,10 +2526,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     final sites = _rt.accusationFacilityPositions;
     final seed = _firestoreSession?.currentMatchStart?.gimmickSeed ?? 0;
     final n = activeAccusationSiteCount(
+      accusationUnlocked: _rt.accusationUnlocked,
       siteCount: sites.length,
-      eliminationCount: _rt.syncedEliminationCount,
-      elapsedSeconds: _rt.elapsedSeconds,
-      matchDurationSeconds: _matchDurationSeconds,
+      territoryBonus: _rt.accusationTerritoryBonus,
     );
     return pickActiveAccusationSiteIndices(
       gimmickSeed: seed + _rt.elapsedSeconds,
@@ -2483,6 +2647,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     )) {
       return;
     }
+    if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
+      setState(() => _statusMessage = '生存中の鬼が施設付近にいるため、ここでは告発できません');
+      return;
+    }
     _accusationPromptOpen = true;
     unawaited(_openAccusationFlow(siteIndex: siteIndex));
   }
@@ -2542,6 +2710,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     required String accusedUid,
     required int siteIndex,
   }) async {
+    if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
+      _toast('生存中の鬼が施設付近にいます。別の施設を使うか、鬼を引き離してください');
+      return;
+    }
     setState(() => _rt.accusationSpentByMe = true);
     if (_isOnlineFirestore) {
       final fs = _firestoreSession;
@@ -2640,14 +2812,22 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _eliminateLocalParticipant(String message, {required String cause}) {
     if (_gameState != GameState.running) return;
     _tracePoints.add(_currentPosition);
-    final rule = _eliminationAftermathRule;
+    unawaited(_publishTraceDrop(_currentPosition));
+    final factionAtDeath = _localFactionNow();
+    final rule = EliminationAftermathRule.forEliminatedFaction(
+      matchDefault: _eliminationAftermathRule,
+      factionAtDeath: factionAtDeath,
+    );
     setState(() {
       _gameState = GameState.caughtByOni;
       _afterCatchRule = rule;
+      _factionAtDeath = factionAtDeath;
       _statusMessage = message;
       _accusationPromptOpen = false;
     });
     unawaited(_publishPlayerEliminatedIfOnline(cause: cause));
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    _eliminatedUids.add(myUid);
     _emitMatchEvent(
       type: cause,
       message: message,
@@ -2797,6 +2977,509 @@ class _GameMapScreenState extends State<GameMapScreen>
     _pushHudRevealAlert('残響体が監視網を焼いた — 鬼の位置が露わに');
   }
 
+  int get _werewolfTransformCooldownSeconds =>
+      _werewolfCooldownSecondsForUi();
+
+  void _evaluateEliminationAftermathCharges() {
+    _evaluateCameraJack();
+    _evaluateSpectralTerritoryCharge();
+    _evaluateFacilitySabotage();
+    _evaluateCameraShutdown();
+  }
+
+  void _refreshAccusationSitesAfterTerritoryChange() {
+    if (!_rt.accusationUnlocked) return;
+    final active = _computeActiveAccusationIndices();
+    if (!mounted) return;
+    setState(() => _rt.activeAccusationSiteIndices = active);
+  }
+
+  void _evaluateSpectralTerritoryCharge() {
+    final rule = _afterCatchRule;
+    if (rule == null || !rule.supportsSpectralTerritoryCharge) return;
+    if (_gameState != GameState.caughtByOni || !_rt.accusationUnlocked) return;
+    final sites = _rt.accusationFacilityPositions;
+    if (sites.isEmpty) return;
+
+    final now = DateTime.now();
+    final radius = GameConfig.accusationFacilityRadiusMeters;
+    final chargeIdx = _rt.spectralTerritoryChargeSiteIndex;
+    if (chargeIdx != null &&
+        chargeIdx >= 0 &&
+        chargeIdx < sites.length &&
+        _rt.spectralTerritoryChargeStartedAt != null) {
+      final site = sites[chargeIdx];
+      final inRange = Geolocator.distanceBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            site.latitude,
+            site.longitude,
+          ) <=
+          radius;
+      if (!inRange) {
+        setState(() {
+          _rt.spectralTerritoryChargeSiteIndex = null;
+          _rt.spectralTerritoryChargeStartedAt = null;
+          _statusMessage = '陣取り中断 — 施設から離れました';
+        });
+        return;
+      }
+      if (SpectralTerritoryLogic.isChargeComplete(
+        chargeStartedAt: _rt.spectralTerritoryChargeStartedAt!,
+        now: now,
+      )) {
+        _completeSpectralTerritory(siteIndex: chargeIdx);
+      }
+      return;
+    }
+
+    if (!SpectralTerritoryLogic.canStartCharge(
+      isEliminated: true,
+      isSpectralOperative: true,
+      accusationUnlocked: _rt.accusationUnlocked,
+      matchUses: _rt.spectralTerritoryMatchUses,
+      lastPersonalAt: _rt.lastSpectralTerritoryAt,
+      now: now,
+      alreadyCharging: false,
+    )) {
+      return;
+    }
+
+    for (var i = 0; i < sites.length; i++) {
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        sites[i].latitude,
+        sites[i].longitude,
+      );
+      if (d <= radius) {
+        setState(() {
+          _rt.spectralTerritoryChargeSiteIndex = i;
+          _rt.spectralTerritoryChargeStartedAt = now;
+          _statusMessage = '告発施設で陣取りチャージ中…';
+        });
+        return;
+      }
+    }
+  }
+
+  void _completeSpectralTerritory({required int siteIndex}) {
+    final now = DateTime.now();
+    setState(() {
+      _rt.spectralTerritoryChargeSiteIndex = null;
+      _rt.spectralTerritoryChargeStartedAt = null;
+      _rt.lastSpectralTerritoryAt = now;
+      _rt.spectralTerritoryMatchUses += 1;
+      _rt.accusationTerritoryBonus += 1;
+      _statusMessage = '陣取り成功 — 有効告発施設が増える方向へ';
+    });
+    _refreshAccusationSitesAfterTerritoryChange();
+    unawaited(_publishSpectralTerritory(siteIndex: siteIndex));
+  }
+
+  Future<void> _publishSpectralTerritory({required int siteIndex}) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    final uid = fs?.myUid;
+    if (fs == null || sk == null || uid == null) return;
+    if (!_isOnlineFirestore) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.spectralTerritory,
+      payload: {
+        'ghostUid': uid,
+        'siteIndex': siteIndex,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  void _applyRemoteSpectralTerritory(RoomMatchEvent ev) {
+    if (!mounted) return;
+    setState(() {
+      _rt.spectralTerritoryMatchUses += 1;
+      _rt.accusationTerritoryBonus += 1;
+    });
+    _refreshAccusationSitesAfterTerritoryChange();
+    _pushHudRevealAlert('残響体が告発施設を陣取った');
+  }
+
+  void _evaluateFacilitySabotage() {
+    final rule = _afterCatchRule;
+    if (rule == null || !rule.supportsFacilitySabotage) return;
+    if (_gameState != GameState.caughtByOni || !_rt.accusationUnlocked) return;
+    final sites = _rt.accusationFacilityPositions;
+    if (sites.isEmpty) return;
+
+    final now = DateTime.now();
+    final radius = GameConfig.accusationFacilityRadiusMeters;
+    final chargeIdx = _rt.revenantSabotageSiteIndex;
+    if (chargeIdx != null &&
+        chargeIdx >= 0 &&
+        chargeIdx < sites.length &&
+        _rt.revenantSabotageStartedAt != null) {
+      final site = sites[chargeIdx];
+      final inRange = Geolocator.distanceBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            site.latitude,
+            site.longitude,
+          ) <=
+          radius;
+      if (!inRange) {
+        setState(() {
+          _rt.revenantSabotageSiteIndex = null;
+          _rt.revenantSabotageStartedAt = null;
+          _statusMessage = '妨害中断 — 施設から離れました';
+        });
+        return;
+      }
+      if (FacilitySabotageLogic.isChargeComplete(
+        chargeStartedAt: _rt.revenantSabotageStartedAt!,
+        now: now,
+      )) {
+        _completeFacilitySabotage(siteIndex: chargeIdx);
+      }
+      return;
+    }
+
+    if (!FacilitySabotageLogic.canStartCharge(
+      isEliminated: true,
+      isRevenantOni: true,
+      matchUses: _rt.revenantSabotageMatchUses,
+      lastPersonalAt: _rt.lastRevenantSabotageAt,
+      now: now,
+      alreadyCharging: false,
+    )) {
+      return;
+    }
+
+    for (var i = 0; i < sites.length; i++) {
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        sites[i].latitude,
+        sites[i].longitude,
+      );
+      if (d <= radius) {
+        setState(() {
+          _rt.revenantSabotageSiteIndex = i;
+          _rt.revenantSabotageStartedAt = now;
+          _statusMessage = '告発施設で妨害チャージ中…';
+        });
+        return;
+      }
+    }
+  }
+
+  void _completeFacilitySabotage({required int siteIndex}) {
+    final now = DateTime.now();
+    setState(() {
+      _rt.revenantSabotageSiteIndex = null;
+      _rt.revenantSabotageStartedAt = null;
+      _rt.lastRevenantSabotageAt = now;
+      _rt.revenantSabotageMatchUses += 1;
+      _rt.accusationTerritoryBonus -= 1;
+      _statusMessage = '告発妨害 — 有効告発施設が減る方向へ';
+    });
+    _refreshAccusationSitesAfterTerritoryChange();
+    unawaited(_publishFacilitySabotage(siteIndex: siteIndex));
+  }
+
+  Future<void> _publishFacilitySabotage({required int siteIndex}) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    final uid = fs?.myUid;
+    if (fs == null || sk == null || uid == null) return;
+    if (!_isOnlineFirestore) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.facilitySabotage,
+      payload: {
+        'ghostUid': uid,
+        'siteIndex': siteIndex,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  void _applyRemoteFacilitySabotage(RoomMatchEvent ev) {
+    if (!mounted) return;
+    setState(() {
+      _rt.revenantSabotageMatchUses += 1;
+      _rt.accusationTerritoryBonus -= 1;
+    });
+    _refreshAccusationSitesAfterTerritoryChange();
+    _pushHudRevealAlert('復讐の鬼影が告発施設を妨害した');
+  }
+
+  void _evaluateCameraShutdown() {
+    final rule = _afterCatchRule;
+    if (rule == null || !rule.supportsFacilitySabotage) return;
+    if (_gameState != GameState.caughtByOni) return;
+    final cameras = _rt.cameraPositions;
+    if (cameras.isEmpty) return;
+
+    final now = DateTime.now();
+    final radius = GameConfig.cameraTriggerRadiusMeters;
+    final chargeIdx = _rt.revenantCameraShutdownIndex;
+    if (chargeIdx != null &&
+        chargeIdx >= 0 &&
+        chargeIdx < cameras.length &&
+        _rt.revenantCameraShutdownStartedAt != null) {
+      if (_rt.disabledCameraIndices.contains(chargeIdx)) {
+        setState(() {
+          _rt.revenantCameraShutdownIndex = null;
+          _rt.revenantCameraShutdownStartedAt = null;
+        });
+        return;
+      }
+      final cam = cameras[chargeIdx];
+      final inRange = Geolocator.distanceBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            cam.latitude,
+            cam.longitude,
+          ) <=
+          radius;
+      if (!inRange) {
+        setState(() {
+          _rt.revenantCameraShutdownIndex = null;
+          _rt.revenantCameraShutdownStartedAt = null;
+          _statusMessage = 'カメラ停止中断 — 端末から離れました';
+        });
+        return;
+      }
+      if (CameraShutdownLogic.isChargeComplete(
+        chargeStartedAt: _rt.revenantCameraShutdownStartedAt!,
+        now: now,
+      )) {
+        _completeCameraShutdown(cameraIndex: chargeIdx);
+      }
+      return;
+    }
+
+    if (!CameraShutdownLogic.canStartShutdown(
+      isEliminated: true,
+      isRevenantOni: true,
+      cameraIndex: 0,
+      disabledCameraIndices: _rt.disabledCameraIndices,
+      lastPersonalAt: _rt.lastCameraShutdownAt,
+      now: now,
+      alreadyCharging: false,
+    )) {
+      return;
+    }
+
+    for (var i = 0; i < cameras.length; i++) {
+      if (_rt.disabledCameraIndices.contains(i)) continue;
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        cameras[i].latitude,
+        cameras[i].longitude,
+      );
+      if (d <= radius) {
+        setState(() {
+          _rt.revenantCameraShutdownIndex = i;
+          _rt.revenantCameraShutdownStartedAt = now;
+          _statusMessage = '監視カメラを停止中…';
+        });
+        return;
+      }
+    }
+  }
+
+  void _completeCameraShutdown({required int cameraIndex}) {
+    final now = DateTime.now();
+    setState(() {
+      _rt.revenantCameraShutdownIndex = null;
+      _rt.revenantCameraShutdownStartedAt = null;
+      _rt.lastCameraShutdownAt = now;
+      _rt.disabledCameraIndices = {
+        ..._rt.disabledCameraIndices,
+        cameraIndex,
+      };
+      _statusMessage = '監視カメラを停止しました';
+    });
+    unawaited(_publishCameraShutdown(cameraIndex: cameraIndex));
+  }
+
+  Future<void> _publishCameraShutdown({required int cameraIndex}) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    final uid = fs?.myUid;
+    if (fs == null || sk == null || uid == null) return;
+    if (!_isOnlineFirestore) return;
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.cameraShutdown,
+      payload: {
+        'ghostUid': uid,
+        'cameraIndex': cameraIndex,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  void _applyRemoteCameraShutdown(RoomMatchEvent ev) {
+    final idx = (ev.payload['cameraIndex'] as num?)?.toInt();
+    if (idx == null || idx < 0) return;
+    if (!mounted) return;
+    setState(() {
+      _rt.disabledCameraIndices = {..._rt.disabledCameraIndices, idx};
+    });
+    _pushHudRevealAlert('復讐の鬼影が監視カメラを無効化');
+  }
+
+  bool get _eliminationChargeActive {
+    final rule = _afterCatchRule;
+    if (rule == null) return false;
+    if (rule.supportsSpectralTerritoryCharge) {
+      return _rt.cameraJackChargeStartedAt != null ||
+          _rt.spectralTerritoryChargeStartedAt != null;
+    }
+    if (rule.supportsCameraJack) {
+      return _rt.cameraJackChargeStartedAt != null;
+    }
+    if (rule.supportsFacilitySabotage) {
+      return _rt.revenantSabotageStartedAt != null ||
+          _rt.revenantCameraShutdownStartedAt != null;
+    }
+    if (rule.supportsSpectralTerritoryCharge) {
+      return _rt.spectralTerritoryChargeStartedAt != null;
+    }
+    return false;
+  }
+
+  double? get _eliminationChargeProgress {
+    final now = DateTime.now();
+    final rule = _afterCatchRule;
+    if (rule == null) return null;
+    if (rule.supportsCameraJack && _rt.cameraJackChargeStartedAt != null) {
+      return CameraJackLogic.chargeProgress(
+        chargeStartedAt: _rt.cameraJackChargeStartedAt!,
+        now: now,
+      );
+    }
+    if (rule.supportsFacilitySabotage) {
+      if (_rt.revenantSabotageStartedAt != null) {
+        return FacilitySabotageLogic.chargeProgress(
+          chargeStartedAt: _rt.revenantSabotageStartedAt!,
+          now: now,
+        );
+      }
+      if (_rt.revenantCameraShutdownStartedAt != null) {
+        return CameraShutdownLogic.chargeProgress(
+          chargeStartedAt: _rt.revenantCameraShutdownStartedAt!,
+          now: now,
+        );
+      }
+    }
+    if (rule.supportsSpectralTerritoryCharge &&
+        _rt.spectralTerritoryChargeStartedAt != null) {
+      return SpectralTerritoryLogic.chargeProgress(
+        chargeStartedAt: _rt.spectralTerritoryChargeStartedAt!,
+        now: now,
+      );
+    }
+    return null;
+  }
+
+  int get _eliminationPrimaryMatchUses {
+    final rule = _afterCatchRule;
+    if (rule == null) return 0;
+    if (rule.supportsFacilitySabotage) {
+      return _rt.revenantSabotageMatchUses;
+    }
+    return _rt.cameraJackMatchUses;
+  }
+
+  int get _eliminationPrimaryMatchLimit {
+    final rule = _afterCatchRule;
+    if (rule == null) return 0;
+    if (rule.supportsFacilitySabotage) {
+      return GameConfig.facilitySabotageMatchLimit;
+    }
+    return GameConfig.cameraJackMatchLimit;
+  }
+
+  String? get _eliminationSecondaryLine {
+    final rule = _afterCatchRule;
+    if (rule == null) return null;
+    if (rule.supportsFacilitySabotage) {
+      final total = _rt.cameraPositions.length;
+      final off = _rt.disabledCameraIndices.length;
+      return 'カメラ停止 $off / $total 台';
+    }
+    if (rule.supportsSpectralTerritoryCharge) {
+      return '告発陣取り ${_rt.spectralTerritoryMatchUses} / '
+          '${GameConfig.spectralTerritoryMatchLimit} 回';
+    }
+    return null;
+  }
+
+  int? get _eliminationPersonalCooldownSeconds {
+    final rule = _afterCatchRule;
+    if (rule == null) return null;
+    if (rule.supportsFacilitySabotage) {
+      if (_rt.revenantCameraShutdownStartedAt != null ||
+          _rt.revenantSabotageStartedAt != null) {
+        return null;
+      }
+      final sabotage = _cooldownRemainingSeconds(
+        _rt.lastRevenantSabotageAt,
+        GameConfig.facilitySabotagePersonalCooldownSeconds,
+      );
+      final shutdown = _cooldownRemainingSeconds(
+        _rt.lastCameraShutdownAt,
+        GameConfig.cameraShutdownPersonalCooldownSeconds,
+      );
+      if (sabotage > 0 && shutdown > 0) {
+        return sabotage < shutdown ? sabotage : shutdown;
+      }
+      return sabotage > 0 ? sabotage : (shutdown > 0 ? shutdown : 0);
+    }
+    if (rule.supportsSpectralTerritoryCharge) {
+      final jack = _cooldownRemainingSeconds(
+        _rt.lastCameraJackAt,
+        GameConfig.cameraJackPersonalCooldownSeconds,
+      );
+      final territory = _cooldownRemainingSeconds(
+        _rt.lastSpectralTerritoryAt,
+        GameConfig.spectralTerritoryPersonalCooldownSeconds,
+      );
+      if (jack > 0 && territory > 0) {
+        return jack < territory ? jack : territory;
+      }
+      return jack > 0 ? jack : (territory > 0 ? territory : 0);
+    }
+    return _cooldownRemainingSeconds(
+      _rt.lastCameraJackAt,
+      GameConfig.cameraJackPersonalCooldownSeconds,
+    );
+  }
+
+  String? get _eliminationChargeActionLabel {
+    final rule = _afterCatchRule;
+    if (rule == null || !_eliminationChargeActive) return null;
+    if (rule.supportsFacilitySabotage) {
+      if (_rt.revenantSabotageStartedAt != null) return '妨害';
+      if (_rt.revenantCameraShutdownStartedAt != null) return 'カメラ停止';
+    }
+    if (rule.supportsSpectralTerritoryCharge &&
+        _rt.spectralTerritoryChargeStartedAt != null) {
+      return '陣取り';
+    }
+    if (rule.supportsCameraJack && _rt.cameraJackChargeStartedAt != null) {
+      return EliminationRoleCopy.forProfile(
+        _mapVisual.pack.profile,
+        rule,
+      ).jackActionLabel;
+    }
+    return 'チャージ';
+  }
+
   void _applyHunterInfoBroker({
     required int hitIndex,
     required LatLng hit,
@@ -2851,9 +3534,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (_skillLoadout.contains(SkillIds.werewolfTransform)) {
       _rt.lastWerewolfTransformAt = null;
+      _rt.lastWerewolfTransformCooldownSec = null;
     }
     if (_skillLoadout.contains(SkillIds.captureZone)) {
-      _rt.lastCaptureZoneAt = null;
+      _rt.lastSkillLockPlacementAt = null;
     }
     if (_skillLoadout.contains(SkillIds.bodyThrow)) {
       _rt.lastBodyThrowAt = null;
@@ -2915,28 +3599,161 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
+  String _skillLabelForUi(String id) {
+    if (id == SkillIds.werewolfTransform) {
+      return werewolfTransformActionLabel(inOniForm: _rt.werewolfInOniForm);
+    }
+    return skillLabel(id);
+  }
+
+  int _werewolfCooldownSecondsForUi() =>
+      _rt.lastWerewolfTransformCooldownSec ??
+      WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
+        _matchDurationSeconds,
+      );
+
   void _activateWerewolfHunter() {
     if (_gameState != GameState.running || _localRole != PlayerRole.werewolf) {
       return;
     }
-    final now = DateTime.now();
-    if (_rt.lastWerewolfTransformAt != null &&
-        now.difference(_rt.lastWerewolfTransformAt!).inSeconds <
-            GameConfig.werewolfTransformCooldownSeconds) {
+    if (_rt.lastWerewolfTransformAt != null) {
+      final remain = _cooldownRemainingSeconds(
+        _rt.lastWerewolfTransformAt,
+        _werewolfCooldownSecondsForUi(),
+      );
+      if (remain > 0) {
+        _toast('切替の再発動まで $remain 秒');
+        return;
+      }
+    }
+    _setWerewolfOniForm(!_rt.werewolfInOniForm, voluntary: true);
+  }
+
+  void _maybeWerewolfForcedTransform() {
+    if (_localRole != PlayerRole.werewolf || _gameState != GameState.running) {
       return;
     }
+    final thresholds =
+        WerewolfForcedSchedule.thresholdSeconds(_matchDurationSeconds);
+    for (var i = 0; i < thresholds.length; i++) {
+      if (_rt.werewolfForcedPhasesFired.contains(i)) continue;
+      if (_rt.elapsedSeconds < thresholds[i]) continue;
+      _rt.werewolfForcedPhasesFired.add(i);
+      final toOni = !_rt.werewolfInOniForm;
+      _setWerewolfOniForm(toOni, voluntary: false);
+      setState(
+        () => _statusMessage = toOni
+            ? '強制鬼化 — 自発切替でCD短縮${_werewolfStatusSuffix()}'
+            : '強制人化 — 自発切替でCD短縮${_werewolfStatusSuffix()}',
+      );
+      break;
+    }
+  }
+
+  void _setWerewolfOniForm(bool inOniForm, {required bool voluntary}) {
+    final now = DateTime.now();
     _rt.lastWerewolfTransformAt = now;
-    _rt.werewolfTransformEndsAt = now.add(
-      const Duration(seconds: GameConfig.werewolfTransformDurationSeconds),
+    _rt.lastWerewolfTransformCooldownSec = voluntary
+        ? WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
+            _matchDurationSeconds,
+          )
+        : WerewolfForcedSchedule.forcedTransformCooldownSeconds(
+            _matchDurationSeconds,
+          );
+    _rt.werewolfInOniForm = inOniForm;
+    unawaited(
+      _firestoreSession?.publishPresence(
+        tension: false,
+        werewolfOniForm: inOniForm,
+      ),
     );
-    _emitMatchEvent(
-      type: 'werewolf_transform_start',
-      message: '人狼が一時的に鬼化',
-      position: _currentPosition,
-      endsAtMs: _rt.werewolfTransformEndsAt!.millisecondsSinceEpoch,
-    );
-    setState(() => _statusMessage = '一時鬼化中');
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = inOniForm
+          ? '鬼化中 — スキルで人化${_werewolfStatusSuffix()}'
+          : '人の姿 — スキルで鬼化${_werewolfStatusSuffix()}';
+    });
     unawaited(_syncBleMatchContext(forceAdvertiseRestart: true));
+  }
+
+  bool _isAccusationSiteBlockedByLiveHunter(int siteIndex) {
+    if (!_rt.accusationUnlocked) return false;
+    if (siteIndex < 0 || siteIndex >= _rt.accusationFacilityPositions.length) {
+      return false;
+    }
+    final hunterUid = _hunterUidFromAssignments;
+    if (hunterUid == null) return false;
+    final facility = _rt.accusationFacilityPositions[siteIndex];
+    LatLng? hunterPos;
+    if (_localRole == PlayerRole.hunter) {
+      hunterPos = _currentPosition;
+    } else if (hunterUid == _firestoreSession?.myUid) {
+      hunterPos = _currentPosition;
+    } else {
+      hunterPos = _lastKnownHunterPositions[hunterUid];
+    }
+    return AccusationBlockLogic.isHunterBlockingSite(
+      facilityPosition: facility,
+      hunterPosition: hunterPos,
+      hunterPositionKnown: hunterPos != null,
+    );
+  }
+
+  List<LatLng> _oniTrailPointsForMap() {
+    final trail = MatchDurationScaling.oniTrail(_matchDurationSeconds);
+    return OniPathTrailLogic.visibleTrailPoints(
+      samples: _oniPathSamples,
+      now: DateTime.now(),
+      minAgeSeconds: trail.minAgeSeconds,
+      maxAgeSeconds: trail.maxAgeSeconds,
+    );
+  }
+
+  bool get _showOniMatchStartAnchor {
+    if (_oniMatchStartAnchor == null || _localRole == PlayerRole.hunter) {
+      return false;
+    }
+    return _rt.elapsedSeconds <=
+        MatchDurationScaling.oniStartAnchorMaxElapsedSeconds(
+          _matchDurationSeconds,
+        );
+  }
+
+  void _maybeCaptureOniMatchStartAnchor(LatLng pos) {
+    if (_oniMatchStartAnchor != null) return;
+    if (_rt.elapsedSeconds >
+        MatchDurationScaling.oniStartAnchorMaxElapsedSeconds(
+          _matchDurationSeconds,
+        )) {
+      return;
+    }
+    _oniMatchStartAnchor = pos;
+  }
+
+  void _recordOniPathSample(LatLng pos) {
+    final now = DateTime.now();
+    _maybeCaptureOniMatchStartAnchor(pos);
+    _oniPathSamples.add(OniPathSample(recordedAt: now, position: pos));
+    final trail = MatchDurationScaling.oniTrail(_matchDurationSeconds);
+    final pruned = OniPathTrailLogic.prune(
+      samples: _oniPathSamples,
+      now: now,
+      retainSeconds: trail.retainSeconds,
+    );
+    _oniPathSamples
+      ..clear()
+      ..addAll(pruned);
+  }
+
+  Future<void> _publishTraceDrop(LatLng position) async {
+    final sk = _matchEventSessionKey;
+    final fs = _firestoreSession;
+    if (sk == null || fs == null || !_isOnlineFirestore) return;
+    await _publishFirestoreMatchEventInner(
+      innerType: 'trace_drop',
+      message: '脱落・捕獲地点',
+      position: position,
+    );
   }
 
   Future<void> _activateFakeIntelReveal() async {
@@ -3168,6 +3985,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     _lastHunterPositionPublishAt = now;
     _lastHunterPositionPublished = pos;
+    _recordOniPathSample(pos);
     unawaited(
       _publishFirestoreMatchEventInner(
         innerType: 'hunter_position',
@@ -3182,14 +4000,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.captureZone)) return;
     final now = DateTime.now();
-    if (_rt.lastCaptureZoneAt != null &&
-        now.difference(_rt.lastCaptureZoneAt!).inSeconds <
+    if (_rt.lastSkillLockPlacementAt != null &&
+        now.difference(_rt.lastSkillLockPlacementAt!).inSeconds <
             GameConfig.captureZoneCooldownSeconds) {
       return;
     }
-    _rt.lastCaptureZoneAt = now;
+    _rt.lastSkillLockPlacementAt = now;
     setState(() {
-      _rt.waitingCaptureZoneTap = true;
+      _rt.waitingSkillLockMapTap = true;
       _statusMessage = '地図タップ地点に捕獲結界を設置';
     });
   }
@@ -3285,8 +4103,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _publishCaptureZonePlaced(
     String placeId,
     LatLng pos,
-    Set<String> rawTargets,
-  ) async {
+    Set<String> rawTargets, {
+    required bool fromSkill,
+  }) async {
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
@@ -3298,6 +4117,8 @@ class _GameMapScreenState extends State<GameMapScreen>
         'centerLng': pos.longitude,
         'durationSec': GameConfig.captureZoneDurationSeconds,
         'targetUids': _captureTargetUidsForFirestore(rawTargets),
+        'fromSkill': fromSkill,
+        'capturePermitted': _captureZoneLethalForLocal,
       },
       sessionKey: sk,
     );
@@ -3727,6 +4548,22 @@ class _GameMapScreenState extends State<GameMapScreen>
       case RoomMatchEventTypes.cameraJack:
         _applyRemoteCameraJack(ev);
         return;
+      case RoomMatchEventTypes.lobbyPlayArea:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteLobbyPlayArea(ev);
+        return;
+      case RoomMatchEventTypes.facilitySabotage:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteFacilitySabotage(ev);
+        return;
+      case RoomMatchEventTypes.spectralTerritory:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteSpectralTerritory(ev);
+        return;
+      case RoomMatchEventTypes.cameraShutdown:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteCameraShutdown(ev);
+        return;
       default:
         return;
     }
@@ -3734,7 +4571,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _applyRemotePlayerEliminated(RoomMatchEvent ev) {
     if (!mounted) return;
-    setState(() => _rt.syncedEliminationCount += 1);
+    final uid = ev.payload['uid'] as String? ?? ev.actorUid;
+    setState(() {
+      _rt.syncedEliminationCount += 1;
+      _eliminatedUids.add(uid);
+    });
     _maybeHostPublishAccusationUnlock();
   }
 
@@ -3912,6 +4753,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (inner == 'hunter_position' &&
         (hunterUid == null || ev.actorUid == hunterUid)) {
       _lastKnownHunterPositions[ev.actorUid] = pos;
+      _recordOniPathSample(pos);
       final h = ev.payload['headingDeg'];
       if (h is num) {
         _lastKnownOniHeadingDegrees = h.toDouble();
@@ -3923,6 +4765,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         _oniPosition = pos;
         _remoteOniKnown = true;
       });
+    } else if (inner == 'trace_drop') {
+      if (!mounted) return;
+      setState(() => _tracePoints.add(pos));
     } else if (inner == 'fake_start' &&
         endsAtMs != null &&
         ev.actorUid == _firestoreSession?.myUid) {
@@ -3944,13 +4789,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         _rt.bodyThrowTapDeadline = null;
         _rt.bodyThrowPosition = pos;
         _rt.bodyThrowEndsAt = endsAt;
-      });
-    } else if (inner == 'werewolf_transform_start' && endsAtMs != null) {
-      final endsAt = DateTime.fromMillisecondsSinceEpoch(endsAtMs);
-      if (!endsAt.isAfter(now)) return;
-      if (!mounted) return;
-      setState(() {
-        _rt.werewolfTransformEndsAt = endsAt;
       });
     }
 
@@ -3980,12 +4818,15 @@ class _GameMapScreenState extends State<GameMapScreen>
     final now = DateTime.now();
     if (!mounted) return;
     setState(() {
-      _rt.waitingCaptureZoneTap = false;
-      _rt.captureZoneCenter = center;
-      _rt.captureZoneBoundIds = {};
-      _rt.captureZoneTargetLeftAt = null;
-      _rt.captureZoneEscapeRevealed = false;
-      _rt.captureZoneEndsAt = now.add(Duration(seconds: dur));
+      _rt.waitingSkillLockMapTap = false;
+      _rt.lockZoneCenter = center;
+      _rt.lockZoneFromSkill = CaptureZoneEventPayload.fromSkill(ev.payload);
+      _rt.lockZoneBoundIds = {};
+      _rt.lockZoneTargetLeftAt = null;
+      _rt.lockZoneEscapeRevealed = false;
+      _rt.lockZoneCapturePermitted =
+          CaptureZoneEventPayload.capturePermitted(ev.payload);
+      _rt.lockZoneEndsAt = now.add(Duration(seconds: dur));
     });
     HapticFeedback.mediumImpact();
   }
@@ -4001,7 +4842,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted) return;
     setState(() {
       if (myUid != null && targets.contains(myUid)) {
-        _rt.captureZoneBoundIds = const {'self'};
+        _rt.lockZoneBoundIds = const {'self'};
       }
     });
   }
@@ -4104,14 +4945,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!accusationEnabledForPlayerCount(_activeMatchPlayerCount)) return null;
     if (_rt.accusationUnlocked) {
       final total = _rt.accusationFacilityPositions.length;
-      return '告発: 解禁 — ${_accusationCopy.facilityName}（有効${_rt.activeAccusationSiteIndices.length}/${total > 0 ? total : "?"}箇所）';
+      final bonus = _rt.accusationTerritoryBonus;
+      final bonusHint =
+          bonus == 0 ? '' : ' · 陣取り${bonus > 0 ? '+' : ''}$bonus';
+      return '告発: 解禁 — ${_accusationCopy.facilityName}（有効${_rt.activeAccusationSiteIndices.length}/${total > 0 ? total : "?"}箇所$bonusHint）';
     }
-    final previewActive = activeAccusationSiteCount(
-      siteCount: _rt.accusationFacilityPositions.length,
-      eliminationCount: _rt.syncedEliminationCount,
-      elapsedSeconds: _rt.elapsedSeconds,
-      matchDurationSeconds: _matchDurationSeconds,
-    );
     final siteTotal = _rt.accusationFacilityPositions.length;
     final sec = secondsUntilAccusationUnlock(
       playerCount: _activeMatchPlayerCount,
@@ -4123,7 +4961,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (sec == null) return null;
     final min = (sec / 60).ceil();
     final scaleHint = siteTotal > 0
-        ? '（解禁時 有効$previewActive〜$siteTotal箇所・脱落/経過で増加）'
+        ? '（解禁時 有効1箇所・陣取りで増減）'
         : '';
     if (_rt.syncedEliminationCount < 1) {
       return '情報収集フェーズ — 告発は約$min分後（または脱落+5分後）$scaleHint';
@@ -4159,9 +4997,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         return '告発: ${copy.facilityName} 付近で利用可';
       }
     }
-    if (_rt.captureZoneBoundIds.contains('self') &&
-        _rt.captureZoneEndsAt != null) {
-      return '捕捉ロック中: 残り ${_secondsUntil(_rt.captureZoneEndsAt)}秒 / 至近またはBLE接触で捕獲';
+    if (_rt.lockZoneBoundIds.contains('self') &&
+        _rt.lockZoneEndsAt != null) {
+      return '捕捉ロック中: 残り ${_secondsUntil(_rt.lockZoneEndsAt)}秒 / 至近またはBLE接触で捕獲';
     }
     if (_rt.touchLockNoticeShown && _rt.touchLockStartedAt != null) {
       final held = DateTime.now().difference(_rt.touchLockStartedAt!).inSeconds;
@@ -4367,7 +5205,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
       return;
     }
-    if (_rt.waitingCaptureZoneTap) {
+    if (_rt.waitingSkillLockMapTap) {
       final now = DateTime.now();
       final d = Geolocator.distanceBetween(
         _currentPosition.latitude,
@@ -4379,15 +5217,19 @@ class _GameMapScreenState extends State<GameMapScreen>
       final placeId =
           'cz_${now.millisecondsSinceEpoch}_${_firestoreSession?.myUid ?? 'local'}';
       setState(() {
-        _rt.waitingCaptureZoneTap = false;
-        _rt.captureZoneCenter = pos;
-        _rt.captureZoneBoundIds = rawTargets;
-        _rt.captureZoneTargetLeftAt = null;
-        _rt.captureZoneEscapeRevealed = false;
-        _rt.captureZoneEndsAt = now.add(
+        _rt.waitingSkillLockMapTap = false;
+        _rt.lockZoneCenter = pos;
+        _rt.lockZoneFromSkill = true;
+        _rt.lockZoneCapturePermitted = _captureZoneLethalForLocal;
+        _rt.lockZoneBoundIds = rawTargets;
+        _rt.lockZoneTargetLeftAt = null;
+        _rt.lockZoneEscapeRevealed = false;
+        _rt.lockZoneEndsAt = now.add(
           const Duration(seconds: GameConfig.captureZoneDurationSeconds),
         );
-        _statusMessage = '捕獲結界を設置しました';
+        _statusMessage = _captureZoneLethalForLocal
+            ? '捕獲結界を設置しました'
+            : '攪乱結界を設置（感染・拘束のみ・捕獲不可）';
       });
       _emitMatchEvent(
         type: 'capture_zone_start',
@@ -4396,7 +5238,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         syncFirestore: !_isOnlineFirestore,
       );
       if (_isOnlineFirestore) {
-        unawaited(_publishCaptureZonePlaced(placeId, pos, rawTargets));
+        unawaited(
+          _publishCaptureZonePlaced(placeId, pos, rawTargets, fromSkill: true),
+        );
         if (_isHost) {
           _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
           _scheduleHostCaptureBoundOnce(placeId: placeId, center: pos);
@@ -4464,6 +5308,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         }
         _statusMessage = 'GeoJSON からプレイエリアを読み込みました';
       });
+      if (_isHost) {
+        unawaited(
+          _publishLobbyPlayArea(slotName: 'GeoJSON', slotId: 'geojson_import'),
+        );
+      }
       _toast('保存済み。必要ならエリア編集で微調整してください。');
     } catch (e) {
       _toast('パース失敗: $e');
@@ -4484,8 +5333,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       '- 状態: ${_gameState.label}',
       '- ルーム: ${_roomSession.modeLabel}',
       '- エリア: ${_playAreaSummary()}',
-      '- 役職: ${_localRole.displayName}${_isHunterNow && _localRole != PlayerRole.hunter ? "（一時鬼化中）" : ""}',
-      '- スキル: ${_skillLoadout.map(skillLabel).join(" / ")}',
+      '- 役職: ${_localRole.displayName}${_isPerceivedOniNow && _localRole != PlayerRole.hunter ? "（鬼化中）" : ""}${_werewolfStatusSuffix()}',
+      '- スキル: ${_skillLoadout.map(_skillLabelForUi).join(" / ")}',
       '- 残り時間: ${MapGeoUtils.formatClock(_rt.remainingSeconds)}',
       '- 位置暴露: $_rt.revealCount 回',
       '- 情報屋: ${_rt.lastOniIntelText == null ? "未取得" : _latestIntelLine()}',
@@ -4696,6 +5545,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           _gameState == GameState.caughtByOni,
       commJammingZonePositions: _rt.commJammingZonePositions,
       cameraPositions: _rt.cameraPositions,
+      disabledCameraIndices: _rt.disabledCameraIndices,
       tracePoints: _tracePoints,
       revealTraces: _recentRevealTraces().toList(growable: false),
       anonymousRevealTraces: _recentAnonymousTraces().toList(growable: false),
@@ -4724,7 +5574,15 @@ class _GameMapScreenState extends State<GameMapScreen>
       circleDraftCenter: _circleDraftCenter,
       circleDraftRadiusMeters: _circleDraftRadiusMeters,
       playArea: _playArea,
-      captureZoneCenter: _rt.captureZoneCenter,
+      lockZoneCenter: _rt.lockZoneCenter,
+      lockZoneDisplayRadiusMeters: _rt.lockZoneCenter == null
+          ? 0
+          : MatchGeoHelpers.lockZoneEscapeRadiusMeters(
+              placedBySkill: _rt.lockZoneFromSkill,
+              playArea: _playArea,
+            ),
+      oniTrailPoints: _oniTrailPointsForMap(),
+      oniMatchStartAnchor: _showOniMatchStartAnchor ? _oniMatchStartAnchor : null,
       tokens: tokens,
       layerToggles: _mapLayerToggles,
       visualPack: _mapVisual.pack,
@@ -4813,7 +5671,12 @@ class _GameMapScreenState extends State<GameMapScreen>
           outcome: _gameState,
           detail: _statusMessage,
           roleSummary:
-              '$_localPlayerLabel / ${_localRole.displayName} / ${_skillLoadout.map(skillLabel).join("・")}',
+              '$_localPlayerLabel / ${_localRole.displayName}${_werewolfStatusSuffix()} / ${_skillLoadout.map(_skillLabelForUi).join("・")}',
+          factionAtDeath: _factionAtDeath,
+          playerFactionAtEnd: _effectiveLocalFaction(),
+          winningFaction: _gameState == GameState.runnerWin
+              ? FactionSide.humanTeam
+              : FactionSide.oniTeam,
           matchDurationLabel: _matchDurationLabel(),
           afterCatchRule: _afterCatchRule,
           onPrepareNext: () {
@@ -4961,7 +5824,10 @@ class _GameMapScreenState extends State<GameMapScreen>
         _participantRulesOpen = result.participantRulesOpen;
       }
       _gimmickDensity = result.gimmickDensity.clamp(0.45, 1.55);
-      _matchDurationSeconds = result.matchDurationMinutes.round() * 60;
+      _matchDurationSeconds = (result.matchDurationMinutes.round() * 60).clamp(
+        MatchDurationScaling.minMatchSeconds,
+        MatchDurationScaling.maxMatchSeconds,
+      );
       if (_customRuleMode) {
         _localRole = result.localRole;
         _skillLoadout = result.skillLoadout.isEmpty
@@ -5630,19 +6496,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                 child: EliminationSupportBar(
                   rule: _afterCatchRule!,
                   worldProfile: _mapVisual.pack.profile,
-                  chargeActive: _rt.cameraJackChargeStartedAt != null,
-                  chargeProgress: _rt.cameraJackChargeStartedAt == null
-                      ? null
-                      : CameraJackLogic.chargeProgress(
-                          chargeStartedAt: _rt.cameraJackChargeStartedAt!,
-                          now: DateTime.now(),
-                        ),
-                  matchJackUses: _rt.cameraJackMatchUses,
-                  matchJackLimit: GameConfig.cameraJackMatchLimit,
-                  personalCooldownSeconds: _cooldownRemainingSeconds(
-                    _rt.lastCameraJackAt,
-                    GameConfig.cameraJackPersonalCooldownSeconds,
-                  ),
+                  chargeActive: _eliminationChargeActive,
+                  chargeProgress: _eliminationChargeProgress,
+                  chargeActionLabel: _eliminationChargeActionLabel,
+                  matchJackUses: _eliminationPrimaryMatchUses,
+                  matchJackLimit: _eliminationPrimaryMatchLimit,
+                  secondaryActionLine: _eliminationSecondaryLine,
+                  personalCooldownSeconds: _eliminationPersonalCooldownSeconds,
                   statusLine: _statusMessage,
                 ),
               ),
@@ -5684,12 +6544,11 @@ class _GameMapScreenState extends State<GameMapScreen>
                   editing: _editingArea,
                   safeZoneCharges: _rt.safeZoneCharges,
                   conditionText: _conditionLine(),
-                  werewolfBuffSeconds: _buffRemainingSeconds(
-                    _rt.werewolfTransformEndsAt,
-                  ),
+                  werewolfOniActive: _rt.werewolfInOniForm,
+                  werewolfHudSummary: _werewolfHudSummary(),
                   werewolfCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastWerewolfTransformAt,
-                    GameConfig.werewolfTransformCooldownSeconds,
+                    _werewolfTransformCooldownSeconds,
                   ),
                   fakeCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastFakeSkillAt,
@@ -5832,19 +6691,17 @@ class _GameMapScreenState extends State<GameMapScreen>
                     GameConfig.fakeSkillCooldownSeconds,
                   ),
                   captureCooldownSeconds: _cooldownRemainingSeconds(
-                    _rt.lastCaptureZoneAt,
+                    _rt.lastSkillLockPlacementAt,
                     GameConfig.captureZoneCooldownSeconds,
                   ),
                   bodyThrowCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastBodyThrowAt,
                     GameConfig.bodyThrowCooldownSeconds,
                   ),
-                  werewolfBuffSeconds: _buffRemainingSeconds(
-                    _rt.werewolfTransformEndsAt,
-                  ),
+                  werewolfOniActive: _rt.werewolfInOniForm,
                   werewolfCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastWerewolfTransformAt,
-                    GameConfig.werewolfTransformCooldownSeconds,
+                    _werewolfTransformCooldownSeconds,
                   ),
                   prepLobbyMapHidden:
                       _gameState == GameState.waiting && !showGameMap,
@@ -5943,7 +6800,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         fakeCooldownSeconds: 0,
                         captureCooldownSeconds: 0,
                         bodyThrowCooldownSeconds: 0,
-                        werewolfBuffSeconds: null,
+                        werewolfOniActive: false,
                         werewolfCooldownSeconds: 0,
                         prepLobbyMapHidden: true,
                         mapWorldProfile: _mapVisual.pack.profile,

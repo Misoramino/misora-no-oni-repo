@@ -52,6 +52,25 @@ class RoomMatchEvent {
   }
 }
 
+/// Firestore `capture_zone_*` イベント payload の解釈。
+abstract final class CaptureZoneEventPayload {
+  /// スキル「捕獲結界」由来か（接触拘束のタッチロックでは false）。
+  ///
+  /// 旧クライアントは `fromSkill` 未送信。`capture_zone_placed` はスキル専用のため true 扱い。
+  static bool fromSkill(Map<String, dynamic> payload) {
+    final raw = payload['fromSkill'] ?? payload['placedBySkill'];
+    if (raw is bool) return raw;
+    return true;
+  }
+
+  /// 設置者が捕獲（殺害）可能な結界か。鬼陣営人狼の結界は false。
+  static bool capturePermitted(Map<String, dynamic> payload) {
+    final raw = payload['capturePermitted'];
+    if (raw is bool) return raw;
+    return true;
+  }
+}
+
 abstract final class RoomMatchEventTypes {
   static const matchStart = 'match_start';
   static const matchEnd = 'match_end';
@@ -75,4 +94,10 @@ abstract final class RoomMatchEventTypes {
   static const accusationAttempt = 'accusation_attempt';
   static const accusationFailed = 'accusation_failed';
   static const cameraJack = 'camera_jack';
+  static const facilitySabotage = 'facility_sabotage';
+  static const spectralTerritory = 'spectral_territory';
+  static const cameraShutdown = 'camera_shutdown';
+
+  /// ロビー中のプレイエリア共有（sessionKey = [FirestoreRoomSession.lobbySessionKey]）。
+  static const lobbyPlayArea = 'lobby_play_area';
 }

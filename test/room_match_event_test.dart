@@ -33,6 +33,18 @@ void main() {
     );
   });
 
+  test('CaptureZoneEventPayload.fromSkill defaults true for legacy payloads', () {
+    expect(CaptureZoneEventPayload.fromSkill({}), isTrue);
+    expect(
+      CaptureZoneEventPayload.fromSkill({'fromSkill': false}),
+      isFalse,
+    );
+    expect(
+      CaptureZoneEventPayload.fromSkill({'placedBySkill': true}),
+      isTrue,
+    );
+  });
+
   test('RoomMatchEvent.tryParse coerces non-map payload to empty map', () {
     final ev = RoomMatchEvent.tryParse('e2', {
       RoomEventsFields.type: RoomMatchEventTypes.reveal,

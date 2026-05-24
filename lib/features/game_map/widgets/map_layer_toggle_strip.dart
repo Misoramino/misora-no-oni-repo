@@ -81,7 +81,7 @@ class MapLayerToggleStrip extends StatelessWidget {
               onToggle: (v) => onChanged(toggles.copyWith(reveals: v)),
             ),
             _chip(
-              label: '鬼情報',
+              label: '鬼の手がかり痕跡',
               icon: Icons.radar,
               on: toggles.oniIntel,
               onToggle: (v) => onChanged(toggles.copyWith(oniIntel: v)),

@@ -19,7 +19,10 @@ class CooldownChip extends StatelessWidget {
         color: Colors.black.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text('$label ${seconds}s', style: const TextStyle(fontSize: 11)),
+      child: Text(
+        seconds > 0 ? '$label ${seconds}s' : label,
+        style: const TextStyle(fontSize: 11),
+      ),
     );
   }
 }

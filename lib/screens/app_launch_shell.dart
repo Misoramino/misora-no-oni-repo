@@ -11,7 +11,7 @@ import '../theme/world_profile.dart';
 import 'launch_handoff.dart';
 import 'title_screen.dart';
 
-/// 起動演出 → ロゴ画面 → タイトル（単一ロゴでスムーズに遷移）。
+/// 起動演出 → タイトル（同一 [TitleScreen] でロゴ位置を連続補間）。
 class AppLaunchShell extends StatefulWidget {
   const AppLaunchShell({
     required this.initialProfile,
@@ -29,7 +29,7 @@ class AppLaunchShell extends StatefulWidget {
 class _AppLaunchShellState extends State<AppLaunchShell>
     with TickerProviderStateMixin {
   WorldProfile _profile = WorldProfile.horror;
-  bool _introDone = false;
+  bool _handoffReleased = false;
 
   late final AnimationController _effect;
   late final AnimationController _intro;
@@ -37,12 +37,13 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   final LaunchSoundPlayer _sound = LaunchSoundPlayer();
 
   Timer? _watchdogTimer;
+  Timer? _releaseHandoffTimer;
   bool _introStarted = false;
 
   static const _introDuration = Duration(
     milliseconds: LaunchIntroTimeline.totalMs,
   );
-  static const _maxIntroDuration = Duration(seconds: 7);
+  static const _maxIntroDuration = Duration(seconds: 6);
 
   @override
   void initState() {
@@ -73,29 +74,35 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   }
 
   void _startIntroIfReady() {
-    if (!mounted || _introStarted || _introDone) return;
+    if (!mounted || _introStarted || _handoffReleased) return;
     _introStarted = true;
     unawaited(_intro.forward());
   }
 
   void _forceFinishIntro() {
-    if (!mounted || _introDone) return;
+    if (!mounted || _handoffReleased) return;
     if (_introMotion.value < 1) {
       _intro.value = 1;
     }
-    _finishIntro();
+    _scheduleHandoffRelease();
   }
 
   void _onIntroStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed || !mounted) return;
-    _finishIntro();
+    _scheduleHandoffRelease();
   }
 
-  void _finishIntro() {
-    if (_introDone) return;
+  void _scheduleHandoffRelease() {
+    if (_handoffReleased) return;
     _watchdogTimer?.cancel();
-    _effect.stop();
-    setState(() => _introDone = true);
+    _releaseHandoffTimer?.cancel();
+    _releaseHandoffTimer = Timer(
+      const Duration(milliseconds: LaunchIntroTimeline.handoffReleaseMs),
+      () {
+        if (!mounted || _handoffReleased) return;
+        setState(() => _handoffReleased = true);
+      },
+    );
   }
 
   Future<void> _loadProfile() async {
@@ -117,6 +124,7 @@ class _AppLaunchShellState extends State<AppLaunchShell>
   @override
   void dispose() {
     _watchdogTimer?.cancel();
+    _releaseHandoffTimer?.cancel();
     _effect.dispose();
     _intro.dispose();
     unawaited(_sound.dispose());
@@ -125,13 +133,6 @@ class _AppLaunchShellState extends State<AppLaunchShell>
 
   @override
   Widget build(BuildContext context) {
-    if (_introDone) {
-      return TitleScreen(
-        initialProfile: _profile,
-        onProfileChanged: widget.onProfileChanged,
-      );
-    }
-
     final branding = WorldLaunchBranding.of(_profile);
 
     return AnimatedBuilder(
@@ -140,11 +141,14 @@ class _AppLaunchShellState extends State<AppLaunchShell>
         return TitleScreen(
           initialProfile: _profile,
           onProfileChanged: widget.onProfileChanged,
-          handoff: LaunchHandoffView(
-            introProgress: _introMotion.value,
-            effectProgress: _effect.value,
-            branding: branding,
-          ),
+          initialAmbientPhase: _handoffReleased ? _effect.value : null,
+          handoff: _handoffReleased
+              ? null
+              : LaunchHandoffView(
+                  introProgress: _introMotion.value,
+                  effectProgress: _effect.value,
+                  branding: branding,
+                ),
         );
       },
     );

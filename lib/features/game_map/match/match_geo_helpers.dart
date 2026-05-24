@@ -44,6 +44,53 @@ abstract final class MatchGeoHelpers {
     );
   }
 
+  /// 接触拘束中に逃げてはいけない円（スキル結界より広め・エリア連動）。
+  static double scaledRestraintRadiusMeters(PlayArea playArea) {
+    final areaRadius = effectivePlayAreaRadiusMeters(playArea);
+    final scaled = areaRadius * GameConfig.scaledRestraintRadiusAreaRatio;
+    return scaled.clamp(
+      GameConfig.scaledRestraintRadiusMinMeters,
+      GameConfig.scaledRestraintRadiusMaxMeters,
+    );
+  }
+
+  /// 感染が始まる距離（接触圏より外側になりやすい環）。
+  static double scaledInfectionTriggerMeters(PlayArea playArea) {
+    final areaRadius = effectivePlayAreaRadiusMeters(playArea);
+    final scaled = areaRadius * GameConfig.scaledInfectionRadiusAreaRatio;
+    return scaled.clamp(
+      GameConfig.infectionTriggerMinMeters,
+      GameConfig.infectionTriggerMaxMeters,
+    );
+  }
+
+  /// 拘束の持続: 中心から半径分を走って脱出する想定 + バッファ。
+  static int touchLockDurationSeconds(PlayArea playArea) {
+    final r = scaledRestraintRadiusMeters(playArea);
+    final runToEdgeSec = r / GameConfig.restraintEscapeRunMps;
+    return (runToEdgeSec + GameConfig.touchLockDurationBufferSeconds)
+        .round()
+        .clamp(
+          GameConfig.touchLockDurationMinSeconds,
+          GameConfig.touchLockDurationMaxSeconds,
+        );
+  }
+
+  static double lockZoneEscapeRadiusMeters({
+    required bool placedBySkill,
+    required PlayArea playArea,
+  }) =>
+      placedBySkill
+          ? GameConfig.captureZoneSkillRadiusMeters
+          : scaledRestraintRadiusMeters(playArea);
+
+  @Deprecated('Use lockZoneEscapeRadiusMeters')
+  static double captureZoneEscapeRadiusMeters({
+    required bool placedBySkill,
+    required PlayArea playArea,
+  }) =>
+      lockZoneEscapeRadiusMeters(placedBySkill: placedBySkill, playArea: playArea);
+
   static double effectivePlayAreaRadiusMeters(PlayArea playArea) {
     switch (playArea.type) {
       case PlayAreaType.circle:
@@ -80,14 +127,19 @@ abstract final class MatchGeoHelpers {
     required bool testMode,
     required bool oniKnown,
     required bool isHunterNow,
-    required Set<String> captureZoneBoundIds,
+    required Set<String> lockZoneBoundIds,
     required ProximityBand proximityBand,
     required double gpsDistanceToOniMeters,
+    required bool proximityCapturePermitted,
+    required bool lockZoneCapturePermitted,
   }) {
     if (!running) return false;
     if (!testMode && !oniKnown && !isHunterNow) return false;
-    if (!captureZoneBoundIds.contains('self')) return false;
-    if (proximityBand == ProximityBand.contact) return true;
+    if (!lockZoneBoundIds.contains('self')) return false;
+    if (!lockZoneCapturePermitted) return false;
+    if (proximityBand == ProximityBand.contact) {
+      return proximityCapturePermitted;
+    }
     // BLE オフ同士など: 拘束中は GPS でも捕獲可能（オンライン鬼位置同期と併用）
     if (gpsDistanceToOniMeters <= GameConfig.captureDistanceMeters) {
       return true;

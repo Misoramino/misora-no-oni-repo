@@ -1,3 +1,5 @@
+import 'werewolf_faction_logic.dart';
+
 /// 脱落後のルール（ホストが試合開始時に同期。カスタムでも選択可）。
 enum EliminationAftermathRule {
   /// 残響体: カメラジャックで逃走陣営を支援（既定）。
@@ -10,7 +12,39 @@ enum EliminationAftermathRule {
   joinOni,
 
   /// 脱落時に鬼として動く（実験・バランス要調整）。
-  revenantOni,
+  revenantOni;
+
+  /// 既定「残響体」モード時: 脱落時点の陣営で第二ゲームを分岐。
+  static EliminationAftermathRule forEliminatedFaction({
+    required EliminationAftermathRule matchDefault,
+    required FactionSide factionAtDeath,
+  }) {
+    if (matchDefault != EliminationAftermathRule.spectralOperative) {
+      return matchDefault;
+    }
+    return factionAtDeath == FactionSide.oniTeam
+        ? EliminationAftermathRule.revenantOni
+        : EliminationAftermathRule.spectralOperative;
+  }
+
+  /// 後方互換。新規は [forEliminatedFaction] を使う。
+  static EliminationAftermathRule forEliminatedRole({
+    required EliminationAftermathRule matchDefault,
+    required bool isOniSide,
+  }) =>
+      forEliminatedFaction(
+        matchDefault: matchDefault,
+        factionAtDeath:
+            isOniSide ? FactionSide.oniTeam : FactionSide.humanTeam,
+      );
+
+  static EliminationAftermathRule? tryParseName(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    for (final v in EliminationAftermathRule.values) {
+      if (v.name == raw) return v;
+    }
+    return null;
+  }
 }
 
 extension EliminationAftermathRuleX on EliminationAftermathRule {
@@ -23,20 +57,19 @@ extension EliminationAftermathRuleX on EliminationAftermathRule {
 
   String get infoPanelLine => switch (this) {
         EliminationAftermathRule.spectralOperative =>
-          '残響体: 監視端子で鬼の位置を露わにできる',
+          '残響体: 監視ジャック / 告発施設の陣取り',
         EliminationAftermathRule.ghostSpectator => '幽霊: 全体のざっくり位置を表示中',
         EliminationAftermathRule.joinOni => '鬼側合流: 索敵支援（ざっくり位置）',
-        EliminationAftermathRule.revenantOni => '復讐の鬼影: 鬼として追跡（実験）',
+        EliminationAftermathRule.revenantOni =>
+          '復讐の鬼影: 告発妨害（3回）/ カメラ停止（無制限・各1回）',
       };
 
   bool get supportsCameraJack =>
       this == EliminationAftermathRule.spectralOperative;
 
-  static EliminationAftermathRule? tryParseName(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    for (final v in EliminationAftermathRule.values) {
-      if (v.name == raw) return v;
-    }
-    return null;
-  }
+  bool get supportsFacilitySabotage =>
+      this == EliminationAftermathRule.revenantOni;
+
+  bool get supportsSpectralTerritoryCharge =>
+      this == EliminationAftermathRule.spectralOperative;
 }

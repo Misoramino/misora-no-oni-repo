@@ -5,10 +5,7 @@ import 'player_role.dart';
 
 /// ランダム配分後の役職を、マルチ（2人以上・非カスタム）向けに補正する。
 ///
-/// - 2人: 鬼または人狼が最低1人
-/// - 3人以上: 鬼が最低1人
-/// - 人数問わず: 全員鬼は禁止（最低1人は逃走者か人狼）
-///
+/// 目安: 逃走者 ≧ 人狼 ≧ 鬼（鬼は基本1人）。
 /// ソロ・カスタムルール時は呼び出さない。
 void ensureViableRoleMix({
   required Map<String, SharedPlayerAssignment> assignments,
@@ -18,6 +15,7 @@ void ensureViableRoleMix({
   if (assignments.isEmpty) return;
 
   final keys = assignments.keys.toList();
+  final n = keys.length;
 
   void setRole(String uid, PlayerRole role) {
     assignments[uid] = SharedPlayerAssignment(
@@ -26,23 +24,14 @@ void ensureViableRoleMix({
     );
   }
 
-  bool hasHunter() =>
-      assignments.values.any((a) => a.role == PlayerRole.hunter);
-
-  bool hasAntagonist() => assignments.values.any(
-        (a) =>
-            a.role == PlayerRole.hunter || a.role == PlayerRole.werewolf,
-      );
-
-  bool allHunters() =>
-      assignments.values.every((a) => a.role == PlayerRole.hunter);
-
-  if (allHunters()) {
-    setRole(keys[rnd.nextInt(keys.length)], PlayerRole.runner);
-  }
-
-  if (keys.length <= 2) {
-    if (!hasAntagonist()) {
+  if (n <= 2) {
+    var hasAntagonist = assignments.values.any(
+      (a) => a.role == PlayerRole.hunter || a.role == PlayerRole.werewolf,
+    );
+    if (assignments.values.every((a) => a.role == PlayerRole.hunter)) {
+      setRole(keys[rnd.nextInt(keys.length)], PlayerRole.runner);
+    }
+    if (!hasAntagonist) {
       setRole(
         keys[rnd.nextInt(keys.length)],
         rnd.nextBool() ? PlayerRole.hunter : PlayerRole.werewolf,
@@ -51,16 +40,27 @@ void ensureViableRoleMix({
     return;
   }
 
-  if (!hasHunter()) {
-    final candidates = keys
-        .where((k) => assignments[k]!.role != PlayerRole.hunter)
-        .toList();
-    if (candidates.isNotEmpty) {
-      setRole(candidates[rnd.nextInt(candidates.length)], PlayerRole.hunter);
-    }
+  final hunterCount = 1;
+  final werewolfCount = n >= 6 ? 2 : 1;
+  var runnerCount = n - hunterCount - werewolfCount;
+  if (runnerCount < werewolfCount) {
+    runnerCount = werewolfCount;
   }
 
-  if (allHunters()) {
-    setRole(keys[rnd.nextInt(keys.length)], PlayerRole.runner);
+  final pool = <PlayerRole>[
+    ...List.filled(hunterCount, PlayerRole.hunter),
+    ...List.filled(werewolfCount, PlayerRole.werewolf),
+    ...List.filled(runnerCount, PlayerRole.runner),
+  ];
+  while (pool.length < n) {
+    pool.add(PlayerRole.runner);
+  }
+  while (pool.length > n) {
+    pool.removeLast();
+  }
+  pool.shuffle(rnd);
+
+  for (var i = 0; i < keys.length; i++) {
+    setRole(keys[i], pool[i]);
   }
 }

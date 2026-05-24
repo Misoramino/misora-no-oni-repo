@@ -18,6 +18,7 @@ class MatchRuntimeState {
 
   DateTime? outsideAreaSince;
   bool revealedInCurrentOutside;
+  DateTime? lastOutsideRevealAt;
 
   List<LatLng> safeZonePositions;
   List<LatLng> infoBrokerPositions;
@@ -27,6 +28,20 @@ class MatchRuntimeState {
   bool accusationUnlocked;
   bool accusationSpentByMe;
   int syncedEliminationCount;
+  int accusationTerritoryBonus;
+  Set<int> werewolfForcedPhasesFired;
+  int? revenantSabotageSiteIndex;
+  DateTime? revenantSabotageStartedAt;
+  DateTime? lastRevenantSabotageAt;
+  int revenantSabotageMatchUses;
+  int? spectralTerritoryChargeSiteIndex;
+  DateTime? spectralTerritoryChargeStartedAt;
+  DateTime? lastSpectralTerritoryAt;
+  int spectralTerritoryMatchUses;
+  Set<int> disabledCameraIndices;
+  int? revenantCameraShutdownIndex;
+  DateTime? revenantCameraShutdownStartedAt;
+  DateTime? lastCameraShutdownAt;
   List<LatLng> cameraJackPositions;
   int? cameraJackChargeSiteIndex;
   DateTime? cameraJackChargeStartedAt;
@@ -54,15 +69,22 @@ class MatchRuntimeState {
   LatLng? fakePositionLatLng;
   double? fakePositionBearingDegrees;
 
-  DateTime? werewolfTransformEndsAt;
+  /// 人狼が鬼側の接近・捕獲判定を使う状態（任意／強制の切替まで維持）。
+  bool werewolfInOniForm;
   DateTime? lastWerewolfTransformAt;
-  LatLng? captureZoneCenter;
-  DateTime? captureZoneEndsAt;
-  DateTime? lastCaptureZoneAt;
-  bool waitingCaptureZoneTap;
-  Set<String> captureZoneBoundIds;
-  DateTime? captureZoneTargetLeftAt;
-  bool captureZoneEscapeRevealed;
+  /// 直前の切替で適用した再切替CD（強制0.9× / 任意0.75× interval）。
+  int? lastWerewolfTransformCooldownSec;
+  LatLng? lockZoneCenter;
+  DateTime? lockZoneEndsAt;
+  /// true = スキル捕獲結界。false = 鬼接触圏からの接触拘束（タッチロック）。
+  bool lockZoneFromSkill;
+  /// 拘束中に至近/BLE 接触で捕獲してよいか（鬼陣営人狼の結界は false）。
+  bool lockZoneCapturePermitted;
+  DateTime? lastSkillLockPlacementAt;
+  bool waitingSkillLockMapTap;
+  Set<String> lockZoneBoundIds;
+  DateTime? lockZoneTargetLeftAt;
+  bool lockZoneEscapeRevealed;
 
   DateTime? touchLockStartedAt;
   bool touchLockNoticeShown;
@@ -93,6 +115,7 @@ class MatchRuntimeState {
     List<MatchEvent>? matchEvents,
     this.outsideAreaSince,
     this.revealedInCurrentOutside = false,
+    this.lastOutsideRevealAt,
     List<LatLng>? safeZonePositions,
     List<LatLng>? infoBrokerPositions,
     List<LatLng>? commJammingZonePositions,
@@ -101,6 +124,20 @@ class MatchRuntimeState {
     this.accusationUnlocked = false,
     this.accusationSpentByMe = false,
     this.syncedEliminationCount = 0,
+    this.accusationTerritoryBonus = 0,
+    Set<int>? werewolfForcedPhasesFired,
+    this.revenantSabotageSiteIndex,
+    this.revenantSabotageStartedAt,
+    this.lastRevenantSabotageAt,
+    this.revenantSabotageMatchUses = 0,
+    this.spectralTerritoryChargeSiteIndex,
+    this.spectralTerritoryChargeStartedAt,
+    this.lastSpectralTerritoryAt,
+    this.spectralTerritoryMatchUses = 0,
+    Set<int>? disabledCameraIndices,
+    this.revenantCameraShutdownIndex,
+    this.revenantCameraShutdownStartedAt,
+    this.lastCameraShutdownAt,
     List<LatLng>? cameraJackPositions,
     this.cameraJackChargeSiteIndex,
     this.cameraJackChargeStartedAt,
@@ -125,15 +162,18 @@ class MatchRuntimeState {
     this.lastFakeIntelRevealAt,
     this.fakePositionLatLng,
     this.fakePositionBearingDegrees,
-    this.werewolfTransformEndsAt,
+    this.werewolfInOniForm = false,
     this.lastWerewolfTransformAt,
-    this.captureZoneCenter,
-    this.captureZoneEndsAt,
-    this.lastCaptureZoneAt,
-    this.waitingCaptureZoneTap = false,
-    Set<String>? captureZoneBoundIds,
-    this.captureZoneTargetLeftAt,
-    this.captureZoneEscapeRevealed = false,
+    this.lastWerewolfTransformCooldownSec,
+    this.lockZoneCenter,
+    this.lockZoneEndsAt,
+    this.lockZoneFromSkill = false,
+    this.lockZoneCapturePermitted = true,
+    this.lastSkillLockPlacementAt,
+    this.waitingSkillLockMapTap = false,
+    Set<String>? lockZoneBoundIds,
+    this.lockZoneTargetLeftAt,
+    this.lockZoneEscapeRevealed = false,
     this.touchLockStartedAt,
     this.touchLockNoticeShown = false,
     this.bodyThrowPosition,
@@ -168,14 +208,16 @@ class MatchRuntimeState {
               LatLng(35.6800, 139.7696),
             ],
         triggeredCameras = triggeredCameras ?? <int>{},
-        captureZoneBoundIds = captureZoneBoundIds ?? const {};
+        lockZoneBoundIds = lockZoneBoundIds ?? const {},
+        werewolfForcedPhasesFired = werewolfForcedPhasesFired ?? <int>{},
+        disabledCameraIndices = disabledCameraIndices ?? <int>{};
 
   bool get isInfectedNow =>
       infectionEndsAt != null && DateTime.now().isBefore(infectionEndsAt!);
 
   bool get dangerPulseActive =>
       touchLockNoticeShown ||
-      captureZoneBoundIds.contains('self') ||
+      lockZoneBoundIds.contains('self') ||
       isInfectedNow;
 
   void resetToLobby({required int matchDurationSeconds}) {
@@ -183,6 +225,7 @@ class MatchRuntimeState {
     elapsedSeconds = 0;
     outsideAreaSince = null;
     revealedInCurrentOutside = false;
+    lastOutsideRevealAt = null;
     revealCount = 0;
     revealLog.clear();
     anonymousRevealTraces.clear();
@@ -207,15 +250,18 @@ class MatchRuntimeState {
     lastFakeIntelRevealAt = null;
     fakePositionLatLng = null;
     fakePositionBearingDegrees = null;
-    werewolfTransformEndsAt = null;
+    werewolfInOniForm = false;
     lastWerewolfTransformAt = null;
-    captureZoneCenter = null;
-    captureZoneEndsAt = null;
-    lastCaptureZoneAt = null;
-    waitingCaptureZoneTap = false;
-    captureZoneBoundIds = const {};
-    captureZoneTargetLeftAt = null;
-    captureZoneEscapeRevealed = false;
+    lastWerewolfTransformCooldownSec = null;
+    lockZoneCenter = null;
+    lockZoneEndsAt = null;
+    lockZoneFromSkill = false;
+    lockZoneCapturePermitted = true;
+    lastSkillLockPlacementAt = null;
+    waitingSkillLockMapTap = false;
+    lockZoneBoundIds = const {};
+    lockZoneTargetLeftAt = null;
+    lockZoneEscapeRevealed = false;
     touchLockStartedAt = null;
     touchLockNoticeShown = false;
     bodyThrowPosition = null;
@@ -231,6 +277,20 @@ class MatchRuntimeState {
     accusationUnlocked = false;
     accusationSpentByMe = false;
     syncedEliminationCount = 0;
+    accusationTerritoryBonus = 0;
+    werewolfForcedPhasesFired = {};
+    revenantSabotageSiteIndex = null;
+    revenantSabotageStartedAt = null;
+    lastRevenantSabotageAt = null;
+    revenantSabotageMatchUses = 0;
+    spectralTerritoryChargeSiteIndex = null;
+    spectralTerritoryChargeStartedAt = null;
+    lastSpectralTerritoryAt = null;
+    spectralTerritoryMatchUses = 0;
+    disabledCameraIndices = {};
+    revenantCameraShutdownIndex = null;
+    revenantCameraShutdownStartedAt = null;
+    lastCameraShutdownAt = null;
     accusationFacilityPositions = const [];
     activeAccusationSiteIndices = {};
     cameraJackPositions = const [];
@@ -256,6 +316,20 @@ class MatchRuntimeState {
     accusationUnlocked = false;
     accusationSpentByMe = false;
     syncedEliminationCount = 0;
+    accusationTerritoryBonus = 0;
+    werewolfForcedPhasesFired = {};
+    revenantSabotageSiteIndex = null;
+    revenantSabotageStartedAt = null;
+    lastRevenantSabotageAt = null;
+    revenantSabotageMatchUses = 0;
+    spectralTerritoryChargeSiteIndex = null;
+    spectralTerritoryChargeStartedAt = null;
+    lastSpectralTerritoryAt = null;
+    spectralTerritoryMatchUses = 0;
+    disabledCameraIndices = {};
+    revenantCameraShutdownIndex = null;
+    revenantCameraShutdownStartedAt = null;
+    lastCameraShutdownAt = null;
     cameraJackChargeSiteIndex = null;
     cameraJackChargeStartedAt = null;
     lastCameraJackAt = null;

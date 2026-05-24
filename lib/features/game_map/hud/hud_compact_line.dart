@@ -11,7 +11,7 @@ enum HudCompactLineSlot {
 extension HudCompactLineSlotLabel on HudCompactLineSlot {
   String get label => switch (this) {
         HudCompactLineSlot.all => 'すべて',
-        HudCompactLineSlot.intel => '鬼情報のみ',
+        HudCompactLineSlot.intel => '鬼の手がかりのみ',
         HudCompactLineSlot.status => '状態メッセージのみ',
         HudCompactLineSlot.condition => 'コンディションのみ',
       };
