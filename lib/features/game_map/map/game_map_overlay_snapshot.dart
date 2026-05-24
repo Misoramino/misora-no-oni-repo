@@ -62,6 +62,7 @@ class GameMapOverlaySnapshot {
     this.mapZoom = 16,
     this.playerMarkerIcon,
     this.usePhotoPlayerPin = false,
+    this.revealAvatarIconsByUid = const {},
     this.cameraPulsePhase = 0,
     this.analystTraceDetail = false,
     this.oniTrailPoints = const [],
@@ -118,6 +119,9 @@ class GameMapOverlaySnapshot {
   final double mapZoom;
   final BitmapDescriptor? playerMarkerIcon;
   final bool usePhotoPlayerPin;
+
+  /// 暴露マーカー用（UID → 写真ピン）。members サムネから生成。
+  final Map<String, BitmapDescriptor> revealAvatarIconsByUid;
 
   /// 0〜1。監視カメラのスキャン円アニメ用。
   final double cameraPulsePhase;

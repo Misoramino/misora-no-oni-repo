@@ -85,6 +85,9 @@ abstract final class MemberPresenceFields {
 
   /// 人狼の鬼化状態（通知なし・陣営計算用のみ）。
   static const werewolfOniForm = 'werewolfOniForm';
+
+  /// ピン用サムネ（PNG Base64・64px 程度）。暴露マーカー表示専用。
+  static const avatarThumbB64 = 'avatarThumbB64';
 }
 
 abstract final class RoomEventsFields {

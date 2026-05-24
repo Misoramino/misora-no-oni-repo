@@ -6,7 +6,9 @@ import '../../../game/skill_catalog.dart';
 import 'role_briefing_dialog.dart';
 
 /// 遊び方の説明ボトムシート。
-void showHowToPlaySheet(BuildContext context) {
+///
+/// [yourRole] を渡すと、その役職の詳細・Tips を先頭に表示する。
+void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -17,6 +19,9 @@ void showHowToPlaySheet(BuildContext context) {
       minChildSize: 0.45,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
+        final otherRoles = PlayerRole.values
+            .where((r) => r != yourRole)
+            .toList(growable: false);
         return ListView(
           controller: scrollController,
           padding: const EdgeInsets.all(16),
@@ -38,10 +43,15 @@ void showHowToPlaySheet(BuildContext context) {
             _sectionTitle(ctx, '流れ'),
             _helpTile(ctx, SkillCatalog.matchFlow, icon: Icons.flag_outlined),
             const SizedBox(height: 12),
-            _sectionTitle(ctx, '役職 — 目指すこと・やること'),
-            roleBriefingBlock(ctx, PlayerRole.runner),
-            roleBriefingBlock(ctx, PlayerRole.hunter),
-            roleBriefingBlock(ctx, PlayerRole.werewolf),
+            if (yourRole != null) ...[
+              _sectionTitle(ctx, 'あなたの役職 — ${yourRole.displayName}'),
+              roleBriefingBlock(ctx, yourRole, emphasized: true),
+              const SizedBox(height: 12),
+              _sectionTitle(ctx, 'ほかの役職'),
+            ] else
+              _sectionTitle(ctx, '役職 — 目指すこと・やること'),
+            for (final role in yourRole != null ? otherRoles : PlayerRole.values)
+              roleBriefingBlock(ctx, role),
             const SizedBox(height: 12),
             _sectionTitle(ctx, 'マップ・ルール'),
             for (final g in SkillCatalog.gimmicks) _entryTile(ctx, g),

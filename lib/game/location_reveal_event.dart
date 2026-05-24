@@ -9,6 +9,7 @@ class LocationRevealEvent {
     required this.overflowMeters,
     this.playerLabel = 'player1',
     this.reasonSummary,
+    this.subjectUid,
   });
 
   final int sequence;
@@ -20,6 +21,9 @@ class LocationRevealEvent {
   /// プレイヤー向け短い説明（例: エリア外、監視カメラ、偽情報暴露）。
   final String? reasonSummary;
 
+  /// 暴露されたプレイヤーの UID（オンライン）。写真ピン紐付け用。
+  final String? subjectUid;
+
   Map<String, dynamic> toJson() => {
         'type': 'location_reveal',
         'sequence': sequence,
@@ -29,6 +33,7 @@ class LocationRevealEvent {
         'lng': position.longitude,
         'overflowMeters': overflowMeters,
         if (reasonSummary != null) 'reasonSummary': reasonSummary,
+        if (subjectUid != null) 'subjectUid': subjectUid,
       };
 
   factory LocationRevealEvent.fromJson(Map<String, dynamic> json) {
@@ -42,6 +47,7 @@ class LocationRevealEvent {
       overflowMeters: (json['overflowMeters'] as num).toDouble(),
       playerLabel: json['playerLabel'] as String? ?? 'player1',
       reasonSummary: json['reasonSummary'] as String?,
+      subjectUid: json['subjectUid'] as String?,
     );
   }
 

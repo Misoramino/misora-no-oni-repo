@@ -110,21 +110,55 @@ IconData _iconForRole(PlayerRole role) => switch (role) {
     };
 
 /// 遊び方シート用: 役職ブロック（詳細＋スキル）。
-Widget roleBriefingBlock(BuildContext ctx, PlayerRole role) {
+Widget roleBriefingBlock(
+  BuildContext ctx,
+  PlayerRole role, {
+  bool emphasized = false,
+}) {
   final briefing = RoleBriefingCatalog.forRole(role);
   final theme = Theme.of(ctx);
+  final scheme = theme.colorScheme;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          role.displayName,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
+      if (!emphasized)
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 4),
+          child: Text(
+            role.displayName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-      ),
+      if (emphasized)
+        Material(
+          color: scheme.primaryContainer.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  role.displayName,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'この試合のあなた向け。くわしい操作・スキルは下にまとめています。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      if (emphasized) const SizedBox(height: 8),
       Text(
         briefing.headline,
         style: theme.textTheme.bodyMedium?.copyWith(

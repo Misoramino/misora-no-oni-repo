@@ -243,9 +243,10 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
 
 String _photoPinHelperText(WorldProfile profile) {
   final pack = WorldVisualPackFactory.of(profile);
-  const base = '自分のピンに常時表示（端末のみ）。';
+  const base =
+      '選んだ写真は自動で縮小して保存されます。オンライン中は保存時にルームへ共有し、';
   if (pack.photoOnlyOnReveal || !pack.showPhotoPinByDefault) {
-    return '$base 暴露後は枠が強調。';
+    return '$base 名前付き暴露時に他プレイヤーにも写真ピンで表示（試合後に追加した場合も再保存で反映）。';
   }
-  return base;
+  return '$base 自分のピンと名前付き暴露時に他プレイヤーへ表示（後から追加した場合も再保存で反映）。';
 }

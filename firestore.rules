@@ -27,7 +27,9 @@ service cloud.firestore {
         'proximityBand',
         'locationVisibility',
         'preferredRole',
-        'preferredSkills'
+        'preferredSkills',
+        'werewolfOniForm',
+        'avatarThumbB64'
       ]);
     }
 

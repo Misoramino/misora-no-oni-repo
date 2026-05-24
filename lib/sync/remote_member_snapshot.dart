@@ -9,6 +9,7 @@ class RemoteMemberSnapshot {
     required this.lng,
     required this.reportedAtUtc,
     this.proximityBand,
+    this.avatarThumbB64,
   });
 
   final String uid;
@@ -18,6 +19,7 @@ class RemoteMemberSnapshot {
   final double lng;
   final DateTime? reportedAtUtc;
   final String? proximityBand;
+  final String? avatarThumbB64;
 
   static RemoteMemberSnapshot? tryParse(String uid, Map<String, dynamic> data) {
     final lat = data[MemberPresenceFields.lastLat];
@@ -36,6 +38,7 @@ class RemoteMemberSnapshot {
       lng: lng.toDouble(),
       reportedAtUtc: at,
       proximityBand: data[MemberPresenceFields.proximityBand] as String?,
+      avatarThumbB64: data[MemberPresenceFields.avatarThumbB64] as String?,
     );
   }
 }

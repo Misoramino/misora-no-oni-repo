@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../session/avatar_thumb_codec.dart';
 import '../../../theme/world_profile_tokens.dart';
 
 /// 端末ローカル写真から丸枠付きプレイヤーピンを生成（Firestore には送らない）。
@@ -44,8 +45,8 @@ abstract final class AvatarPinCompositor {
     try {
       final codec = await ui.instantiateImageCodec(
         imageBytes,
-        targetWidth: 128,
-        targetHeight: 128,
+        targetWidth: AvatarThumbCodec.localPinDecodePx,
+        targetHeight: AvatarThumbCodec.localPinDecodePx,
       );
       final frame = await codec.getNextFrame();
       final photo = frame.image;

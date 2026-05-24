@@ -251,17 +251,21 @@ abstract final class GameMapOverlayBuilder {
       }
       if (L.reveals && lod.showRevealMarkers(z)) {
         for (var i = 0; i < s.revealTraces.length; i++) {
+          final trace = s.revealTraces[i];
+          final photoIcon = trace.subjectUid != null
+              ? s.revealAvatarIconsByUid[trace.subjectUid]
+              : null;
           markers.add(
             Marker(
               markerId: MarkerId('reveal_trace_$i'),
-              position: s.revealTraces[i].position,
+              position: trace.position,
               infoWindow: InfoWindow(
-                title:
-                    '${s.revealTraces[i].playerLabel} の位置暴露 #${s.revealTraces[i].sequence}',
+                title: '${trace.playerLabel} の位置暴露 #${trace.sequence}',
                 snippet:
-                    '${MapGeoFormat.traceAge(s.revealTraces[i].timestamp, s.now)} / ${MapGeoFormat.latLng(s.revealTraces[i].position)}',
+                    '${MapGeoFormat.traceAge(trace.timestamp, s.now)} / ${MapGeoFormat.latLng(trace.position)}',
               ),
-              icon: _icon(s, MapMarkerKind.reveal, BitmapDescriptor.hueViolet),
+              icon: photoIcon ??
+                  _icon(s, MapMarkerKind.reveal, BitmapDescriptor.hueViolet),
             ),
           );
         }

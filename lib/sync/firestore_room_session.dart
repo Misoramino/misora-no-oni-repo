@@ -262,6 +262,32 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
+  /// 暴露ピン用サムネ（PNG Base64）。null でフィールド削除。
+  Future<String?> updateAvatarThumb(String? avatarThumbB64) async {
+    if (_roomId == null || _uid == null) return null;
+    try {
+      final ref = _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('members')
+          .doc(_uid!);
+      if (avatarThumbB64 == null || avatarThumbB64.isEmpty) {
+        await ref.set(
+          {MemberPresenceFields.avatarThumbB64: FieldValue.delete()},
+          SetOptions(merge: true),
+        );
+      } else {
+        await ref.set(
+          {MemberPresenceFields.avatarThumbB64: avatarThumbB64},
+          SetOptions(merge: true),
+        );
+      }
+      return null;
+    } on FirebaseException catch (e) {
+      return 'アバター同期に失敗: ${_describeFirebaseException(e)}';
+    }
+  }
+
   /// 表示名のみ更新（ルーム参加済みのとき）。
   Future<String?> updateNickname(String nickname) async {
     final nick = nickname.trim();

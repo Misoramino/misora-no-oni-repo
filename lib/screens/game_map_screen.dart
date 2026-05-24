@@ -34,6 +34,8 @@ import '../features/game_map/settings/game_custom_settings_sheet.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
 import '../features/game_map/settings/player_personal_settings_sheet.dart';
 import '../session/avatar_image_store.dart';
+import '../session/avatar_thumb_codec.dart';
+import '../features/game_map/map/reveal_avatar_icon_cache.dart';
 import '../session/session_prefs.dart';
 import '../features/game_map/widgets/diagnostics_card.dart';
 import '../features/game_map/widgets/game_control_panel.dart';
@@ -251,6 +253,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _accusationPromptOpen = false;
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
+  final RevealAvatarIconCache _revealAvatarIcons = RevealAvatarIconCache();
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
   StreamSubscription<RoomMatchState>? _roomMatchSub;
   StreamSubscription<RoomMatchEvent>? _roomEventSub;
@@ -473,6 +476,30 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     _bindRemoteMembers(fs);
     _statusMessage = 'ルーム ${fs.roomId} に接続済み';
+    unawaited(_syncAvatarThumbToFirestore());
+  }
+
+  Future<void> _ingestRemoteAvatarThumbs(
+    Map<String, RemoteMemberSnapshot> members,
+  ) async {
+    await _revealAvatarIcons.ingestMembers(
+      members,
+      tokens: _mapVisual.pack.tokens,
+      onUpdated: () {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  Future<void> _syncAvatarThumbToFirestore() async {
+    final fs = _firestoreSession;
+    if (fs is! FirestoreRoomSession || fs.myUid == null) return;
+    String? b64;
+    if (_avatarImagePath != null && _avatarImagePath!.isNotEmpty) {
+      b64 = await AvatarThumbCodec.encodeFile(_avatarImagePath!);
+    }
+    final err = await fs.updateAvatarThumb(b64);
+    if (err != null && mounted) _toast(err);
   }
 
   void _bindRemoteMembers(FirestoreRoomSession session) {
@@ -482,12 +509,14 @@ class _GameMapScreenState extends State<GameMapScreen>
       _remoteMembers = Map<String, RemoteMemberSnapshot>.from(seed);
       _applyRemoteOniPosition(_remoteMembers);
     });
+    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
     _remoteMembersSub = session.remoteMembers.listen((map) {
       if (!mounted) return;
       setState(() {
         _remoteMembers = map;
         _applyRemoteOniPosition(map);
       });
+      unawaited(_ingestRemoteAvatarThumbs(map));
     });
     _roomMatchSub?.cancel();
     _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
@@ -933,6 +962,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _activeProfile = profile;
       _mapLayerToggles = _mapVisual.pack.layerDefaults;
     });
+    unawaited(_syncAvatarThumbToFirestore());
   }
 
   Future<void> _loadHudDisplayPrefs() async {
@@ -2203,8 +2233,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     double overflowMeters = 0,
     String? syncLocalEventType,
     bool pushHud = true,
+    String? subjectUid,
   }) {
     final shown = _displayRevealPosition(position);
+    final resolvedSubjectUid =
+        subjectUid ?? _firestoreSession?.myUid ?? 'local';
     _rt.revealCount += 1;
     final ev = LocationRevealEvent(
       sequence: _rt.revealCount,
@@ -2213,6 +2246,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       overflowMeters: overflowMeters,
       playerLabel: playerLabel,
       reasonSummary: pick.summary,
+      subjectUid: resolvedSubjectUid,
     );
     setState(() {
       _rt.revealLog.insert(0, ev);
@@ -3852,6 +3886,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       playerLabel: label,
       pick: pick,
       syncLocalEventType: 'accidental_reveal',
+      subjectUid: self ? _firestoreSession?.myUid : targetUid,
     );
     unawaited(
       _publishFirestoreFakeIntelReveal(
@@ -4636,11 +4671,13 @@ class _GameMapScreenState extends State<GameMapScreen>
           overflowMeters: overflow,
           playerLabel: label,
           reasonSummary: reasonSummary,
+          subjectUid: ev.actorUid,
         ),
       );
       if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
       _statusMessage = ev.payload['message'] as String? ?? '位置情報を受信';
     });
+    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
     _pushHudRevealAlert('$label の位置が露見しました（$reasonSummary）');
     HapticFeedback.mediumImpact();
   }
@@ -4661,6 +4698,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     final narrative = ev.payload['message'] as String? ?? '';
     final summary = ev.payload['reasonSummary'] as String? ?? '通信混線';
+    final subjectUid = (targetUid != null && targetUid.isNotEmpty)
+        ? targetUid
+        : ev.actorUid;
     if (!mounted) return;
     setState(() {
       _rt.revealCount += 1;
@@ -4673,11 +4713,13 @@ class _GameMapScreenState extends State<GameMapScreen>
           overflowMeters: 0,
           playerLabel: label,
           reasonSummary: summary,
+          subjectUid: subjectUid,
         ),
       );
       if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
       _statusMessage = narrative.isNotEmpty ? narrative : '位置が露見';
     });
+    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
     _pushHudRevealAlert('$label の位置が露見しました（$summary）');
     HapticFeedback.mediumImpact();
   }
@@ -5546,6 +5588,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
+  Map<String, BitmapDescriptor> _revealAvatarIconsForOverlay() {
+    final out = Map<String, BitmapDescriptor>.from(
+      _revealAvatarIcons.iconsByUid,
+    );
+    final icon = _mapVisual.playerAvatarIcon;
+    if (icon != null && _shouldUsePhotoPlayerPin()) {
+      final uid = _firestoreSession?.myUid ?? 'local';
+      out[uid] = icon;
+    }
+    return out;
+  }
+
   GameMapOverlaySnapshot _overlaySnapshot(WorldProfileTokens tokens) {
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
@@ -5620,6 +5674,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       mapZoom: _mapVisual.mapZoom,
       playerMarkerIcon: _mapVisual.playerAvatarIcon,
       usePhotoPlayerPin: _shouldUsePhotoPlayerPin(),
+      revealAvatarIconsByUid: _revealAvatarIconsForOverlay(),
       cameraPulsePhase: _cameraPulsePhase,
       analystTraceDetail: _localRunnerModifier == RunnerModifier.analyst,
     );
@@ -5780,6 +5835,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     await _applyWorldProfile(result.profile);
     await _refreshPlayerAvatarIcon();
+    unawaited(_syncAvatarThumbToFirestore());
     await _reloadProximityStackFromPrefs();
     if (_trajectoryConsent != result.trajectoryConsent) {
       await _setTrajectoryConsent(result.trajectoryConsent);
@@ -6035,7 +6091,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ok ?? false;
   }
 
-  void _showHowToPlaySheet() => showHowToPlaySheet(context);
+  void _showHowToPlaySheet() =>
+      showHowToPlaySheet(context, yourRole: _localRole);
 
   Future<void> _openHudDisplaySheet() async {
     if (_gameState != GameState.running) return;
@@ -6319,7 +6376,10 @@ class _GameMapScreenState extends State<GameMapScreen>
         (_gameState == GameState.caughtByOni && _afterCatchRule == null);
     final showHudPanel = running;
     final panelHidden = _controlSheetMode == ControlSheetMode.hidden;
-    final showBottomControlSheet = running && !panelHidden;
+    // 準備中のマップツール／試合中コントロール。脱落後は _prepControlSheetOpen を閉じる。
+    final showBottomControlSheet = !locallyEliminated &&
+        !panelHidden &&
+        (running || _prepControlSheetOpen);
     final showControlFab = !locallyEliminated &&
         ((!running && !_prepControlSheetOpen) || (running && panelHidden));
     final eliminationCopy = locallyEliminated
