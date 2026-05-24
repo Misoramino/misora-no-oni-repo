@@ -309,28 +309,32 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
                                 SizedBox(
-                                  height: 32,
-                                  child: ClipRect(
-                                    child: Align(
-                                      alignment:
-                                          Alignment(0, 1.0 - taglineLayoutT),
-                                      child: Opacity(
-                                        opacity: taglineOpacity,
-                                        child: Text(
-                                          '都市型 GPS 鬼ごっこ',
-                                          textAlign: TextAlign.center,
-                                          style: theme.textTheme.bodyLarge
-                                              ?.copyWith(
-                                            color: theme.colorScheme
-                                                .onSurfaceVariant,
-                                            fontSize: narrow ? 14 : null,
+                                  height: 40,
+                                  child: taglineOpacity > 0.01
+                                      ? ClipRect(
+                                          child: Align(
+                                            alignment: Alignment(
+                                              0,
+                                              1.0 - taglineLayoutT,
+                                            ),
+                                            child: Opacity(
+                                              opacity: taglineOpacity,
+                                              child: Text(
+                                                '都市型 GPS 鬼ごっこ',
+                                                textAlign: TextAlign.center,
+                                                style: theme
+                                                    .textTheme.bodyLarge
+                                                    ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
+                                                  fontSize: narrow ? 14 : null,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                        )
+                                      : null,
                                 ),
                                 Opacity(
                                   opacity: bodyOpacity,

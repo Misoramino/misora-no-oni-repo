@@ -11,10 +11,9 @@ abstract final class LaunchIntroTimeline {
 
   static const brandTextInEnd = 0.09;
 
-  /// 「都市型 GPS…」はブランド文言の後に専用スロット内で下から浮かび上がる
-  static const taglineStart = 0.28;
-
-  static const taglineInEnd = 0.44;
+  /// 「都市型 GPS…」はロゴ／ONI PIN のレイアウト移動が落ち着いてから表示
+  /// （[layoutT] がこの値以上になってから専用スロット内で下から浮かび上がる）
+  static const taglineLayoutGate = 0.88;
 
   /// 操作ボタン（オンライン/オフライン）を早めに表示
   static const bodyFadeStart = 0.08;
@@ -64,26 +63,21 @@ abstract final class LaunchIntroTimeline {
     return 1;
   }
 
-  /// 0 = 下寄り（ブランドと重なる）、1 = 通常位置
-  static double taglineLayoutT(double intro) {
-    if (intro < taglineStart) return 0;
-    if (intro < taglineInEnd) {
-      return Curves.easeOutCubic.transform(
-        ((intro - taglineStart) / (taglineInEnd - taglineStart)).clamp(0.0, 1.0),
-      );
-    }
-    return 1;
-  }
+  /// 0 = スロット下端、1 = 定位置（[taglineLayoutGate] 未満は常に 0）
+  static double taglineLayoutT(double intro) => _taglinePhase(intro);
 
   static double taglineOpacity(double intro) {
-    if (intro < taglineStart + 0.02) return 0;
-    if (intro < taglineInEnd) {
-      return Curves.easeIn.transform(
-        ((intro - taglineStart - 0.02) / (taglineInEnd - taglineStart - 0.02))
-            .clamp(0.0, 1.0),
-      );
-    }
-    return 1;
+    final phase = _taglinePhase(intro);
+    if (phase <= 0) return 0;
+    return Curves.easeIn.transform(phase);
+  }
+
+  static double _taglinePhase(double intro) {
+    final layout = layoutT(intro);
+    if (layout < taglineLayoutGate) return 0;
+    return Curves.easeOutCubic.transform(
+      ((layout - taglineLayoutGate) / (1.0 - taglineLayoutGate)).clamp(0.0, 1.0),
+    );
   }
 
   static double bodyOpacity(double intro) {

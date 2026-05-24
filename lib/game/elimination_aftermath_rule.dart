@@ -14,17 +14,21 @@ enum EliminationAftermathRule {
   /// 脱落時に鬼として動く（実験・バランス要調整）。
   revenantOni;
 
-  /// 既定「残響体」モード時: 脱落時点の陣営で第二ゲームを分岐。
+  /// 試合の脱落後モードが [spectralOperative] / [revenantOni] のとき、
+  /// 脱落時点の陣営で残響体 or 復讐の鬼影に分岐する。
+  /// [ghostSpectator] / [joinOni] は試合全体の実験モードとしてそのまま適用。
   static EliminationAftermathRule forEliminatedFaction({
     required EliminationAftermathRule matchDefault,
     required FactionSide factionAtDeath,
   }) {
-    if (matchDefault != EliminationAftermathRule.spectralOperative) {
-      return matchDefault;
-    }
-    return factionAtDeath == FactionSide.oniTeam
-        ? EliminationAftermathRule.revenantOni
-        : EliminationAftermathRule.spectralOperative;
+    return switch (matchDefault) {
+      EliminationAftermathRule.spectralOperative ||
+      EliminationAftermathRule.revenantOni =>
+        factionAtDeath == FactionSide.oniTeam
+            ? EliminationAftermathRule.revenantOni
+            : EliminationAftermathRule.spectralOperative,
+      _ => matchDefault,
+    };
   }
 
   /// 後方互換。新規は [forEliminatedFaction] を使う。

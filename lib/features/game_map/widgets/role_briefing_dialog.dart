@@ -5,14 +5,17 @@ import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 
-/// 試合開始時: 自分の役職・目標・スキルを伝えるダイアログ。
+/// 試合開始時: 役職の要点だけを短く伝えるダイアログ。
 Future<void> showRoleBriefingDialog(
   BuildContext context, {
   required PlayerRole role,
   required List<String> skillLabels,
   FactionSide? werewolfCurrentFaction,
 }) {
-  final briefing = RoleBriefingCatalog.forRole(role);
+  final start = RoleBriefingCatalog.matchStartBriefing(
+    role,
+    werewolfFaction: werewolfCurrentFaction,
+  );
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -38,79 +41,65 @@ Future<void> showRoleBriefingDialog(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                briefing.headline,
+                start.tagline,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: scheme.primary,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                briefing.factionLine,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                start.winLine,
+                style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (role == PlayerRole.werewolf &&
-                  werewolfCurrentFaction != null) ...[
-                const SizedBox(height: 6),
+              const SizedBox(height: 14),
+              Text('まず意識すること', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 6),
+              for (final item in start.mustKnow)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('・', style: theme.textTheme.bodyMedium),
+                      Expanded(
+                        child: Text(item, style: theme.textTheme.bodyMedium),
+                      ),
+                    ],
+                  ),
+                ),
+              if (skillLabels.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('使えるスキル', style: theme.textTheme.labelLarge),
+                const SizedBox(height: 4),
                 Text(
-                  'この試合のあなたの陣営: ${werewolfCurrentFaction.label}',
+                  skillLabels.join(' / '),
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
               const SizedBox(height: 12),
-              _section(ctx, '目指すこと', briefing.goals),
-              const SizedBox(height: 10),
-              _section(ctx, 'やること', briefing.actions),
-              if (skillLabels.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text('装備スキル', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 4),
-                Text(skillLabels.join(' / '), style: theme.textTheme.bodyMedium),
-              ],
-              if (briefing.notes.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                _section(ctx, '覚えておくこと', briefing.notes),
-              ],
+              Text(
+                start.learnMoreHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ],
           ),
         ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('了解 — 試合開始'),
+            child: const Text('了解 — 始める'),
           ),
         ],
       );
     },
-  );
-}
-
-Widget _section(BuildContext ctx, String title, List<String> items) {
-  final theme = Theme.of(ctx);
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(title, style: theme.textTheme.labelLarge),
-      const SizedBox(height: 4),
-      for (final item in items)
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('・', style: theme.textTheme.bodyMedium),
-              Expanded(
-                child: Text(item, style: theme.textTheme.bodyMedium),
-              ),
-            ],
-          ),
-        ),
-    ],
   );
 }
 
@@ -120,7 +109,7 @@ IconData _iconForRole(PlayerRole role) => switch (role) {
       PlayerRole.werewolf => Icons.psychology_alt_outlined,
     };
 
-/// 遊び方シート用: 役職ブロック（目標＋スキル詳細）。
+/// 遊び方シート用: 役職ブロック（詳細＋スキル）。
 Widget roleBriefingBlock(BuildContext ctx, PlayerRole role) {
   final briefing = RoleBriefingCatalog.forRole(role);
   final theme = Theme.of(ctx);
@@ -161,6 +150,7 @@ Widget roleBriefingBlock(BuildContext ctx, PlayerRole role) {
         ),
       if (briefing.notes.isNotEmpty) ...[
         const SizedBox(height: 6),
+        Text('Tips', style: theme.textTheme.labelMedium),
         for (final n in briefing.notes)
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 2),

@@ -1577,9 +1577,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         : OniIntelMode.values[rnd.nextInt(OniIntelMode.values.length)];
     final aftermath = _customRuleMode
         ? _eliminationAftermathRule
-        : EliminationAftermathRule.values[rnd.nextInt(
-            EliminationAftermathRule.values.length,
-          )];
+        : EliminationAftermathRule.spectralOperative;
     final assignments = <String, SharedPlayerAssignment>{};
     final members = fs.currentLobbyMembers;
     if (members.isEmpty && fs.myUid != null) {
@@ -2811,6 +2809,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _eliminateLocalParticipant(String message, {required String cause}) {
     if (_gameState != GameState.running) return;
+    _dismissOpenModals();
     _tracePoints.add(_currentPosition);
     unawaited(_publishTraceDrop(_currentPosition));
     final factionAtDeath = _localFactionNow();
@@ -2818,13 +2817,18 @@ class _GameMapScreenState extends State<GameMapScreen>
       matchDefault: _eliminationAftermathRule,
       factionAtDeath: factionAtDeath,
     );
+    _cancelCaptureBoundTimers();
     setState(() {
       _gameState = GameState.caughtByOni;
       _afterCatchRule = rule;
       _factionAtDeath = factionAtDeath;
-      _statusMessage = message;
+      _statusMessage = _eliminationStatusMessage(rule, message);
       _accusationPromptOpen = false;
+      _prepControlSheetOpen = false;
+      _controlSheetMode = ControlSheetMode.hidden;
+      _rt.clearActiveChaseState();
     });
+    _updateDangerPulse();
     unawaited(_publishPlayerEliminatedIfOnline(cause: cause));
     final myUid = _firestoreSession?.myUid ?? 'local';
     _eliminatedUids.add(myUid);
@@ -2844,6 +2848,23 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
+  }
+
+  String _eliminationStatusMessage(
+    EliminationAftermathRule rule,
+    String fallback,
+  ) {
+    final copy = EliminationRoleCopy.forProfile(_mapVisual.pack.profile, rule);
+    return switch (rule) {
+      EliminationAftermathRule.spectralOperative =>
+        '捕獲 — ${copy.roleTitle}として戦線に残ります。監視端子と告発施設を使えます。',
+      EliminationAftermathRule.revenantOni =>
+        '捕獲 — ${copy.roleTitle}として戦線に残ります。告発妨害とカメラ停止が使えます。',
+      EliminationAftermathRule.ghostSpectator =>
+        '脱落 — ${copy.roleTitle}として観戦します。試合終了までお待ちください。',
+      EliminationAftermathRule.joinOni =>
+        '脱落 — ${copy.roleTitle}として鬼側の索敵を支援します。',
+    };
   }
 
   void _evaluateCameraJack() {
@@ -5526,6 +5547,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   GameMapOverlaySnapshot _overlaySnapshot(WorldProfileTokens tokens) {
+    final locallyEliminated =
+        _gameState == GameState.caughtByOni && _afterCatchRule != null;
     return GameMapOverlaySnapshot(
       now: DateTime.now(),
       playerMarkerPosition: _playerMarkerPosition,
@@ -5546,10 +5569,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       commJammingZonePositions: _rt.commJammingZonePositions,
       cameraPositions: _rt.cameraPositions,
       disabledCameraIndices: _rt.disabledCameraIndices,
-      tracePoints: _tracePoints,
-      revealTraces: _recentRevealTraces().toList(growable: false),
-      anonymousRevealTraces: _recentAnonymousTraces().toList(growable: false),
-      oniIntelTraces: _recentOniIntelTraces().toList(growable: false),
+      tracePoints: locallyEliminated ? const [] : _tracePoints,
+      revealTraces: locallyEliminated
+          ? const []
+          : _recentRevealTraces().toList(growable: false),
+      anonymousRevealTraces: locallyEliminated
+          ? const []
+          : _recentAnonymousTraces().toList(growable: false),
+      oniIntelTraces: locallyEliminated
+          ? const []
+          : _recentOniIntelTraces().toList(growable: false),
       safeZoneAvailable: _rt.safeZoneAvailable,
       infoBrokerAvailable: _rt.infoBrokerAvailable,
       safeZoneRespawnAt: _rt.safeZoneRespawnAt,
@@ -5581,7 +5610,8 @@ class _GameMapScreenState extends State<GameMapScreen>
               placedBySkill: _rt.lockZoneFromSkill,
               playArea: _playArea,
             ),
-      oniTrailPoints: _oniTrailPointsForMap(),
+      oniTrailPoints:
+          locallyEliminated ? const [] : _oniTrailPointsForMap(),
       oniMatchStartAnchor: _showOniMatchStartAnchor ? _oniMatchStartAnchor : null,
       tokens: tokens,
       layerToggles: _mapLayerToggles,
@@ -6284,13 +6314,20 @@ class _GameMapScreenState extends State<GameMapScreen>
     final running = _gameState == GameState.running;
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
-    final ended = _gameState == GameState.runnerWin;
+    final ended =
+        _gameState == GameState.runnerWin ||
+        (_gameState == GameState.caughtByOni && _afterCatchRule == null);
     final showHudPanel = running;
     final panelHidden = _controlSheetMode == ControlSheetMode.hidden;
-    final showBottomControlSheet =
-        (running || _prepControlSheetOpen) && !panelHidden;
-    final showControlFab =
-        (!running && !_prepControlSheetOpen) || (running && panelHidden);
+    final showBottomControlSheet = running && !panelHidden;
+    final showControlFab = !locallyEliminated &&
+        ((!running && !_prepControlSheetOpen) || (running && panelHidden));
+    final eliminationCopy = locallyEliminated
+        ? EliminationRoleCopy.forProfile(
+            _mapVisual.pack.profile,
+            _afterCatchRule!,
+          )
+        : null;
     final showGameMap =
         _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
     final mq = MediaQuery.of(context);
@@ -6300,13 +6337,17 @@ class _GameMapScreenState extends State<GameMapScreen>
             GameState.waiting => '準備',
             GameState.running => 'プレイ中',
             GameState.runnerWin => '逃走成功',
-            GameState.caughtByOni => '捕獲',
+            GameState.caughtByOni => locallyEliminated
+                ? eliminationCopy!.roleTitle
+                : '捕獲',
           }
         : switch (_gameState) {
             GameState.waiting => 'Oni Game ・ 準備',
             GameState.running => 'Oni Game ・ プレイ中',
             GameState.runnerWin => 'Oni Game ・ 逃走成功',
-            GameState.caughtByOni => 'Oni Game ・ 捕獲',
+            GameState.caughtByOni => locallyEliminated
+                ? 'Oni Game ・ ${eliminationCopy!.roleTitle}'
+                : 'Oni Game ・ 捕獲',
           };
 
     return PopScope(
@@ -6409,7 +6450,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   child: AnimatedBuilder(
                     animation: _dangerPulseController,
                     builder: (_, child) {
-                      final dangerExtra = _gameState == GameState.running
+                      final dangerExtra = running
                           ? (_dangerPulseController.value * 0.35) +
                                 (_rt.isInfectedNow ? 0.20 : 0.0)
                           : 0.0;
@@ -6488,11 +6529,62 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                 ),
               ),
-            if (locallyEliminated && !ended)
+            if (locallyEliminated && !ended) ...[
+              Positioned(
+                top: 8,
+                left: 12,
+                right: 12,
+                child: Material(
+                  elevation: 3,
+                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .secondaryContainer
+                      .withValues(alpha: 0.96),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '捕獲 — 第二ゲーム',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          eliminationCopy!.roleTitle,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          eliminationCopy.roleSubtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '試合は続行中です。下の操作で仲間を支援し、終了後にリザルトへ進みます。',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: showBottomControlSheet ? 200 : 24,
+                bottom: 16,
                 child: EliminationSupportBar(
                   rule: _afterCatchRule!,
                   worldProfile: _mapVisual.pack.profile,
@@ -6506,6 +6598,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   statusLine: _statusMessage,
                 ),
               ),
+            ],
             if (showHudPanel)
               Positioned(
                 top: 18,

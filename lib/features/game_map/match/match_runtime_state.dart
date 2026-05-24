@@ -215,6 +215,29 @@ class MatchRuntimeState {
   bool get isInfectedNow =>
       infectionEndsAt != null && DateTime.now().isBefore(infectionEndsAt!);
 
+  /// 捕獲・脱落直後: 拘束・感染・結界など追跡中 UI を止める。
+  void clearActiveChaseState() {
+    lockZoneCenter = null;
+    lockZoneEndsAt = null;
+    lockZoneFromSkill = false;
+    lockZoneCapturePermitted = true;
+    waitingSkillLockMapTap = false;
+    lockZoneBoundIds = const {};
+    lockZoneTargetLeftAt = null;
+    lockZoneEscapeRevealed = false;
+    touchLockStartedAt = null;
+    touchLockNoticeShown = false;
+    infectionExposureSeconds = 0;
+    infectionEndsAt = null;
+    lastInfectionRevealAt = null;
+    lastDangerDistance = null;
+    fakePositionActive = false;
+    fakePositionEndsAt = null;
+    fakePositionLatLng = null;
+    bodyThrowAwaitingMapTap = false;
+    bodyThrowTapDeadline = null;
+  }
+
   bool get dangerPulseActive =>
       touchLockNoticeShown ||
       lockZoneBoundIds.contains('self') ||
