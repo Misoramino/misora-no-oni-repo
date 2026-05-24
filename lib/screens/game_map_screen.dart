@@ -48,6 +48,7 @@ import '../features/game_map/widgets/prep_map_bottom_panel.dart';
 import '../features/game_map/widgets/elimination_support_bar.dart';
 import '../game/accusation_sites.dart';
 import '../game/camera_jack_logic.dart';
+import '../game/match_ui_terms.dart';
 import '../game/camera_shutdown_logic.dart';
 import '../game/facility_sabotage_logic.dart';
 import '../game/spectral_territory_logic.dart';
@@ -1297,7 +1298,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     final faction = _effectiveLocalFaction().label;
     final form = _rt.werewolfInOniForm ? '鬼化' : '人';
     if (_rt.werewolfInOniForm) {
-      final cap = _werewolfCanCaptureNow ? '捕獲可' : '感染のみ';
+      final cap = _werewolfCanCaptureNow ? '捕獲可' : MatchUiTerms.panicOnly;
       return '$faction・$form・$cap';
     }
     return '$faction・$form';
@@ -1326,7 +1327,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     final capture = _rt.werewolfInOniForm && _werewolfCanCaptureNow
         ? '捕獲可'
-        : (_rt.werewolfInOniForm ? '感染のみ' : '');
+        : (_rt.werewolfInOniForm ? MatchUiTerms.panicOnly : '');
     final frozen = _factionAtDeath != null ? '（固定）' : '';
     return ' / ${faction.label}$frozen / ${perceived.label}${capture.isEmpty ? "" : "・$capture"}';
   }
@@ -2161,8 +2162,8 @@ class _GameMapScreenState extends State<GameMapScreen>
         case MatchInfectionExposureWarnEffect(:final level):
           if (_localRole == PlayerRole.hunter) break;
           final msg = level == 'imminent'
-              ? 'まもなく感染… このままだと位置が断続的に露見します'
-              : '鬼が至近… 長くいると感染し、位置が露見しやすくなります';
+              ? 'まもなくパニック… このままだと名前のない痕跡が残ります'
+              : '鬼が至近… 長くいるとパニックし、位置痕跡が出やすくなります';
           if (!mounted) break;
           setState(() => _statusMessage = msg);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2187,18 +2188,17 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _appendInfectionPulseReveal() {
     final pos = _positionForReveal;
     final pick = _reasonPickAt(pos);
-    _emitIdentifiedReveal(
-      revealKind: 'infection_reveal',
+    _emitAnonymousReveal(
       position: pos,
-      playerLabel: _localPlayerLabel,
       pick: pick,
-      overflowMeters: 0,
-      syncLocalEventType: 'infection_reveal',
+      source: 'panic',
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('感染反応: 位置が断続的に露出しています')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('パニック: 名前のない位置痕跡が残りました'),
+      ),
+    );
   }
 
   void _updateDangerPulse() {
@@ -2234,10 +2234,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     String? syncLocalEventType,
     bool pushHud = true,
     String? subjectUid,
+    bool attachAvatarOnReveal = true,
   }) {
     final shown = _displayRevealPosition(position);
-    final resolvedSubjectUid =
-        subjectUid ?? _firestoreSession?.myUid ?? 'local';
+    final resolvedSubjectUid = attachAvatarOnReveal
+        ? (subjectUid ?? _firestoreSession?.myUid ?? 'local')
+        : null;
     _rt.revealCount += 1;
     final ev = LocationRevealEvent(
       sequence: _rt.revealCount,
@@ -2523,6 +2525,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   AnonymousTraceSource _traceSourceFromKey(String source) {
     if (source == 'periodic') return AnonymousTraceSource.periodic;
     if (source == 'camera') return AnonymousTraceSource.camera;
+    if (source == 'panic') return AnonymousTraceSource.panic;
     return AnonymousTraceSource.other;
   }
 
@@ -2598,7 +2601,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       type: RoomMatchEventTypes.playerEliminated,
       payload: {
         'uid': uid,
-        if (cause != null) 'cause': cause,
+        'cause': ?cause,
       },
       sessionKey: sk,
     );
@@ -3010,9 +3013,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       _emitIdentifiedReveal(
         revealKind: 'camera_jack',
         position: raw,
-        playerLabel: _localPlayerLabel,
+        playerLabel: MatchUiTerms.oniRoleLabel,
         pick: pick,
         syncLocalEventType: 'camera_jack',
+        attachAvatarOnReveal: false,
       );
     }
   }
@@ -5071,12 +5075,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (_rt.isInfectedNow) {
       final fakeNote = _rt.fakePositionActive ? ' — 露出は偽位置側' : '';
-      return '感染中 (${_secondsUntil(_rt.infectionEndsAt)}秒)$fakeNote';
+      return '${MatchUiTerms.panicActive} (${_secondsUntil(_rt.infectionEndsAt)}秒)$fakeNote';
     }
     if (_localRole != PlayerRole.hunter && _rt.infectionExposureSeconds > 0) {
       final left =
           GameConfig.infectionExposureSeconds - _rt.infectionExposureSeconds;
-      return '感染危険: 至近のまま約$left秒で感染（位置が断続露出）';
+      return '${MatchUiTerms.panicDanger}: 至近のまま約$left秒で${MatchUiTerms.panicMechanic}（匿名痕跡）';
     }
     if (_rt.fakePositionActive) {
       return '偽位置展開中 — 露出は偽座標（進行方向へ移動）';
@@ -5292,7 +5296,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         );
         _statusMessage = _captureZoneLethalForLocal
             ? '捕獲結界を設置しました'
-            : '攪乱結界を設置（感染・拘束のみ・捕獲不可）';
+            : '攪乱結界を設置（${MatchUiTerms.panicMechanic}・拘束のみ・捕獲不可）';
       });
       _emitMatchEvent(
         type: 'capture_zone_start',
@@ -5728,12 +5732,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (lastUsedAt == null) return 0;
     final remain =
         cooldownSeconds - DateTime.now().difference(lastUsedAt).inSeconds;
-    return remain < 0 ? 0 : remain;
-  }
-
-  int? _buffRemainingSeconds(DateTime? endsAt) {
-    if (endsAt == null) return null;
-    final remain = endsAt.difference(DateTime.now()).inSeconds;
     return remain < 0 ? 0 : remain;
   }
 

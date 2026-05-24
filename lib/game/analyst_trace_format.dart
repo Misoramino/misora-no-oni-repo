@@ -14,11 +14,13 @@ abstract final class AnalystTraceFormat {
   static String sourceLabel(AnonymousTraceSource source) => switch (source) {
         AnonymousTraceSource.periodic => '定期観測',
         AnonymousTraceSource.camera => '監視系',
+        AnonymousTraceSource.panic => '叫び・パニック',
         AnonymousTraceSource.other => '不明源',
       };
 
   static String confidenceLabel(AnonymousTraceSource source) => switch (source) {
         AnonymousTraceSource.camera => '信頼: 中',
+        AnonymousTraceSource.panic => '信頼: 中',
         AnonymousTraceSource.periodic => '信頼: 低〜中',
         AnonymousTraceSource.other => '信頼: 低',
       };

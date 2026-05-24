@@ -10,6 +10,9 @@ enum AnonymousTraceSource {
 
   camera,
 
+  /// パニック中の断続痕跡（旧 infection pulse）。
+  panic,
+
   other,
 
 }

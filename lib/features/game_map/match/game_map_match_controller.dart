@@ -332,11 +332,11 @@ class GameMapMatchController {
       ],
       SkillTickInfectionStarted() => [
         MatchEmitEventEffect(
-          type: 'infection_start',
-          message: '感染状態に入った',
+          type: 'panic_start',
+          message: 'パニック状態に入った',
           position: playerPosition,
         ),
-        const MatchStatusMessageEffect('感染状態: 一時的に位置露出が増加'),
+        const MatchStatusMessageEffect('パニック: 名前のない位置痕跡が出やすくなります'),
       ],
     };
   }

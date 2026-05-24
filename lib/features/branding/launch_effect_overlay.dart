@@ -586,21 +586,6 @@ class _LaunchEffectPainter extends CustomPainter {
     );
   }
 
-  Path _hexagon(Offset c, double r) {
-    final p = Path();
-    for (var i = 0; i < 6; i++) {
-      final a = -math.pi / 2 + i * math.pi / 3;
-      final pt = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
-      if (i == 0) {
-        p.moveTo(pt.dx, pt.dy);
-      } else {
-        p.lineTo(pt.dx, pt.dy);
-      }
-    }
-    p.close();
-    return p;
-  }
-
   Path _star(Offset c, double r, int points) {
     final p = Path();
     for (var i = 0; i < points * 2; i++) {
