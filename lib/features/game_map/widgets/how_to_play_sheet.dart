@@ -82,6 +82,10 @@ Widget _helpTile(
   );
 }
 
+Widget _entryTile(BuildContext ctx, SkillHelpEntry e) {
+  return _helpTile(ctx, e.body, title: e.title, icon: _iconFor(e.iconName));
+}
+
 IconData _iconFor(String name) => switch (name) {
       'scatter_plot' => Icons.scatter_plot_outlined,
       'psychology_alt' => Icons.psychology_alt_outlined,
