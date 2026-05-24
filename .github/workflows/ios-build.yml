@@ -28,20 +28,29 @@ jobs:
           pod install
         working-directory: ios
 
-      - name: Build iOS app (no codesign)
-        run: flutter build ios --release --no-codesign --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+      - name: Prepare iOS build config
+        run: flutter build ios --release --config-only --no-codesign --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
 
-      - name: Create Payload folder
-        run: mkdir Payload
-        working-directory: build/ios/iphoneos
-
-      - name: Move Runner.app into Payload
-        run: mv Runner.app Payload
-        working-directory: build/ios/iphoneos
+      - name: Build Runner.app without signing
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/ios_derived \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
 
       - name: Create IPA
-        run: zip -r app.ipa Payload
-        working-directory: build/ios/iphoneos
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -R build/ios_derived/Build/Products/Release-iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -qry app.ipa Payload
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
