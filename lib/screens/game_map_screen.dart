@@ -204,6 +204,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   late WorldProfile _activeProfile;
   late MapVisualController _mapVisual;
   String? _avatarImagePath;
+  String? _localNicknameOverride;
   late RevealFlashController _revealFlash;
   double _cameraPulsePhase = 0;
   ControlSheetMode _controlSheetMode = ControlSheetMode.skillsOnly;
@@ -303,6 +304,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     Future<void>.microtask(_loadPlayAreaSlots);
     Future<void>.microtask(_initWorldVisual);
     Future<void>.microtask(_loadHudDisplayPrefs);
+    Future<void>.microtask(_loadLocalNicknameFromPrefs);
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
   }
@@ -5092,8 +5094,19 @@ class _GameMapScreenState extends State<GameMapScreen>
     final fs = _roomSession is FirestoreRoomSession
         ? _roomSession as FirestoreRoomSession
         : null;
-    final name = fs?.nickname?.trim();
-    return name == null || name.isEmpty ? 'player1' : name;
+    final fsName = fs?.nickname?.trim();
+    if (fsName != null && fsName.isNotEmpty) return fsName;
+    final local = _localNicknameOverride?.trim();
+    if (local != null && local.isNotEmpty) return local;
+    return 'player1';
+  }
+
+  Future<void> _loadLocalNicknameFromPrefs() async {
+    final form = await SessionPrefs.loadForm();
+    if (!mounted) return;
+    setState(() {
+      _localNicknameOverride = form.nickname;
+    });
   }
 
   Future<void> _loadOniOperatorPrefs() async {
@@ -5810,6 +5823,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       roomId: form.roomId,
       role: form.role,
     );
+    if (mounted) {
+      setState(() => _localNicknameOverride = result.displayName);
+    }
 
     final fs = _firestoreSession;
     if (fs is FirestoreRoomSession) {
@@ -6458,49 +6474,53 @@ class _GameMapScreenState extends State<GameMapScreen>
         body: Stack(
           children: [
             if (showGameMap)
-              Builder(
-                builder: (context) {
-                  final overlay = _overlaySnapshot(tokens);
-                  return GoogleMap(
-                    style: _mapVisual.mapStyleJson,
-                    initialCameraPosition: CameraPosition(
-                      target: _currentPosition,
-                      zoom: 16,
-                    ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    markers: GameMapOverlayBuilder.buildMarkers(overlay),
-                    polylines: GameMapOverlayBuilder.buildPolylines(overlay),
-                    circles: GameMapOverlayBuilder.buildCircles(overlay),
-                    polygons: GameMapOverlayBuilder.buildPolygons(overlay),
-                    onTap: _onMapTap,
-                    onMapCreated: _onMapCreated,
-                    onCameraIdle: _onCameraIdle,
-                  );
-                },
+              Positioned.fill(
+                child: Builder(
+                  builder: (context) {
+                    final overlay = _overlaySnapshot(tokens);
+                    return GoogleMap(
+                      style: _mapVisual.mapStyleJson,
+                      initialCameraPosition: CameraPosition(
+                        target: _currentPosition,
+                        zoom: 16,
+                      ),
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      markers: GameMapOverlayBuilder.buildMarkers(overlay),
+                      polylines: GameMapOverlayBuilder.buildPolylines(overlay),
+                      circles: GameMapOverlayBuilder.buildCircles(overlay),
+                      polygons: GameMapOverlayBuilder.buildPolygons(overlay),
+                      onTap: _onMapTap,
+                      onMapCreated: _onMapCreated,
+                      onCameraIdle: _onCameraIdle,
+                    );
+                  },
+                ),
               )
             else
-              PrepLobbyPanel(
-                roomLabel: _roomSession.modeLabel,
-                playAreaLabel: _playAreaSummary(),
-                matchDurationMinutes: _matchDurationSeconds / 60,
-                isHost: _isHost,
-                onDurationChanged: _setPrepDurationMinutes,
-                savedAreas: _savedPlayAreas,
-                selectedAreaId: _selectedPlayAreaSlotId,
-                onSelectArea: (id) =>
-                    setState(() => _selectedPlayAreaSlotId = id),
-                onHostApplyArea: _hostApplySelectedPlayArea,
-                onDeleteSavedArea: _deleteSavedPlayArea,
-                activePlayArea: _playArea,
-                onStart: _startGame,
-                canStart: !_editingArea && _isHost,
-                onOpenCustomSettings: _openCustomMenu,
-                onOpenPersonalSettings: _openPersonalSettings,
-                displayName: _localPlayerLabel,
-                avatarImagePath: _avatarImagePath,
-                participantRulesOpen: _participantRulesOpen,
-                worldVisualProfile: _mapVisual.pack.profile,
+              Positioned.fill(
+                child: PrepLobbyPanel(
+                  roomLabel: _roomSession.modeLabel,
+                  playAreaLabel: _playAreaSummary(),
+                  matchDurationMinutes: _matchDurationSeconds / 60,
+                  isHost: _isHost,
+                  onDurationChanged: _setPrepDurationMinutes,
+                  savedAreas: _savedPlayAreas,
+                  selectedAreaId: _selectedPlayAreaSlotId,
+                  onSelectArea: (id) =>
+                      setState(() => _selectedPlayAreaSlotId = id),
+                  onHostApplyArea: _hostApplySelectedPlayArea,
+                  onDeleteSavedArea: _deleteSavedPlayArea,
+                  activePlayArea: _playArea,
+                  onStart: _startGame,
+                  canStart: !_editingArea && _isHost,
+                  onOpenCustomSettings: _openCustomMenu,
+                  onOpenPersonalSettings: _openPersonalSettings,
+                  displayName: _localPlayerLabel,
+                  avatarImagePath: _avatarImagePath,
+                  participantRulesOpen: _participantRulesOpen,
+                  worldVisualProfile: _mapVisual.pack.profile,
+                ),
               ),
             if (showGameMap)
               Positioned.fill(
