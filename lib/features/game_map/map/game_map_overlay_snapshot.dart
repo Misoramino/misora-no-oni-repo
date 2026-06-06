@@ -66,6 +66,11 @@ class GameMapOverlaySnapshot {
     this.analystTraceDetail = false,
     this.oniTrailPoints = const [],
     this.oniMatchStartAnchor,
+    this.secondGameIntroHighlight = false,
+    this.secondGameCanUseCameraJack = false,
+    this.secondGameCanUseAccusationTerritory = false,
+    this.secondGameCanUseFacilitySabotage = false,
+    this.secondGameCanUseCameraShutdown = false,
   });
 
   final DateTime now;
@@ -126,4 +131,11 @@ class GameMapOverlaySnapshot {
 
   /// アナリスト: 匿名痕跡マーカーに時間帯・源を表示。
   final bool analystTraceDetail;
+
+  /// 初回脱落時：使える施設を強調、使えない施設を薄くする。
+  final bool secondGameIntroHighlight;
+  final bool secondGameCanUseCameraJack;
+  final bool secondGameCanUseAccusationTerritory;
+  final bool secondGameCanUseFacilitySabotage;
+  final bool secondGameCanUseCameraShutdown;
 }

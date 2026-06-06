@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -12,6 +13,7 @@ import '../sync/room_member_view.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
 import '../widgets/scene_transitions.dart';
+import '../features/game_map/prep/lobby_rules_summary_card.dart';
 import 'game_map_screen.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
@@ -328,6 +330,10 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                 'メンバー (${_members.length})',
                                 style: theme.textTheme.titleSmall,
                               ),
+                              if (_joined)
+                                LobbyRulesSummaryCard(
+                                  participantCount: math.max(1, _members.length),
+                                ),
                               const SizedBox(height: 6),
                             ],
                           ),

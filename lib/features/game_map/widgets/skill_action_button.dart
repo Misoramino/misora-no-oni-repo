@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class SkillActionButton extends StatelessWidget {
+class SkillActionButton extends StatefulWidget {
   const SkillActionButton({
     required this.label,
     required this.icon,
@@ -21,11 +21,19 @@ class SkillActionButton extends StatelessWidget {
   final bool compact;
 
   @override
+  State<SkillActionButton> createState() => _SkillActionButtonState();
+}
+
+class _SkillActionButtonState extends State<SkillActionButton> {
+  bool _pinCd = false;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final onCd = cooldownSeconds > 0;
-    final onBuff = buffSeconds != null && buffSeconds! > 0;
-    final enabled = onPressed != null && !onCd;
+    final onCd = widget.cooldownSeconds > 0;
+    final onBuff = widget.buffSeconds != null && widget.buffSeconds! > 0;
+    final enabled = widget.onPressed != null && !onCd;
+    final showPinnedCd = _pinCd && onCd;
     final semanticLabel = _semanticLabel(
       onCd: onCd,
       onBuff: onBuff,
@@ -33,25 +41,28 @@ class SkillActionButton extends StatelessWidget {
     final compactFg = scheme.onSurface;
     final compactBg = scheme.surfaceContainerHighest.withValues(alpha: 0.98);
     final btn = Material(
-      color: compact ? compactBg : null,
+      color: widget.compact ? compactBg : null,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: enabled ? onPressed : null,
+        onTap: enabled ? widget.onPressed : null,
+        onLongPress: onCd
+            ? () => setState(() => _pinCd = !_pinCd)
+            : null,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: EdgeInsets.symmetric(
-            vertical: compact ? 14 : 10,
-            horizontal: compact ? 6 : 8,
+            vertical: widget.compact ? 14 : 10,
+            horizontal: widget.compact ? 6 : 8,
           ),
           child: Icon(
-            icon,
+            widget.icon,
             size: 22,
-            color: compact ? compactFg : null,
+            color: widget.compact ? compactFg : null,
           ),
         ),
       ),
     );
-    if (compact) {
+    if (widget.compact) {
       return Semantics(
         button: true,
         enabled: enabled,
@@ -65,7 +76,7 @@ class SkillActionButton extends StatelessWidget {
             ),
             ExcludeSemantics(
               child: Text(
-                label,
+                widget.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -78,15 +89,21 @@ class SkillActionButton extends StatelessWidget {
             if (onBuff)
               ExcludeSemantics(
                 child: Text(
-                  '${buffSeconds}s',
+                  '${widget.buffSeconds}s',
                   style: TextStyle(fontSize: 9, color: scheme.primary),
                 ),
               )
-            else if (onCd)
+            else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
-                  '$cooldownSeconds',
-                  style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
+                  showPinnedCd ? 'CD ${widget.cooldownSeconds}s' : '${widget.cooldownSeconds}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: showPinnedCd ? FontWeight.w700 : FontWeight.normal,
+                    color: showPinnedCd
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -106,7 +123,7 @@ class SkillActionButton extends StatelessWidget {
             const SizedBox(height: 2),
             ExcludeSemantics(
               child: Text(
-                label,
+                widget.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -116,18 +133,24 @@ class SkillActionButton extends StatelessWidget {
             if (onBuff)
               ExcludeSemantics(
                 child: Text(
-                  '${buffSeconds}s',
+                  '${widget.buffSeconds}s',
                   style: const TextStyle(fontSize: 9),
                 ),
               )
-            else if (onCd)
+            else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
-                  'CD $cooldownSeconds',
-                  style: const TextStyle(fontSize: 9),
+                  showPinnedCd
+                      ? 'CD ${widget.cooldownSeconds}s'
+                      : 'CD ${widget.cooldownSeconds}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: showPinnedCd ? FontWeight.bold : FontWeight.normal,
+                    color: showPinnedCd ? scheme.primary : null,
+                  ),
                 ),
               )
-            else if (active)
+            else if (widget.active)
               ExcludeSemantics(
                 child: const Text('作動中', style: TextStyle(fontSize: 9)),
               ),
@@ -142,14 +165,14 @@ class SkillActionButton extends StatelessWidget {
     required bool onBuff,
   }) {
     if (onBuff) {
-      return '$label、効果残り$buffSeconds秒';
+      return '${widget.label}、効果残り${widget.buffSeconds}秒';
     }
     if (onCd) {
-      return '$label、クールダウン$cooldownSeconds秒';
+      return '${widget.label}、クールダウン${widget.cooldownSeconds}秒、長押しで固定表示';
     }
-    if (active && !compact) {
-      return '$label、作動中';
+    if (widget.active && !widget.compact) {
+      return '${widget.label}、作動中';
     }
-    return label;
+    return widget.label;
   }
 }

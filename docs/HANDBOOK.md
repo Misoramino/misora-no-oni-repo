@@ -27,6 +27,7 @@
 | [GAME_EVENT_AREAS.md](./GAME_EVENT_AREAS.md) | マップ上イベントエリアの仕様メモ | `GameConfig` やギミック生成を変えたら |
 | [GAME_DESIGN_SPEC.md](./GAME_DESIGN_SPEC.md) | **ゲーム性・バランス・GPT用質問テンプレ**（仕様の日本語まとめ） | ルール・スキル方針を変えたら |
 | [LOCATION_REVEALS.md](./LOCATION_REVEALS.md) | 位置暴露の段階（身元付き / 匿名） | 暴露・スキル演出を変えたら |
+| [../CHANGELOG.md](../CHANGELOG.md) | **リリース履歴**（v2.0 以降） | ユーザー向け機能追加のたび |
 
 **削除済み・参照しない:** 旧 `FIREBASE_USER_TASKS.txt` の内容は [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) に統合しました。
 

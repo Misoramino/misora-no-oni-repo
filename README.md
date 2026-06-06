@@ -23,18 +23,25 @@ Launch sound ON/OFF: volume icon on the title screen (persisted locally).
 - Layered architecture for easy UI/worldview replacement
 - Cost-aware sync design (event-first, low-frequency presence)
 
-## Current Features
+## Current Features (v2)
 
-- Local playable loop (start, timer, win/lose)
-- Play area editor (circle and polygon)
-- Out-of-area reveal event with grace by meters/seconds
-- Trajectory archive and timelapse replay
-- Per-track visibility toggle in replay
-- Dynamic GPS sampling tiers + marker smoothing
+- **Online rooms** — Firestore lobby, host sync, abort vote
+- **Match presets** — Casual / Standard / Intense (duration, area, gimmick density)
+- **Accusation weight modes** — Instant win, eliminate oni, or point scoring
+- **Second game** — Spectral operative (camera jack, territory) and revenant oni sabotage after elimination
+- **HUD** — Phase label, event feed line, skill cooldown pin on long-press, facility highlight on first elimination
+- **Roles & skills** — Oni, runners, hunter, werewolf, modifiers, fake position, body throw, capture zone, etc.
+- **Play area editor** — Circle / polygon, saved slots, GeoJSON import/export
+- **Trajectory archive** — Opt-in local replay after each match
+- **6 world profiles** — Map style, atmosphere, launch branding per theme
+- **Audio** — BGM and ambient per world (`assets/audio/`)
+
+Release notes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Key paths
 
-- **`lib/screens/game_map_screen.dart`** — main game loop + map orchestration (large file; see [docs/CHANGE_MAP.md](docs/CHANGE_MAP.md) section H)
+- **`lib/screens/game_map_screen.dart`** — main game orchestrator (split into `part` files; see index below)
+- **`lib/features/game_map/game_map_screen_index.dart`** — part file map for AI / maintainers
 - **`lib/screens/title_screen.dart`** — app entry, online lobby navigation
 - **`lib/screens/match_gallery_screen.dart`** — saved matches list
 - **`lib/screens/match_replay_screen.dart`** — replay / timelapse

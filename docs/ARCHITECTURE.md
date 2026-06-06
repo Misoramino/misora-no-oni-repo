@@ -17,7 +17,7 @@
 
 ## ゲーム画面
 
-`GameMapScreen`（`lib/screens/game_map_screen.dart`）は試合の**状態機械と地図**を保持します。  
+`GameMapScreen`（`lib/screens/game_map_screen.dart` + `part` 9本、索引は `lib/features/game_map/game_map_screen_index.dart`）は試合の**状態機械と地図**を保持します。  
 見た目は `lib/features/game_map/` に分割しています。
 
 - `prep/` — 地図オフ準備（時間・保存エリア一覧）

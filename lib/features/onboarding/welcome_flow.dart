@@ -89,6 +89,16 @@ const _pages = <_WelcomePage>[
     ],
   ),
   _WelcomePage(
+    icon: Icons.shield_moon_outlined,
+    color: Color(0xFF6C5CE7),
+    title: '脱落しても第二ゲーム',
+    lines: [
+      '捕まっても試合は続きます。',
+      '残響体：監視ジャックや告発施設の陣取り。',
+      '鬼影：告発妨害やカメラ停止で逆襲。',
+    ],
+  ),
+  _WelcomePage(
     icon: Icons.emoji_events_rounded,
     color: Color(0xFF1FA98A),
     title: '勝って称号を集めよう',

@@ -35,6 +35,8 @@ class GameInfoPanel extends StatelessWidget {
     required this.fakeCooldownSeconds,
     required this.fakeIntelRevealCooldownSeconds,
     required this.mapWorldProfile,
+    this.phaseLabel,
+    this.eventFeedLine,
     super.key,
   });
 
@@ -65,6 +67,8 @@ class GameInfoPanel extends StatelessWidget {
   final int fakeCooldownSeconds;
   final int fakeIntelRevealCooldownSeconds;
   final WorldProfile mapWorldProfile;
+  final String? phaseLabel;
+  final String? eventFeedLine;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +139,24 @@ class GameInfoPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
+                if (phaseLabel != null && phaseLabel!.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      phaseLabel!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                if (phaseLabel != null && phaseLabel!.isNotEmpty)
+                  const SizedBox(width: 6),
                 Expanded(
                   child: HudMarqueeText(
                     text: compactLineText,
@@ -200,6 +222,20 @@ class GameInfoPanel extends StatelessWidget {
         children: [
           Row(
             children: [
+              if (phaseLabel != null && phaseLabel!.isNotEmpty) ...[
+                Chip(
+                  label: Text(phaseLabel!),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  backgroundColor: scheme.primaryContainer,
+                  labelStyle: TextStyle(
+                    color: scheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Chip(
                 label: Text(editing ? '編集中' : gameStateText),
                 visualDensity: VisualDensity.compact,
@@ -269,6 +305,18 @@ class GameInfoPanel extends StatelessWidget {
                     seconds: fakeIntelRevealCooldownSeconds,
                   ),
               ],
+            ),
+          ],
+          if (eventFeedLine != null && eventFeedLine!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              eventFeedLine!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: scheme.primary,
+              ),
             ),
           ],
           if (showIntelLine) ...[

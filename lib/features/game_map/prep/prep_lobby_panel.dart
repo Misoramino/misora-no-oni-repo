@@ -32,6 +32,8 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.avatarImagePath,
     required this.participantRulesOpen,
     required this.worldVisualProfile,
+    this.settingsSummaryLine,
+    this.rulesOverviewLine,
     this.startButtonKey,
     this.customRulesKey,
     super.key,
@@ -56,6 +58,8 @@ class PrepLobbyPanel extends StatefulWidget {
   final String? avatarImagePath;
   final bool participantRulesOpen;
   final WorldProfile worldVisualProfile;
+  final String? settingsSummaryLine;
+  final String? rulesOverviewLine;
   final GlobalKey? startButtonKey;
   final GlobalKey? customRulesKey;
 
@@ -106,6 +110,101 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (widget.settingsSummaryLine != null &&
+                      widget.settingsSummaryLine!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: leg.tileSurface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: leg.muted.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.tune_rounded,
+                                size: 18,
+                                color: leg.link,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  widget.settingsSummaryLine!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: leg.body,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (!widget.isHost &&
+                      widget.rulesOverviewLine != null &&
+                      widget.rulesOverviewLine!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Color.alphaBlend(
+                            scheme.secondaryContainer.withValues(alpha: 0.35),
+                            leg.tileSurface,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.rule_folder_outlined,
+                                size: 18,
+                                color: scheme.secondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '今のルール概要',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: leg.title,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      widget.rulesOverviewLine!,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: leg.body,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   PrepSummaryTile(
                     prepLegibility: leg,
                     icon: Icons.timer_outlined,

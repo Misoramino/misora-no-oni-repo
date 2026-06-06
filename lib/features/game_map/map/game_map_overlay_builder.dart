@@ -14,6 +14,15 @@ import 'map_zoom_lod.dart';
 
 /// GoogleMap の markers / polylines / circles / polygons を組み立てる。
 abstract final class GameMapOverlayBuilder {
+  static double _gimmickMarkerAlpha(
+    GameMapOverlaySnapshot s, {
+    required bool usable,
+    double baseAlpha = 1.0,
+  }) {
+    if (!s.secondGameIntroHighlight) return baseAlpha;
+    return usable ? 1.0 : 0.28;
+  }
+
   static BitmapDescriptor _icon(
     GameMapOverlaySnapshot s,
     MapMarkerKind kind,
@@ -143,6 +152,12 @@ abstract final class GameMapOverlayBuilder {
       if (L.infoBrokers && showGimmickIcons) {
         for (var i = 0; i < s.accusationFacilityPositions.length; i++) {
           final active = s.activeAccusationSiteIndices.contains(i);
+          final usable = active &&
+              (s.secondGameCanUseAccusationTerritory ||
+                  s.secondGameCanUseFacilitySabotage);
+          final alpha = s.secondGameIntroHighlight
+              ? _gimmickMarkerAlpha(s, usable: usable)
+              : (active ? 1.0 : 0.45);
           markers.add(
             Marker(
               markerId: MarkerId('accusation_facility_$i'),
@@ -152,7 +167,9 @@ abstract final class GameMapOverlayBuilder {
                     ? '${s.accusationFacilityTitle}（有効）'
                     : '${s.accusationFacilityTitle}（無効）',
                 snippet: active
-                    ? '告発可能（解禁後・逃走者）'
+                    ? (s.secondGameIntroHighlight && usable
+                        ? '第二ゲーム — ここで操作可能'
+                        : '告発可能（解禁後・逃走者）')
                     : '現在は無効',
               ),
               icon: _icon(
@@ -162,26 +179,30 @@ abstract final class GameMapOverlayBuilder {
                     ? BitmapDescriptor.hueRose
                     : BitmapDescriptor.hueOrange,
               ),
-              alpha: active ? 1.0 : 0.45,
+              alpha: alpha,
             ),
           );
         }
       }
       if (s.showCameraJackSites && showGimmickIcons) {
         for (var i = 0; i < s.cameraJackPositions.length; i++) {
+          final usable = s.secondGameCanUseCameraJack;
           markers.add(
             Marker(
               markerId: MarkerId('camera_jack_$i'),
               position: s.cameraJackPositions[i],
-              infoWindow: const InfoWindow(
+              infoWindow: InfoWindow(
                 title: 'ジャック端子',
-                snippet: '残響体のみチャージ可',
+                snippet: s.secondGameIntroHighlight
+                    ? (usable ? '第二ゲーム — 監視ジャック可' : 'ここでは使えません')
+                    : '残響体のみチャージ可',
               ),
               icon: _icon(
                 s,
                 MapMarkerKind.camera,
                 BitmapDescriptor.hueYellow,
               ),
+              alpha: _gimmickMarkerAlpha(s, usable: usable),
             ),
           );
         }
@@ -293,6 +314,7 @@ abstract final class GameMapOverlayBuilder {
       if (L.cameras && showGimmickIcons) {
         for (var i = 0; i < s.cameraPositions.length; i++) {
           final disabled = s.disabledCameraIndices.contains(i);
+          final usable = s.secondGameCanUseCameraShutdown && !disabled;
           markers.add(
             Marker(
               markerId: MarkerId('camera_$i'),
@@ -301,10 +323,16 @@ abstract final class GameMapOverlayBuilder {
                 title: disabled
                     ? '監視カメラ ${i + 1}（停止）'
                     : '監視カメラ ${i + 1}',
-                snippet: disabled
-                    ? '復讐の鬼影により無効化'
-                    : '感知 ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m · '
-                        '再検知 ${GameConfig.cameraRetriggerCooldownSeconds}秒',
+                snippet: s.secondGameIntroHighlight
+                    ? (usable
+                        ? '第二ゲーム — 停止可能'
+                        : disabled
+                            ? 'すでに停止済み'
+                            : 'ここでは使えません')
+                    : disabled
+                        ? '復讐の鬼影により無効化'
+                        : '感知 ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m · '
+                            '再検知 ${GameConfig.cameraRetriggerCooldownSeconds}秒',
               ),
               icon: _icon(
                 s,
@@ -313,6 +341,9 @@ abstract final class GameMapOverlayBuilder {
                     ? BitmapDescriptor.hueOrange
                     : BitmapDescriptor.hueYellow,
               ),
+              alpha: s.secondGameIntroHighlight
+                  ? _gimmickMarkerAlpha(s, usable: usable, baseAlpha: 1.0)
+                  : 1.0,
             ),
           );
         }

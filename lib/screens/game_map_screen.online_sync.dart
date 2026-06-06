@@ -149,6 +149,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       _rt.syncedEliminationCount += 1;
       _eliminatedUids.add(uid);
     });
+    _recordMatchFeed('誰かが脱落しました');
     _maybeHostPublishAccusationUnlock();
   }
 

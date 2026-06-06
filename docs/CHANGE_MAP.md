@@ -125,21 +125,32 @@
 **テスト:** `flutter test test/match_geo_helpers_test.dart`  
 `flutter test test/proximity_merge_test.dart`
 
-### H. 画面オーケストレーション（肥大化しやすい）
+### H. 画面オーケストレーション（v2 で part 分割済み）
 
 | 主ファイル | 注意 |
 |------------|------|
-| `lib/screens/game_map_screen.dart` | 状態・地図・オンライン束ね。分割時は ARCHITECTURE と本表を更新 |
-| `lib/screens/app_launch_shell.dart` | 起動演出 → タイトル遷移（`AnimatedBuilder` + `_introDone`） |
-| `lib/screens/title_screen.dart` | 入口・Firebase 表示 |
-| `lib/screens/room_lobby_screen.dart` | ロビー（`Expanded` なしのリストレイアウト） |
-| `lib/features/game_map/prep/prep_lobby_panel.dart` | 準備 UI |
-| `lib/features/game_map/widgets/game_info_panel.dart` | HUD |
-| `lib/features/game_map/widgets/hud_marquee_text.dart` | 一行スクロール（全文ループ） |
-| `lib/session/hud_display_prefs.dart` | HUD 表示トグル・一行モードの保存 |
+| `lib/screens/game_map_screen.dart` | 状態フィールド・init/build・GPS・近接 |
+| `lib/features/game_map/game_map_screen_index.dart` | **part 一覧の索引**（修正時はここから） |
+| `game_map_screen.online_sync.dart` | Firestore イベント受信 |
+| `game_map_screen.reveals_gimmicks.dart` | 暴露・ギミック |
+| `game_map_screen.hud_experience.dart` | HUD・プリセット・第二ゲーム導入 |
+| `game_map_screen.play_area.dart` | エリア編集・保存 |
+| `game_map_screen.match_lifecycle.dart` | 試合開始/終了・ティック |
+| `game_map_screen.accusation.dart` | 告発 |
+| `game_map_screen.second_game.dart` | 脱落後（残響体/鬼影） |
+| `game_map_screen.skills.dart` | スキル |
+| `game_map_screen.overlay.dart` | 地図オーバーレイ |
+| `lib/screens/app_launch_shell.dart` | 起動演出 → タイトル遷移 |
+| `lib/screens/title_screen.dart` | 入口・Firebase 表示・**v2.0.0** |
+| `lib/screens/room_lobby_screen.dart` | ロビー（非ホスト向けルール概要） |
+| `lib/features/game_map/prep/prep_lobby_panel.dart` | 準備 UI（設定サマリ一行） |
+| `lib/features/game_map/widgets/game_info_panel.dart` | HUD（フェーズ・イベント履歴） |
 
 **テスト:** `flutter test test/hud_compact_line_test.dart`  
 `flutter test test/hud_display_prefs_test.dart`  
+`flutter test test/match_setup_summary_test.dart`  
+`flutter test test/match_quick_preset_test.dart`  
+`flutter test test/accusation_weight_test.dart`  
 + 上記 A〜G + 実機 [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)
 
 ### I. 起動ブランド・世界観スプラッシュ
@@ -168,6 +179,11 @@
 | `map_geo_utils_test.dart` | 時計・方位 |
 | `map_replay_marker_helper_test.dart` | 再生マーカー種別 |
 | `match_geo_helpers_test.dart` | 鬼距離・感染距離 |
+| `match_quick_preset_test.dart` | 試合プリセット3択 |
+| `match_setup_summary_test.dart` | 準備/ロビー設定サマリ |
+| `accusation_weight_test.dart` | 告発重みモード |
+| `match_role_mix_test.dart` | 役職ミックス |
+| `player_progress_test.dart` | 進行・称号 |
 | `match_record_test.dart` | 記録 JSON |
 | `match_runtime_state_test.dart` | ランタイム状態リセット |
 | `match_tick_evaluator_test.dart` | エリア外ティック |

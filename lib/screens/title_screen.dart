@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_version.dart';
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
 import '../features/audio/audio_settings_sheet.dart';
@@ -511,6 +512,16 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             ),
                                           ),
                                         ],
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          AppVersion.display,
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: theme.colorScheme.outline,
+                                            fontSize: 11,
+                                          ),
+                                        ),
                                       ],
                                       const SizedBox(height: 28),
                                     ],

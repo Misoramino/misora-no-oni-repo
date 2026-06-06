@@ -22,4 +22,6 @@ abstract final class GameMapPrefs {
   static const roleWerewolfCount = 'role_werewolf_count_v1';
   /// 告発の重み（instantWin / eliminateOni / points）。
   static const accusationWeight = 'accusation_weight_v1';
+  /// ホスト向けプリセット3択を出したルームID（再表示防止）。
+  static const hostQuickPresetPromptRoom = 'host_quick_preset_prompt_room_v1';
 }
