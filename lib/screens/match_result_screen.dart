@@ -446,7 +446,7 @@ class _NewTitlesCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      IconData(t.icon, fontFamily: 'MaterialIcons'),
+                      t.iconData,
                       size: 20,
                       color: theme.colorScheme.onPrimaryContainer,
                     ),

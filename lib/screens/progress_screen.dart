@@ -108,9 +108,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     return Card(
                       child: ListTile(
                         leading: Icon(
-                          got
-                              ? IconData(t.icon, fontFamily: 'MaterialIcons')
-                              : Icons.lock_outline_rounded,
+                          got ? t.iconData : Icons.lock_outline_rounded,
                           color: got
                               ? theme.colorScheme.primary
                               : theme.colorScheme.outline,
