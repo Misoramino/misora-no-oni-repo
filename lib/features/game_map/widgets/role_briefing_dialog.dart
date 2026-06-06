@@ -4,8 +4,9 @@ import '../../../game/player_role.dart';
 import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
+import '../../../widgets/app_dialog.dart';
 
-/// 試合開始時: 役職の要点だけを短く伝えるダイアログ。
+/// 試合開始時: 役職の要点だけを短く伝える演出付きダイアログ。
 Future<void> showRoleBriefingDialog(
   BuildContext context, {
   required PlayerRole role,
@@ -16,97 +17,121 @@ Future<void> showRoleBriefingDialog(
     role,
     werewolfFaction: werewolfCurrentFaction,
   );
-  return showDialog<void>(
+  final accent = roleAccentColor(role);
+  return showAppDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {
       final theme = Theme.of(ctx);
       final scheme = theme.colorScheme;
-      return AlertDialog(
-        title: Row(
+      return AppDialog(
+        title: 'あなたは${role.displayName}',
+        icon: roleIcon(role),
+        accent: accent,
+        actions: [
+          AppDialogAction(
+            label: '了解 — 始める',
+            icon: Icons.play_arrow_rounded,
+            onPressed: () => Navigator.pop(ctx),
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_iconForRole(role), color: scheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'あなたは${role.displayName}',
-                style: theme.textTheme.titleLarge,
+            Text(
+              start.tagline,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: accent,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: accent.withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.flag_rounded, size: 18, color: accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      start.winLine,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('まず意識すること', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 6),
+            for (final item in start.mustKnow)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.chevron_right_rounded,
+                        size: 18, color: accent),
+                    Expanded(
+                      child: Text(item, style: theme.textTheme.bodyMedium),
+                    ),
+                  ],
+                ),
+              ),
+            if (skillLabels.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('使えるスキル', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final s in skillLabels)
+                    Chip(
+                      label: Text(s),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: scheme.secondaryContainer,
+                      side: BorderSide.none,
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              start.learnMoreHint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
               ),
             ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                start.tagline,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: scheme.primary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                start.winLine,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text('まず意識すること', style: theme.textTheme.labelLarge),
-              const SizedBox(height: 6),
-              for (final item in start.mustKnow)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('・', style: theme.textTheme.bodyMedium),
-                      Expanded(
-                        child: Text(item, style: theme.textTheme.bodyMedium),
-                      ),
-                    ],
-                  ),
-                ),
-              if (skillLabels.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('使えるスキル', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 4),
-                Text(
-                  skillLabels.join(' / '),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Text(
-                start.learnMoreHint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('了解 — 始める'),
-          ),
-        ],
       );
     },
   );
 }
 
-IconData _iconForRole(PlayerRole role) => switch (role) {
-      PlayerRole.runner => Icons.directions_run_outlined,
+/// 役職のシンボルアイコン（ダイアログ・ウェルカム共通）。
+IconData roleIcon(PlayerRole role) => switch (role) {
+      PlayerRole.runner => Icons.directions_run_rounded,
       PlayerRole.hunter => Icons.nightlight_round,
-      PlayerRole.werewolf => Icons.psychology_alt_outlined,
+      PlayerRole.werewolf => Icons.psychology_alt_rounded,
+    };
+
+/// 役職のアクセント色（逃走=青緑 / 鬼=赤 / 人狼=紫）。
+Color roleAccentColor(PlayerRole role) => switch (role) {
+      PlayerRole.runner => const Color(0xFF1FA98A),
+      PlayerRole.hunter => const Color(0xFFD64545),
+      PlayerRole.werewolf => const Color(0xFF8E5BD8),
     };
 
 /// 遊び方シート用: 役職ブロック（詳細＋スキル）。

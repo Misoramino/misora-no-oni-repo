@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../audio/game_audio.dart';
+import '../audio/sfx_id.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
 import '../game/werewolf_faction_logic.dart';
+import '../progression/player_progress.dart';
+import '../progression/player_title.dart';
+import '../widgets/confetti_overlay.dart';
 import '../widgets/responsive_page.dart';
 
 /// 試合終了後の専用リザルト画面（ギャラリー・ロビー・次の準備への導線）。
-class MatchResultScreen extends StatelessWidget {
+class MatchResultScreen extends StatefulWidget {
   const MatchResultScreen({
     required this.outcome,
     required this.detail,
@@ -19,6 +24,9 @@ class MatchResultScreen extends StatelessWidget {
     this.factionAtDeath,
     this.playerFactionAtEnd,
     this.winningFaction,
+    this.progress,
+    this.newlyUnlockedTitles = const [],
+    this.accusationPointsHuman = 0,
     super.key,
   });
 
@@ -30,13 +38,56 @@ class MatchResultScreen extends StatelessWidget {
   final FactionSide? factionAtDeath;
   final FactionSide? playerFactionAtEnd;
   final FactionSide? winningFaction;
+  final PlayerProgress? progress;
+  final List<PlayerTitle> newlyUnlockedTitles;
+  /// 告発ポイントモードで獲得した人陣営ポイント（0なら非表示）。
+  final int accusationPointsHuman;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
   final VoidCallback onOpenLobby;
 
   @override
+  State<MatchResultScreen> createState() => _MatchResultScreenState();
+}
+
+class _MatchResultScreenState extends State<MatchResultScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+  bool _showConfetti = false;
+
+  bool get _personalWon =>
+      widget.winningFaction != null &&
+      (widget.factionAtDeath ?? widget.playerFactionAtEnd) != null &&
+      widget.winningFaction ==
+          (widget.factionAtDeath ?? widget.playerFactionAtEnd);
+
+  @override
+  void initState() {
+    super.initState();
+    _intro.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      GameAudio.instance.playSfx(_personalWon ? SfxId.matchWin : SfxId.matchLose);
+      if (_personalWon) {
+        setState(() => _showConfetti = true);
+        GameAudio.instance.playSfx(SfxId.confetti);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final outcome = widget.outcome;
     final (IconData icon, String title, Color accent) = switch (outcome) {
       GameState.runnerWin => (
         Icons.emoji_events_outlined,
@@ -51,31 +102,49 @@ class MatchResultScreen extends StatelessWidget {
       _ => (Icons.flag_outlined, '試合終了', theme.colorScheme.primary),
     };
 
-    final factionWinLabel = winningFaction?.label;
-    final effectivePersonalFaction = factionAtDeath ?? playerFactionAtEnd;
+    final factionWinLabel = widget.winningFaction?.label;
+    final effectivePersonalFaction =
+        widget.factionAtDeath ?? widget.playerFactionAtEnd;
     final personalFactionLabel = effectivePersonalFaction?.label;
-    final personalWon = winningFaction != null &&
-        effectivePersonalFaction != null &&
-        winningFaction == effectivePersonalFaction;
+    final personalWon = _personalWon;
+
+    final iconPop = CurvedAnimation(
+      parent: _intro,
+      curve: const Interval(0, 0.6, curve: Curves.elasticOut),
+    );
+    final bodyFade = CurvedAnimation(
+      parent: _intro,
+      curve: const Interval(0.35, 1, curve: Curves.easeOut),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('リザルト')),
-      body: ResponsivePage(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(icon, size: 64, color: accent),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: accent,
-                ),
-              ),
+      body: Stack(
+        children: [
+          ResponsivePage(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ScaleTransition(
+                    scale: iconPop,
+                    child: _ResultBadge(icon: icon, accent: accent),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: accent,
+                    ),
+                  ),
+                  FadeTransition(
+                    opacity: bodyFade,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
               if (factionWinLabel != null) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -100,7 +169,7 @@ class MatchResultScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
-              Text(detail, textAlign: TextAlign.center),
+              Text(widget.detail, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               Card(
                 child: Padding(
@@ -110,30 +179,51 @@ class MatchResultScreen extends StatelessWidget {
                     children: [
                       Text('あなたの役職・スキル', style: theme.textTheme.titleSmall),
                       const SizedBox(height: 6),
-                      Text(roleSummary),
-                      if (factionAtDeath != null) ...[
+                      Text(widget.roleSummary),
+                      if (widget.factionAtDeath != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          '脱落時の陣営: ${factionAtDeath!.label}',
+                          '脱落時の陣営: ${widget.factionAtDeath!.label}',
                           style: theme.textTheme.bodySmall,
                         ),
-                      ] else if (playerFactionAtEnd != null) ...[
+                      ] else if (widget.playerFactionAtEnd != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'あなたの陣営: ${playerFactionAtEnd!.label}',
+                          'あなたの陣営: ${widget.playerFactionAtEnd!.label}',
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
                       const SizedBox(height: 10),
                       Text(
-                        '制限時間: $matchDurationLabel',
+                        '制限時間: ${widget.matchDurationLabel}',
                         style: theme.textTheme.bodySmall,
                       ),
+                      if (widget.accusationPointsHuman > 0) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '告発ポイント: ${widget.accusationPointsHuman}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              if (outcome == GameState.caughtByOni && afterCatchRule != null) ...[
+              if (widget.progress != null) ...[
+                const SizedBox(height: 12),
+                _ProgressCard(
+                  progress: widget.progress!,
+                  reveal: bodyFade,
+                ),
+              ],
+              if (widget.newlyUnlockedTitles.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _NewTitlesCard(titles: widget.newlyUnlockedTitles),
+              ],
+              if (outcome == GameState.caughtByOni &&
+                  widget.afterCatchRule != null) ...[
                 const SizedBox(height: 12),
                 Card(
                   color: theme.colorScheme.surfaceContainerHighest,
@@ -153,10 +243,10 @@ class MatchResultScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(afterCatchRule!.label),
+                        Text(widget.afterCatchRule!.label),
                         const SizedBox(height: 6),
                         Text(
-                          _afterCatchBlurb(afterCatchRule!),
+                          _afterCatchBlurb(widget.afterCatchRule!),
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
@@ -166,7 +256,7 @@ class MatchResultScreen extends StatelessWidget {
               ],
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: onOpenGallery,
+                onPressed: widget.onOpenGallery,
                 icon: const Icon(Icons.play_circle_outline),
                 label: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 10),
@@ -175,24 +265,31 @@ class MatchResultScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: onOpenLobby,
+                onPressed: widget.onOpenLobby,
                 icon: const Icon(Icons.groups_outlined),
                 label: const Text('ルームロビーへ'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: onPrepareNext,
+                onPressed: widget.onPrepareNext,
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('次の準備へ（地図オフ）'),
               ),
-            ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+          if (_showConfetti)
+            const Positioned.fill(child: ConfettiOverlay()),
+        ],
       ),
     );
   }
 
-  static String _afterCatchBlurb(EliminationAftermathRule rule) =>
+  String _afterCatchBlurb(EliminationAftermathRule rule) =>
       switch (rule) {
         EliminationAftermathRule.spectralOperative =>
           '地図に戻ると、残響体として監視ジャックや告発施設の陣取りができます。',
@@ -203,4 +300,216 @@ class MatchResultScreen extends StatelessWidget {
         EliminationAftermathRule.joinOni =>
           '地図に戻ると、鬼側合流として索敵支援用のざっくり位置が表示されます。',
       };
+}
+
+/// 累積戦績を、数字のカウントアップ付きで表示するカード。
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({required this.progress, required this.reveal});
+
+  final PlayerProgress progress;
+  final Animation<double> reveal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final streak = progress.currentStreak;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('あなたの戦績', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                if (streak >= 2)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.deepOrange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.local_fire_department_rounded,
+                            size: 16, color: Colors.deepOrange),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$streak 連勝中',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: Colors.deepOrange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _Stat(reveal: reveal, value: progress.matches, label: '試合'),
+                _Stat(reveal: reveal, value: progress.wins, label: '勝利'),
+                _Stat(
+                  reveal: reveal,
+                  value: (progress.winRate * 100).round(),
+                  label: '勝率%',
+                ),
+                _Stat(reveal: reveal, value: progress.bestStreak, label: '最高連勝'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.reveal,
+    required this.value,
+    required this.label,
+  });
+
+  final Animation<double> reveal;
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Column(
+        children: [
+          AnimatedBuilder(
+            animation: reveal,
+            builder: (context, _) {
+              final shown = (value * reveal.value).round();
+              return Text(
+                '$shown',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
+}
+
+/// 新しく解放された称号を強調表示するカード。
+class _NewTitlesCard extends StatelessWidget {
+  const _NewTitlesCard({required this.titles});
+
+  final List<PlayerTitle> titles;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.workspace_premium_rounded,
+                    color: theme.colorScheme.onPrimaryContainer),
+                const SizedBox(width: 8),
+                Text(
+                  '称号を獲得！',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...titles.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      IconData(t.icon, fontFamily: 'MaterialIcons'),
+                      size: 20,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      t.label,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        t.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// リザルト見出しのアイコンを、淡い光輪付きのバッジとして表示する。
+class _ResultBadge extends StatelessWidget {
+  const _ResultBadge({required this.icon, required this.accent});
+
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 108,
+        height: 108,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              accent.withValues(alpha: 0.28),
+              accent.withValues(alpha: 0.04),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.35),
+              blurRadius: 28,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 60, color: accent),
+      ),
+    );
+  }
 }

@@ -77,13 +77,15 @@ class GameMapMatchController {
 
     final cameraIndices = CameraTriggerEvaluator.newlyTriggeredIndices(
       cameraPositions: runtime.cameraPositions,
-      alreadyTriggered: runtime.triggeredCameras,
+      lastTriggeredAt: runtime.cameraLastTriggeredAt,
       playerPosition: playerPosition,
       triggerRadiusMeters: GameConfig.cameraTriggerRadiusMeters,
+      cooldownSeconds: GameConfig.cameraRetriggerCooldownSeconds,
+      now: now,
     );
     for (final i in cameraIndices) {
       if (runtime.disabledCameraIndices.contains(i)) continue;
-      runtime.triggeredCameras.add(i);
+      runtime.cameraLastTriggeredAt[i] = now;
       final p = runtime.cameraPositions[i];
       effects.add(
         MatchCameraSpottedEffect(

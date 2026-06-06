@@ -38,7 +38,6 @@ class GameMapOverlaySnapshot {
     required this.infoBrokerAvailable,
     required this.safeZoneRespawnAt,
     required this.infoBrokerRespawnAt,
-    required this.triggeredCameras,
     this.disabledCameraIndices = const {},
     required this.fakePositionActive,
     required this.fakePositionLatLng,
@@ -93,7 +92,6 @@ class GameMapOverlaySnapshot {
   final bool infoBrokerAvailable;
   final DateTime? safeZoneRespawnAt;
   final DateTime? infoBrokerRespawnAt;
-  final Set<int> triggeredCameras;
   final Set<int> disabledCameraIndices;
   final bool fakePositionActive;
   final LatLng? fakePositionLatLng;

@@ -32,7 +32,6 @@ void main() {
       infoBrokerAvailable: true,
       safeZoneRespawnAt: null,
       infoBrokerRespawnAt: null,
-      triggeredCameras: const {},
       fakePositionActive: false,
       fakePositionLatLng: null,
       bodyThrowPosition: null,

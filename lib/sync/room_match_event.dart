@@ -93,6 +93,7 @@ abstract final class RoomMatchEventTypes {
   static const accusationUnlocked = 'accusation_unlocked';
   static const accusationAttempt = 'accusation_attempt';
   static const accusationFailed = 'accusation_failed';
+  static const accusationPointScored = 'accusation_point_scored';
   static const cameraJack = 'camera_jack';
   static const facilitySabotage = 'facility_sabotage';
   static const spectralTerritory = 'spectral_territory';

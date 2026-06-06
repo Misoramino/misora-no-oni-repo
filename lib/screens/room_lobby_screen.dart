@@ -4,12 +4,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
+import '../audio/game_audio.dart';
 import '../session/session_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../sync/firestore_room_session.dart';
 import '../sync/room_member_view.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
+import '../widgets/scene_transitions.dart';
 import 'game_map_screen.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
@@ -39,6 +41,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   void initState() {
     super.initState();
     _session = widget.existingSession;
+    GameAudio.instance.playMenuBgm(_worldProfile);
     Future<void>.microtask(_init);
   }
 
@@ -48,6 +51,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     final form = await SessionPrefs.loadForm();
     if (!mounted) return;
     setState(() => _worldProfile = profile);
+    GameAudio.instance.playMenuBgm(profile);
     _nickController.text = form.nickname;
     _roomController.text = form.roomId;
     if (_session != null && _session!.roomId != null) {
@@ -171,11 +175,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     final profile = await WorldProfilePrefs.load();
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => GameMapScreen(profile: profile, onlineSession: fs),
-      ),
+    await AppNav.push<void>(
+      context,
+      (_) => GameMapScreen(profile: profile, onlineSession: fs),
     );
+    if (!mounted) return;
+    GameAudio.instance.playMenuBgm(_worldProfile);
     if (!mounted) return;
     setState(() {});
   }

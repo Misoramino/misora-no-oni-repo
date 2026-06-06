@@ -14,4 +14,12 @@ abstract final class GameMapPrefs {
   static const mapMarkerIconScale = 'map_marker_icon_scale_v1';
   /// ギミック個数倍率（ホスト、試合開始時に matchStart にも保存）。
   static const gimmickDensity = 'gimmick_density_v1';
+  /// ランダム割当の方式（'random' / 'counts'）。
+  static const roleAssignMode = 'role_assign_mode_v1';
+  /// 役職人数指定モードの鬼の人数。
+  static const roleOniCount = 'role_oni_count_v1';
+  /// 役職人数指定モードの人狼の人数。
+  static const roleWerewolfCount = 'role_werewolf_count_v1';
+  /// 告発の重み（instantWin / eliminateOni / points）。
+  static const accusationWeight = 'accusation_weight_v1';
 }

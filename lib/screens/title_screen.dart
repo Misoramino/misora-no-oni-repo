@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../audio/game_audio.dart';
+import '../audio/sfx_id.dart';
+import '../features/audio/audio_settings_sheet.dart';
+import '../features/onboarding/welcome_flow.dart';
+import '../features/tutorial/tutorial_entry.dart';
 import '../features/branding/launch_effect_overlay.dart';
 import '../features/branding/title_ambient_overlay.dart';
 import '../features/branding/launch_intro_timeline.dart';
 import '../session/launch_branding_prefs.dart';
+import '../session/onboarding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_launch_branding.dart';
+import '../widgets/scene_transitions.dart';
 import '../widgets/themed_geometric_logo.dart';
 import 'game_map_screen.dart';
 import 'launch_handoff.dart';
+import 'progress_screen.dart';
 import 'room_lobby_screen.dart';
 
 /// アプリ入口。オンラインルーム参加か、オフライン練習かを選ぶ。
@@ -114,11 +122,30 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
         _booting = false;
       });
       widget.onProfileChanged?.call(saved);
+      GameAudio.instance.playMenuBgm(saved);
+      _maybeShowWelcomeOnFirstLaunch();
     } catch (e, st) {
       debugPrint('TitleScreen._boot failed: $e\n$st');
       if (!mounted) return;
       setState(() => _booting = false);
     }
+  }
+
+  Future<void> _maybeShowWelcomeOnFirstLaunch() async {
+    if (widget.handoff != null) return;
+    if (await OnboardingPrefs.welcomeSeen()) return;
+    await OnboardingPrefs.markWelcomeSeen();
+    if (!mounted || widget.handoff != null) return;
+    final result = await showWelcomeFlow(context, offerTutorial: true);
+    if (!mounted) return;
+    if (result == WelcomeResult.tutorial) await openTutorialPicker(context);
+  }
+
+  Future<void> _openWelcome() async {
+    GameAudio.instance.playSfx(SfxId.uiTap);
+    final result = await showWelcomeFlow(context, offerTutorial: true);
+    if (!mounted) return;
+    if (result == WelcomeResult.tutorial) await openTutorialPicker(context);
   }
 
   Future<void> _onProfileSelected(WorldProfile? next) async {
@@ -127,6 +154,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
     if (!mounted) return;
     setState(() => _profile = next);
     widget.onProfileChanged?.call(next);
+    GameAudio.instance.playMenuBgm(next);
   }
 
   @override
@@ -257,30 +285,46 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                               children: [
                                 Opacity(
                                   opacity: bodyOpacity,
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: IconButton(
-                                      tooltip: _launchSoundOn
-                                          ? '起動音 ON'
-                                          : '起動音 OFF',
-                                      onPressed: handoff == null
-                                          ? () async {
-                                              final next = !_launchSoundOn;
-                                              await LaunchBrandingPrefs
-                                                  .saveSoundEnabled(next);
-                                              if (!mounted) return;
-                                              setState(
-                                                () => _launchSoundOn = next,
-                                              );
-                                            }
-                                          : null,
-                                      icon: Icon(
-                                        _launchSoundOn
-                                            ? Icons.volume_up_outlined
-                                            : Icons.volume_off_outlined,
-                                        size: 22,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'サウンド設定',
+                                        onPressed: handoff == null
+                                            ? () {
+                                                GameAudio.instance
+                                                    .playSfx(SfxId.uiTap);
+                                                showAudioSettingsSheet(context);
+                                              }
+                                            : null,
+                                        icon: const Icon(
+                                          Icons.tune_rounded,
+                                          size: 22,
+                                        ),
                                       ),
-                                    ),
+                                      IconButton(
+                                        tooltip: _launchSoundOn
+                                            ? '起動音 ON'
+                                            : '起動音 OFF',
+                                        onPressed: handoff == null
+                                            ? () async {
+                                                final next = !_launchSoundOn;
+                                                await LaunchBrandingPrefs
+                                                    .saveSoundEnabled(next);
+                                                if (!mounted) return;
+                                                setState(
+                                                  () => _launchSoundOn = next,
+                                                );
+                                              }
+                                            : null,
+                                        icon: Icon(
+                                          _launchSoundOn
+                                              ? Icons.volume_up_outlined
+                                              : Icons.volume_off_outlined,
+                                          size: 22,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 Transform.translate(
@@ -369,11 +413,11 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                         const SizedBox(height: 20),
                                         FilledButton.icon(
                                           onPressed: () {
-                                            Navigator.of(context).push<void>(
-                                              MaterialPageRoute<void>(
-                                                builder: (_) =>
-                                                    const RoomLobbyScreen(),
-                                              ),
+                                            GameAudio.instance
+                                                .playSfx(SfxId.uiConfirm);
+                                            AppNav.push<void>(
+                                              context,
+                                              (_) => const RoomLobbyScreen(),
                                             );
                                           },
                                           icon: const Icon(
@@ -389,11 +433,12 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                         const SizedBox(height: 12),
                                         OutlinedButton.icon(
                                           onPressed: () {
-                                            Navigator.of(context).push<void>(
-                                              MaterialPageRoute<void>(
-                                                builder: (_) => GameMapScreen(
-                                                  profile: _profile,
-                                                ),
+                                            GameAudio.instance
+                                                .playSfx(SfxId.uiTap);
+                                            AppNav.push<void>(
+                                              context,
+                                              (_) => GameMapScreen(
+                                                profile: _profile,
                                               ),
                                             );
                                           },
@@ -404,6 +449,41 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             ),
                                             child: Text('オフラインで練習（マップのみ）'),
                                           ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextButton.icon(
+                                                onPressed: _openWelcome,
+                                                icon: const Icon(
+                                                  Icons.help_outline_rounded,
+                                                ),
+                                                label: const Text('遊び方'),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: TextButton.icon(
+                                                onPressed: () {
+                                                  GameAudio.instance
+                                                      .playSfx(SfxId.uiTap);
+                                                  AppNav.push<void>(
+                                                    context,
+                                                    (_) =>
+                                                        const ProgressScreen(),
+                                                    direction:
+                                                        SceneTransitionDirection
+                                                            .up,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons
+                                                      .workspace_premium_outlined,
+                                                ),
+                                                label: const Text('戦績・称号'),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                         const SizedBox(height: 20),
                                         Text(

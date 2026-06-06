@@ -35,7 +35,8 @@ This file summarizes the current local MVP behavior for map event areas.
 - When a runner enters a camera radius:
   - emits a local match event
   - shows a small notification
-  - the camera is marked triggered for the rest of the match
+  - leaves an anonymous location trace (reason: surveillance camera)
+  - the same camera can trigger again after `GameConfig.cameraRetriggerCooldownSeconds` (default 90s)
 
 ## Communication Jamming Zone
 

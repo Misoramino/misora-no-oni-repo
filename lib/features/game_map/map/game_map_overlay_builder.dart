@@ -70,6 +70,10 @@ abstract final class GameMapOverlayBuilder {
 
     if (L.remotePlayers && lod.showRemotePlayers(z)) {
       for (final e in s.remoteMembers.entries) {
+        final lat = e.value.lat;
+        final lng = e.value.lng;
+        // members には生 GPS を載せない設計のため、座標が無いメンバーはマーカー化しない。
+        if (lat == null || lng == null) continue;
         final kind = switch (e.value.role) {
           'oni' => MapMarkerKind.remoteOni,
           'spectator' => MapMarkerKind.remoteSpectator,
@@ -78,7 +82,7 @@ abstract final class GameMapOverlayBuilder {
         markers.add(
           Marker(
             markerId: MarkerId('remote_${e.key}'),
-            position: LatLng(e.value.lat, e.value.lng),
+            position: LatLng(lat, lng),
             infoWindow: InfoWindow(
               title: e.value.nickname.isEmpty ? '参加者' : e.value.nickname,
               snippet: '${e.value.role} (online)',
@@ -289,7 +293,6 @@ abstract final class GameMapOverlayBuilder {
       if (L.cameras && showGimmickIcons) {
         for (var i = 0; i < s.cameraPositions.length; i++) {
           final disabled = s.disabledCameraIndices.contains(i);
-          final triggered = s.triggeredCameras.contains(i);
           markers.add(
             Marker(
               markerId: MarkerId('camera_$i'),
@@ -300,9 +303,8 @@ abstract final class GameMapOverlayBuilder {
                     : '監視カメラ ${i + 1}',
                 snippet: disabled
                     ? '復讐の鬼影により無効化'
-                    : triggered
-                        ? '作動済み'
-                        : '感知エリア ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m（円）',
+                    : '感知 ${GameConfig.cameraTriggerRadiusMeters.toStringAsFixed(0)}m · '
+                        '再検知 ${GameConfig.cameraRetriggerCooldownSeconds}秒',
               ),
               icon: _icon(
                 s,
@@ -453,7 +455,6 @@ abstract final class GameMapOverlayBuilder {
           final center = s.cameraPositions[i];
           final baseR = GameConfig.cameraTriggerRadiusMeters;
           final disabled = s.disabledCameraIndices.contains(i);
-          final triggered = s.triggeredCameras.contains(i);
           final scanR = baseR * (0.92 + 0.18 * wave);
           if (disabled) {
             circles.add(
@@ -467,7 +468,7 @@ abstract final class GameMapOverlayBuilder {
                 zIndex: 1,
               ),
             );
-          } else if (!triggered) {
+          } else {
             circles.add(
               Circle(
                 circleId: CircleId('camera-zone-$i'),
@@ -488,18 +489,6 @@ abstract final class GameMapOverlayBuilder {
                 fillColor: Colors.transparent,
                 strokeColor: tokens.markerAccent.withValues(alpha: 0.35 + 0.25 * wave),
                 zIndex: 2,
-              ),
-            );
-          } else {
-            circles.add(
-              Circle(
-                circleId: CircleId('camera-alert-$i'),
-                center: center,
-                radius: scanR * 1.05,
-                strokeWidth: 3,
-                fillColor: tokens.alertColor.withValues(alpha: 0.18),
-                strokeColor: tokens.alertColor.withValues(alpha: 0.75),
-                zIndex: 4,
               ),
             );
           }

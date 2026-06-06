@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../../audio/sfx_id.dart';
+import '../../../game/accusation_weight.dart';
 import '../../../theme/accusation_facility_copy.dart';
+import '../../../widgets/app_dialog.dart';
 
 /// 告発先プレイヤー選択シート。
 Future<String?> showAccusationPlayerSheet({
   required BuildContext context,
   required AccusationFacilityCopy copy,
+  required AccusationWeight accusationWeight,
   required List<({String uid, String label, bool selectable, String? disabledReason})>
       candidates,
 }) {
+  final failHint = accusationWeight.eliminatesAccuserOnFailure
+      ? '外すと即脱落し、残響体として監視網を操作できます。'
+      : '外しても脱落しませんが、この試合では告発権を失います。';
+
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
@@ -32,9 +40,11 @@ Future<String?> showAccusationPlayerSheet({
               ),
               const SizedBox(height: 8),
               Text(
-                '外すと即脱落し、残響体として監視網を操作できます。',
+                failHint,
                 style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(ctx).colorScheme.error,
+                      color: accusationWeight.eliminatesAccuserOnFailure
+                          ? Theme.of(ctx).colorScheme.error
+                          : Theme.of(ctx).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
               ),
@@ -74,27 +84,90 @@ Future<bool> showAccusationConfirmDialog({
   required BuildContext context,
   required String targetLabel,
   required AccusationFacilityCopy copy,
+  required AccusationWeight accusationWeight,
 }) async {
-  final ok = await showDialog<bool>(
+  final ok = await showAppDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('${copy.accuseActionLabel}？'),
-      content: Text(
-        '「$targetLabel」を鬼として告発します。\n\n'
-        '正解: 逃走者陣営の即勝利\n'
-        '不正解: 即脱落（残響体として第二ゲームへ）',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('やめる'),
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      return AppDialog(
+        title: '${copy.accuseActionLabel}？',
+        icon: Icons.gavel_rounded,
+        accent: theme.colorScheme.error,
+        actions: [
+          AppDialogAction(
+            label: 'やめる',
+            filled: false,
+            sfx: SfxId.uiBack,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          AppDialogAction(
+            label: copy.accuseActionLabel,
+            icon: Icons.campaign_rounded,
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '「$targetLabel」を鬼として告発します。',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _OutcomeRow(
+              icon: Icons.check_circle_rounded,
+              color: Colors.green.shade600,
+              label: '正解',
+              text: accusationWeight.successOutcomeLabel,
+            ),
+            const SizedBox(height: 8),
+            _OutcomeRow(
+              icon: Icons.dangerous_rounded,
+              color: theme.colorScheme.error,
+              label: '不正解',
+              text: accusationWeight.failureOutcomeLabel,
+            ),
+          ],
         ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: Text(copy.accuseActionLabel),
-        ),
-      ],
-    ),
+      );
+    },
   );
   return ok == true;
+}
+
+class _OutcomeRow extends StatelessWidget {
+  const _OutcomeRow({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+      ],
+    );
+  }
 }

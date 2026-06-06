@@ -66,4 +66,43 @@ void main() {
       );
     });
   });
+
+  group('assignByRoleCounts', () {
+    int countRole(Map<String, SharedPlayerAssignment> a, PlayerRole r) =>
+        a.values.where((e) => e.role == r).length;
+
+    test('honors exact counts and fills the rest with runners', () {
+      final assignments = {
+        for (var i = 0; i < 6; i++)
+          'p$i': SharedPlayerAssignment(role: PlayerRole.runner, skills: []),
+      };
+      assignByRoleCounts(
+        assignments: assignments,
+        rnd: math.Random(7),
+        hunterCount: 2,
+        werewolfCount: 1,
+        skillsFor: stubSkills,
+      );
+      expect(countRole(assignments, PlayerRole.hunter), 2);
+      expect(countRole(assignments, PlayerRole.werewolf), 1);
+      expect(countRole(assignments, PlayerRole.runner), 3);
+    });
+
+    test('clamps counts when they exceed member count', () {
+      final assignments = {
+        'a': SharedPlayerAssignment(role: PlayerRole.runner, skills: []),
+        'b': SharedPlayerAssignment(role: PlayerRole.runner, skills: []),
+      };
+      assignByRoleCounts(
+        assignments: assignments,
+        rnd: math.Random(9),
+        hunterCount: 5,
+        werewolfCount: 5,
+        skillsFor: stubSkills,
+      );
+      expect(assignments.length, 2);
+      expect(countRole(assignments, PlayerRole.hunter), 2);
+      expect(countRole(assignments, PlayerRole.werewolf), 0);
+    });
+  });
 }

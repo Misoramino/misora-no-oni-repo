@@ -40,6 +40,7 @@ abstract final class RoomDocFields {
   static const matchStartEventAreas = 'eventAreas';
   static const matchStartAccusationSites = 'accusationSites';
   static const matchStartCameraJackSites = 'cameraJackSites';
+  static const matchStartAccusationWeight = 'accusationWeight';
 
   /// Phase A: 試合終了時（ホストのみ）。
   static const endReason = 'endReason';

@@ -27,6 +27,7 @@ class MatchRuntimeState {
   Set<int> activeAccusationSiteIndices;
   bool accusationUnlocked;
   bool accusationSpentByMe;
+  int accusationPointsHuman;
   int syncedEliminationCount;
   int accusationTerritoryBonus;
   Set<int> werewolfForcedPhasesFired;
@@ -60,7 +61,8 @@ class MatchRuntimeState {
   DateTime? safeZoneRespawnAt;
   DateTime? infoBrokerRespawnAt;
   List<LatLng> cameraPositions;
-  final Set<int> triggeredCameras;
+  /// 監視カメラごとの最終検知時刻（CD後に再検知可）。
+  final Map<int, DateTime> cameraLastTriggeredAt;
 
   bool fakePositionActive;
   DateTime? fakePositionEndsAt;
@@ -123,6 +125,7 @@ class MatchRuntimeState {
     Set<int>? activeAccusationSiteIndices,
     this.accusationUnlocked = false,
     this.accusationSpentByMe = false,
+    this.accusationPointsHuman = 0,
     this.syncedEliminationCount = 0,
     this.accusationTerritoryBonus = 0,
     Set<int>? werewolfForcedPhasesFired,
@@ -155,7 +158,7 @@ class MatchRuntimeState {
     this.safeZoneRespawnAt,
     this.infoBrokerRespawnAt,
     List<LatLng>? cameraPositions,
-    Set<int>? triggeredCameras,
+    Map<int, DateTime>? cameraLastTriggeredAt,
     this.fakePositionActive = false,
     this.fakePositionEndsAt,
     this.lastFakeSkillAt,
@@ -207,7 +210,7 @@ class MatchRuntimeState {
               LatLng(35.6817, 139.7661),
               LatLng(35.6800, 139.7696),
             ],
-        triggeredCameras = triggeredCameras ?? <int>{},
+        cameraLastTriggeredAt = cameraLastTriggeredAt ?? <int, DateTime>{},
         lockZoneBoundIds = lockZoneBoundIds ?? const {},
         werewolfForcedPhasesFired = werewolfForcedPhasesFired ?? <int>{},
         disabledCameraIndices = disabledCameraIndices ?? <int>{};
@@ -266,7 +269,7 @@ class MatchRuntimeState {
     infoBrokerAvailable = true;
     safeZoneRespawnAt = null;
     infoBrokerRespawnAt = null;
-    triggeredCameras.clear();
+    cameraLastTriggeredAt.clear();
     fakePositionActive = false;
     fakePositionEndsAt = null;
     lastFakeSkillAt = null;
@@ -299,6 +302,7 @@ class MatchRuntimeState {
     lastDangerDistance = null;
     accusationUnlocked = false;
     accusationSpentByMe = false;
+    accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;
     werewolfForcedPhasesFired = {};
@@ -338,6 +342,7 @@ class MatchRuntimeState {
     cameraPositions = List<LatLng>.from(gimmicks.cameras);
     accusationUnlocked = false;
     accusationSpentByMe = false;
+    accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;
     werewolfForcedPhasesFired = {};

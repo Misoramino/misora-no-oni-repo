@@ -8,6 +8,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../audio/game_audio.dart';
+import '../audio/sfx_id.dart';
+import '../progression/player_progress.dart';
+import '../progression/player_title.dart';
+import '../progression/progress_store.dart';
+import '../session/onboarding_prefs.dart';
+import '../features/onboarding/coach_marks.dart';
+import '../features/onboarding/welcome_flow.dart';
+import '../features/tutorial/tutorial_entry.dart';
+import '../widgets/app_dialog.dart';
 import '../features/game_map/control_sheet_mode.dart';
 import '../features/game_map/map/game_map_layer_toggles.dart';
 import '../features/game_map/map/game_map_overlay_builder.dart';
@@ -56,11 +66,13 @@ import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
 import '../game/accusation_block_logic.dart';
 import '../game/accusation_logic.dart';
+import '../game/accusation_weight.dart';
 import '../game/oni_path_trail.dart';
 import '../game/werewolf_forced_schedule.dart';
 import '../game/werewolf_faction_logic.dart';
 import '../game/analyst_trace_format.dart';
 import '../game/match_duration_scaling.dart';
+import '../game/match_quick_preset.dart';
 import '../game/match_role_mix.dart';
 import '../game/oni_info_broker.dart';
 import '../game/runner_modifier.dart';
@@ -115,6 +127,9 @@ import 'match_result_screen.dart';
 import 'oni_operator_screen.dart';
 import 'privacy_control_screen.dart';
 import 'room_lobby_screen.dart';
+
+part 'game_map_screen.online_sync.dart';
+part 'game_map_screen.reveals_gimmicks.dart';
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, this.onlineSession, super.key});
@@ -191,6 +206,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   DateTime? _lastAcceptedPositionAt;
   OniIntelMode _oniIntelMode = OniIntelMode.directionOnly;
   bool _customRuleMode = false;
+  RoleAssignMode _roleAssignMode = RoleAssignMode.random;
+  int _roleOniCount = 1;
+  int _roleWerewolfCount = 1;
   int _matchDurationSeconds = GameConfig.matchDurationSeconds;
   PlayerRole _localRole = PlayerRole.runner;
   Set<String> _skillLoadout = const {SkillIds.fakePosition};
@@ -271,9 +289,19 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _oniNotifyAggressive = false;
   EliminationAftermathRule _eliminationAftermathRule =
       EliminationAftermathRule.spectralOperative;
+  AccusationWeight _accusationWeight = AccusationWeight.instantWin;
   EliminationAftermathRule? _afterCatchRule;
   FactionSide? _factionAtDeath;
   final Set<String> _eliminatedUids = {};
+
+  bool _progressRecordedForMatch = false;
+  PlayerProgress? _lastProgress;
+  List<PlayerTitle> _lastNewlyUnlockedTitles = const [];
+
+  final GlobalKey _prepStartKey = GlobalKey();
+  final GlobalKey _prepCustomRulesKey = GlobalKey();
+  final GlobalKey _prepMapFabKey = GlobalKey();
+  bool _prepOnboardingChecked = false;
 
   late final AnimationController _dangerPulseController;
 
@@ -294,7 +322,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     _setupLocation();
     Future<void>.microtask(_loadTrajectoryConsent);
     Future<void>.microtask(_loadEliminationAftermathRule);
+    Future<void>.microtask(_loadAccusationWeightConfig);
     Future<void>.microtask(_loadGimmickDensity);
+    Future<void>.microtask(_loadRoleAssignConfig);
     Future<void>.microtask(_initProximityStack);
     Future<void>.microtask(_refreshOfflineQueueCount);
     if (widget.onlineSession != null) {
@@ -307,6 +337,84 @@ class _GameMapScreenState extends State<GameMapScreen>
     Future<void>.microtask(_loadLocalNicknameFromPrefs);
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowPrepOnboarding();
+    });
+  }
+
+  /// 初回だけ、準備画面で「かんたんガイド」を案内する（軽量導入A）。
+  Future<void> _maybeShowPrepOnboarding() async {
+    if (_prepOnboardingChecked) return;
+    _prepOnboardingChecked = true;
+    if (!mounted || _gameState != GameState.waiting) return;
+    if (await OnboardingPrefs.prepGuideSeen()) return;
+    await OnboardingPrefs.markPrepGuideSeen();
+    if (!mounted || _gameState != GameState.waiting) return;
+
+    final seeGuide = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AppDialog(
+          title: 'はじめての準備画面',
+          icon: Icons.waving_hand_rounded,
+          actions: [
+            AppDialogAction(
+              label: 'スキップ',
+              filled: false,
+              sfx: SfxId.uiBack,
+              onPressed: () => Navigator.pop(ctx, false),
+            ),
+            AppDialogAction(
+              label: 'ガイドを見る',
+              icon: Icons.auto_awesome_rounded,
+              onPressed: () => Navigator.pop(ctx, true),
+            ),
+          ],
+          child: Text(
+            '30秒でわかる、かんたんガイドを見てみませんか？\n'
+            'あとからタイトルの「遊び方」やメニューからも見られます。',
+            style: theme.textTheme.bodyMedium,
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    if (seeGuide == true) {
+      final result = await showWelcomeFlow(context, offerTutorial: true);
+      if (!mounted) return;
+      if (result == WelcomeResult.tutorial) {
+        await openTutorialPicker(context);
+        if (!mounted) return;
+      }
+    }
+    await _showPrepCoachMarks(markSeen: true);
+  }
+
+  Future<void> _showPrepCoachMarks({bool markSeen = false}) async {
+    if (!mounted || _gameState != GameState.waiting) return;
+    if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
+    if (!mounted) return;
+    await showCoachMarks(context, [
+      CoachStep(
+        targetKey: _prepStartKey,
+        icon: Icons.play_circle_fill_rounded,
+        title: 'ここで試合開始',
+        body: '準備ができたら「試合を開始」。まずは1戦やってみよう！',
+      ),
+      CoachStep(
+        targetKey: _prepCustomRulesKey,
+        icon: Icons.tune_rounded,
+        title: 'ルールを調整',
+        body: '役職・制限時間・ギミックは「カスタムルール」で変えられます。',
+      ),
+      CoachStep(
+        targetKey: _prepMapFabKey,
+        icon: Icons.map_rounded,
+        title: 'エリアを編集',
+        body: '右下の「マップパネル」から、遊ぶエリアの形を編集・保存できます。',
+      ),
+    ]);
   }
 
   @override
@@ -350,6 +458,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
+  Future<void> _loadRoleAssignConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _roleAssignMode =
+          RoleAssignMode.fromName(prefs.getString(GameMapPrefs.roleAssignMode));
+      _roleOniCount = (prefs.getInt(GameMapPrefs.roleOniCount) ?? 1).clamp(0, 12);
+      _roleWerewolfCount =
+          (prefs.getInt(GameMapPrefs.roleWerewolfCount) ?? 1).clamp(0, 12);
+    });
+  }
+
   Future<void> _loadEliminationAftermathRule() async {
     final prefs = await SharedPreferences.getInstance();
     final parsed = EliminationAftermathRule.tryParseName(
@@ -359,6 +479,16 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (parsed != null) {
       setState(() => _eliminationAftermathRule = parsed);
     }
+  }
+
+  Future<void> _loadAccusationWeightConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _accusationWeight = AccusationWeight.fromName(
+        prefs.getString(GameMapPrefs.accusationWeight),
+      );
+    });
   }
 
   Future<void> _setTrajectoryConsent(bool value) async {
@@ -525,7 +655,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
 
     _roomEventSub?.cancel();
-    _roomEventSub = session.roomMatchEvents.listen(_onRemoteRoomMatchEvent);
+    _roomEventSub =
+        session.roomMatchEvents.listen((ev) => _onRemoteRoomMatchEvent(ev));
 
     final rm = session.currentRoomMatch;
     if (rm.phase == RoomPhase.lobby) {
@@ -594,8 +725,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _applyRemoteOniPosition(Map<String, RemoteMemberSnapshot> map) {
     _remoteOniKnown = false;
     for (final m in map.values) {
-      if (m.role == 'oni' || m.role == 'hunter') {
-        _oniPosition = LatLng(m.lat, m.lng);
+      if ((m.role == 'oni' || m.role == 'hunter') &&
+          m.lat != null &&
+          m.lng != null) {
+        _oniPosition = LatLng(m.lat!, m.lng!);
         _remoteOniKnown = true;
         return;
       }
@@ -936,6 +1069,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     _retuneRenderPump();
   }
+
+  /// `part`（オンライン同期 extension）から `setState` を呼ぶための薄いラッパ。
+  /// extension は `@protected` な `setState` を直接呼べないため経由する。
+  void _syncSetState(void Function() fn) => setState(fn);
 
   void _pushHudRevealAlert(String message) {
     _hudRevealAlertTimer?.cancel();
@@ -1459,6 +1596,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
 
+    _progressRecordedForMatch = false;
+    _lastNewlyUnlockedTitles = const [];
     _matchRecorder?.discard();
     _matchRecorder = null;
     if (_trajectoryConsent) {
@@ -1517,6 +1656,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _captureAcksByPlace.clear();
     _lastKnownHunterPositions.clear();
     _oniPathSamples.clear();
+    _bodyThrowBroadcastActive = false;
     _oniMatchStartAnchor = null;
     if (_localRole == PlayerRole.hunter) {
       _oniMatchStartAnchor = _currentPosition;
@@ -1539,6 +1679,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
     HapticFeedback.selectionClick();
     SystemSound.play(SystemSoundType.click);
+    GameAudio.instance.playSfx(SfxId.matchStart);
+    GameAudio.instance.playMatchAmbient(_activeProfile);
 
     _matchTimer?.cancel();
     _matchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -1631,11 +1773,21 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     }
     if (!_customRuleMode && assignments.length > 1) {
-      ensureViableRoleMix(
-        assignments: assignments,
-        rnd: rnd,
-        skillsFor: (role) => _randomSkillsFor(role, rnd).toList(),
-      );
+      if (_roleAssignMode == RoleAssignMode.counts) {
+        assignByRoleCounts(
+          assignments: assignments,
+          rnd: rnd,
+          hunterCount: _roleOniCount,
+          werewolfCount: _roleWerewolfCount,
+          skillsFor: (role) => _randomSkillsFor(role, rnd).toList(),
+        );
+      } else {
+        ensureViableRoleMix(
+          assignments: assignments,
+          rnd: rnd,
+          skillsFor: (role) => _randomSkillsFor(role, rnd).toList(),
+        );
+      }
       assignRunnerModifiers(assignments: assignments, rnd: rnd);
     }
     final gimmicks = await GeneratedGimmicks.createForMatchStart(
@@ -1656,6 +1808,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       eventAreas: gimmicks.eventAreas,
       accusationSites: gimmicks.accusationFacilities,
       cameraJackSites: gimmicks.cameraJackSites,
+      accusationWeight: _accusationWeight,
     );
   }
 
@@ -1688,6 +1841,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _matchDurationSeconds = snapshot.matchDurationSeconds;
     _oniIntelMode = snapshot.oniIntelMode;
     _eliminationAftermathRule = snapshot.eliminationAftermathRule;
+    _accusationWeight = snapshot.accusationWeight;
     final mine = snapshot.assignmentFor(_firestoreSession?.myUid);
     if (mine != null) {
       _localRole = mine.role;
@@ -1883,28 +2037,37 @@ class _GameMapScreenState extends State<GameMapScreen>
             0,
             GameConfig.abortProposalTimeoutSeconds,
           );
-    final choice = await showDialog<String>(
+    final choice = await showAppDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('試合中止の投票'),
-        content: Text(
-          '$initiatorLabel が試合中止を提案しました。\n'
-          '賛成が試合参加者 $n 人の過半数（$need 票以上）で中止されます。\n'
-          '残り時間: 約 $remainSec 秒\n'
-          '現在の賛成: ${_abortVoteYesUids.length} 票',
-        ),
-        actions: [
-          OutlinedButton(
-            onPressed: () => Navigator.pop(ctx, 'no'),
-            child: const Text('反対'),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AppDialog(
+          title: '試合中止の投票',
+          icon: Icons.how_to_vote_rounded,
+          accent: theme.colorScheme.error,
+          actions: [
+            AppDialogAction(
+              label: '反対',
+              filled: false,
+              icon: Icons.thumb_down_alt_outlined,
+              onPressed: () => Navigator.pop(ctx, 'no'),
+            ),
+            AppDialogAction(
+              label: '賛成',
+              icon: Icons.thumb_up_alt_rounded,
+              onPressed: () => Navigator.pop(ctx, 'yes'),
+            ),
+          ],
+          child: Text(
+            '$initiatorLabel が試合中止を提案しました。\n'
+            '賛成が試合参加者 $n 人の過半数（$need 票以上）で中止されます。\n'
+            '残り時間: 約 $remainSec 秒\n'
+            '現在の賛成: ${_abortVoteYesUids.length} 票',
+            style: theme.textTheme.bodyMedium,
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'yes'),
-            child: const Text('賛成'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (!mounted || choice == null) return;
     await _submitAbortVote(choice == 'yes');
@@ -2044,6 +2207,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     HapticFeedback.mediumImpact();
     SystemSound.play(SystemSoundType.alert);
+    final localFaction = _effectiveLocalFaction();
+    final humanWon = result == GameState.runnerWin;
+    final personalWin = (humanWon && localFaction == FactionSide.humanTeam) ||
+        (!humanWon && localFaction == FactionSide.oniTeam);
+    GameAudio.instance.playSfx(personalWin ? SfxId.matchWin : SfxId.matchLose);
+    GameAudio.instance.playMenuBgm(_activeProfile);
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
     _finalizeRecordingFuture = Future<void>.microtask(
@@ -2113,6 +2282,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       now: DateTime.now(),
     );
     _applyMatchTickEffects(effects);
+    _syncHunterBroadcastForBodyThrow();
     _updateDangerPulse();
     _maybeRefreshBleAdvertiseOnRoleChange();
   }
@@ -2127,6 +2297,7 @@ class _GameMapScreenState extends State<GameMapScreen>
             HapticFeedback.mediumImpact();
           }
           if (state == GameState.caughtByOni) {
+            GameAudio.instance.playSfx(SfxId.capture);
             _eliminateLocalParticipant(message, cause: 'caught');
             return;
           }
@@ -2173,6 +2344,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           );
         case MatchTouchLockStartEffect():
           HapticFeedback.mediumImpact();
+          GameAudio.instance.playSfx(SfxId.skillCast);
         case MatchCameraSpottedEffect(:final message):
           if (!mounted) return;
           ScaffoldMessenger.of(
@@ -2185,320 +2357,6 @@ class _GameMapScreenState extends State<GameMapScreen>
           );
       }
     }
-  }
-
-  void _appendInfectionPulseReveal() {
-    final pos = _positionForReveal;
-    final pick = _reasonPickAt(pos);
-    _emitAnonymousReveal(
-      position: pos,
-      pick: pick,
-      source: 'panic',
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('パニック: 名前のない位置痕跡が残りました'),
-      ),
-    );
-  }
-
-  void _updateDangerPulse() {
-    final shouldPulse = _rt.dangerPulseActive;
-    if (shouldPulse) {
-      if (!_dangerPulseController.isAnimating) {
-        _dangerPulseController.repeat(reverse: true);
-      }
-    } else {
-      if (_dangerPulseController.isAnimating) {
-        _dangerPulseController.stop();
-        _dangerPulseController.value = 0;
-      }
-    }
-  }
-
-  RevealReasonPick _reasonPickAt(LatLng pos, {bool forceCamera = false}) {
-    if (forceCamera) return RevealReasonPool.cameraPick();
-    return RevealReasonPool.pick(
-      revealPosition: pos,
-      cameraPositions: _rt.cameraPositions,
-      safeZonePositions: _rt.safeZonePositions,
-      actorOutsidePlayArea: !_playArea.contains(_currentPosition),
-    );
-  }
-
-  void _emitIdentifiedReveal({
-    required String revealKind,
-    required LatLng position,
-    required String playerLabel,
-    required RevealReasonPick pick,
-    double overflowMeters = 0,
-    String? syncLocalEventType,
-    bool pushHud = true,
-    String? subjectUid,
-    bool attachAvatarOnReveal = true,
-  }) {
-    final shown = _displayRevealPosition(position);
-    final resolvedSubjectUid = attachAvatarOnReveal
-        ? (subjectUid ?? _firestoreSession?.myUid ?? 'local')
-        : null;
-    _rt.revealCount += 1;
-    final ev = LocationRevealEvent(
-      sequence: _rt.revealCount,
-      timestamp: DateTime.now(),
-      position: shown,
-      overflowMeters: overflowMeters,
-      playerLabel: playerLabel,
-      reasonSummary: pick.summary,
-      subjectUid: resolvedSubjectUid,
-    );
-    setState(() {
-      _rt.revealLog.insert(0, ev);
-      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
-      _statusMessage = '$playerLabel の位置が露見（${pick.summary}）';
-    });
-    if (pushHud) {
-      _pushHudRevealAlert('$playerLabel の位置が露見しました（${pick.summary}）');
-    }
-    _emitMatchEvent(
-      type: syncLocalEventType ?? revealKind,
-      message: pick.narrative,
-      position: shown,
-      syncFirestore: false,
-    );
-    unawaited(
-      _publishFirestoreReveal(
-        revealKind: revealKind,
-        message: pick.narrative,
-        position: shown,
-        playerLabel: playerLabel,
-        overflowMeters: overflowMeters,
-        reasonSummary: pick.summary,
-      ),
-    );
-  }
-
-  void _triggerLocationReveal(double overflowMeters) {
-    _rt.revealedInCurrentOutside = true;
-    final playerLabel = _localPlayerLabel;
-    final raw = _positionForReveal;
-    final pick = _reasonPickAt(raw);
-    _emitIdentifiedReveal(
-      revealKind: 'area_reveal',
-      position: raw,
-      playerLabel: playerLabel,
-      pick: pick,
-      overflowMeters: overflowMeters,
-      syncLocalEventType: 'area_reveal',
-    );
-    HapticFeedback.heavyImpact();
-    _retuneGpsIfNeeded();
-  }
-
-  void _emitLocationReveal({
-    required String type,
-    required String message,
-    LatLng? overridePosition,
-    String? reasonSummary,
-  }) {
-    final raw = overridePosition ?? _positionForReveal;
-    final pick = reasonSummary != null
-        ? RevealReasonPick(summary: reasonSummary, narrative: message)
-        : _reasonPickAt(raw);
-    _emitIdentifiedReveal(
-      revealKind: type,
-      position: raw,
-      playerLabel: _localPlayerLabel,
-      pick: pick,
-      syncLocalEventType: type,
-    );
-  }
-
-  void _evaluateSafeZone() {
-    if (_rt.safeZoneCharges >= GameConfig.safeZoneMaxCharges) return;
-    final now = DateTime.now();
-    final hitIndex = GimmickPickupEvaluator.pickupIndexIfAllowed(
-      available: _rt.safeZoneAvailable,
-      positions: _rt.safeZonePositions,
-      radiusMeters: GameConfig.safeZoneRadiusMeters,
-      playerPosition: _currentPosition,
-      lastPickupAt: _rt.lastSafeChargeAt,
-      cooldownSeconds: GameConfig.safeZoneChargeCooldownSeconds,
-      now: now,
-    );
-    if (hitIndex == null) return;
-    final hit = _rt.safeZonePositions[hitIndex];
-    final nextSafeZone = GimmickRelocator.relocate(
-      area: _playArea,
-      avoid: [
-        ..._rt.safeZonePositions,
-        ..._rt.infoBrokerPositions,
-        ..._rt.cameraPositions,
-        ..._rt.commJammingZonePositions,
-      ],
-      angleSeed: 35 + _rt.elapsedSeconds * 7 + hitIndex * 53,
-      radiusFactor: 0.44,
-    );
-    setState(() {
-      _rt.lastSafeChargeAt = now;
-      _rt.safeZoneCharges += 1;
-      _refreshSkillCooldownsFromSafeZone();
-      _rt.safeZonePositions[hitIndex] = nextSafeZone;
-      _rt.safeZoneAvailable = false;
-      _rt.safeZoneRespawnAt = now.add(
-        const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
-      );
-      _statusMessage = '安全地帯: ステルス獲得 + スキル再使用可能（移動中）';
-    });
-    _emitMatchEvent(
-      type: 'safe_charge',
-      message: '安全地帯でチャージ獲得・スキル再使用可能・安全地帯移動',
-      position: hit,
-    );
-  }
-
-  void _evaluateInfoBroker(double distanceToOni) {
-    final now = DateTime.now();
-    final isHunter = _localRole == PlayerRole.hunter;
-    final hitIndex = GimmickPickupEvaluator.pickupIndexIfAllowed(
-      available: _rt.infoBrokerAvailable,
-      positions: _rt.infoBrokerPositions,
-      radiusMeters: GameConfig.infoBrokerRadiusMeters,
-      playerPosition: _currentPosition,
-      lastPickupAt: isHunter ? _rt.lastHunterInfoBrokerAt : _rt.lastInfoBrokerAt,
-      cooldownSeconds: isHunter
-          ? GameConfig.oniInfoBrokerCooldownSeconds
-          : GameConfig.infoBrokerCooldownSeconds,
-      now: now,
-    );
-    if (hitIndex == null) return;
-    final hit = _rt.infoBrokerPositions[hitIndex];
-    if (isHunter) {
-      _applyHunterInfoBroker(hitIndex: hitIndex, hit: hit, now: now);
-    } else {
-      _applyRunnerInfoBroker(
-        hitIndex: hitIndex,
-        hit: hit,
-        now: now,
-        distanceToOni: distanceToOni,
-      );
-    }
-  }
-
-  LatLng _relocateInfoBroker(int hitIndex) {
-    return GimmickRelocator.relocate(
-      area: _playArea,
-      avoid: [
-        ..._rt.safeZonePositions,
-        ..._rt.infoBrokerPositions,
-        ..._rt.cameraPositions,
-        ..._rt.commJammingZonePositions,
-      ],
-      angleSeed: 150 + _rt.elapsedSeconds * 11 + hitIndex * 71,
-      radiusFactor: 0.58,
-    );
-  }
-
-  void _markInfoBrokerUsed({
-    required int hitIndex,
-    required LatLng hit,
-    required LatLng nextInfoBroker,
-    required DateTime now,
-    required String statusMessage,
-    DateTime? runnerLastAt,
-    DateTime? hunterLastAt,
-  }) {
-    setState(() {
-      if (runnerLastAt != null) _rt.lastInfoBrokerAt = runnerLastAt;
-      if (hunterLastAt != null) _rt.lastHunterInfoBrokerAt = hunterLastAt;
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
-      _statusMessage = statusMessage;
-    });
-  }
-
-  void _applyRunnerInfoBroker({
-    required int hitIndex,
-    required LatLng hit,
-    required DateTime now,
-    required double distanceToOni,
-  }) {
-    final bearing = Geolocator.bearingBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _oniPosition.latitude,
-      _oniPosition.longitude,
-    );
-    final direction = MapGeoUtils.bearingToDirection(bearing);
-    final distBand = distanceToOni <= GameConfig.dangerDistanceMeters
-        ? '至近'
-        : distanceToOni <= GameConfig.warningDistanceMeters
-        ? '中距離'
-        : '遠距離';
-    var intel = OniIntelTextBuilder.build(
-      mode: _oniIntelMode,
-      elapsedSeconds: _rt.elapsedSeconds,
-      oniInCommJammingZone: _oniInCommJammingZone,
-      playerPosition: _currentPosition,
-      commJammingZoneCenters: _rt.commJammingZonePositions,
-      direction: direction,
-      distanceBand: distBand,
-      bearingDegrees: bearing,
-    );
-    if (_localRunnerModifier == RunnerModifier.hacker) {
-      final facing = _oniFacingDirectionLabel();
-      intel = OniIntelTextBuilder.buildHackerAugment(
-        baseIntel: intel,
-        distanceBand: distBand,
-        distanceMeters: distanceToOni,
-        oniFacingDirection: facing,
-      );
-    }
-    final nextInfoBroker = _relocateInfoBroker(hitIndex);
-    setState(() {
-      _rt.lastInfoBrokerAt = now;
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.lastOniIntelText = intel;
-      _rt.lastOniIntelAt = now;
-      _rt.showOniIntelCard = true;
-      _rt.oniIntelTraces.insert(
-        0,
-        OniIntelTrace(timestamp: now, position: hit, text: intel),
-      );
-      if (_rt.oniIntelTraces.length > 20) {
-        _rt.oniIntelTraces.removeLast();
-      }
-      _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
-      _statusMessage = '情報屋: $intel';
-    });
-    _emitMatchEvent(
-      type: 'info_broker',
-      message: '情報屋を利用: $intel',
-      position: hit,
-      syncFirestore: false,
-    );
-    unawaited(
-      _publishFirestoreInfoBroker(
-        intel: intel,
-        hitIndex: hitIndex,
-        pickupLat: hit.latitude,
-        pickupLng: hit.longitude,
-        nextLat: nextInfoBroker.latitude,
-        nextLng: nextInfoBroker.longitude,
-      ),
-    );
-  }
-
-  String? _oniFacingDirectionLabel() {
-    final deg = _lastKnownOniHeadingDegrees;
-    if (deg == null) return null;
-    return MapGeoUtils.bearingToDirection(deg);
   }
 
   void _updateOniHeadingFromPosition(LatLng pos, {double? deviceHeading}) {
@@ -2630,6 +2488,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _pushHudRevealAlert(line);
     }
     HapticFeedback.mediumImpact();
+    GameAudio.instance.playSfx(SfxId.unlock);
   }
 
   int? _accusationSiteIndexInRange() {
@@ -2719,6 +2578,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     final picked = await showAccusationPlayerSheet(
       context: context,
       copy: copy,
+      accusationWeight: _accusationWeight,
       candidates: candidates,
     );
     if (!mounted) {
@@ -2734,6 +2594,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       context: context,
       targetLabel: label,
       copy: copy,
+      accusationWeight: _accusationWeight,
     );
     if (!mounted || ok != true) {
       _accusationPromptOpen = false;
@@ -2792,20 +2653,130 @@ class _GameMapScreenState extends State<GameMapScreen>
       accusedUid: accusedUid,
     );
     if (success) {
-      _endGame(
-        GameState.runnerWin,
-        '${copy.facilityName}: 告発成功',
-        endReason: MatchEndReason.accusationSuccess,
-      );
+      switch (_accusationWeight) {
+        case AccusationWeight.instantWin:
+          _endGame(
+            GameState.runnerWin,
+            '${copy.facilityName}: 告発成功',
+            endReason: MatchEndReason.accusationSuccess,
+          );
+        case AccusationWeight.eliminateOni:
+          unawaited(_publishParticipantEliminatedByHost(
+            uid: accusedUid,
+            cause: 'accusation_hunter',
+          ));
+          _notifyAccusationSuccess(
+            '${copy.facilityName}: 告発成功 — 鬼を脱落（試合継続）',
+          );
+        case AccusationWeight.points:
+          _applyAccusationPointDelta(delta: 1);
+          _notifyAccusationSuccess(
+            '${copy.facilityName}: 告発成功 — ポイント ${_rt.accusationPointsHuman}',
+          );
+      }
       return;
     }
     unawaited(_publishAccusationFailed(accuserUid: accuserUid));
-    if (accuserUid == _firestoreSession?.myUid) {
+    _applyAccusationFailureToAccuser(accuserUid);
+  }
+
+  void _resolveAccusationLocally({
+    required String accuserUid,
+    required String accusedUid,
+  }) {
+    final assignments =
+        _firestoreSession?.currentMatchStart?.assignments ?? {};
+    if (isAccusationTargetHunter(
+      assignments: assignments,
+      accusedUid: accusedUid,
+    )) {
+      switch (_accusationWeight) {
+        case AccusationWeight.instantWin:
+          _endGame(
+            GameState.runnerWin,
+            '告発成功（ローカル）',
+            endReason: MatchEndReason.accusationSuccess,
+            skipFirestoreSync: true,
+          );
+        case AccusationWeight.eliminateOni:
+          if (accusedUid == _firestoreSession?.myUid ||
+              accusedUid == 'local') {
+            _eliminateLocalParticipant(
+              '告発により脱落 — 鬼影として戦線に残る',
+              cause: 'accusation_hunter',
+            );
+          } else {
+            _eliminatedUids.add(accusedUid);
+            _rt.syncedEliminationCount += 1;
+          }
+          _notifyAccusationSuccess('告発成功 — 鬼を脱落（試合継続）');
+        case AccusationWeight.points:
+          _applyAccusationPointDelta(delta: 1);
+          _notifyAccusationSuccess(
+            '告発成功 — ポイント ${_rt.accusationPointsHuman}',
+          );
+      }
+      return;
+    }
+    _applyAccusationFailureToAccuser(accuserUid);
+  }
+
+  void _notifyAccusationSuccess(String message) {
+    if (!mounted) return;
+    setState(() => _statusMessage = message);
+    _pushHudRevealAlert(message);
+    HapticFeedback.heavyImpact();
+    GameAudio.instance.playSfx(SfxId.reveal);
+  }
+
+  void _applyAccusationPointDelta({required int delta}) {
+    if (!mounted) return;
+    setState(() => _rt.accusationPointsHuman += delta);
+    if (_isOnlineFirestore && _isHost) {
+      unawaited(_publishAccusationPointScored());
+    }
+  }
+
+  Future<void> _publishAccusationPointScored() async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null || !_isHost) return;
+    await fs.publishHostRoomEvent(
+      type: RoomMatchEventTypes.accusationPointScored,
+      payload: {'total': _rt.accusationPointsHuman},
+      sessionKey: sk,
+    );
+  }
+
+  Future<void> _publishParticipantEliminatedByHost({
+    required String uid,
+    required String cause,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null || !_isHost) return;
+    await fs.publishHostRoomEvent(
+      type: RoomMatchEventTypes.playerEliminated,
+      payload: {'uid': uid, 'cause': cause},
+      sessionKey: sk,
+    );
+  }
+
+  void _applyAccusationFailureToAccuser(String accuserUid) {
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    if (accuserUid != myUid && accuserUid != 'local') return;
+    if (_accusationWeight.eliminatesAccuserOnFailure) {
       _eliminateLocalParticipant(
         '告発失敗 — 残響体として戦線に残る',
         cause: 'accusation_failed',
       );
+      return;
     }
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = '告発失敗 — この試合では告発済み';
+    });
+    _toast('告発失敗 — 告発権を使い切りました');
   }
 
   Future<void> _publishAccusationFailed({required String accuserUid}) async {
@@ -2821,32 +2792,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
-  void _resolveAccusationLocally({
-    required String accuserUid,
-    required String accusedUid,
+  void _eliminateLocalParticipant(
+    String message, {
+    required String cause,
+    bool publishOnline = true,
   }) {
-    final assignments =
-        _firestoreSession?.currentMatchStart?.assignments ?? {};
-    if (isAccusationTargetHunter(
-      assignments: assignments,
-      accusedUid: accusedUid,
-    )) {
-      _endGame(
-        GameState.runnerWin,
-        '告発成功（ローカル）',
-        endReason: MatchEndReason.accusationSuccess,
-        skipFirestoreSync: true,
-      );
-    } else if (accuserUid == 'local' ||
-        accuserUid == _firestoreSession?.myUid) {
-      _eliminateLocalParticipant(
-        '告発失敗 — 残響体として戦線に残る',
-        cause: 'accusation_failed',
-      );
-    }
-  }
-
-  void _eliminateLocalParticipant(String message, {required String cause}) {
     if (_gameState != GameState.running) return;
     _dismissOpenModals();
     _tracePoints.add(_currentPosition);
@@ -2868,7 +2818,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       _rt.clearActiveChaseState();
     });
     _updateDangerPulse();
-    unawaited(_publishPlayerEliminatedIfOnline(cause: cause));
+    if (publishOnline) {
+      unawaited(_publishPlayerEliminatedIfOnline(cause: cause));
+    }
     final myUid = _firestoreSession?.myUid ?? 'local';
     _eliminatedUids.add(myUid);
     _emitMatchEvent(
@@ -2887,6 +2839,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
+    GameAudio.instance.playSfx(SfxId.eliminated);
   }
 
   String _eliminationStatusMessage(
@@ -3654,6 +3607,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       endsAtMs: _rt.fakePositionEndsAt!.millisecondsSinceEpoch,
       syncFirestore: false,
     );
+    GameAudio.instance.playSfx(SfxId.skillCast);
     setState(() {
       _statusMessage =
           '偽位置を展開（進行方向へ移動・露出時は偽座標が名前付きで出ます）';
@@ -3839,27 +3793,36 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('偽情報暴露は $cdRemain 秒後に再使用できます');
       return;
     }
-    final self = await showDialog<bool>(
+    final self = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        final scheme = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text('偽情報暴露', style: TextStyle(color: scheme.onSurface)),
-          content: Text(
-            '自分または逃走者の名前で、別地点の「本物っぽい」位置露出を追加します。'
-            '鬼でないアピール・囮・前にワープしたように見せる誘導向けです。',
-            style: TextStyle(color: scheme.onSurfaceVariant),
-          ),
+        final theme = Theme.of(ctx);
+        return AppDialog(
+          title: '偽情報暴露',
+          icon: Icons.theater_comedy_rounded,
+          accent: theme.colorScheme.tertiary,
           actions: [
-            TextButton(
+            AppDialogAction(
+              label: '自分（鬼）を暴露',
+              filled: false,
+              icon: Icons.person_pin_circle_rounded,
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('自分（鬼）を暴露'),
             ),
-            FilledButton(
+            AppDialogAction(
+              label: '逃走者をランダム暴露',
+              icon: Icons.shuffle_rounded,
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('逃走者をランダム暴露'),
             ),
           ],
+          child: Text(
+            'どちらも名前付きの位置露見として地図に出ます（匿名ではありません）。\n'
+            '・自分（鬼）… 別地点に自分の名前で露出\n'
+            '・逃走者ランダム… 誰か1人の名前で別地点に露出\n'
+            '相手からは偽情報とは分かりません。囮・ワープ誘導向けです。',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         );
       },
     );
@@ -3905,6 +3868,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       ),
     );
     HapticFeedback.mediumImpact();
+    GameAudio.instance.playSfx(SfxId.skillCast);
   }
 
   /// 自分以外の試合参加者から1人をランダムに選ぶ（assignments 優先）。
@@ -4024,21 +3988,55 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
   }
 
-  void _maybePublishHunterPosition(LatLng pos, {double? heading}) {
+  bool _bodyThrowBroadcastActive = false;
+
+  /// 体投げ作動中は「鬼として配信する座標」を人形位置にずらす。
+  ///
+  /// 捕獲判定は逃走者側が同期された鬼位置（[_oniPosition]）で行うため、
+  /// 配信座標を人形にすることで“一時的に判定の中心をそこへ移す”挙動になる。
+  LatLng _effectiveHunterBroadcastPos(LatLng real) {
+    final puppet = _rt.bodyThrowPosition;
+    final ends = _rt.bodyThrowEndsAt;
+    if (puppet != null && ends != null && DateTime.now().isBefore(ends)) {
+      return puppet;
+    }
+    return real;
+  }
+
+  /// 体投げの開始/終了の瞬間に、鬼の配信位置を即時に切り替える（実位置⇄人形）。
+  void _syncHunterBroadcastForBodyThrow() {
+    if (!_isOnlineFirestore || _localRole != PlayerRole.hunter) return;
+    final ends = _rt.bodyThrowEndsAt;
+    final active = _rt.bodyThrowPosition != null &&
+        ends != null &&
+        DateTime.now().isBefore(ends);
+    if (active == _bodyThrowBroadcastActive) return;
+    _bodyThrowBroadcastActive = active;
+    _maybePublishHunterPosition(_currentPosition, force: true);
+  }
+
+  void _maybePublishHunterPosition(
+    LatLng pos, {
+    double? heading,
+    bool force = false,
+  }) {
     if (!_isOnlineFirestore || _gameState != GameState.running) return;
+    // 向きは実際の移動から、配信座標は体投げ中なら人形位置から。
     _updateOniHeadingFromPosition(pos, deviceHeading: heading);
+    final broadcast = _effectiveHunterBroadcastPos(pos);
     final now = DateTime.now();
     final lastAt = _lastHunterPositionPublishAt;
     final lastPos = _lastHunterPositionPublished;
-    if (lastAt != null &&
+    if (!force &&
+        lastAt != null &&
         now.difference(lastAt).inSeconds <
             GameConfig.hunterPositionPublishIntervalSeconds) {
       if (lastPos != null) {
         final moved = Geolocator.distanceBetween(
           lastPos.latitude,
           lastPos.longitude,
-          pos.latitude,
-          pos.longitude,
+          broadcast.latitude,
+          broadcast.longitude,
         );
         if (moved < 6) return;
       } else {
@@ -4046,13 +4044,13 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     }
     _lastHunterPositionPublishAt = now;
-    _lastHunterPositionPublished = pos;
-    _recordOniPathSample(pos);
+    _lastHunterPositionPublished = broadcast;
+    _recordOniPathSample(broadcast);
     unawaited(
       _publishFirestoreMatchEventInner(
         innerType: 'hunter_position',
         message: '鬼位置更新',
-        position: pos,
+        position: broadcast,
         headingDeg: _lastKnownOniHeadingDegrees,
       ),
     );
@@ -4062,9 +4060,16 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.captureZone)) return;
     final now = DateTime.now();
-    if (_rt.lastSkillLockPlacementAt != null &&
-        now.difference(_rt.lastSkillLockPlacementAt!).inSeconds <
-            GameConfig.captureZoneCooldownSeconds) {
+    if (_rt.waitingSkillLockMapTap) {
+      _toast('地図をタップして設置地点を選んでください');
+      return;
+    }
+    final remain = _cooldownRemainingSeconds(
+      _rt.lastSkillLockPlacementAt,
+      GameConfig.captureZoneCooldownSeconds,
+    );
+    if (remain > 0) {
+      _toast('捕獲結界の再使用まで $remain 秒');
       return;
     }
     _rt.lastSkillLockPlacementAt = now;
@@ -4077,14 +4082,21 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _activateBodyThrow() {
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.bodyThrow)) return;
-    if (_rt.bodyThrowAwaitingMapTap) return;
+    if (_rt.bodyThrowAwaitingMapTap) {
+      _toast('地図をタップして人形を置いてください');
+      return;
+    }
     if (_rt.bodyThrowPosition != null || _rt.bodyThrowEndsAt != null) {
+      _toast('体投げは展開中です');
       return;
     }
     final now = DateTime.now();
-    if (_rt.lastBodyThrowAt != null &&
-        now.difference(_rt.lastBodyThrowAt!).inSeconds <
-            GameConfig.bodyThrowCooldownSeconds) {
+    final remain = _cooldownRemainingSeconds(
+      _rt.lastBodyThrowAt,
+      GameConfig.bodyThrowCooldownSeconds,
+    );
+    if (remain > 0) {
+      _toast('体投げの再使用まで $remain 秒');
       return;
     }
     setState(() {
@@ -4338,6 +4350,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     });
     HapticFeedback.lightImpact();
+    GameAudio.instance.playSfx(SfxId.anonReveal);
   }
 
   Iterable<AnonymousRevealTrace> _recentAnonymousTraces() {
@@ -4513,369 +4526,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (err != null && mounted) _toast(err);
   }
 
-  void _onRemoteRoomMatchEvent(RoomMatchEvent ev) {
-    if (!mounted) return;
-    if (_processedRoomEventDocIds.contains(ev.id)) return;
-    _processedRoomEventDocIds.add(ev.id);
-    final sk = _matchEventSessionKey;
-    if (sk == null || ev.sessionKey != sk) return;
-    if (_gameState != GameState.running) return;
-    final fs = _firestoreSession;
-    if (fs == null) return;
-
-    switch (ev.type) {
-      case RoomMatchEventTypes.matchStart:
-      case RoomMatchEventTypes.matchEnd:
-        return;
-      case RoomMatchEventTypes.reveal:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteReveal(ev);
-        return;
-      case RoomMatchEventTypes.anonymousReveal:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteAnonymousReveal(ev);
-        return;
-      case RoomMatchEventTypes.fakeIntelReveal:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteFakeIntelReveal(ev);
-        return;
-      case RoomMatchEventTypes.infoBroker:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteInfoBroker(ev);
-        return;
-      case RoomMatchEventTypes.oniInfoBroker:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteOniInfoBroker(ev);
-        return;
-      case RoomMatchEventTypes.matchEvent:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteMatchEventLog(ev);
-        return;
-      case RoomMatchEventTypes.captureZonePlaced:
-        final placeId = ev.payload['placeId'] as String?;
-        if (placeId == null) return;
-        if (ev.actorUid != fs.myUid) {
-          _applyRemoteCaptureZonePlaced(ev);
-        }
-        unawaited(_publishCaptureZoneAckIfNeeded(ev, fs, placeId));
-        if (_isHost && !_captureBoundTimers.containsKey(placeId)) {
-          final cLat = ev.payload['centerLat'];
-          final cLng = ev.payload['centerLng'];
-          if (cLat is num && cLng is num) {
-            _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
-            _scheduleHostCaptureBoundOnce(
-              placeId: placeId,
-              center: LatLng(cLat.toDouble(), cLng.toDouble()),
-            );
-          }
-        }
-        return;
-      case RoomMatchEventTypes.captureZoneBound:
-        _applyRemoteCaptureZoneBound(ev, fs);
-        return;
-      case RoomMatchEventTypes.captureZoneAck:
-        if (_isHost) {
-          final placeId = ev.payload['placeId'] as String?;
-          if (placeId != null) {
-            _captureAcksByPlace
-                .putIfAbsent(placeId, () => <String>{})
-                .add(ev.actorUid);
-          }
-        }
-        return;
-      case RoomMatchEventTypes.abortProposal:
-        _handleAbortProposalEvent(ev);
-        return;
-      case RoomMatchEventTypes.abortVote:
-        _handleAbortVoteEvent(ev);
-        return;
-      case RoomMatchEventTypes.playerEliminated:
-        _applyRemotePlayerEliminated(ev);
-        return;
-      case RoomMatchEventTypes.accusationUnlocked:
-        _applyAccusationUnlocked(ev);
-        return;
-      case RoomMatchEventTypes.accusationAttempt:
-        if (!_isHost || _gameState != GameState.running) return;
-        final accusedUid = ev.payload['accusedUid'] as String?;
-        if (accusedUid == null || accusedUid.isEmpty) return;
-        _hostResolveAccusationAttempt(
-          accuserUid: ev.actorUid,
-          accusedUid: accusedUid,
-        );
-        return;
-      case RoomMatchEventTypes.accusationFailed:
-        _applyRemoteAccusationFailed(ev);
-        return;
-      case RoomMatchEventTypes.cameraJack:
-        _applyRemoteCameraJack(ev);
-        return;
-      case RoomMatchEventTypes.lobbyPlayArea:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteLobbyPlayArea(ev);
-        return;
-      case RoomMatchEventTypes.facilitySabotage:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteFacilitySabotage(ev);
-        return;
-      case RoomMatchEventTypes.spectralTerritory:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteSpectralTerritory(ev);
-        return;
-      case RoomMatchEventTypes.cameraShutdown:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteCameraShutdown(ev);
-        return;
-      default:
-        return;
-    }
-  }
-
-  void _applyRemotePlayerEliminated(RoomMatchEvent ev) {
-    if (!mounted) return;
-    final uid = ev.payload['uid'] as String? ?? ev.actorUid;
-    setState(() {
-      _rt.syncedEliminationCount += 1;
-      _eliminatedUids.add(uid);
-    });
-    _maybeHostPublishAccusationUnlock();
-  }
-
-  void _applyRemoteAccusationFailed(RoomMatchEvent ev) {
-    final accuserUid = ev.payload['accuserUid'] as String?;
-    final myUid = _firestoreSession?.myUid;
-    if (accuserUid == myUid) {
-      if (!_rt.accusationSpentByMe) {
-        setState(() => _rt.accusationSpentByMe = true);
-      }
-      _eliminateLocalParticipant(
-        '告発失敗 — 残響体として戦線に残る',
-        cause: 'accusation_failed',
-      );
-      return;
-    }
-    if (_localRole == PlayerRole.hunter) {
-      _pushHudRevealAlert('告発失敗 — 誤った標的');
-    }
-  }
-
-  void _applyRemoteReveal(RoomMatchEvent ev) {
-    final pos = RoomMatchEvent.latLngFromPayload(ev.payload);
-    if (pos == null) return;
-    final label = ev.payload['playerLabel'] as String? ?? 'player1';
-    final overflow = (ev.payload['overflowMeters'] as num?)?.toDouble() ?? 0;
-    final reasonSummary = ev.payload['reasonSummary'] as String? ?? '通信混線';
-    if (!mounted) return;
-    setState(() {
-      _rt.revealCount += 1;
-      _rt.revealLog.insert(
-        0,
-        LocationRevealEvent(
-          sequence: _rt.revealCount,
-          timestamp: DateTime.now(),
-          position: pos,
-          overflowMeters: overflow,
-          playerLabel: label,
-          reasonSummary: reasonSummary,
-          subjectUid: ev.actorUid,
-        ),
-      );
-      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
-      _statusMessage = ev.payload['message'] as String? ?? '位置情報を受信';
-    });
-    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
-    _pushHudRevealAlert('$label の位置が露見しました（$reasonSummary）');
-    HapticFeedback.mediumImpact();
-  }
-
-  void _applyRemoteFakeIntelReveal(RoomMatchEvent ev) {
-    final pos = RoomMatchEvent.latLngFromPayload(ev.payload);
-    if (pos == null) return;
-    final pickedSelf = ev.payload['pickedSelf'] == true;
-    final targetUid = ev.payload['targetUid'] as String?;
-    final myUid = _firestoreSession?.myUid;
-    var label = ev.payload['playerLabel'] as String? ?? '不明なプレイヤー';
-    if (!pickedSelf && targetUid != null && targetUid.isNotEmpty) {
-      if (targetUid == myUid) {
-        label = _localPlayerLabel;
-      } else {
-        label = _displayNameForUid(targetUid);
-      }
-    }
-    final narrative = ev.payload['message'] as String? ?? '';
-    final summary = ev.payload['reasonSummary'] as String? ?? '通信混線';
-    final subjectUid = (targetUid != null && targetUid.isNotEmpty)
-        ? targetUid
-        : ev.actorUid;
-    if (!mounted) return;
-    setState(() {
-      _rt.revealCount += 1;
-      _rt.revealLog.insert(
-        0,
-        LocationRevealEvent(
-          sequence: _rt.revealCount,
-          timestamp: DateTime.now(),
-          position: pos,
-          overflowMeters: 0,
-          playerLabel: label,
-          reasonSummary: summary,
-          subjectUid: subjectUid,
-        ),
-      );
-      if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
-      _statusMessage = narrative.isNotEmpty ? narrative : '位置が露見';
-    });
-    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
-    _pushHudRevealAlert('$label の位置が露見しました（$summary）');
-    HapticFeedback.mediumImpact();
-  }
-
-  void _applyRemoteInfoBroker(RoomMatchEvent ev) {
-    final intel = ev.payload['intel'] as String?;
-    final hitIndex = (ev.payload['hitIndex'] as num?)?.toInt();
-    final nextLat = (ev.payload['nextLat'] as num?)?.toDouble();
-    final nextLng = (ev.payload['nextLng'] as num?)?.toDouble();
-    final pickupLat = (ev.payload['pickupLat'] as num?)?.toDouble();
-    final pickupLng = (ev.payload['pickupLng'] as num?)?.toDouble();
-    if (intel == null ||
-        hitIndex == null ||
-        nextLat == null ||
-        nextLng == null ||
-        pickupLat == null ||
-        pickupLng == null) {
-      return;
-    }
-    final tracePos = LatLng(pickupLat, pickupLng);
-    if (hitIndex < 0 || hitIndex >= _rt.infoBrokerPositions.length) return;
-    final now = DateTime.now();
-    if (!mounted) return;
-    setState(() {
-      _rt.lastInfoBrokerAt = now;
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.lastOniIntelText = intel;
-      _rt.lastOniIntelAt = now;
-      _rt.showOniIntelCard = true;
-      _rt.oniIntelTraces.insert(
-        0,
-        OniIntelTrace(timestamp: now, position: tracePos, text: intel),
-      );
-      if (_rt.oniIntelTraces.length > 20) {
-        _rt.oniIntelTraces.removeLast();
-      }
-      _rt.infoBrokerPositions[hitIndex] = LatLng(nextLat, nextLng);
-      _statusMessage = '情報屋: $intel';
-    });
-    HapticFeedback.lightImpact();
-  }
-
-  void _applyRemoteOniInfoBroker(RoomMatchEvent ev) {
-    final targetUid = ev.payload['targetUid'] as String?;
-    final hitIndex = (ev.payload['hitIndex'] as num?)?.toInt();
-    final nextLat = (ev.payload['nextLat'] as num?)?.toDouble();
-    final nextLng = (ev.payload['nextLng'] as num?)?.toDouble();
-    if (targetUid == null ||
-        targetUid.isEmpty ||
-        hitIndex == null ||
-        nextLat == null ||
-        nextLng == null) {
-      return;
-    }
-    if (hitIndex < 0 || hitIndex >= _rt.infoBrokerPositions.length) return;
-    final now = DateTime.now();
-    final myUid = _firestoreSession?.myUid;
-    if (!mounted) return;
-
-    setState(() {
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.infoBrokerPositions[hitIndex] = LatLng(nextLat, nextLng);
-    });
-
-    if (myUid != targetUid) return;
-
-    final raw = _positionForReveal;
-    final pick = _reasonPickAt(raw);
-    _emitIdentifiedReveal(
-      revealKind: 'oni_info_broker',
-      position: raw,
-      playerLabel: _localPlayerLabel,
-      pick: pick,
-      syncLocalEventType: 'oni_info_broker',
-    );
-    HapticFeedback.heavyImpact();
-  }
-
-  void _applyRemoteMatchEventLog(RoomMatchEvent ev) {
-    final inner = ev.payload['innerType'] as String? ?? 'match_event';
-    final msg = ev.payload['message'] as String? ?? '';
-    final pos =
-        RoomMatchEvent.latLngFromPayload(ev.payload) ?? _currentPosition;
-    final endsAtMs = (ev.payload['endsAtMs'] as num?)?.toInt();
-    final now = DateTime.now();
-    final hunterUid = _hunterUidFromAssignments;
-
-    if (inner == 'hunter_position' &&
-        (hunterUid == null || ev.actorUid == hunterUid)) {
-      _lastKnownHunterPositions[ev.actorUid] = pos;
-      _recordOniPathSample(pos);
-      final h = ev.payload['headingDeg'];
-      if (h is num) {
-        _lastKnownOniHeadingDegrees = h.toDouble();
-      } else {
-        _updateOniHeadingFromPosition(pos);
-      }
-      if (!mounted) return;
-      setState(() {
-        _oniPosition = pos;
-        _remoteOniKnown = true;
-      });
-    } else if (inner == 'trace_drop') {
-      if (!mounted) return;
-      setState(() => _tracePoints.add(pos));
-    } else if (inner == 'fake_start' &&
-        endsAtMs != null &&
-        ev.actorUid == _firestoreSession?.myUid) {
-      final endsAt = DateTime.fromMillisecondsSinceEpoch(endsAtMs);
-      if (!endsAt.isAfter(now)) return;
-      if (!mounted) return;
-      setState(() {
-        _rt.fakePositionActive = true;
-        _rt.fakePositionLatLng = pos;
-        _rt.fakePositionEndsAt = endsAt;
-        _lastFakeDriftAt = now;
-      });
-    } else if (inner == 'body_throw_start' && endsAtMs != null) {
-      final endsAt = DateTime.fromMillisecondsSinceEpoch(endsAtMs);
-      if (!endsAt.isAfter(now)) return;
-      if (!mounted) return;
-      setState(() {
-        _rt.bodyThrowAwaitingMapTap = false;
-        _rt.bodyThrowTapDeadline = null;
-        _rt.bodyThrowPosition = pos;
-        _rt.bodyThrowEndsAt = endsAt;
-      });
-    }
-
-    final event = MatchEvent(
-      type: inner,
-      atUtc: now.toUtc(),
-      message: msg,
-      position: pos,
-    );
-    if (!mounted) return;
-    setState(() {
-      _rt.matchEvents.insert(0, event);
-      if (_rt.matchEvents.length > 120) {
-        _rt.matchEvents.removeLast();
-      }
-    });
-  }
-
   void _applyRemoteCaptureZonePlaced(RoomMatchEvent ev) {
     final cLat = ev.payload['centerLat'];
     final cLng = ev.payload['centerLng'];
@@ -4898,6 +4548,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _rt.lockZoneEndsAt = now.add(Duration(seconds: dur));
     });
     HapticFeedback.mediumImpact();
+    GameAudio.instance.playSfx(SfxId.skillCast);
   }
 
   void _applyRemoteCaptureZoneBound(
@@ -5085,7 +4736,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       return '${MatchUiTerms.panicDanger}: 至近のまま約$left秒で${MatchUiTerms.panicMechanic}（匿名痕跡）';
     }
     if (_rt.fakePositionActive) {
-      return '偽位置展開中 — 露出は偽座標（進行方向へ移動）';
+      final left = _secondsUntil(_rt.fakePositionEndsAt);
+      return '偽位置展開中 残り$left秒 — 露出は偽座標（進行方向へ移動）';
     }
     return '異常なし';
   }
@@ -5128,9 +4780,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (level == 'danger') {
         HapticFeedback.mediumImpact();
         SystemSound.play(SystemSoundType.alert);
+        GameAudio.instance.playSfx(SfxId.proximityDanger);
       } else {
         HapticFeedback.selectionClick();
         SystemSound.play(SystemSoundType.click);
+        GameAudio.instance.playSfx(SfxId.proximityWarning);
       }
       return;
     }
@@ -5145,6 +4799,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_oniNotifySound) {
       SystemSound.play(
         level == 'danger' ? SystemSoundType.alert : SystemSoundType.click,
+      );
+      GameAudio.instance.playSfx(
+        level == 'danger' ? SfxId.proximityDanger : SfxId.proximityWarning,
       );
     }
   }
@@ -5283,6 +4940,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         position: pos,
         endsAtMs: _rt.bodyThrowEndsAt!.millisecondsSinceEpoch,
       );
+      GameAudio.instance.playSfx(SfxId.skillCast);
+      // 鬼の配信位置を即座に人形へ（捕獲判定の中心を移す）。
+      _syncHunterBroadcastForBodyThrow();
       return;
     }
     if (_rt.waitingSkillLockMapTap) {
@@ -5346,10 +5006,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     final ids = <String>{};
     if (selfDistance <= GameConfig.captureZoneRadiusMeters) ids.add('self');
     for (final e in _remoteMembers.entries) {
-      final p = LatLng(e.value.lat, e.value.lng);
+      final lat = e.value.lat;
+      final lng = e.value.lng;
+      if (lat == null || lng == null) continue;
       final d = Geolocator.distanceBetween(
-        p.latitude,
-        p.longitude,
+        lat,
+        lng,
         center.latitude,
         center.longitude,
       );
@@ -5654,7 +5316,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       infoBrokerAvailable: _rt.infoBrokerAvailable,
       safeZoneRespawnAt: _rt.safeZoneRespawnAt,
       infoBrokerRespawnAt: _rt.infoBrokerRespawnAt,
-      triggeredCameras: _rt.triggeredCameras,
       fakePositionActive: _rt.fakePositionActive,
       fakePositionLatLng: _rt.fakePositionLatLng,
       bodyThrowPosition: _rt.bodyThrowPosition,
@@ -5760,7 +5421,16 @@ class _GameMapScreenState extends State<GameMapScreen>
       _toast('リザルトは試合終了後に表示できます');
       return;
     }
+    final winningFaction = _gameState == GameState.runnerWin
+        ? FactionSide.humanTeam
+        : FactionSide.oniTeam;
+    final localFaction = _effectiveLocalFaction();
+    await _recordMatchProgressOnce(
+      won: winningFaction == localFaction,
+      faction: localFaction,
+    );
     _dismissOpenModals();
+    if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => MatchResultScreen(
@@ -5769,11 +5439,12 @@ class _GameMapScreenState extends State<GameMapScreen>
           roleSummary:
               '$_localPlayerLabel / ${_localRole.displayName}${_werewolfStatusSuffix()} / ${_skillLoadout.map(_skillLabelForUi).join("・")}',
           factionAtDeath: _factionAtDeath,
-          playerFactionAtEnd: _effectiveLocalFaction(),
-          winningFaction: _gameState == GameState.runnerWin
-              ? FactionSide.humanTeam
-              : FactionSide.oniTeam,
+          playerFactionAtEnd: localFaction,
+          winningFaction: winningFaction,
+          progress: _lastProgress,
+          newlyUnlockedTitles: _lastNewlyUnlockedTitles,
           matchDurationLabel: _matchDurationLabel(),
+          accusationPointsHuman: _rt.accusationPointsHuman,
           afterCatchRule: _afterCatchRule,
           onPrepareNext: () {
             Navigator.of(context).pop();
@@ -5790,6 +5461,24 @@ class _GameMapScreenState extends State<GameMapScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _recordMatchProgressOnce({
+    required bool won,
+    required FactionSide faction,
+  }) async {
+    if (_progressRecordedForMatch) return;
+    _progressRecordedForMatch = true;
+    try {
+      final update = await ProgressStore.recordMatch(won: won, faction: faction);
+      _lastProgress = update.progress;
+      _lastNewlyUnlockedTitles = update.newlyUnlocked;
+      if (update.newlyUnlocked.isNotEmpty) {
+        GameAudio.instance.playSfx(SfxId.unlock);
+      }
+    } catch (e) {
+      _logDebug('progress record failed: $e');
+    }
   }
 
   void _recenterMapOnGps() {
@@ -5877,6 +5566,10 @@ class _GameMapScreenState extends State<GameMapScreen>
         matchDurationMinutes: _matchDurationSeconds / 60,
         skillLoadout: _skillLoadout,
         gimmickDensity: _gimmickDensity,
+        roleAssignMode: _roleAssignMode,
+        oniCount: _roleOniCount,
+        werewolfCount: _roleWerewolfCount,
+        accusationWeight: _accusationWeight,
       ),
       isHost: _isHost,
       onRequestGameDefaultsReset: _isHost
@@ -5922,12 +5615,21 @@ class _GameMapScreenState extends State<GameMapScreen>
       _customRuleMode = result.customRuleMode;
       if (_isHost) {
         _participantRulesOpen = result.participantRulesOpen;
+        _roleAssignMode = result.roleAssignMode;
+        _roleOniCount = result.oniCount;
+        _roleWerewolfCount = result.werewolfCount;
+        _accusationWeight = result.accusationWeight;
       }
       _gimmickDensity = result.gimmickDensity.clamp(0.45, 1.55);
       _matchDurationSeconds = (result.matchDurationMinutes.round() * 60).clamp(
         MatchDurationScaling.minMatchSeconds,
         MatchDurationScaling.maxMatchSeconds,
       );
+      if (result.quickPresetApplied != null && _playArea.type == PlayAreaType.circle) {
+        _playArea = result.quickPresetApplied!.playAreaFromCenter(_playArea.center);
+        _circleDraftCenter = _playArea.center;
+        _circleDraftRadiusMeters = _playArea.radiusMeters;
+      }
       if (_customRuleMode) {
         _localRole = result.localRole;
         _skillLoadout = result.skillLoadout.isEmpty
@@ -6520,6 +6222,8 @@ class _GameMapScreenState extends State<GameMapScreen>
                   avatarImagePath: _avatarImagePath,
                   participantRulesOpen: _participantRulesOpen,
                   worldVisualProfile: _mapVisual.pack.profile,
+                  startButtonKey: _prepStartKey,
+                  customRulesKey: _prepCustomRulesKey,
                 ),
               ),
             if (showGameMap)
@@ -6842,16 +6546,14 @@ class _GameMapScreenState extends State<GameMapScreen>
                   canStartMatch: _gameState == GameState.waiting,
                   isEditing: _editingArea,
                   fakeSkillActive: _rt.fakePositionActive,
+                  fakeActiveSeconds: _rt.fakePositionActive
+                      ? _secondsUntil(_rt.fakePositionEndsAt)
+                      : 0,
                   roleLabel: _isHunterNow ? '鬼' : _localRole.displayName,
                   matchDurationLabel: _matchDurationLabel(),
                   canFakeSkill: _skillLoadout.contains(SkillIds.fakePosition),
                   canFakeIntelReveal:
-                      _skillLoadout.contains(SkillIds.fakeIntelReveal) &&
-                      _cooldownRemainingSeconds(
-                            _rt.lastFakeIntelRevealAt,
-                            GameConfig.fakeIntelRevealCooldownSeconds,
-                          ) ==
-                          0,
+                      _skillLoadout.contains(SkillIds.fakeIntelReveal),
                   canWerewolfHunter: _skillLoadout.contains(
                     SkillIds.werewolfTransform,
                   ),
@@ -6860,6 +6562,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                   fakeCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastFakeSkillAt,
                     GameConfig.fakeSkillCooldownSeconds,
+                  ),
+                  fakeIntelCooldownSeconds: _cooldownRemainingSeconds(
+                    _rt.lastFakeIntelRevealAt,
+                    GameConfig.fakeIntelRevealCooldownSeconds,
                   ),
                   captureCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastSkillLockPlacementAt,
@@ -6969,6 +6675,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         canCaptureZone: false,
                         canBodyThrow: false,
                         fakeCooldownSeconds: 0,
+                        fakeIntelCooldownSeconds: 0,
                         captureCooldownSeconds: 0,
                         bodyThrowCooldownSeconds: 0,
                         werewolfOniActive: false,
@@ -6996,6 +6703,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                       });
                     },
                     child: FloatingActionButton.extended(
+                      key: _prepMapFabKey,
                       onPressed: _showControlPanel,
                       icon: Icon(running ? Icons.expand_less : Icons.tune),
                       label: Text(running ? '展開' : 'マップパネル'),

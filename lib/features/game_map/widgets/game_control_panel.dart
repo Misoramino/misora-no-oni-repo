@@ -37,6 +37,7 @@ class GameControlPanel extends StatelessWidget {
     required this.canStartMatch,
     required this.isEditing,
     required this.fakeSkillActive,
+    this.fakeActiveSeconds = 0,
     required this.roleLabel,
     required this.matchDurationLabel,
     required this.canFakeSkill,
@@ -45,6 +46,7 @@ class GameControlPanel extends StatelessWidget {
     required this.canCaptureZone,
     required this.canBodyThrow,
     required this.fakeCooldownSeconds,
+    required this.fakeIntelCooldownSeconds,
     required this.captureCooldownSeconds,
     required this.bodyThrowCooldownSeconds,
     this.werewolfOniActive = false,
@@ -81,6 +83,9 @@ class GameControlPanel extends StatelessWidget {
   final bool canStartMatch;
   final bool isEditing;
   final bool fakeSkillActive;
+
+  /// 偽位置スキルの効果残り秒（>0 のときボタンにライブ表示）。
+  final int fakeActiveSeconds;
   final String roleLabel;
   final String matchDurationLabel;
   final bool canFakeSkill;
@@ -89,6 +94,7 @@ class GameControlPanel extends StatelessWidget {
   final bool canCaptureZone;
   final bool canBodyThrow;
   final int fakeCooldownSeconds;
+  final int fakeIntelCooldownSeconds;
   final int captureCooldownSeconds;
   final int bodyThrowCooldownSeconds;
   final bool werewolfOniActive;
@@ -111,6 +117,7 @@ class GameControlPanel extends StatelessWidget {
           label: skillShortLabel(SkillIds.fakePosition),
           icon: Icons.flare,
           active: fakeSkillActive,
+          buffSeconds: fakeActiveSeconds > 0 ? fakeActiveSeconds : null,
           cooldownSeconds: fakeCooldownSeconds,
           compact: compact,
           onPressed: isEditing ? null : onFakeSkill,
@@ -119,6 +126,7 @@ class GameControlPanel extends StatelessWidget {
         SkillActionButton(
           label: skillShortLabel(SkillIds.fakeIntelReveal),
           icon: Icons.report,
+          cooldownSeconds: fakeIntelCooldownSeconds,
           compact: compact,
           onPressed: isEditing ? null : onFakeIntelReveal,
         ),

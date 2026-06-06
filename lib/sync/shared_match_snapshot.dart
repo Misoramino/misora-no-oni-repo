@@ -1,5 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../game/accusation_weight.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
 import '../game/oni_intel_mode.dart';
@@ -22,6 +23,7 @@ class SharedMatchSnapshot {
     this.eventAreas,
     this.accusationSites,
     this.cameraJackSites,
+    this.accusationWeight = AccusationWeight.instantWin,
   });
 
   final int gimmickSeed;
@@ -42,12 +44,16 @@ class SharedMatchSnapshot {
   final List<LatLng>? accusationSites;
   final List<LatLng>? cameraJackSites;
 
+  /// 告発の重み（全端末同一）。
+  final AccusationWeight accusationWeight;
+
   Map<String, dynamic> toMap() => {
         RoomDocFields.matchStartGimmickSeed: gimmickSeed,
         RoomDocFields.matchStartPlayArea: playArea.toJson(),
         RoomDocFields.matchStartDurationSec: matchDurationSeconds,
         RoomDocFields.matchStartOniIntelMode: oniIntelMode.name,
         RoomDocFields.matchStartAftermathRule: eliminationAftermathRule.name,
+        RoomDocFields.matchStartAccusationWeight: accusationWeight.name,
         RoomDocFields.matchStartGimmickDensity: gimmickDensity,
         RoomDocFields.matchStartAssignments: {
           for (final e in assignments.entries) e.key: e.value.toMap(),
@@ -106,6 +112,9 @@ class SharedMatchSnapshot {
             raw[RoomDocFields.matchStartAftermathRule] as String?,
           ) ??
           EliminationAftermathRule.spectralOperative,
+      accusationWeight: AccusationWeight.fromName(
+        raw[RoomDocFields.matchStartAccusationWeight] as String?,
+      ),
       assignments: assignments,
       startedAtUtc: raw[RoomDocFields.matchStartStartedAtUtc] as String?,
       gimmickDensity: density,

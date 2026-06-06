@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../features/onboarding/welcome_flow.dart';
+import '../../../features/tutorial/tutorial_entry.dart';
 import '../../../game/player_role.dart';
 import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
@@ -31,6 +33,29 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
             Text(
               SkillCatalog.coreRule,
               style: Theme.of(ctx).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    showWelcomeFlow(context);
+                  },
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('かんたんガイド'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    openTutorialPicker(context);
+                  },
+                  icon: const Icon(Icons.school_rounded),
+                  label: const Text('チュートリアル'),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             _sectionTitle(ctx, '勝利と陣営'),

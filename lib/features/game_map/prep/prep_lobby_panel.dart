@@ -32,6 +32,8 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.avatarImagePath,
     required this.participantRulesOpen,
     required this.worldVisualProfile,
+    this.startButtonKey,
+    this.customRulesKey,
     super.key,
   });
 
@@ -54,6 +56,8 @@ class PrepLobbyPanel extends StatefulWidget {
   final String? avatarImagePath;
   final bool participantRulesOpen;
   final WorldProfile worldVisualProfile;
+  final GlobalKey? startButtonKey;
+  final GlobalKey? customRulesKey;
 
   @override
   State<PrepLobbyPanel> createState() => _PrepLobbyPanelState();
@@ -280,6 +284,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       ),
                     ),
                   SizedBox(
+                    key: widget.startButtonKey,
                     height: 52,
                     child: FilledButton.icon(
                       onPressed: widget.canStart ? widget.onStart : null,
@@ -302,6 +307,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     ),
                   ),
                   TextButton(
+                    key: widget.customRulesKey,
                     style: TextButton.styleFrom(foregroundColor: leg.link),
                     onPressed: widget.onOpenCustomSettings,
                     child: const Text('カスタムルール'),

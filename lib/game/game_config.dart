@@ -48,7 +48,8 @@ class GameConfig {
   static const double infoBrokerRadiusMeters = 30;
   static const int infoBrokerMinCount = 1;
   static const int infoBrokerMaxCount = 4;
-  static const int infoBrokerCooldownSeconds = 35;
+  /// 逃走者が同じ試合で情報屋を再訪するまで（個人CD・リスク用に長め）。
+  static const int infoBrokerCooldownSeconds = 120;
   static const int infoBrokerRespawnSeconds = 45;
 
   /// 鬼が情報屋を使ったあと、再使用まで（逃走者用より長め）。
@@ -65,6 +66,8 @@ class GameConfig {
   /// 「断片」鬼情報モードのフェーズ長（秒）。短すぎると情報が忙しく切り替わる。
   static const int fragmentedPhaseSeconds = 12;
   static const double cameraTriggerRadiusMeters = 18;
+  /// 同一カメラの再検知まで（通過のたびに匿名痕跡・通知が出る）。
+  static const int cameraRetriggerCooldownSeconds = 90;
   static const int cameraMinCount = 4;
   static const int cameraMaxCount = 16;
   static const int fakeSkillCooldownSeconds = 72;
