@@ -22,14 +22,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install CocoaPods
-        run: |
-          pod repo update
-          pod install
-        working-directory: ios
-
       - name: Prepare iOS build config
         run: flutter build ios --release --config-only --no-codesign --dart-define=GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
+
+      # Pod install は flutter build ios --config-only 内で実行される。
+      # 事前の pod repo update は SPM/CocoaPods 双方で Firebase を 12.14 系へ
+      # 浮上させ、cloud_firestore 6.4.x と API 不整合になるため行わない。
 
       - name: Build Runner.app without signing
         run: |
