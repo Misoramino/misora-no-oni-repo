@@ -281,7 +281,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Opacity(
+                                if (handoff == null && bodyOpacity > 0.95)
+                                  Opacity(
                                   opacity: bodyOpacity,
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.end,

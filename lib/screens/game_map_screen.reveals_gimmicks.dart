@@ -294,7 +294,10 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
         _rt.oniIntelTraces.removeLast();
       }
       _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
-      _statusMessage = '情報屋: $intel';
+      final trailHint = _oniTrailPointsForMap().length >= 2
+          ? ' · 地図に鬼の遅延軌跡を表示'
+          : '';
+      _statusMessage = '情報屋: $intel$trailHint';
     });
     _emitMatchEvent(
       type: 'info_broker',

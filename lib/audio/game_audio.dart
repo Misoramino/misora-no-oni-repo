@@ -33,12 +33,12 @@ class GameAudio {
   static const _sfxPoolSize = 4;
 
   /// 対戦開始から最初の環境音までの遅延（秒, ランダム下限/上限）。
-  static const _ambientFirstMinSec = 8;
-  static const _ambientFirstMaxSec = 18;
+  static const _ambientFirstMinSec = 120;
+  static const _ambientFirstMaxSec = 240;
 
   /// 環境音どうしの間隔（秒, ランダム下限/上限）。
-  static const _ambientGapMinSec = 35;
-  static const _ambientGapMaxSec = 80;
+  static const _ambientGapMinSec = 360;
+  static const _ambientGapMaxSec = 720;
 
   /// 現在のサウンド設定。UI から監視・更新する。
   final ValueNotifier<AudioSettings> settings =

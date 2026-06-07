@@ -107,8 +107,12 @@ abstract final class MapHudContrast {
           scheme.surface.withValues(alpha: 0.96),
         );
       case WorldProfile.magical:
-      case WorldProfile.sport:
         return scheme.surface.withValues(alpha: 0.93);
+      case WorldProfile.sport:
+        return Color.alphaBlend(
+          const Color(0xFF1A1C1E).withValues(alpha: 0.06),
+          scheme.surface.withValues(alpha: 0.94),
+        );
     }
   }
 
@@ -133,8 +137,12 @@ abstract final class MapHudContrast {
           hi.withValues(alpha: 0.97),
         );
       case WorldProfile.magical:
-      case WorldProfile.sport:
         return hi.withValues(alpha: 0.93);
+      case WorldProfile.sport:
+        return Color.alphaBlend(
+          const Color(0xFF1A1C1E).withValues(alpha: 0.08),
+          hi.withValues(alpha: 0.96),
+        );
     }
   }
 

@@ -244,25 +244,43 @@ class GameInfoPanel extends StatelessWidget {
           Row(
             children: [
               if (phaseLabel != null && phaseLabel!.isNotEmpty) ...[
-                Chip(
-                  label: Text(phaseLabel!),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  backgroundColor: scheme.primaryContainer,
-                  labelStyle: TextStyle(
-                    color: scheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
+                Flexible(
+                  child: Chip(
+                    label: Text(
+                      phaseLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: scheme.primaryContainer,
+                    labelStyle: TextStyle(
+                      color: scheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
               ],
-              Chip(
-                label: Text(editing ? '編集中' : gameStateText),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 6),
+              if (connectionChipLabel != null &&
+                  connectionChipLabel!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Chip(
+                    label: Text(connectionChipLabel!),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: scheme.errorContainer.withValues(
+                      alpha: 0.85,
+                    ),
+                    labelStyle: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onErrorContainer,
+                    ),
+                  ),
+                ),
               Text(
                 timerText,
                 style: theme.textTheme.titleSmall?.copyWith(
@@ -279,6 +297,23 @@ class GameInfoPanel extends StatelessWidget {
                 onPressed: onOpenDisplaySettings,
                 icon: Icon(Icons.tune, size: 20, color: scheme.primary),
               ),
+              IconButton(
+                tooltip: 'HUDを折りたたむ',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: onToggleExpanded,
+                icon: const Icon(Icons.expand_less, size: 20),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Text(
+                '暴露$revealCount · ステルス$safeZoneCharges',
+                style: theme.textTheme.labelSmall,
+              ),
+              const Spacer(),
               TextButton(
                 onPressed: onOpenIntelLog,
                 style: TextButton.styleFrom(
@@ -287,17 +322,12 @@ class GameInfoPanel extends StatelessWidget {
                 ),
                 child: const Text('ログ', style: TextStyle(fontSize: 11)),
               ),
-              Text(
-                '暴露$revealCount・ステルス$safeZoneCharges',
-                style: theme.textTheme.labelSmall,
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                onPressed: onToggleExpanded,
-                icon: const Icon(Icons.expand_less, size: 20),
-              ),
+              if (editing)
+                Chip(
+                  label: const Text('編集中'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                ),
             ],
           ),
           if (werewolfHudSummary != null ||

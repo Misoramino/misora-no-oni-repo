@@ -8,6 +8,10 @@ abstract final class FirestorePaths {
   static String memberDoc(String roomId, String uid) =>
       '${roomMembersColl(roomId)}/$uid';
   static String roomEventsColl(String roomId) => '${roomDoc(roomId)}/events';
+  static String inspectorFeedColl(String roomId) =>
+      '${roomDoc(roomId)}/inspectorFeed';
+  static String inspectorFeedDoc(String roomId, String uid) =>
+      '${inspectorFeedColl(roomId)}/$uid';
 }
 
 /// メインのルーム文書フィールドを表す名前（バックエンド実装時の契約）。
@@ -41,6 +45,10 @@ abstract final class RoomDocFields {
   static const matchStartAccusationSites = 'accusationSites';
   static const matchStartCameraJackSites = 'cameraJackSites';
   static const matchStartAccusationWeight = 'accusationWeight';
+
+  /// ロビー中にホストが「適用」したプレイエリア（後から参加した端末向け）。
+  static const lobbyPlayArea = 'lobbyPlayArea';
+  static const lobbyPlayAreaSlotName = 'lobbyPlayAreaSlotName';
 
   /// Phase A: 試合終了時（ホストのみ）。
   static const endReason = 'endReason';
@@ -91,6 +99,15 @@ abstract final class MemberPresenceFields {
   static const avatarThumbB64 = 'avatarThumbB64';
 }
 
+/// 観戦者向けライブ GPS（`inspectorFeed/{uid}`）。
+abstract final class InspectorFeedFields {
+  static const lat = 'lat';
+  static const lng = 'lng';
+  static const nickname = 'nickname';
+  static const role = 'role';
+  static const reportedAtUtc = 'reportedAtUtc';
+}
+
 abstract final class RoomEventsFields {
   static const type = 'type';
   static const payload = 'payload';
@@ -109,6 +126,9 @@ abstract final class PresenceSyncBudget {
 
   /// 逃走者：**緊迫ゾーン**（鬼が近い等）。体感を優先するときのみ短くする。
   static const int tensionMinIntervalMs = 5500;
+
+  /// インスペクター向けライブ GPS（参加者→観戦者フィード）。
+  static const int inspectorFeedMinIntervalMs = 12000;
 
   /// イベント（暴露・捕獲候補等）はゲーム進行優先：**即時**。ただし同一種をループしないこと。
   static const int eventImmediateMs = 0;

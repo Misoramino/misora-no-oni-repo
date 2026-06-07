@@ -85,30 +85,45 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _startGameCore();
   }
 
-  void _startGameCore() {
-    _processedRoomEventDocIds.clear();
-    _eliminatedUids.clear();
-    _factionAtDeath = null;
+  void _startGameCore({bool rejoin = false, bool inspector = false}) {
+    if (!rejoin) {
+      _processedRoomEventDocIds.clear();
+      _eliminatedUids.clear();
+      _factionAtDeath = null;
+    }
     _syncSetState(() {
       _gameState = GameState.running;
       _afterCatchRule = null;
-      _statusMessage = RoleBriefingCatalog.matchStartStatusLine(_localRole);
-      _controlSheetMode = ControlSheetMode.skillsOnly;
+      if (inspector) {
+        _controlSheetMode = ControlSheetMode.hidden;
+        _mapVisibleInLobby = true;
+        _statusMessage = 'インスペクター — マップ・暴露イベントを観戦中（操作不可）';
+      } else {
+        _statusMessage = rejoin
+            ? '試合再参加 — ${_localRole.displayName}'
+            : RoleBriefingCatalog.matchStartStatusLine(_localRole);
+        _controlSheetMode = ControlSheetMode.skillsOnly;
+      }
       _hudExpanded = false;
-      _rt.showOniIntelCard = true;
+      _rt.showOniIntelCard = !inspector;
       _abortVoteYesUids.clear();
       _abortProposalInitiatorUid = null;
       _abortProposalExpiresAt = null;
     });
     _abortProposalTimer?.cancel();
     _abortProposalTimer = null;
-    _captureAcksByPlace.clear();
-    _lastKnownHunterPositions.clear();
-    _oniPathSamples.clear();
-    _bodyThrowBroadcastActive = false;
-    _oniMatchStartAnchor = null;
-    if (_localRole == PlayerRole.hunter) {
-      _oniMatchStartAnchor = _currentPosition;
+    if (!rejoin) {
+      _captureAcksByPlace.clear();
+      _lastKnownHunterPositions.clear();
+      _oniPathSamples.clear();
+      _bodyThrowBroadcastActive = false;
+      _oniMatchStartAnchor = null;
+      if (_localRole == PlayerRole.hunter) {
+        _oniMatchStartAnchor = _currentPosition;
+      }
+      if (!inspector && _localRole == PlayerRole.werewolf) {
+        _rt.lastWerewolfTransformAt = DateTime.now();
+      }
     }
     if (_isOnlineFirestore) {
       final sk = _matchEventSessionKey;
@@ -118,17 +133,23 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     }
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
-    _emitMatchEvent(
-      type: 'gimmicks_generated',
-      message:
-          'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / イベントエリア${_rt.commJammingZonePositions.length}',
-      position: _playAreaAnchor,
-    );
-    _showRoleSkillDialog();
-    _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
-    HapticFeedback.selectionClick();
-    SystemSound.play(SystemSoundType.click);
-    GameAudio.instance.playSfx(SfxId.matchStart);
+    if (!rejoin) {
+      _emitMatchEvent(
+        type: 'gimmicks_generated',
+        message:
+            'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / イベントエリア${_rt.commJammingZonePositions.length}',
+        position: _playAreaAnchor,
+      );
+      _showRoleSkillDialog();
+      _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
+      HapticFeedback.selectionClick();
+      SystemSound.play(SystemSoundType.click);
+      GameAudio.instance.playSfx(SfxId.matchStart);
+    } else {
+      _logDebug(
+        'match_rejoin scale=${_timeScale}x inspector=$inspector online=$_isOnlineFirestore',
+      );
+    }
     GameAudio.instance.playMatchAmbient(_activeProfile);
 
     _matchTimer?.cancel();
@@ -330,6 +351,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _gameState = GameState.waiting;
       _mapVisibleInLobby = false;
       _afterCatchRule = null;
+      _isRoomInspector = false;
       _statusMessage = 'リセットしました。開始ボタンでゲーム開始。';
       _prepControlSheetOpen = false;
       _abortVoteYesUids.clear();
@@ -341,6 +363,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _captureAcksByPlace.clear();
     _eliminatedUids.clear();
     _factionAtDeath = null;
+    _unbindInspectorFeed();
+    unawaited(_firestoreSession?.clearInspectorFeedPosition());
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
     if (!skipFirestoreSync && _isOnlineFirestore && _isHost) {
@@ -403,6 +427,34 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   Future<void> _requestAbortByVote() async {
     if (_gameState != GameState.running) {
       _toast('ゲーム中のみ中止提案できます');
+      return;
+    }
+    final participantCount = _activeMatchPlayerCount;
+    if (participantCount <= 1) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('試合を中止'),
+          content: const Text('参加者が1人のため、投票なしで試合を終了します。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('中止する'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || ok != true) return;
+      _toast('試合を中止しました');
+      if (_isOnlineFirestore && _isHost) {
+        _endGame(GameState.runnerWin, 'ホストにより試合中止');
+      } else {
+        _resetGame();
+      }
       return;
     }
     final sk = _matchEventSessionKey;
@@ -542,6 +594,13 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _toast(err);
       return;
     }
+    if (agree && mounted) {
+      final uid = fs.myUid;
+      if (uid != null) {
+        _syncSetState(() => _abortVoteYesUids.add(uid));
+        _maybeFinalizeAbortVoteByMajority();
+      }
+    }
     if (mounted) {
       _toast(agree ? '賛成を送信しました' : '反対を送信しました');
     }
@@ -602,7 +661,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   Future<bool?> _showAbortVoteDialog() async {
-    final requiredYes = (_mockPlayerCount ~/ 2) + 1;
+    final participants = _isOnlineFirestore ? _activeMatchPlayerCount : 1;
+    final requiredYes = (participants ~/ 2) + 1;
     int yesVotes = requiredYes;
     return showDialog<bool>(
       context: context,
@@ -613,13 +673,13 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('参加者: $_mockPlayerCount人 / 必要同意: $requiredYes票'),
+              Text('参加者: $participants人 / 必要同意: $requiredYes票'),
               const SizedBox(height: 8),
               Text('同意票(テスト): $yesVotes'),
               Slider(
                 min: 0,
-                max: _mockPlayerCount.toDouble(),
-                divisions: _mockPlayerCount,
+                max: participants.toDouble(),
+                divisions: participants,
                 value: yesVotes.toDouble(),
                 onChanged: (v) {
                   setModalState(() => yesVotes = v.round());
@@ -702,8 +762,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       (_gameState == GameState.caughtByOni && _afterCatchRule != null);
 
   void _evaluateGame() {
+    if (_isRoomInspector) return;
     if (_gameState == GameState.caughtByOni) {
       _evaluateEliminationAftermathCharges();
+      _maybePublishInspectorFeed();
       return;
     }
     if (_gameState != GameState.running) return;
@@ -813,6 +875,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           );
       }
     }
+    _maybePublishInspectorFeed();
   }
 
   void _updateOniHeadingFromPosition(LatLng pos, {double? deviceHeading}) {

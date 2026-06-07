@@ -139,6 +139,7 @@ extension _GameMapSkills on _GameMapScreenState {
     if (_gameState != GameState.running || _localRole != PlayerRole.werewolf) {
       return;
     }
+    final target = !_rt.werewolfInOniForm;
     if (_rt.lastWerewolfTransformAt != null) {
       final remain = _cooldownRemainingSeconds(
         _rt.lastWerewolfTransformAt,
@@ -149,40 +150,42 @@ extension _GameMapSkills on _GameMapScreenState {
         return;
       }
     }
-    _setWerewolfOniForm(!_rt.werewolfInOniForm, voluntary: true);
+    _setWerewolfOniForm(target, voluntary: true);
   }
 
   void _maybeWerewolfForcedTransform() {
     if (_localRole != PlayerRole.werewolf || _gameState != GameState.running) {
       return;
     }
-    final thresholds =
-        WerewolfForcedSchedule.thresholdSeconds(_matchDurationSeconds);
-    for (var i = 0; i < thresholds.length; i++) {
-      if (_rt.werewolfForcedPhasesFired.contains(i)) continue;
-      if (_rt.elapsedSeconds < thresholds[i]) continue;
-      _rt.werewolfForcedPhasesFired.add(i);
-      final toOni = !_rt.werewolfInOniForm;
-      _setWerewolfOniForm(toOni, voluntary: false);
-      _syncSetState(
-        () => _statusMessage = toOni
-            ? '強制鬼化 — 自発切替でCD短縮${_werewolfStatusSuffix()}'
-            : '強制人化 — 自発切替でCD短縮${_werewolfStatusSuffix()}',
-      );
-      break;
+    if (_rt.lastWerewolfTransformAt == null) {
+      _rt.lastWerewolfTransformAt = DateTime.now();
+      return;
     }
+    final now = DateTime.now();
+    if (!WerewolfForcedSchedule.shouldForceToggle(
+      lastTransformAt: _rt.lastWerewolfTransformAt,
+      now: now,
+      matchDurationSeconds: _matchDurationSeconds,
+    )) {
+      return;
+    }
+    final target = !_rt.werewolfInOniForm;
+    _setWerewolfOniForm(target, voluntary: false);
+    if (!mounted) return;
+    _syncSetState(
+      () => _statusMessage = target
+          ? '強制鬼化 — 自発切替でタイマーリセット${_werewolfStatusSuffix()}'
+          : '強制人化 — 自発切替でタイマーリセット${_werewolfStatusSuffix()}',
+    );
   }
 
   void _setWerewolfOniForm(bool inOniForm, {required bool voluntary}) {
     final now = DateTime.now();
     _rt.lastWerewolfTransformAt = now;
-    _rt.lastWerewolfTransformCooldownSec = voluntary
-        ? WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
-            _matchDurationSeconds,
-          )
-        : WerewolfForcedSchedule.forcedTransformCooldownSeconds(
-            _matchDurationSeconds,
-          );
+    _rt.lastWerewolfTransformCooldownSec =
+        WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
+      _matchDurationSeconds,
+    );
     _rt.werewolfInOniForm = inOniForm;
     unawaited(
       _firestoreSession?.publishPresence(
@@ -585,7 +588,8 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     _syncSetState(() {
       _rt.waitingSkillLockMapTap = true;
-      _statusMessage = '地図を押し続けて範囲を確認し、指を離して設置';
+      _statusMessage =
+          '地図を押し続けて範囲を確認し、指を離して設置（${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内）';
     });
   }
 
@@ -696,6 +700,12 @@ extension _GameMapSkills on _GameMapScreenState {
       pos.latitude,
       pos.longitude,
     );
+    if (d > GameConfig.bodyThrowDistanceMeters) {
+      _toast(
+        '結界は現在地から ${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内に置けます',
+      );
+      return;
+    }
     final rawTargets = _captureZoneTargetsAt(pos, d);
     final placeId =
         'cz_${now.millisecondsSinceEpoch}_${_firestoreSession?.myUid ?? 'local'}';

@@ -17,6 +17,8 @@ extension _GameMapOverlay on _GameMapScreenState {
   GameMapOverlaySnapshot _overlaySnapshot(WorldProfileTokens tokens) {
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
+    final showSpectatorOverlays = _isRoomInspector;
+    final hideMapIntel = locallyEliminated && !showSpectatorOverlays;
     return GameMapOverlaySnapshot(
       now: DateTime.now(),
       playerMarkerPosition: _playerMarkerPosition,
@@ -37,14 +39,14 @@ extension _GameMapOverlay on _GameMapScreenState {
       commJammingZonePositions: _rt.commJammingZonePositions,
       cameraPositions: _rt.cameraPositions,
       disabledCameraIndices: _rt.disabledCameraIndices,
-      tracePoints: locallyEliminated ? const [] : _tracePoints,
-      revealTraces: locallyEliminated
+      tracePoints: hideMapIntel ? const [] : _tracePoints,
+      revealTraces: hideMapIntel
           ? const []
           : _recentRevealTraces().toList(growable: false),
-      anonymousRevealTraces: locallyEliminated
+      anonymousRevealTraces: hideMapIntel
           ? const []
           : _recentAnonymousTraces().toList(growable: false),
-      oniIntelTraces: locallyEliminated
+      oniIntelTraces: hideMapIntel
           ? const []
           : _recentOniIntelTraces().toList(growable: false),
       safeZoneAvailable: _rt.safeZoneAvailable,
@@ -59,6 +61,7 @@ extension _GameMapOverlay on _GameMapScreenState {
       skillPlacementPreviewLatLng: _skillPlacementPreviewLatLng,
       skillPlacementPreviewRadiusMeters:
           _skillPlacementPreviewRadiusMeters(),
+      skillMapPlacementMaxRangeMeters: _skillMapPlacementMaxRangeMeters(),
       afterCatchRule: _afterCatchRule,
       ghostRoughPositions: _afterCatchRule != null
           ? GameMapOverlayBuilder.ghostRoughPositions(
@@ -81,8 +84,7 @@ extension _GameMapOverlay on _GameMapScreenState {
               placedBySkill: _rt.lockZoneFromSkill,
               playArea: _playArea,
             ),
-      oniTrailPoints:
-          locallyEliminated ? const [] : _oniTrailPointsForMap(),
+      oniTrailPoints: hideMapIntel ? const [] : _oniTrailPointsForMap(),
       oniMatchStartAnchor: _showOniMatchStartAnchor ? _oniMatchStartAnchor : null,
       tokens: tokens,
       layerToggles: _mapLayerToggles,
@@ -100,6 +102,19 @@ extension _GameMapOverlay on _GameMapScreenState {
       secondGameCanUseAccusationTerritory: _secondGameCanUseAccusationTerritory,
       secondGameCanUseFacilitySabotage: _secondGameCanUseFacilitySabotage,
       secondGameCanUseCameraShutdown: _secondGameCanUseCameraShutdown,
+      showInspectorIntelPins: _isRoomInspector,
+      inspectorIntelPins: _isRoomInspector
+          ? InspectorIntelPinLogic.build(
+              assignments:
+                  _firestoreSession?.currentMatchStart?.assignments ?? const {},
+              remoteMembers: _remoteMembers,
+              revealLog: _rt.revealLog,
+              hunterPositions: _lastKnownHunterPositions,
+              eliminatedUids: _eliminatedUids,
+              now: DateTime.now(),
+            )
+          : const [],
+      inspectorLiveFeed: _isRoomInspector ? _inspectorLiveFeed : const {},
     );
   }
 
@@ -111,6 +126,13 @@ extension _GameMapOverlay on _GameMapScreenState {
       return GameConfig.captureZoneSkillRadiusMeters;
     }
     return 12;
+  }
+
+  double _skillMapPlacementMaxRangeMeters() {
+    if (_rt.bodyThrowAwaitingMapTap || _rt.waitingSkillLockMapTap) {
+      return GameConfig.bodyThrowDistanceMeters;
+    }
+    return 0;
   }
 
   void _logDebug(String line) {

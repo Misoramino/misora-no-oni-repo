@@ -16,6 +16,7 @@ class GameMapLayerToggles {
     this.captureZone = true,
     this.skillMarkers = true,
     this.ghostRough = true,
+    this.inspectorIntel = true,
   });
 
   final bool playArea;
@@ -35,6 +36,9 @@ class GameMapLayerToggles {
   /// 脱落後のざっくり位置候補
   final bool ghostRough;
 
+  /// 観戦者向け最終判明位置
+  final bool inspectorIntel;
+
   static const GameMapLayerToggles allOn = GameMapLayerToggles();
 
   GameMapLayerToggles copyWith({
@@ -50,6 +54,7 @@ class GameMapLayerToggles {
     bool? captureZone,
     bool? skillMarkers,
     bool? ghostRough,
+    bool? inspectorIntel,
   }) {
     return GameMapLayerToggles(
       playArea: playArea ?? this.playArea,
@@ -64,6 +69,7 @@ class GameMapLayerToggles {
       captureZone: captureZone ?? this.captureZone,
       skillMarkers: skillMarkers ?? this.skillMarkers,
       ghostRough: ghostRough ?? this.ghostRough,
+      inspectorIntel: inspectorIntel ?? this.inspectorIntel,
     );
   }
 }

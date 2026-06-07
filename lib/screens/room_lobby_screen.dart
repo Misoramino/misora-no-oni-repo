@@ -11,6 +11,8 @@ import '../session/session_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../sync/firestore_room_session.dart';
 import '../sync/room_member_view.dart';
+import '../sync/room_phase.dart';
+import '../sync/shared_match_snapshot.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
 import '../widgets/scene_transitions.dart';
@@ -33,7 +35,9 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   final _nickController = TextEditingController();
   FirestoreRoomSession? _session;
   StreamSubscription<List<RoomMemberView>>? _lobbySub;
+  StreamSubscription<RoomMatchState>? _roomMatchSub;
   List<RoomMemberView> _members = [];
+  String _roomPhase = RoomPhase.lobby;
   bool _joining = false;
   String? _error;
   WorldProfile _worldProfile = WorldProfile.horror;
@@ -64,6 +68,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 
   void _bindLobby(FirestoreRoomSession session) {
     _lobbySub?.cancel();
+    _roomMatchSub?.cancel();
+    _roomPhase = session.currentPhase;
+    _roomMatchSub = session.roomMatchState.listen((rm) {
+      if (!mounted) return;
+      setState(() => _roomPhase = rm.phase);
+    });
     final cached = session.currentLobbyMembers;
     if (mounted) {
       setState(() => _members = cached);
@@ -141,7 +151,9 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 
   Future<void> _leave() async {
     await _lobbySub?.cancel();
+    await _roomMatchSub?.cancel();
     _lobbySub = null;
+    _roomMatchSub = null;
     await _session?.disconnect();
   }
 
@@ -224,6 +236,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   @override
   void dispose() {
     _lobbySub?.cancel();
+    _roomMatchSub?.cancel();
     _roomController.dispose();
     _nickController.dispose();
     super.dispose();
@@ -377,6 +390,36 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                   isHost: _session!.isHost,
                                   onCopy: _copyRoomId,
                                 ),
+                                if (_roomPhase == RoomPhase.running) ...[
+                                  const SizedBox(height: 10),
+                                  Material(
+                                    color: theme.colorScheme.secondaryContainer,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.sports_esports_outlined,
+                                            color: theme.colorScheme.secondary,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              '試合進行中です。'
+                                              'ゲーム画面へ入ると、参加者は再参加、'
+                                              'それ以外はインスペクター（観戦）として'
+                                              'マップを閲覧できます。',
+                                              style: theme.textTheme.bodySmall,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if (_session!.isHostAbsent(DateTime.now().toUtc()) &&
                                     !_session!.isHost) ...[
                                   const SizedBox(height: 10),
@@ -482,9 +525,13 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                   child: FilledButton.tonalIcon(
                     onPressed: _joined ? _openMap : null,
                     icon: const Icon(Icons.map),
-                    label: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('ゲーム画面へ'),
+                    label: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        _roomPhase == RoomPhase.running
+                            ? 'ゲーム画面へ（再参加 / 観戦）'
+                            : 'ゲーム画面へ',
+                      ),
                     ),
                   ),
                 ),

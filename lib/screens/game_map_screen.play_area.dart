@@ -186,37 +186,47 @@ extension _GameMapPlayArea on _GameMapScreenState {
   }) async {
     final fs = _firestoreSession;
     if (fs == null || !_isOnlineFirestore) return;
-    final err = await fs.publishRoomEvent(
-      type: RoomMatchEventTypes.lobbyPlayArea,
-      payload: {
-        'slotId': slotId,
-        'slotName': slotName,
-        'playArea': _playArea.toJson(),
-      },
-      sessionKey: lobbySessionKey,
+    final err = await fs.publishLobbyPlayArea(
+      area: _playArea,
+      slotName: slotName,
+      slotId: slotId,
     );
     if (err != null && mounted) _toast(err);
   }
 
-  void _applyRemoteLobbyPlayArea(RoomMatchEvent ev) {
-    final raw = ev.payload['playArea'];
-    if (raw is! Map<String, dynamic>) return;
-    try {
-      final area = PlayArea.fromJson(raw);
-      final name = ev.payload['slotName'] as String? ?? 'ホスト';
-      if (!mounted) return;
-      _syncSetState(() {
-        _playArea = area;
-        if (_playArea.type == PlayAreaType.circle) {
-          _circleDraftCenter = _playArea.center;
-          _circleDraftRadiusMeters = _playArea.radiusMeters;
-        }
-        _statusMessage = 'ホストが「$name」のエリアを共有しました';
-      });
-      unawaited(_areaStore.save(area));
-    } catch (_) {
-      _logDebug('lobby_play_area parse failed');
+  void _applyLobbyPlayAreaSnapshot(LobbyPlayAreaSnapshot snap) {
+    if (!mounted || _gameState != GameState.waiting) return;
+    _syncSetState(() {
+      _playArea = snap.area;
+      if (_playArea.type == PlayAreaType.circle) {
+        _circleDraftCenter = _playArea.center;
+        _circleDraftRadiusMeters = _playArea.radiusMeters;
+      }
+      final name = snap.slotName ?? 'ホスト';
+      _statusMessage = 'ホストが「$name」のエリアを共有しました';
+    });
+    unawaited(_areaStore.save(snap.area));
+  }
+
+  Future<void> _syncLobbyPlayAreaOnAttach() async {
+    final fs = _firestoreSession;
+    if (fs == null || !_isOnlineFirestore || _gameState != GameState.waiting) {
+      return;
     }
+    if (fs.currentPhase != RoomPhase.lobby) return;
+    var snap = fs.currentLobbyPlayArea;
+    snap ??= await fs.fetchLatestLobbyPlayAreaEvent();
+    if (!mounted || snap == null) return;
+    _applyLobbyPlayAreaSnapshot(snap);
+  }
+
+  void _applyRemoteLobbyPlayArea(RoomMatchEvent ev) {
+    final snap = LobbyPlayAreaSnapshot.tryParseEvent(ev);
+    if (snap == null) {
+      _logDebug('lobby_play_area parse failed');
+      return;
+    }
+    _applyLobbyPlayAreaSnapshot(snap);
   }
 
   void _setPrepDurationMinutes(double minutes) {

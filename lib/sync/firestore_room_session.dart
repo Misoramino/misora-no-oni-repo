@@ -6,10 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_bootstrap.dart';
 import 'firestore_room_blueprint.dart';
 import 'presence_throttle.dart';
+import 'inspector_feed_snapshot.dart';
 import 'remote_member_snapshot.dart';
 import 'room_member_view.dart';
 import '../game/game_state.dart';
 import '../game/player_role.dart';
+import '../game/play_area.dart';
 import 'room_match_event.dart';
 import 'room_phase.dart';
 import 'room_session_port.dart';
@@ -46,6 +48,42 @@ String _describeFirebaseException(FirebaseException e) {
 /// 試合前の共有イベント（プレイエリア適用など）用 sessionKey。
 const int lobbySessionKey = 0;
 
+/// ロビーでホストが共有したプレイエリア。
+class LobbyPlayAreaSnapshot {
+  const LobbyPlayAreaSnapshot({required this.area, this.slotName});
+
+  final PlayArea area;
+  final String? slotName;
+
+  static LobbyPlayAreaSnapshot? tryParseRoomDoc(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    final raw = data[RoomDocFields.lobbyPlayArea];
+    if (raw is! Map) return null;
+    try {
+      return LobbyPlayAreaSnapshot(
+        area: PlayArea.fromJson(Map<String, dynamic>.from(raw)),
+        slotName: data[RoomDocFields.lobbyPlayAreaSlotName] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static LobbyPlayAreaSnapshot? tryParseEvent(RoomMatchEvent ev) {
+    if (ev.type != RoomMatchEventTypes.lobbyPlayArea) return null;
+    final raw = ev.payload['playArea'];
+    if (raw is! Map<String, dynamic>) return null;
+    try {
+      return LobbyPlayAreaSnapshot(
+        area: PlayArea.fromJson(raw),
+        slotName: ev.payload['slotName'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 /// Firestore ルームの接続状態（HUD 表示用）。
 enum RoomConnectionStatus {
   connected,
@@ -75,6 +113,9 @@ class FirestoreRoomSession implements RoomSessionPort {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final PresenceThrottle _calm = calmPresenceThrottle();
   final PresenceThrottle _tense = tensionPresenceThrottle();
+  final PresenceThrottle _inspectorFeedThrottle = PresenceThrottle(
+    minIntervalMs: PresenceSyncBudget.inspectorFeedMinIntervalMs,
+  );
 
   String? _roomId;
   String? _uid;
@@ -107,7 +148,12 @@ class FirestoreRoomSession implements RoomSessionPort {
     phase: RoomPhase.lobby,
   );
   SharedMatchSnapshot? _latestMatchStart;
+  LobbyPlayAreaSnapshot? _latestLobbyPlayArea;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventsSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inspectorFeedSub;
+  Map<String, InspectorFeedSnapshot> _latestInspectorFeed = const {};
+  final StreamController<Map<String, InspectorFeedSnapshot>> _inspectorFeedCtrl =
+      StreamController<Map<String, InspectorFeedSnapshot>>.broadcast();
 
   /// 他プレイヤーの最新プレゼンス。購読時に直近値を再送する。
   Stream<Map<String, RemoteMemberSnapshot>> get remoteMembers =>
@@ -138,6 +184,21 @@ class FirestoreRoomSession implements RoomSessionPort {
 
   Map<String, RemoteMemberSnapshot> get currentRemoteMembers =>
       Map<String, RemoteMemberSnapshot>.unmodifiable(_latestRemoteMembers);
+  Map<String, InspectorFeedSnapshot> get currentInspectorFeed =>
+      Map<String, InspectorFeedSnapshot>.unmodifiable(_latestInspectorFeed);
+
+  /// 観戦者向けライブ GPS フィード（`inspectorFeed` サブコレクション）。
+  Stream<Map<String, InspectorFeedSnapshot>> get inspectorFeed =>
+      Stream<Map<String, InspectorFeedSnapshot>>.multi((controller) {
+        controller.add(_latestInspectorFeed);
+        final sub = _inspectorFeedCtrl.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        controller.onCancel = () => sub.cancel();
+      }, isBroadcast: true);
+
   Map<String, bool> get werewolfOniFormByUid =>
       Map<String, bool>.unmodifiable(_werewolfOniFormByUid);
   List<RoomMemberView> get currentLobbyMembers =>
@@ -199,6 +260,8 @@ class FirestoreRoomSession implements RoomSessionPort {
 
   RoomMatchState get currentRoomMatch => _latestRoomMatch;
 
+  LobbyPlayAreaSnapshot? get currentLobbyPlayArea => _latestLobbyPlayArea;
+
   SharedMatchSnapshot? get currentMatchStart => _latestMatchStart;
 
   /// 試合中の共有イベント（append-only events サブコレクション）。
@@ -233,7 +296,6 @@ class FirestoreRoomSession implements RoomSessionPort {
 
       _roomId = trimmedId;
       _nickname = nick;
-      _role = role.trim().isEmpty ? 'runner' : role.trim();
 
       final roomRef = _db.collection('rooms').doc(_roomId);
       try {
@@ -255,6 +317,12 @@ class FirestoreRoomSession implements RoomSessionPort {
       } on FirebaseException catch (e) {
         return 'ルーム情報の作成/更新に失敗: ${_describeFirebaseException(e)}';
       }
+
+      final roomData = (await roomRef.get()).data();
+      _role = _resolveMemberRoleForJoin(
+        role,
+        roomData,
+      );
 
       final memberRef = roomRef.collection('members').doc(_uid!);
       try {
@@ -375,6 +443,7 @@ class FirestoreRoomSession implements RoomSessionPort {
       final matchEnd = nextPhase == RoomPhase.ended
           ? SharedMatchEnd.tryParse(data)
           : null;
+      _latestLobbyPlayArea = LobbyPlayAreaSnapshot.tryParseRoomDoc(data);
       if (nextPhase != _phase) {
         _phase = nextPhase;
         if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);
@@ -525,6 +594,110 @@ class FirestoreRoomSession implements RoomSessionPort {
   void stopRoomEventsListener() {
     _eventsSub?.cancel();
     _eventsSub = null;
+  }
+
+  /// ロビー参加前にホストが適用したエリア（events フォールバック）。
+  Future<LobbyPlayAreaSnapshot?> fetchLatestLobbyPlayAreaEvent() async {
+    if (_roomId == null) return null;
+    try {
+      final snap = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('events')
+          .where(RoomEventsFields.sessionKey, isEqualTo: lobbySessionKey)
+          .orderBy(RoomEventsFields.emittedAtMs, descending: true)
+          .limit(24)
+          .get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ev = RoomMatchEvent.tryParse(doc.id, data);
+        if (ev == null) continue;
+        final parsed = LobbyPlayAreaSnapshot.tryParseEvent(ev);
+        if (parsed != null) return parsed;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// ホストのみ。ルーム doc + events でロビーエリアを共有。
+  Future<String?> publishLobbyPlayArea({
+    required PlayArea area,
+    required String slotName,
+    required String slotId,
+  }) async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    if (!isHost) return 'ホストのみ適用できます';
+    try {
+      await _db.collection('rooms').doc(_roomId!).update({
+        RoomDocFields.lobbyPlayArea: area.toJson(),
+        RoomDocFields.lobbyPlayAreaSlotName: slotName,
+      });
+      _latestLobbyPlayArea = LobbyPlayAreaSnapshot(
+        area: area,
+        slotName: slotName,
+      );
+      return publishRoomEvent(
+        type: RoomMatchEventTypes.lobbyPlayArea,
+        payload: {
+          'slotId': slotId,
+          'slotName': slotName,
+          'playArea': area.toJson(),
+        },
+        sessionKey: lobbySessionKey,
+      );
+    } on FirebaseException catch (e) {
+      return _describeFirebaseException(e);
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// 再参加時に過去イベントを再生するための一括取得。
+  Future<List<RoomMatchEvent>> fetchMatchEvents(int sessionKey) async {
+    if (_roomId == null) return const [];
+    try {
+      final snap = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('events')
+          .where(RoomEventsFields.sessionKey, isEqualTo: sessionKey)
+          .orderBy(RoomEventsFields.emittedAtMs)
+          .get();
+      final out = <RoomMatchEvent>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ev = RoomMatchEvent.tryParse(doc.id, data);
+        if (ev != null) out.add(ev);
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String _resolveMemberRoleForJoin(
+    String requestedRole,
+    Map<String, dynamic>? roomData,
+  ) {
+    var memberRole =
+        requestedRole.trim().isEmpty ? 'runner' : requestedRole.trim();
+    if (roomData == null) return memberRole;
+    final phase = RoomPhase.normalize(
+      roomData[RoomDocFields.phase] as String?,
+    );
+    if (phase != RoomPhase.running) return memberRole;
+    final matchRaw = roomData[RoomDocFields.matchStart];
+    final matchStart = matchRaw is Map<String, dynamic>
+        ? SharedMatchSnapshot.tryParse(matchRaw)
+        : matchRaw is Map
+        ? SharedMatchSnapshot.tryParse(Map<String, dynamic>.from(matchRaw))
+        : null;
+    if (matchStart == null || _uid == null) return 'spectator';
+    final mine = matchStart.assignmentFor(_uid);
+    if (mine == null) return 'spectator';
+    return mine.role == PlayerRole.hunter ? 'oni' : 'runner';
   }
 
   /// ホストのみ。試合開始データと phase=running を 1 回で書く。
@@ -749,6 +922,72 @@ class FirestoreRoomSession implements RoomSessionPort {
     await ref.set(payload, SetOptions(merge: true));
   }
 
+  /// 試合参加者が観戦者向けにライブ GPS を送信（スロットルあり）。
+  Future<void> publishInspectorFeedPosition({
+    required double lat,
+    required double lng,
+  }) async {
+    if (_roomId == null || _uid == null) return;
+    if (_role == 'spectator') return;
+    if (_phase != RoomPhase.running) return;
+    if (!_inspectorFeedThrottle.requestSlot()) return;
+    final ref = _db
+        .collection('rooms')
+        .doc(_roomId!)
+        .collection('inspectorFeed')
+        .doc(_uid!);
+    await ref.set({
+      InspectorFeedFields.lat: lat,
+      InspectorFeedFields.lng: lng,
+      InspectorFeedFields.nickname: _nickname ?? '',
+      InspectorFeedFields.role: _role,
+      InspectorFeedFields.reportedAtUtc: DateTime.now()
+          .toUtc()
+          .toIso8601String(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> clearInspectorFeedPosition() async {
+    if (_roomId == null || _uid == null) return;
+    try {
+      await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('inspectorFeed')
+          .doc(_uid!)
+          .delete();
+    } catch (_) {}
+  }
+
+  void startInspectorFeedListener() {
+    if (_roomId == null) return;
+    _inspectorFeedSub?.cancel();
+    _inspectorFeedSub = _db
+        .collection('rooms')
+        .doc(_roomId!)
+        .collection('inspectorFeed')
+        .snapshots()
+        .listen(
+      (snap) {
+        final map = <String, InspectorFeedSnapshot>{};
+        for (final doc in snap.docs) {
+          final parsed = InspectorFeedSnapshot.tryParse(doc.id, doc.data());
+          if (parsed != null) map[doc.id] = parsed;
+        }
+        _latestInspectorFeed = map;
+        if (!_inspectorFeedCtrl.isClosed) _inspectorFeedCtrl.add(map);
+      },
+      onError: (_) {},
+    );
+  }
+
+  void stopInspectorFeedListener() {
+    _inspectorFeedSub?.cancel();
+    _inspectorFeedSub = null;
+    _latestInspectorFeed = const {};
+    if (!_inspectorFeedCtrl.isClosed) _inspectorFeedCtrl.add(const {});
+  }
+
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
@@ -765,6 +1004,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     await _roomSub?.cancel();
     _roomSub = null;
     stopRoomEventsListener();
+    stopInspectorFeedListener();
     _hostUid = null;
     _phase = RoomPhase.lobby;
     _latestMatchStart = null;
@@ -773,6 +1013,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     _latestLobby = const [];
     _latestRemoteMembers = const {};
     _werewolfOniFormByUid = const {};
+    _latestInspectorFeed = const {};
     if (!_lobbyCtrl.isClosed) _lobbyCtrl.add([]);
     if (!_remoteCtrl.isClosed) _remoteCtrl.add({});
     if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);
@@ -785,6 +1026,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     _role = 'runner';
     try {
       if (rid != null && uid != null) {
+        await clearInspectorFeedPosition();
         await _db
             .collection('rooms')
             .doc(rid)

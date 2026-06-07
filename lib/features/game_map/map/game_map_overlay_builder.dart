@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../game/analyst_trace_format.dart';
 import '../../../game/elimination_aftermath_rule.dart';
 import '../../../game/game_config.dart';
+import '../../../game/player_role.dart';
 import '../../../game/play_area.dart';
 import 'game_map_overlay_snapshot.dart';
 import 'map_geo_format.dart';
@@ -105,6 +106,64 @@ abstract final class GameMapOverlayBuilder {
                 _ => BitmapDescriptor.hueMagenta,
               },
             ),
+          ),
+        );
+      }
+    }
+
+    if (L.inspectorIntel && s.showInspectorIntelPins && showDetail) {
+      final liveUids = s.inspectorLiveFeed.keys.toSet();
+      for (final e in s.inspectorLiveFeed.entries) {
+        final pin = e.value;
+        final kind = switch (pin.role) {
+          'oni' => MapMarkerKind.remoteOni,
+          'spectator' => MapMarkerKind.remoteSpectator,
+          _ => MapMarkerKind.remoteRunner,
+        };
+        final hue = switch (pin.role) {
+          'oni' => BitmapDescriptor.hueRed,
+          'spectator' => BitmapDescriptor.hueAzure,
+          _ => BitmapDescriptor.hueGreen,
+        };
+        final ageSec = s.now.difference(pin.reportedAtUtc).inSeconds;
+        markers.add(
+          Marker(
+            markerId: MarkerId('inspector_live_${pin.uid}'),
+            position: LatLng(pin.lat, pin.lng),
+            alpha: 0.92,
+            infoWindow: InfoWindow(
+              title: pin.nickname.isEmpty ? '参加者' : pin.nickname,
+              snippet: 'ライブ GPS · ${ageSec}s前',
+            ),
+            icon: _icon(s, kind, hue),
+          ),
+        );
+      }
+      for (final pin in s.inspectorIntelPins) {
+        if (liveUids.contains(pin.uid)) continue;
+        final kind = switch (pin.role) {
+          PlayerRole.hunter => MapMarkerKind.remoteOni,
+          PlayerRole.werewolf => MapMarkerKind.remoteOni,
+          _ => MapMarkerKind.remoteRunner,
+        };
+        final hue = pin.eliminated
+            ? BitmapDescriptor.hueOrange
+            : switch (pin.role) {
+                PlayerRole.hunter => BitmapDescriptor.hueRed,
+                PlayerRole.werewolf => BitmapDescriptor.hueRose,
+                _ => BitmapDescriptor.hueGreen,
+              };
+        final ageSec = s.now.difference(pin.updatedAt).inSeconds;
+        markers.add(
+          Marker(
+            markerId: MarkerId('inspector_intel_${pin.uid}'),
+            position: pin.position,
+            alpha: pin.eliminated ? 0.55 : 0.82,
+            infoWindow: InfoWindow(
+              title: pin.label,
+              snippet: '${pin.role.displayName} · ${pin.sourceLabel} · ${ageSec}s前',
+            ),
+            icon: _icon(s, kind, hue),
           ),
         );
       }
@@ -350,6 +409,24 @@ abstract final class GameMapOverlayBuilder {
       }
     }
 
+    if (L.skillMarkers && s.fakePositionActive && s.fakePositionLatLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('fake_position_local'),
+          position: s.fakePositionLatLng!,
+          infoWindow: const InfoWindow(
+            title: '偽位置（あなたのみ）',
+            snippet: '露出イベントではここが名前付きで出ます',
+          ),
+          icon: _icon(
+            s,
+            MapMarkerKind.fakePosition,
+            BitmapDescriptor.hueViolet,
+          ),
+        ),
+      );
+    }
+
     if (L.skillMarkers && s.bodyThrowPosition != null) {
       markers.add(
         Marker(
@@ -570,19 +647,20 @@ abstract final class GameMapOverlayBuilder {
           );
         }
       }
-      if (L.skillMarkers && s.bodyThrowAwaitingMapTap) {
-        circles.add(
-          Circle(
-            circleId: const CircleId('body-throw-tap-range'),
-            center: s.playerMarkerPosition,
-            radius: GameConfig.bodyThrowDistanceMeters,
-            strokeWidth: 2,
-            fillColor: tokens.traceColor.withValues(alpha: 0.12),
-            strokeColor: tokens.traceColor.withValues(alpha: 0.88),
-            zIndex: 8,
-          ),
-        );
-      }
+    }
+
+    if (s.skillMapPlacementMaxRangeMeters > 0) {
+      circles.add(
+        Circle(
+          circleId: const CircleId('skill-map-placement-range'),
+          center: s.playerMarkerPosition,
+          radius: s.skillMapPlacementMaxRangeMeters,
+          strokeWidth: 1,
+          fillColor: tokens.traceColor.withValues(alpha: 0.05),
+          strokeColor: tokens.traceColor.withValues(alpha: 0.38),
+          zIndex: 7,
+        ),
+      );
     }
 
     if (L.captureZone &&

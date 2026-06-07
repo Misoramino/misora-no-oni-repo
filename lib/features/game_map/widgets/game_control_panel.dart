@@ -225,6 +225,8 @@ class GameControlPanel extends StatelessWidget {
             ? 0.44
             : mapWorldProfile == WorldProfile.arg
             ? 0.4
+            : mapWorldProfile == WorldProfile.sport
+            ? 0.42
             : 0.35
         : 0.5;
 

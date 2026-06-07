@@ -2,9 +2,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
 import '../../../game/anonymous_reveal_trace.dart';
+import '../../../game/inspector_intel_pin.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/oni_intel_trace.dart';
 import '../../../game/play_area.dart';
+import '../../../sync/inspector_feed_snapshot.dart';
 import '../../../sync/remote_member_snapshot.dart';
 import '../../../theme/world_profile_tokens.dart';
 import '../../../theme/world_visual_pack.dart';
@@ -46,6 +48,7 @@ class GameMapOverlaySnapshot {
     this.waitingSkillLockMapTap = false,
     this.skillPlacementPreviewLatLng,
     this.skillPlacementPreviewRadiusMeters = 0,
+    this.skillMapPlacementMaxRangeMeters = 0,
     required this.afterCatchRule,
     required this.ghostRoughPositions,
     required this.editingArea,
@@ -74,6 +77,9 @@ class GameMapOverlaySnapshot {
     this.secondGameCanUseAccusationTerritory = false,
     this.secondGameCanUseFacilitySabotage = false,
     this.secondGameCanUseCameraShutdown = false,
+    this.showInspectorIntelPins = false,
+    this.inspectorIntelPins = const [],
+    this.inspectorLiveFeed = const {},
   });
 
   final DateTime now;
@@ -108,6 +114,8 @@ class GameMapOverlaySnapshot {
   final bool waitingSkillLockMapTap;
   final LatLng? skillPlacementPreviewLatLng;
   final double skillPlacementPreviewRadiusMeters;
+  /// スキル押下〜地図タップ確定まで、現在地中心の設置可能距離（m）。
+  final double skillMapPlacementMaxRangeMeters;
   final EliminationAftermathRule? afterCatchRule;
   final List<LatLng> ghostRoughPositions;
   final bool editingArea;
@@ -144,4 +152,9 @@ class GameMapOverlaySnapshot {
   final bool secondGameCanUseAccusationTerritory;
   final bool secondGameCanUseFacilitySabotage;
   final bool secondGameCanUseCameraShutdown;
+
+  /// 観戦者向け：イベント由来の最終判明位置ピン。
+  final bool showInspectorIntelPins;
+  final List<InspectorIntelPin> inspectorIntelPins;
+  final Map<String, InspectorFeedSnapshot> inspectorLiveFeed;
 }

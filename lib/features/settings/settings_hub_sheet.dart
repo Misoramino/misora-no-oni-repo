@@ -9,7 +9,6 @@ import '../../game/player_role.dart';
 Future<void> showSettingsHubSheet(
   BuildContext context, {
   PlayerRole? yourRole,
-  VoidCallback? onOpenPrivacy,
   VoidCallback? onOpenDisplaySettings,
 }) {
   return showModalBottomSheet<void>(
@@ -26,16 +25,15 @@ Future<void> showSettingsHubSheet(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                child: Text('設定', style: theme.textTheme.titleLarge),
+                child: Text('アプリ設定', style: theme.textTheme.titleLarge),
               ),
               ListTile(
                 leading: const Icon(Icons.graphic_eq_rounded),
                 title: const Text('サウンド'),
                 subtitle: const Text('BGM・効果音の音量'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  showAudioSettingsSheet(context);
-                },
+                onTap: () async {
+                await showAudioSettingsSheet(ctx);
+              },
               ),
               ListTile(
                 leading: const Icon(Icons.replay_rounded),
@@ -63,15 +61,6 @@ Future<void> showSettingsHubSheet(
                   onTap: () {
                     Navigator.pop(ctx);
                     onOpenDisplaySettings();
-                  },
-                ),
-              if (onOpenPrivacy != null)
-                ListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
-                  title: const Text('プライバシー管理'),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    onOpenPrivacy();
                   },
                 ),
             ],

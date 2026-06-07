@@ -206,8 +206,8 @@
 
 | 種類 | 仕様 |
 |------|------|
-| **任意切替** | ボタン表示は状態に応じ **鬼化 / 人化**。再切替CD = **0.75 × interval** |
-| **強制切替** | 間隔 `min(600秒, 試合時間÷3)` ごとに **鬼⇄人をトグル**（通知なし）。CD = **0.9 × interval** |
+| **任意切替** | ボタン表示は状態に応じ **鬼化 / 人化**。再切替CD = **0.75 × interval**（前回切替から） |
+| **強制切替** | **前回切替（強制・任意どちらでも）から** `min(600秒, 試合時間÷3)` 経過で **鬼⇄人を自動トグル**（通知なし）。任意切替はその時点から強制タイマー・CD をリセット |
 
 ### ロール vs 陣営
 
@@ -312,7 +312,6 @@
 |------|------|
 | P4 | 逃走者第2スキル |
 | — | 分身（偽位置強化案） |
-| — | 人狼：強制と任意が重なったときの延長キュー |
 
 ---
 
@@ -325,7 +324,10 @@
 | 第二ゲーム・鬼影 | ✅ | 告発妨害 `facility_sabotage`・カメラ停止 `camera_shutdown` |
 | 脱落後ルール分岐 | ✅ | `EliminationAftermathRule.forEliminatedFaction` |
 | 告発・本鬼ブロック | ✅ | `AccusationBlockLogic` |
-| 人狼トグル + 強制切替 | ✅ | `werewolfInOniForm` / `WerewolfForcedSchedule`（鬼⇄人） |
+| 人狼トグル + 強制切替 | ✅ | 前回切替から `WerewolfForcedSchedule.intervalSeconds` で強制トグル |
+| インスペクター最終判明位置 | ✅ | `InspectorIntelPinLogic`（暴露・鬼位置イベント由来） |
+| インスペクター ライブ GPS | ✅ | `rooms/.../inspectorFeed`（参加者→観戦者のみ読取） |
+| ロビー `lobbyPlayArea` doc | ✅ | Firestore rules に `lobbyPlayArea*` をホスト更新許可 |
 | 鬼遅延軌跡 | ✅ | `OniPathTrailLogic`（約10〜13分前） |
 | 脱落痕跡 `trace_drop` | ✅ | `match_event` 内同期 |
 | 結界 `fromSkill` | ✅ | `capture_zone_placed` payload → `lockZoneFromSkill` |

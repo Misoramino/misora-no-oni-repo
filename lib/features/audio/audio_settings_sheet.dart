@@ -12,12 +12,18 @@ Future<void> showAudioSettingsSheet(BuildContext context) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (_) => const _AudioSettingsSheet(),
+    isDismissible: true,
+    enableDrag: true,
+    builder: (sheetCtx) => _AudioSettingsSheet(
+      onClose: () => Navigator.pop(sheetCtx),
+    ),
   );
 }
 
 class _AudioSettingsSheet extends StatefulWidget {
-  const _AudioSettingsSheet();
+  const _AudioSettingsSheet({required this.onClose});
+
+  final VoidCallback onClose;
 
   @override
   State<_AudioSettingsSheet> createState() => _AudioSettingsSheetState();
@@ -143,6 +149,14 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: widget.onClose,
+                      child: const Text('閉じる'),
                     ),
                   ),
                 ],

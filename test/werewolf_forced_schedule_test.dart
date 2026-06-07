@@ -8,47 +8,42 @@ void main() {
     expect(WerewolfForcedSchedule.intervalSeconds(900), 300);
   });
 
-  test('ten minute match fires every 200s', () {
-    final t = WerewolfForcedSchedule.thresholdSeconds(600);
-    expect(t, [200, 400]);
-  });
-
-  test('three minute match fires every 60s', () {
-    final t = WerewolfForcedSchedule.thresholdSeconds(180);
-    expect(t, [60, 120]);
-  });
-
-  test('cooldowns are 0.75 and 0.9 times interval', () {
+  test('voluntary cooldown is 0.75 times interval', () {
     for (final d in [180, 600, 900]) {
       final interval = WerewolfForcedSchedule.intervalSeconds(d);
       expect(
         WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(d),
         (interval * 3) ~/ 4,
       );
-      expect(
-        WerewolfForcedSchedule.forcedTransformCooldownSeconds(d),
-        (interval * 9) ~/ 10,
-      );
     }
   });
 
-  test('ten minute match cooldowns', () {
+  test('forced toggle fires after interval from last transform', () {
+    final t0 = DateTime.utc(2026, 1, 1, 12);
     expect(
-      WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(600),
-      150,
+      WerewolfForcedSchedule.shouldForceToggle(
+        lastTransformAt: t0,
+        now: t0.add(const Duration(seconds: 199)),
+        matchDurationSeconds: 600,
+      ),
+      isFalse,
     );
     expect(
-      WerewolfForcedSchedule.forcedTransformCooldownSeconds(600),
-      180,
+      WerewolfForcedSchedule.shouldForceToggle(
+        lastTransformAt: t0,
+        now: t0.add(const Duration(seconds: 200)),
+        matchDurationSeconds: 600,
+      ),
+      isTrue,
     );
   });
 
-  test('voluntary cooldown is shorter than forced cooldown', () {
+  test('voluntary cooldown is shorter than forced interval', () {
     for (final d in [180, 600, 900]) {
       final voluntary =
           WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(d);
-      final forced = WerewolfForcedSchedule.forcedTransformCooldownSeconds(d);
-      expect(voluntary, lessThan(forced));
+      final interval = WerewolfForcedSchedule.intervalSeconds(d);
+      expect(voluntary, lessThan(interval));
     }
   });
 }

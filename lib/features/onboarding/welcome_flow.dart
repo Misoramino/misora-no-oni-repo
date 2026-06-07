@@ -136,7 +136,6 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
       _finish(WelcomeResult.play);
       return;
     }
-    GameAudio.instance.playSfx(SfxId.uiTap);
     _controller.nextPage(
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
@@ -171,10 +170,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
               child: PageView.builder(
                 controller: _controller,
                 itemCount: _pages.length,
-                onPageChanged: (i) {
-                  setState(() => _index = i);
-                  GameAudio.instance.playSfx(SfxId.uiTap);
-                },
+                onPageChanged: (i) => setState(() => _index = i),
                 itemBuilder: (context, i) => _WelcomeCard(page: _pages[i]),
               ),
             ),

@@ -10,12 +10,15 @@ class AreaGalleryScreen extends StatefulWidget {
     required this.store,
     this.selectedId,
     this.canEdit = true,
+    this.previewOnly = false,
     super.key,
   });
 
   final PlayAreaSlotStore store;
   final String? selectedId;
   final bool canEdit;
+  /// 試合中は形の確認のみ（適用不可）。
+  final bool previewOnly;
 
   @override
   State<AreaGalleryScreen> createState() => _AreaGalleryScreenState();
@@ -163,7 +166,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('エリアギャラリー'),
+        title: Text(widget.previewOnly ? 'エリア確認' : 'エリアギャラリー'),
         actions: [
           if (widget.canEdit)
             IconButton(
@@ -245,6 +248,25 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                                 if (context.mounted) {
                                   Navigator.pop(context, slot.id);
                                 }
+                              case 'preview':
+                                if (!context.mounted) return;
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text(slot.name),
+                                    content: Text(
+                                      '${_summary(slot.area)}\n\n'
+                                      '試合中はエリアを変更できません。'
+                                      '準備画面から適用してください。',
+                                    ),
+                                    actions: [
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
                               case 'export':
                                 if (!context.mounted) return;
                                 await GeoJsonActions.exportToClipboard(
@@ -263,10 +285,16 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                             }
                           },
                           itemBuilder: (ctx) => [
-                            const PopupMenuItem(
-                              value: 'use',
-                              child: Text('このエリアを使う'),
-                            ),
+                            if (!widget.previewOnly)
+                              const PopupMenuItem(
+                                value: 'use',
+                                child: Text('このエリアを使う'),
+                              ),
+                            if (widget.previewOnly)
+                              const PopupMenuItem(
+                                value: 'preview',
+                                child: Text('形を確認'),
+                              ),
                             const PopupMenuItem(
                               value: 'export',
                               child: Text('GeoJSON エクスポート'),
@@ -283,7 +311,23 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                             ],
                           ],
                         ),
-                        onTap: () => Navigator.pop(context, slot.id),
+                        onTap: widget.previewOnly
+                            ? () async {
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (dCtx) => AlertDialog(
+                                    title: Text(slot.name),
+                                    content: Text(_summary(slot.area)),
+                                    actions: [
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(dCtx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                            : () => Navigator.pop(context, slot.id),
                       ),
                     );
                   },

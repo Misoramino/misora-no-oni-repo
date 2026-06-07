@@ -30,7 +30,6 @@ class MatchRuntimeState {
   int accusationPointsHuman;
   int syncedEliminationCount;
   int accusationTerritoryBonus;
-  Set<int> werewolfForcedPhasesFired;
   int? revenantSabotageSiteIndex;
   DateTime? revenantSabotageStartedAt;
   DateTime? lastRevenantSabotageAt;
@@ -128,7 +127,6 @@ class MatchRuntimeState {
     this.accusationPointsHuman = 0,
     this.syncedEliminationCount = 0,
     this.accusationTerritoryBonus = 0,
-    Set<int>? werewolfForcedPhasesFired,
     this.revenantSabotageSiteIndex,
     this.revenantSabotageStartedAt,
     this.lastRevenantSabotageAt,
@@ -212,7 +210,6 @@ class MatchRuntimeState {
             ],
         cameraLastTriggeredAt = cameraLastTriggeredAt ?? <int, DateTime>{},
         lockZoneBoundIds = lockZoneBoundIds ?? const {},
-        werewolfForcedPhasesFired = werewolfForcedPhasesFired ?? <int>{},
         disabledCameraIndices = disabledCameraIndices ?? <int>{};
 
   bool get isInfectedNow =>
@@ -305,7 +302,6 @@ class MatchRuntimeState {
     accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;
-    werewolfForcedPhasesFired = {};
     revenantSabotageSiteIndex = null;
     revenantSabotageStartedAt = null;
     lastRevenantSabotageAt = null;
@@ -345,7 +341,6 @@ class MatchRuntimeState {
     accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;
-    werewolfForcedPhasesFired = {};
     revenantSabotageSiteIndex = null;
     revenantSabotageStartedAt = null;
     lastRevenantSabotageAt = null;

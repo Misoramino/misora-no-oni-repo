@@ -16,12 +16,12 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (ctx) => DraggableScrollableSheet(
+      builder: (sheetCtx) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.82,
       minChildSize: 0.45,
       maxChildSize: 0.95,
-      builder: (context, scrollController) {
+      builder: (_, scrollController) {
         final otherRoles = PlayerRole.values
             .where((r) => r != yourRole)
             .toList(growable: false);
@@ -29,12 +29,12 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
           controller: scrollController,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            Text('遊び方', style: Theme.of(ctx).textTheme.titleLarge),
+            Text('遊び方', style: Theme.of(sheetCtx).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               '章を開いて読めます。初めての方は「かんたんガイド」から。',
-              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: 12),
@@ -44,7 +44,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
               children: [
                 FilledButton.tonalIcon(
                   onPressed: () {
-                    Navigator.of(ctx).pop();
+                    Navigator.pop(sheetCtx);
                     showWelcomeFlow(context);
                   },
                   icon: const Icon(Icons.auto_awesome_rounded),
@@ -52,7 +52,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                 ),
                 FilledButton.icon(
                   onPressed: () {
-                    Navigator.of(ctx).pop();
+                    Navigator.pop(sheetCtx);
                     openTutorialPicker(context);
                   },
                   icon: const Icon(Icons.school_rounded),
@@ -60,7 +60,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                 ),
                 OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.of(ctx).pop();
+                    Navigator.pop(sheetCtx);
                     showOnboardingReplaySheet(context);
                   },
                   icon: const Icon(Icons.replay_rounded),
@@ -86,7 +86,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                   ),
                   Text(
                     SkillCatalog.coreRule,
-                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
                           height: 1.45,
                         ),
                   ),
@@ -102,7 +102,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                   const HelpFactionDiagram(),
                   Text(
                     RoleBriefingCatalog.winConditions.trim(),
-                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
                           height: 1.45,
                         ),
                   ),
@@ -114,7 +114,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
               title: '1 試合の流れ',
               child: Text(
                 SkillCatalog.matchFlow,
-                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.45),
+                style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(height: 1.45),
               ),
             ),
             _HelpExpansion(
@@ -126,7 +126,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                   const HelpMapConceptDiagram(),
                   Text(
                     SkillCatalog.playAreaGuide,
-                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
                           height: 1.45,
                         ),
                   ),
@@ -156,7 +156,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                   ),
                   Text(
                     SkillCatalog.mapSkillPlacementGuide,
-                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
                           height: 1.45,
                         ),
                   ),
@@ -168,7 +168,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                 icon: Icons.person_pin_circle_outlined,
                 title: 'あなたの役職 — ${yourRole.displayName}',
                 initiallyExpanded: true,
-                child: roleBriefingBlock(ctx, yourRole, emphasized: true),
+                child: roleBriefingBlock(sheetCtx, yourRole, emphasized: true),
               ),
             _HelpExpansion(
               icon: Icons.groups_outlined,
@@ -180,7 +180,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
                       in yourRole != null ? otherRoles : PlayerRole.values)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: roleBriefingBlock(ctx, role),
+                      child: roleBriefingBlock(sheetCtx, role),
                     ),
                 ],
               ),
@@ -191,7 +191,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
               child: Column(
                 children: [
                   for (final g in SkillCatalog.gimmicks)
-                    _compactEntry(ctx, g.title, g.body, _iconFor(g.iconName)),
+                    _compactEntry(sheetCtx, g.title, g.body, _iconFor(g.iconName)),
                 ],
               ),
             ),
@@ -201,7 +201,7 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
               child: Text(
                 'ホストが開始・終了すると役職・エリア・ギミックも同期します。'
                 '試合中止は投票で決まります。',
-                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.45),
+                style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(height: 1.45),
               ),
             ),
           ],

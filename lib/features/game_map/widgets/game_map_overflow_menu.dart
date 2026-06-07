@@ -34,11 +34,20 @@ class GameMapOverflowMenu extends StatelessWidget {
       onSelected: onSelected,
       itemBuilder: (ctx) => [
         const PopupMenuItem(
+          value: 'personal',
+          child: ListTile(
+            leading: Icon(Icons.person_outline),
+            title: Text('個人設定'),
+            subtitle: Text('プロフィール・鬼設定・プライバシー'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
           value: 'settings',
           child: ListTile(
             leading: Icon(Icons.settings_outlined),
-            title: Text('設定'),
-            subtitle: Text('サウンド・ガイド・プライバシー'),
+            title: Text('アプリ設定'),
+            subtitle: Text('サウンド・ガイド・HUD表示'),
             contentPadding: EdgeInsets.zero,
           ),
         ),
@@ -50,12 +59,12 @@ class GameMapOverflowMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'area_gallery',
           child: ListTile(
-            leading: Icon(Icons.photo_library_outlined),
-            title: Text('エリアギャラリー'),
-            subtitle: Text('保存・GeoJSON'),
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('エリアギャラリー'),
+            subtitle: Text(running ? '形の確認のみ' : '保存・GeoJSON'),
             contentPadding: EdgeInsets.zero,
           ),
         ),
@@ -64,14 +73,6 @@ class GameMapOverflowMenu extends StatelessWidget {
           child: ListTile(
             leading: Icon(Icons.movie_filter_outlined),
             title: Text('試合ギャラリー'),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'oni',
-          child: ListTile(
-            leading: Icon(Icons.nightlight_round),
-            title: Text('鬼設定'),
             contentPadding: EdgeInsets.zero,
           ),
         ),
