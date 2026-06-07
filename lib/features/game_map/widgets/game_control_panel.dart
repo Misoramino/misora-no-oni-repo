@@ -9,7 +9,7 @@ import 'skill_action_button.dart';
 
 /// 準備時の詳細設定シート / 試合中のスキル・操作パネル。
 ///
-/// [mapToolsOnlyPanel] が true のときはマップ確認・編集専用（カスタムルール等なし、開閉のみ）。
+/// [mapToolsOnlyPanel] が true のときはマップ確認・編集専用（ルール設定なし、開閉のみ）。
 class GameControlPanel extends StatelessWidget {
   const GameControlPanel({
     required this.sheetMode,
@@ -26,7 +26,6 @@ class GameControlPanel extends StatelessWidget {
     required this.onRefreshGps,
     required this.onClearTraces,
     required this.onToggleAreaEdit,
-    required this.onOpenCustomMenu,
     required this.onOpenPersonalSettings,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
@@ -55,6 +54,8 @@ class GameControlPanel extends StatelessWidget {
     required this.mapWorldProfile,
     required this.onPrepShowMap,
     this.mapToolsOnlyPanel = false,
+    this.skillPanelKey,
+    this.playAreaSummary,
     super.key,
   });
 
@@ -72,7 +73,6 @@ class GameControlPanel extends StatelessWidget {
   final VoidCallback onRefreshGps;
   final VoidCallback onClearTraces;
   final VoidCallback onToggleAreaEdit;
-  final VoidCallback onOpenCustomMenu;
   final VoidCallback onOpenPersonalSettings;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
@@ -109,6 +109,12 @@ class GameControlPanel extends StatelessWidget {
 
   /// 準備中かつ地図表示中のみ true（マップ専用ツール列）。
   final bool mapToolsOnlyPanel;
+
+  /// 試合中スキルパネル（コーチマーク用）。
+  final GlobalKey? skillPanelKey;
+
+  /// 準備中マップパネル向けプレイエリアサマリー。
+  final String? playAreaSummary;
 
   Widget _buildSkillRow({required bool compact}) {
     final skills = <Widget>[
@@ -187,6 +193,7 @@ class GameControlPanel extends StatelessWidget {
     if (!isRunning && mapToolsOnlyPanel) {
       return PrepMapToolsPanel(
         isEditing: isEditing,
+        playAreaSummary: playAreaSummary,
         onToggleAreaEdit: onToggleAreaEdit,
         onRecenterGps: onRecenterGps,
         onRefreshGps: onRefreshGps,
@@ -198,6 +205,7 @@ class GameControlPanel extends StatelessWidget {
 
     if (!isRunning && prepLobbyMapHidden) {
       return _PrepMapPanelMapOff(
+        playAreaSummary: playAreaSummary,
         onDismissPrepSheet: onDismissPrepSheet,
         onShowMap: onPrepShowMap,
       );
@@ -221,6 +229,7 @@ class GameControlPanel extends StatelessWidget {
         : 0.5;
 
     return Container(
+      key: isRunning ? skillPanelKey : null,
       padding: EdgeInsets.fromLTRB(10, 6, 10, isRunning ? 12 : 12),
       decoration: BoxDecoration(
         color: panelBg,
@@ -307,7 +316,7 @@ class GameControlPanel extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '個人設定 / カスタムルールは準備画面から。',
+              '個人設定・ルールは準備画面の「ルール・役職」から。',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
@@ -324,12 +333,6 @@ class GameControlPanel extends StatelessWidget {
                 onPressed: onOpenPersonalSettings,
                 icon: const Icon(Icons.person_outline, size: 18),
                 label: const Text('個人設定'),
-              ),
-              const SizedBox(height: 6),
-              OutlinedButton.icon(
-                onPressed: onOpenCustomMenu,
-                icon: const Icon(Icons.tune, size: 18),
-                label: const Text('カスタムルール'),
               ),
               if (matchEnded)
                 OutlinedButton.icon(
@@ -405,7 +408,7 @@ class GameControlPanel extends StatelessWidget {
                 ],
               ),
               Text(
-                '地図のピン表示は上部 HUD の「詳細」から切り替えられます。',
+                '地図のピン表示は上部 HUD の tune アイコンから切り替えられます。',
                 style: TextStyle(color: fgMuted, fontSize: 10, height: 1.3),
               ),
             ],
@@ -416,15 +419,17 @@ class GameControlPanel extends StatelessWidget {
   }
 }
 
-/// 準備中・地図オフ時のマップパネル（2 段階: 閉じる / 地図表示のみ。カスタムルール等は準備画面へ）。
+/// 準備中・地図オフ時のマップパネル（2 段階: 閉じる / 地図表示のみ。ルール等は準備画面へ）。
 class _PrepMapPanelMapOff extends StatelessWidget {
   const _PrepMapPanelMapOff({
     required this.onDismissPrepSheet,
     required this.onShowMap,
+    this.playAreaSummary,
   });
 
   final VoidCallback onDismissPrepSheet;
   final VoidCallback onShowMap;
+  final String? playAreaSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -469,9 +474,20 @@ class _PrepMapPanelMapOff extends StatelessWidget {
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
+          if (playAreaSummary != null && playAreaSummary!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '現在: ${playAreaSummary!}',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.primary,
+                    ),
+              ),
+            ),
           Text(
             'プレイエリアの編集・保存は地図上で行います。'
-            'ルールは準備のカスタムルールから。',
+            'ルールは準備画面の「ルール・役職」から。',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),

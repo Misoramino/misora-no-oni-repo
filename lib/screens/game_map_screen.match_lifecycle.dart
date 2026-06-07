@@ -17,6 +17,34 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       return;
     }
 
+    if (_isOnlineFirestore && _isHost) {
+      final count = _lobbyParticipantCount();
+      if (count < GameConfig.accusationMinPlayers) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('少人数で開始'),
+            content: Text(
+              '現在 $count 人です。'
+              '${GameConfig.accusationMinPlayers}人未満の試合では告発は使えません。\n'
+              'このまま開始しますか？',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('待つ'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('開始する'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true || !mounted) return;
+      }
+    }
+
     _progressRecordedForMatch = false;
     _lastNewlyUnlockedTitles = const [];
     _matchRecorder?.discard();
@@ -45,7 +73,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         area: _playArea,
         seed: seed,
         density: _gimmickDensity,
-        googleMapsApiKey: _GameMapScreenState._googleMapsApiKey,
+        googleMapsApiKey: GoogleMapsConfig.apiKey,
       );
       _rt.applyStartGimmicks(
         gimmicks: gimmicks,
@@ -215,7 +243,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       area: _playArea,
       seed: seed,
       density: _gimmickDensity,
-      googleMapsApiKey: _GameMapScreenState._googleMapsApiKey,
+      googleMapsApiKey: GoogleMapsConfig.apiKey,
     );
     return SharedMatchSnapshot(
       gimmickSeed: seed,
@@ -287,6 +315,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   void _resetGame({bool skipFirestoreSync = false}) {
+    _matchRoleBriefingShown = false;
     _matchTimer?.cancel();
     _cancelCaptureBoundTimers();
     _processedRoomEventDocIds.clear();
@@ -321,18 +350,24 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   void _showRoleSkillDialog() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_matchRoleBriefingShown) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || _gameState != GameState.running) return;
-      unawaited(
-        showRoleBriefingDialog(
-          context,
-          role: _localRole,
-          skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
-          werewolfCurrentFaction: _localRole == PlayerRole.werewolf
-              ? _localFactionNow()
-              : null,
-        ),
+      if (_matchRoleBriefingShown) return;
+      _matchRoleBriefingShown = true;
+      final prevPanel = _controlSheetMode;
+      _syncSetState(() => _controlSheetMode = ControlSheetMode.hidden);
+      await showRoleBriefingDialog(
+        context,
+        role: _localRole,
+        skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
+        werewolfCurrentFaction: _localRole == PlayerRole.werewolf
+            ? _localFactionNow()
+            : null,
       );
+      if (!mounted || _gameState != GameState.running) return;
+      _syncSetState(() => _controlSheetMode = prevPanel);
+      await _maybeShowMatchCoachMarks();
     });
   }
 

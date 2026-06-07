@@ -194,6 +194,18 @@ class PlayArea {
         (m['lng'] as num).toDouble(),
       );
 
+  /// 準備画面・マップパネル向けの形状サマリー。
+  String shapeSummary() {
+    switch (type) {
+      case PlayAreaType.circle:
+        return '円 · 半径 ${radiusMeters.toStringAsFixed(0)} m';
+      case PlayAreaType.polygon:
+        final n = points.length;
+        if (n < 3) return '多角形 · 未確定（${n}点）';
+        return '多角形 · ${n} 頂点';
+    }
+  }
+
   bool contains(LatLng position) {
     switch (type) {
       case PlayAreaType.circle:

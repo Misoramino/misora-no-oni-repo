@@ -73,7 +73,12 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
     );
     final tips = _tipsForRule(widget.rule, copy);
 
-    return SafeArea(
+    return GestureDetector(
+      onTap: () {
+        _timer?.cancel();
+        if (mounted) Navigator.of(context).pop();
+      },
+      child: SafeArea(
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -136,7 +141,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '使える施設が地図で強調表示されます',
+                    'タップで閉じる · 使える施設が地図で強調表示されます',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.outline,
@@ -147,6 +152,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

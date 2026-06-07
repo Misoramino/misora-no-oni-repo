@@ -102,6 +102,32 @@ extension _GameMapAccusation on _GameMapScreenState {
     _recordMatchFeed('告発解禁 — ${copy.facilityName}');
   }
 
+  Future<void> _promptAccusationAtSite(int siteIndex) async {
+    if (_accusationPromptOpen) return;
+    if (!canLocalPlayerAccuse(
+      localRole: _localRole,
+      accusationUnlocked: _rt.accusationUnlocked,
+      accusationSpent: _rt.accusationSpentByMe,
+      isEliminated: _isEliminatedSpectator,
+      playerCount: _activeMatchPlayerCount,
+    )) {
+      return;
+    }
+    if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
+      _syncSetState(
+        () => _statusMessage = '生存中の鬼が施設付近にいるため、ここでは告発できません',
+      );
+      return;
+    }
+    if (!await OnboardingPrefs.accusationIntroSeen()) {
+      await _maybeShowAccusationIntro();
+      if (!mounted || _gameState != GameState.running) return;
+    }
+    if (_accusationPromptOpen) return;
+    _accusationPromptOpen = true;
+    await _openAccusationFlow(siteIndex: siteIndex);
+  }
+
   int? _accusationSiteIndexInRange() {
     final sites = _rt.accusationFacilityPositions;
     if (sites.isEmpty) return null;
@@ -158,8 +184,7 @@ extension _GameMapAccusation on _GameMapScreenState {
       _syncSetState(() => _statusMessage = '生存中の鬼が施設付近にいるため、ここでは告発できません');
       return;
     }
-    _accusationPromptOpen = true;
-    unawaited(_openAccusationFlow(siteIndex: siteIndex));
+    unawaited(_promptAccusationAtSite(siteIndex));
   }
 
   Future<void> _openAccusationFlow({required int siteIndex}) async {

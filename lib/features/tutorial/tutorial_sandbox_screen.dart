@@ -123,7 +123,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
             showRunner: true,
           ),
           _Step(
-            text: 'スキルで逃げ場を奪える。スキルを押してみよう。',
+            text: 'スキルで逃げ場を奪える。押してから地図を押し続けて範囲を確認しよう。',
             act: _Act.pressSkill,
             showRunner: true,
           ),
@@ -160,8 +160,8 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   }
 
   String get _skillLabel => switch (widget.role) {
-        PlayerRole.runner => '偽情報',
-        PlayerRole.hunter => '捕縛ゾーン',
+        PlayerRole.runner => '偽位置',
+        PlayerRole.hunter => '捕獲結界',
         PlayerRole.werewolf => '変身',
       };
 

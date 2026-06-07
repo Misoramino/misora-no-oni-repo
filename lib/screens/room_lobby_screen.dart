@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../audio/game_audio.dart';
 import '../session/session_prefs.dart';
@@ -77,6 +78,14 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       if (!mounted) return;
       setState(() => _members = session.currentLobbyMembers);
     });
+  }
+
+  Future<void> _onProfileSelected(WorldProfile? next) async {
+    if (next == null || next == _worldProfile) return;
+    await WorldProfilePrefs.save(next);
+    if (!mounted) return;
+    setState(() => _worldProfile = next);
+    GameAudio.instance.playMenuBgm(next);
   }
 
   Future<void> _join() async {
@@ -171,6 +180,31 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     }
   }
 
+  Future<void> _claimHostIfAbsent() async {
+    final fs = _session;
+    if (fs == null) return;
+    final err = await fs.claimHostIfAbsent();
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('あなたがホストになりました')),
+      );
+      setState(() {});
+    }
+  }
+
+  Future<void> _copyRoomId() async {
+    final id = _session?.roomId;
+    if (id == null || id.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: id));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('ルームID「$id」をコピーしました')),
+    );
+  }
+
   Future<void> _openMap() async {
     final fs = _session;
     if (fs == null || fs.roomId == null) return;
@@ -227,18 +261,24 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              InputDecorator(
+                              DropdownButtonFormField<WorldProfile>(
+                                initialValue: _worldProfile,
                                 decoration: const InputDecoration(
                                   labelText: '地図の世界観',
                                   border: OutlineInputBorder(),
                                 ),
-                                child: Text(
-                                  _worldProfile.label,
-                                  style: theme.textTheme.bodyLarge,
-                                ),
+                                items: WorldProfile.values
+                                    .map(
+                                      (p) => DropdownMenuItem(
+                                        value: p,
+                                        child: Text(p.label),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: _joining ? null : _onProfileSelected,
                               ),
                               Text(
-                                'タイトル画面の世界観設定がマップに反映されます',
+                                'マップの見た目・BGMに反映されます（端末ごとの設定）',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -290,19 +330,24 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: FilledButton(
-                                      onPressed: _joining ? null : _join,
-                                      child: _joining
-                                          ? const SizedBox(
-                                              height: 22,
-                                              width: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
+                                    child: Semantics(
+                                      button: true,
+                                      label: _joined ? 'ルームに再参加' : 'ルームに参加',
+                                      child: FilledButton(
+                                        onPressed: _joining ? null : _join,
+                                        child: _joining
+                                            ? const SizedBox(
+                                                height: 22,
+                                                width: 22,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : Text(
+                                                _joined ? '再参加' : 'ルームに参加',
                                               ),
-                                            )
-                                          : Text(
-                                              _joined ? '再参加' : 'ルームに参加',
-                                            ),
+                                      ),
                                     ),
                                   ),
                                   if (_joined) ...[
@@ -325,6 +370,48 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                   ],
                                 ],
                               ),
+                              if (_joined && _session?.roomId != null) ...[
+                                const SizedBox(height: 16),
+                                _RoomIdShareCard(
+                                  roomId: _session!.roomId!,
+                                  isHost: _session!.isHost,
+                                  onCopy: _copyRoomId,
+                                ),
+                                if (_session!.isHostAbsent(DateTime.now().toUtc()) &&
+                                    !_session!.isHost) ...[
+                                  const SizedBox(height: 10),
+                                  Material(
+                                    color: theme.colorScheme.tertiaryContainer,
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          Text(
+                                            'ホストがオフラインです',
+                                            style: theme.textTheme.titleSmall
+                                                ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            'ゲーム画面で「ホストを引き継ぐ」から開始できます。',
+                                            style: TextStyle(fontSize: 13),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          FilledButton.tonal(
+                                            onPressed: _claimHostIfAbsent,
+                                            child: const Text('ホストを引き継ぐ'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                               const SizedBox(height: 16),
                               Text(
                                 'メンバー (${_members.length})',
@@ -401,6 +488,68 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                     ),
                   ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomIdShareCard extends StatelessWidget {
+  const _RoomIdShareCard({
+    required this.roomId,
+    required this.isHost,
+    required this.onCopy,
+  });
+
+  final String roomId;
+  final bool isHost;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'ルームID',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    roomId,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'コピー',
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.copy_rounded),
+                ),
+              ],
+            ),
+            Text(
+              isHost
+                  ? 'このIDを友達に送って、同じルームに参加してもらいましょう。'
+                  : '友達にもこのIDを共有できます。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],

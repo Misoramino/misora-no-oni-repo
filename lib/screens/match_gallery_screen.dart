@@ -91,7 +91,43 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                   ),
                 Expanded(
                   child: _items.isEmpty
-                      ? const Center(child: Text('まだ保存された試合がありません。\n開始前に「軌跡を保存」をオンにしてください。'))
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.movie_filter_outlined,
+                                  size: 56,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outline,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '保存された試合がありません',
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '試合前に個人設定で「軌跡を端末保存」をオンにすると、'
+                                  '終了後にここからリプレイできます。',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                       : ListView.separated(
                           itemCount: _items.length,
                           separatorBuilder: (_, _) => const Divider(height: 1),

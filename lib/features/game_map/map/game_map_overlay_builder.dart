@@ -586,6 +586,22 @@ abstract final class GameMapOverlayBuilder {
     }
 
     if (L.captureZone &&
+        s.skillPlacementPreviewLatLng != null &&
+        s.skillPlacementPreviewRadiusMeters > 0) {
+      circles.add(
+        Circle(
+          circleId: const CircleId('skill-placement-preview'),
+          center: s.skillPlacementPreviewLatLng!,
+          radius: s.skillPlacementPreviewRadiusMeters,
+          strokeWidth: 2,
+          fillColor: tokens.captureZoneColor.withValues(alpha: 0.14),
+          strokeColor: tokens.captureZoneColor.withValues(alpha: 0.72),
+          zIndex: 11,
+        ),
+      );
+    }
+
+    if (L.captureZone &&
         s.lockZoneCenter != null &&
         s.lockZoneDisplayRadiusMeters > 0) {
       circles.add(

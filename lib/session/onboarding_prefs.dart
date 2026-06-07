@@ -5,6 +5,8 @@ abstract final class OnboardingPrefs {
   static const _welcomeKey = 'onboarding_welcome_seen_v1';
   static const _prepGuideKey = 'onboarding_prep_guide_seen_v1';
   static const _coachKey = 'onboarding_coach_marks_seen_v1';
+  static const _matchCoachKey = 'onboarding_match_coach_marks_seen_v1';
+  static const _accusationIntroKey = 'onboarding_accusation_intro_seen_v1';
 
   static Future<bool> welcomeSeen() => _get(_welcomeKey);
   static Future<void> markWelcomeSeen() => _set(_welcomeKey, true);
@@ -15,12 +17,33 @@ abstract final class OnboardingPrefs {
   static Future<bool> coachMarksSeen() => _get(_coachKey);
   static Future<void> markCoachMarksSeen() => _set(_coachKey, true);
 
+  static Future<bool> matchCoachMarksSeen() => _get(_matchCoachKey);
+  static Future<void> markMatchCoachMarksSeen() =>
+      _set(_matchCoachKey, true);
+
+  static Future<bool> accusationIntroSeen() => _get(_accusationIntroKey);
+  static Future<void> markAccusationIntroSeen() =>
+      _set(_accusationIntroKey, true);
+
+  static Future<void> resetPrepCoachMarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_coachKey);
+    await prefs.remove(_prepGuideKey);
+  }
+
+  static Future<void> resetMatchCoachMarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_matchCoachKey);
+  }
+
   /// すべての初回フラグを消し、導入を最初から見られるようにする。
   static Future<void> resetAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_welcomeKey);
     await prefs.remove(_prepGuideKey);
     await prefs.remove(_coachKey);
+    await prefs.remove(_matchCoachKey);
+    await prefs.remove(_accusationIntroKey);
   }
 
   static Future<bool> _get(String key) async {

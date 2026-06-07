@@ -55,6 +55,10 @@ extension _GameMapOverlay on _GameMapScreenState {
       fakePositionLatLng: _rt.fakePositionLatLng,
       bodyThrowPosition: _rt.bodyThrowPosition,
       bodyThrowAwaitingMapTap: _rt.bodyThrowAwaitingMapTap,
+      waitingSkillLockMapTap: _rt.waitingSkillLockMapTap,
+      skillPlacementPreviewLatLng: _skillPlacementPreviewLatLng,
+      skillPlacementPreviewRadiusMeters:
+          _skillPlacementPreviewRadiusMeters(),
       afterCatchRule: _afterCatchRule,
       ghostRoughPositions: _afterCatchRule != null
           ? GameMapOverlayBuilder.ghostRoughPositions(
@@ -100,6 +104,14 @@ extension _GameMapOverlay on _GameMapScreenState {
   }
 
   int _secondsUntil(DateTime? target) => MapGeoFormat.secondsUntil(target);
+
+  double _skillPlacementPreviewRadiusMeters() {
+    if (_skillPlacementPreviewLatLng == null) return 0;
+    if (_rt.waitingSkillLockMapTap) {
+      return GameConfig.captureZoneSkillRadiusMeters;
+    }
+    return 12;
+  }
 
   void _logDebug(String line) {
     final stamp = DateTime.now().toIso8601String().substring(11, 19);

@@ -30,7 +30,7 @@ Future<MatchQuickPreset?> showMatchQuickPresetPicker(BuildContext context) {
               ),
               const SizedBox(height: 6),
               Text(
-                '詳細（告発の重み・ギミック等）は後からカスタムルールで変更できます。',
+                '詳細（告発の重み・ギミック等）は後から「ルール・役職」で変更できます。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

@@ -10,6 +10,7 @@ class PrepMapToolsPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
+    this.playAreaSummary,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class PrepMapToolsPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
+  final String? playAreaSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -57,11 +59,38 @@ class PrepMapToolsPanel extends StatelessWidget {
             ],
           ),
           Text(
-            '現在地の確認・エリアの編集・保存に使います（試合中のスキルパネルとは別）。',
+            '現在地の確認・プレイエリアの編集・保存に使います（試合中のスキルパネルとは別）。',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
           ),
+          if (playAreaSummary != null && playAreaSummary!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: scheme.primary.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.crop_free, size: 18, color: scheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '現在: ${playAreaSummary!}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           FilledButton.tonalIcon(
             onPressed: onToggleAreaEdit,
@@ -115,7 +144,7 @@ class PrepMapToolsPanel extends StatelessWidget {
             ],
           ),
           Text(
-            '時間・ルールは準備のカスタムルールから。',
+            '時間・ルールは準備画面の「ルール・役職」から。',
             style: Theme.of(
               context,
             ).textTheme.labelSmall?.copyWith(color: fgMuted, height: 1.35),

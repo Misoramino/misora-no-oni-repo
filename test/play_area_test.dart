@@ -42,4 +42,21 @@ void main() {
     expect(area.type, PlayAreaType.polygon);
     expect(area.points.length, greaterThanOrEqualTo(3));
   });
+
+  test('shapeSummary labels', () {
+    const circle = PlayArea.circle(
+      center: LatLng(35.5, 139.7),
+      radiusMeters: 420,
+    );
+    expect(circle.shapeSummary(), '円 · 半径 420 m');
+
+    const polygon = PlayArea.polygon(
+      points: [
+        LatLng(35.68, 139.76),
+        LatLng(35.68, 139.77),
+        LatLng(35.69, 139.77),
+      ],
+    );
+    expect(polygon.shapeSummary(), '多角形 · 3 頂点');
+  });
 }

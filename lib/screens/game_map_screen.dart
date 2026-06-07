@@ -34,9 +34,8 @@ import '../features/game_map/match/match_geo_helpers.dart';
 import '../features/game_map/match/match_runtime_state.dart';
 import '../features/game_map/match/match_tick_effects.dart';
 import '../features/game_map/match/match_tick_evaluator.dart';
-import '../features/game_map/play_area/geo_json_actions.dart';
 import '../features/game_map/prep/prep_lobby_panel.dart';
-import '../features/game_map/widgets/how_to_play_sheet.dart';
+import '../features/game_map/widgets/location_permission_prompt.dart';
 import '../game/role_briefing.dart';
 import '../features/game_map/widgets/role_briefing_dialog.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
@@ -54,9 +53,15 @@ import '../features/game_map/hud/match_phase.dart';
 import '../features/game_map/hud/second_game_intro_overlay.dart';
 import '../features/game_map/settings/match_quick_preset_picker.dart';
 import '../features/game_map/widgets/game_info_panel.dart';
+import '../config/google_maps_config.dart';
+import '../features/game_map/widgets/maps_api_key_banner.dart';
+import '../features/match/match_result_hints.dart';
+import '../features/settings/settings_hub_sheet.dart';
+import '../features/game_map/widgets/how_to_play_sheet.dart';
 import '../session/hud_display_prefs.dart';
 import '../features/game_map/widgets/game_map_overflow_menu.dart';
 import '../features/game_map/widgets/map_layer_toggle_strip.dart';
+import '../features/game_map/widgets/skill_map_placement_layer.dart';
 import '../features/game_map/widgets/prep_map_bottom_panel.dart';
 import '../features/game_map/widgets/elimination_support_bar.dart';
 import '../game/accusation_sites.dart';
@@ -126,6 +131,7 @@ import '../widgets/confirm_dialog.dart';
 import '../session/game_map_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../settings/oni_operator_prefs.dart';
+import 'area_gallery_screen.dart';
 import 'match_gallery_screen.dart';
 import 'match_result_screen.dart';
 import 'oni_operator_screen.dart';
@@ -176,11 +182,6 @@ class GameMapScreen extends StatefulWidget {
 class _GameMapScreenState extends State<GameMapScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const LatLng _defaultOniPosition = LatLng(35.6805, 139.7690);
-
-  /// Roads API 用（Maps と同じキーで可）。未設定時はイベントエリアは従来のランダム配置。
-  static const String _googleMapsApiKey = String.fromEnvironment(
-    'GOOGLE_MAPS_API_KEY',
-  );
 
   // --- Services & controllers ---
   final LocationService _locationService = LocationService();
@@ -284,6 +285,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _testMode = false;
   int _timeScale = 1;
   bool _bodyThrowBroadcastActive = false;
+  LatLng? _skillPlacementPreviewLatLng;
   final List<String> _debugLogs = [];
   double _fps = 60;
   double? _lastGpsAccuracyMeters;
@@ -292,6 +294,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   double _estimatedBatteryScore = 0;
   int _offlineQueueCount = 0;
   String _proximityText = '近接: --';
+  String? _bleProximityIssue;
   ProximityBand _latestProximityBand = ProximityBand.none;
   final int _mockPlayerCount = 6;
   double _gimmickDensity = 1.0;
@@ -316,6 +319,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   StreamSubscription<Map<String, RemoteMemberSnapshot>>? _remoteMembersSub;
   StreamSubscription<RoomMatchState>? _roomMatchSub;
   StreamSubscription<RoomMatchEvent>? _roomEventSub;
+  StreamSubscription<RoomConnectionStatus>? _connectionSub;
+  RoomConnectionStatus _roomConnectionStatus = RoomConnectionStatus.connected;
+  LocationAccessStatus? _locationAccessStatus;
+  bool _locationPromptShown = false;
   final Set<String> _processedRoomEventDocIds = {};
   final Map<String, Timer> _captureBoundTimers = {};
   bool _ownsRoomSession = false;
@@ -343,7 +350,12 @@ class _GameMapScreenState extends State<GameMapScreen>
   final GlobalKey _prepStartKey = GlobalKey();
   final GlobalKey _prepCustomRulesKey = GlobalKey();
   final GlobalKey _prepMapFabKey = GlobalKey();
+  final GlobalKey _matchHudKey = GlobalKey();
+  final GlobalKey _matchHudTuneKey = GlobalKey();
+  final GlobalKey _matchSkillPanelKey = GlobalKey();
+  final GlobalKey _matchOverflowKey = GlobalKey();
   bool _prepOnboardingChecked = false;
+  bool _matchRoleBriefingShown = false;
   String? _matchEventFeedLine;
   bool _secondGameIntroHighlight = false;
   Timer? _secondGameHighlightTimer;
@@ -382,9 +394,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     Future<void>.microtask(_loadLocalNicknameFromPrefs);
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeShowPrepOnboarding();
-      _maybeShowHostQuickPresetPicker();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _maybeShowPrepOnboarding();
+      if (mounted) await _maybeShowHostQuickPresetPicker();
     });
   }
 
@@ -394,7 +406,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     _prepOnboardingChecked = true;
     if (!mounted || _gameState != GameState.waiting) return;
     if (await OnboardingPrefs.prepGuideSeen()) return;
-    await OnboardingPrefs.markPrepGuideSeen();
     if (!mounted || _gameState != GameState.waiting) return;
 
     final seeGuide = await showAppDialog<bool>(
@@ -435,12 +446,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     }
     await _showPrepCoachMarks(markSeen: true);
+    await OnboardingPrefs.markPrepGuideSeen();
   }
 
   Future<void> _showPrepCoachMarks({bool markSeen = false}) async {
     if (!mounted || _gameState != GameState.waiting) return;
-    if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
-    if (!mounted) return;
     await showCoachMarks(context, [
       CoachStep(
         targetKey: _prepStartKey,
@@ -452,15 +462,102 @@ class _GameMapScreenState extends State<GameMapScreen>
         targetKey: _prepCustomRulesKey,
         icon: Icons.tune_rounded,
         title: 'ルールを調整',
-        body: '役職・制限時間・ギミックは「カスタムルール」で変えられます。',
+        body: '役職・制限時間・ギミックは「ルール・役職」タイルから変えられます。',
       ),
       CoachStep(
         targetKey: _prepMapFabKey,
         icon: Icons.map_rounded,
         title: 'エリアを編集',
-        body: '右下の「マップパネル」から、遊ぶエリアの形を編集・保存できます。',
+        body: '右下の「マップパネル」から、試合の舞台（プレイエリア）の形を編集・保存できます。'
+            '枠の外に出すぎると位置がバレやすくなります。'
+            '地図スタイルの確認は試合中メニュー（⋮）の「エリアギャラリー」から。',
       ),
     ]);
+    if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
+  }
+
+  /// 初回試合のみ、役職ブリーフィング後に HUD・スキル・メニューを案内する。
+  Future<void> _maybeShowMatchCoachMarks() async {
+    if (!mounted || _gameState != GameState.running) return;
+    if (await OnboardingPrefs.matchCoachMarksSeen()) return;
+
+    if (_controlSheetMode == ControlSheetMode.hidden) {
+      setState(() => _controlSheetMode = ControlSheetMode.skillsOnly);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+    if (!mounted || _gameState != GameState.running) return;
+
+    final seeGuide = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AppDialog(
+          title: '初めての試合画面',
+          icon: Icons.sports_esports_rounded,
+          actions: [
+            AppDialogAction(
+              label: 'スキップ',
+              filled: false,
+              sfx: SfxId.uiBack,
+              onPressed: () => Navigator.pop(ctx, false),
+            ),
+            AppDialogAction(
+              label: 'ガイドを見る',
+              icon: Icons.touch_app_rounded,
+              onPressed: () => Navigator.pop(ctx, true),
+            ),
+          ],
+          child: Text(
+            'HUD・スキル・メニューの使い方を、'
+            '30秒ほどで案内します。\n'
+            'あとから ⋮ メニューの「遊び方」でも確認できます。',
+            style: theme.textTheme.bodyMedium,
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    if (seeGuide != true) {
+      await OnboardingPrefs.markMatchCoachMarksSeen();
+      return;
+    }
+    await _showMatchCoachMarks(markSeen: true);
+  }
+
+  Future<void> _showMatchCoachMarks({bool markSeen = false}) async {
+    if (!mounted || _gameState != GameState.running) return;
+    await showCoachMarks(context, [
+      CoachStep(
+        targetKey: _matchHudKey,
+        icon: Icons.dashboard_outlined,
+        title: '試合HUD',
+        body: '残り時間と状態がここに出ます。'
+            '「エリア内／外」も表示 — 枠の外は位置がバレやすいです。'
+            'バーをタップすると詳細が開きます。',
+      ),
+      CoachStep(
+        targetKey: _matchHudTuneKey,
+        icon: Icons.tune_rounded,
+        title: '表示の切替',
+        body: '地図のピンや手がかりの表示を調整できます。見づらいときはここを試して。',
+      ),
+      CoachStep(
+        targetKey: _matchSkillPanelKey,
+        icon: Icons.bolt_rounded,
+        title: 'スキル',
+        body: '画面下のボタンでスキルを発動。'
+            '地図に置くスキルは押し続けて範囲を確認し、指を離して設置。'
+            '×へドラッグでキャンセルできます。',
+      ),
+      CoachStep(
+        targetKey: _matchOverflowKey,
+        icon: Icons.more_vert_rounded,
+        title: 'メニュー（⋮）',
+        body: 'サウンド設定・遊び方・エリアギャラリーはここから。'
+            '試合を抜けるときは「試合中止の投票」を使ってください。',
+      ),
+    ]);
+    if (markSeen) await OnboardingPrefs.markMatchCoachMarksSeen();
   }
 
   @override
@@ -704,6 +801,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     _roomEventSub =
         session.roomMatchEvents.listen((ev) => _onRemoteRoomMatchEvent(ev));
 
+    _connectionSub?.cancel();
+    _roomConnectionStatus = session.currentConnectionStatus;
+    _connectionSub = session.connectionStatus.listen((status) {
+      if (!mounted) return;
+      setState(() => _roomConnectionStatus = status);
+    });
+
     final rm = session.currentRoomMatch;
     if (rm.phase == RoomPhase.lobby) {
       session.startRoomEventsListener(lobbySessionKey);
@@ -830,10 +934,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     _proximitySubscription = _proximityService.watch().listen((signal) {
       if (!mounted) return;
       final prev = _latestProximityBand;
+      final bleIssue = _useBleScanPref && _gameState == GameState.running
+          ? _bleIssueFromProximitySource(signal.source)
+          : null;
       setState(() {
         _proximityText =
             '近接: ${signal.band.name} (${(signal.confidence * 100).toStringAsFixed(0)}%)';
         _latestProximityBand = signal.band;
+        _bleProximityIssue = bleIssue;
       });
       _logDebug(
         'proximity:${signal.band.name}:${signal.confidence.toStringAsFixed(2)}',
@@ -999,13 +1107,33 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool get _oniInCommJammingZone => _isPointInCommJammingZone(_oniPosition);
 
   Future<void> _setupLocation() async {
-    final granted = await _locationService.ensurePermission();
-    if (!granted) {
+    var check = await _locationService.checkLocationAccess();
+    if (!check.granted &&
+        check.status == LocationAccessStatus.denied) {
+      final granted = await _locationService.ensurePermission();
+      if (granted) {
+        check = const LocationAccessCheck(LocationAccessStatus.granted);
+      } else {
+        check = await _locationService.checkLocationAccess();
+      }
+    }
+    if (!check.granted) {
       if (!mounted) return;
       setState(() {
-        _statusMessage = '位置情報の許可が必要です（設定を確認してください）';
+        _locationAccessStatus = check.status;
+        _statusMessage = _locationStatusMessage(check.status);
       });
+      if (!_locationPromptShown) {
+        _locationPromptShown = true;
+        unawaited(
+          showLocationPermissionPrompt(context, status: check.status),
+        );
+      }
       return;
+    }
+
+    if (_locationAccessStatus != null && mounted) {
+      setState(() => _locationAccessStatus = null);
     }
 
     await _loadSavedArea();
@@ -1015,6 +1143,37 @@ class _GameMapScreenState extends State<GameMapScreen>
 
     _acceptPosition(position, animateCamera: true);
     _bindGpsSubscription();
+  }
+
+  String _locationStatusMessage(LocationAccessStatus status) {
+    return switch (status) {
+      LocationAccessStatus.serviceDisabled => '位置情報サービスがオフです（設定を確認）',
+      LocationAccessStatus.deniedForever => '位置情報の許可が必要です（アプリ設定から）',
+      LocationAccessStatus.denied => '位置情報の許可が必要です',
+      LocationAccessStatus.granted => '',
+    };
+  }
+
+  String? _onlineConnectionChipLabel() {
+    if (!_isOnlineFirestore) return null;
+    if (_syncInFlight) return '同期中';
+    if (_roomConnectionStatus == RoomConnectionStatus.offline) {
+      return 'オフライン';
+    }
+    return null;
+  }
+
+  Future<void> _claimHostIfAbsent() async {
+    final fs = _firestoreSession;
+    if (fs == null) return;
+    final err = await fs.claimHostIfAbsent();
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+    } else {
+      _toast('あなたがホストになりました');
+      setState(() {});
+    }
   }
 
   /// 課金とバッテリーに優しいよう、状況ごとにGPSの距離フィルタだけ切り替える。
@@ -1375,87 +1534,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _onMapTap(LatLng pos) {
-    if (_rt.bodyThrowAwaitingMapTap) {
-      final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-        pos.latitude,
-        pos.longitude,
-      );
-      if (d > GameConfig.bodyThrowDistanceMeters) {
-        _toast(
-          '人形は現在地から ${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内に置けます',
-        );
-        return;
-      }
-      if (!_playArea.contains(pos)) {
-        _toastBodyThrowAreaHint();
-        return;
-      }
-      final now = DateTime.now();
-      setState(() {
-        _rt.bodyThrowAwaitingMapTap = false;
-        _rt.bodyThrowTapDeadline = null;
-        _rt.bodyThrowSkillOriginLatLng = null;
-        _rt.lastBodyThrowAt = now;
-        _rt.bodyThrowPosition = pos;
-        _rt.bodyThrowEndsAt = now.add(
-          const Duration(seconds: GameConfig.bodyThrowDurationSeconds),
-        );
-        _statusMessage = '人形稼働中（回収まで ${GameConfig.bodyThrowDurationSeconds} 秒）';
-      });
-      _emitMatchEvent(
-        type: 'body_throw_start',
-        message: '体投げ発動',
-        position: pos,
-        endsAtMs: _rt.bodyThrowEndsAt!.millisecondsSinceEpoch,
-      );
-      GameAudio.instance.playSfx(SfxId.skillCast);
-      // 鬼の配信位置を即座に人形へ（捕獲判定の中心を移す）。
-      _syncHunterBroadcastForBodyThrow();
-      return;
-    }
-    if (_rt.waitingSkillLockMapTap) {
-      final now = DateTime.now();
-      final d = Geolocator.distanceBetween(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-        pos.latitude,
-        pos.longitude,
-      );
-      final rawTargets = _captureZoneTargetsAt(pos, d);
-      final placeId =
-          'cz_${now.millisecondsSinceEpoch}_${_firestoreSession?.myUid ?? 'local'}';
-      setState(() {
-        _rt.waitingSkillLockMapTap = false;
-        _rt.lockZoneCenter = pos;
-        _rt.lockZoneFromSkill = true;
-        _rt.lockZoneCapturePermitted = _captureZoneLethalForLocal;
-        _rt.lockZoneBoundIds = rawTargets;
-        _rt.lockZoneTargetLeftAt = null;
-        _rt.lockZoneEscapeRevealed = false;
-        _rt.lockZoneEndsAt = now.add(
-          const Duration(seconds: GameConfig.captureZoneDurationSeconds),
-        );
-        _statusMessage = _captureZoneLethalForLocal
-            ? '捕獲結界を設置しました'
-            : '攪乱結界を設置（${MatchUiTerms.panicMechanic}・拘束のみ・捕獲不可）';
-      });
-      _emitMatchEvent(
-        type: 'capture_zone_start',
-        message: '捕獲結界を設置',
-        position: pos,
-        syncFirestore: !_isOnlineFirestore,
-      );
-      if (_isOnlineFirestore) {
-        unawaited(
-          _publishCaptureZonePlaced(placeId, pos, rawTargets, fromSkill: true),
-        );
-        if (_isHost) {
-          _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
-          _scheduleHostCaptureBoundOnce(placeId: placeId, center: pos);
-        }
-      }
+    if (_rt.bodyThrowAwaitingMapTap || _rt.waitingSkillLockMapTap) {
       return;
     }
     if (!_editingArea) return;
@@ -1505,58 +1584,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       _polygonDraftClosed = false;
       _statusMessage = '頂点をクリアしました';
     });
-  }
-
-  Future<void> _showImportGeoJsonDialog() async {
-    try {
-      final area = await GeoJsonActions.showImportDialog(context);
-      if (area == null || !mounted) return;
-      await _areaStore.save(area);
-      setState(() {
-        _playArea = area;
-        if (area.type == PlayAreaType.circle) {
-          _circleDraftCenter = area.center;
-          _circleDraftRadiusMeters = area.radiusMeters;
-        }
-        _statusMessage = 'GeoJSON からプレイエリアを読み込みました';
-      });
-      if (_isHost) {
-        unawaited(
-          _publishLobbyPlayArea(slotName: 'GeoJSON', slotId: 'geojson_import'),
-        );
-      }
-      _toast('保存済み。必要ならエリア編集で微調整してください。');
-    } catch (e) {
-      _toast('パース失敗: $e');
-    }
-  }
-
-  Future<void> _exportGeoJson() async {
-    await GeoJsonActions.exportToClipboard(
-      context,
-      _playArea,
-      onCopied: _toast,
-    );
-  }
-
-  Future<void> _copyDiscordStatusSummary() async {
-    final lines = [
-      '**Oni Game 状況共有**',
-      '- 状態: ${_gameState.label}',
-      '- ルーム: ${_roomSession.modeLabel}',
-      '- エリア: ${_playAreaSummary()}',
-      '- 役職: ${_localRole.displayName}${_isPerceivedOniNow && _localRole != PlayerRole.hunter ? "（鬼化中）" : ""}${_werewolfStatusSuffix()}',
-      '- スキル: ${_skillLoadout.map(_skillLabelForUi).join(" / ")}',
-      '- 残り時間: ${MapGeoUtils.formatClock(_rt.remainingSeconds)}',
-      '- 位置暴露: $_rt.revealCount 回',
-      '- 情報屋: ${_rt.lastOniIntelText == null ? "未取得" : _latestIntelLine()}',
-      '- ギミック: 安全地帯 ${_rt.safeZonePositions.length} / 情報屋 ${_rt.infoBrokerPositions.length} / カメラ ${_rt.cameraPositions.length} / イベント ${_rt.commJammingZonePositions.length}',
-      '',
-      '現在地共有は必要な時だけ別途行ってください。',
-    ];
-    await Clipboard.setData(ClipboardData(text: lines.join('\n')));
-    if (!mounted) return;
-    _toast('Discord貼り付け用の状況メモをコピーしました');
   }
 
   void _showRevealLog() {
@@ -1794,8 +1821,14 @@ class _GameMapScreenState extends State<GameMapScreen>
         ? FactionSide.humanTeam
         : FactionSide.oniTeam;
     final localFaction = _effectiveLocalFaction();
+    final personalWon = winningFaction == localFaction;
+    final progressBefore = await ProgressStore.load();
+    final contextualHint = MatchResultHints.afterMatch(
+      before: progressBefore,
+      won: personalWon,
+    );
     await _recordMatchProgressOnce(
-      won: winningFaction == localFaction,
+      won: personalWon,
       faction: localFaction,
     );
     _dismissOpenModals();
@@ -1815,6 +1848,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           matchDurationLabel: _matchDurationLabel(),
           accusationPointsHuman: _rt.accusationPointsHuman,
           afterCatchRule: _afterCatchRule,
+          contextualHint: contextualHint,
           onPrepareNext: () {
             Navigator.of(context).pop();
             _resetGame();
@@ -1917,11 +1951,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _openCustomMenu() async {
     if (_gameState == GameState.running) {
-      _toast('ゲーム中はカスタム設定を変更できません');
+      _toast('ゲーム中はルール設定を変更できません');
       return;
     }
     if (!_isHost && !_participantRulesOpen) {
-      _toast('カスタムルールの編集はホストが開放するまで待ってください');
+      _toast('ルール編集はホストが開放するまで待ってください');
       return;
     }
     final result = await showGameCustomSettingsSheet(
@@ -2013,7 +2047,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       );
       if (err != null && mounted) _toast(err);
     }
-    _toast('カスタム設定を適用しました');
+    _toast('ルール設定を適用しました');
   }
 
   void _cycleTimeScale() {
@@ -2054,6 +2088,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _ownsRoomSession = false;
     });
     Navigator.of(context).popUntil((route) => route.isFirst);
+    GameAudio.instance.playMenuBgm(_activeProfile);
   }
 
   Future<void> _openRoomLobby() async {
@@ -2066,7 +2101,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           title: const Text('ルームロビー'),
           content: const Text(
             'ルームからは退出せず、メンバー一覧とゲーム画面へ進むボタンを開きます。\n'
-            '画面上部の「Home」でタイトルに戻ると、ルームから退出した扱いになります。',
+            'タイトルへ戻るときは左上の家アイコンを使ってください。',
           ),
           actions: [
             TextButton(
@@ -2085,6 +2120,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted) return;
     if (_gameState == GameState.running) {
       _discardActiveMatchForNavigation();
+      GameAudio.instance.playMenuBgm(_activeProfile);
     }
     final fs = _roomSession is FirestoreRoomSession
         ? _roomSession as FirestoreRoomSession
@@ -2156,11 +2192,15 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<bool> _confirmLeaveActiveMatch(String title) async {
     if (_gameState != GameState.running) return true;
+    final onlineNote = _isOnlineFirestore
+        ? 'オンライン試合では、More（⋮）の「試合中止の投票」で全員の同意後に終了できます。\n\n'
+            '今すぐ退出するとルームから切断されます。'
+        : '現在の試合記録は破棄されます。';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: const Text('試合中の移動です。現在の試合記録は破棄されます。'),
+        content: Text('試合中の移動です。$onlineNote'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -2178,6 +2218,33 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _showHowToPlaySheet() =>
       showHowToPlaySheet(context, yourRole: _localRole);
+
+  String? _bleIssueFromProximitySource(String source) {
+    if (source.contains('ble_permission_denied')) {
+      return 'BLE: 権限がないためGPSのみ';
+    }
+    if (source.startsWith('ble_adapter_') &&
+        !source.contains('ble_adapter_on')) {
+      return 'BLE: BluetoothがオフのためGPSのみ';
+    }
+    return null;
+  }
+
+  Future<void> _openSettingsHub() async {
+    await showSettingsHubSheet(
+      context,
+      yourRole: _localRole,
+      onOpenDisplaySettings: _gameState == GameState.running
+          ? _openHudDisplaySheet
+          : null,
+      onOpenPrivacy: () async {
+        if (!context.mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(builder: (_) => const PrivacyControlScreen()),
+        );
+      },
+    );
+  }
 
   Future<void> _openHudDisplaySheet() async {
     if (_gameState != GameState.running) return;
@@ -2360,8 +2427,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _onOverflowMenuSelected(String value) async {
     switch (value) {
-      case 'discord':
-        await _copyDiscordStatusSummary();
+      case 'settings':
+        await _openSettingsHub();
+        break;
+      case 'area_gallery':
+        await _openAreaGallery();
         break;
       case 'help':
         _showHowToPlaySheet();
@@ -2377,12 +2447,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         break;
       case 'history':
         _showRevealLog();
-        break;
-      case 'privacy':
-        if (!context.mounted) return;
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(builder: (_) => const PrivacyControlScreen()),
-        );
         break;
       case 'abort_vote':
         await _requestAbortByVote();
@@ -2402,19 +2466,26 @@ class _GameMapScreenState extends State<GameMapScreen>
       case 'dev_oni_move':
         if (_testMode) _moveOniForTest();
         break;
-      case 'import':
-        if (_gameState == GameState.running) {
-          _toast('ゲーム中は GeoJSON をインポートできません');
-        } else {
-          await _showImportGeoJsonDialog();
-        }
-        break;
-      case 'export':
-        await _exportGeoJson();
-        break;
-      case 'show_panel':
-        _showControlPanel();
-        break;
+    }
+  }
+
+  Future<void> _openAreaGallery() async {
+    final picked = await Navigator.of(context).push<String?>(
+      MaterialPageRoute<String?>(
+        builder: (_) => AreaGalleryScreen(
+          store: _areaSlotStore,
+          selectedId: _selectedPlayAreaSlotId,
+          canEdit: _gameState != GameState.running,
+        ),
+      ),
+    );
+    if (!mounted || picked == null) return;
+    await _loadPlayAreaSlots();
+    if (!mounted) return;
+    setState(() => _selectedPlayAreaSlotId = picked);
+    if (_isHost) {
+      _hostApplySelectedPlayArea();
+      _toast('エリアを適用しました');
     }
   }
 
@@ -2427,6 +2498,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _remoteMembersSub?.cancel();
     _roomMatchSub?.cancel();
     _roomEventSub?.cancel();
+    _connectionSub?.cancel();
     _matchTimer?.cancel();
     _hudRevealAlertTimer?.cancel();
     _secondGameHighlightTimer?.cancel();
@@ -2478,9 +2550,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
     final mq = MediaQuery.of(context);
     final narrow = mq.size.width < 400;
+    final onPrepPanel =
+        _gameState == GameState.waiting && !showGameMap && !_editingArea;
     final appTitle = narrow
         ? switch (_gameState) {
-            GameState.waiting => '準備',
+            GameState.waiting => onPrepPanel ? 'Oni Game' : '準備',
             GameState.running => 'プレイ中',
             GameState.runnerWin => '逃走成功',
             GameState.caughtByOni => locallyEliminated
@@ -2488,7 +2562,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 : '捕獲',
           }
         : switch (_gameState) {
-            GameState.waiting => 'Oni Game ・ 準備',
+            GameState.waiting => onPrepPanel ? 'Oni Game' : 'Oni Game ・ 準備',
             GameState.running => 'Oni Game ・ プレイ中',
             GameState.runnerWin => 'Oni Game ・ 逃走成功',
             GameState.caughtByOni => locallyEliminated
@@ -2515,18 +2589,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onPressed: _leaveMapViewToPrep,
                 )
               : IconButton(
-                  tooltip: '戻る',
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).maybePop(),
+                  tooltip: 'タイトルへ',
+                  icon: const Icon(Icons.home_outlined),
+                  onPressed: _backToTitle,
                 ),
           title: Text(appTitle),
           actions: [
             if (!running) ...[
-              TextButton.icon(
-                onPressed: _backToTitle,
-                icon: const Icon(Icons.home_outlined, size: 18),
-                label: const Text('Home'),
-              ),
               TextButton.icon(
                 onPressed: _openRoomLobby,
                 icon: const Icon(Icons.groups_outlined, size: 18),
@@ -2534,11 +2603,10 @@ class _GameMapScreenState extends State<GameMapScreen>
               ),
             ],
             GameMapOverflowMenu(
+              menuKey: _matchOverflowKey,
               gameState: _gameState,
               editingArea: _editingArea,
               testMode: _testMode,
-              panelHidden: panelHidden,
-              prepControlSheetOpen: _prepControlSheetOpen,
               onSelected: (value) => unawaited(_onOverflowMenuSelected(value)),
             ),
           ],
@@ -2550,28 +2618,53 @@ class _GameMapScreenState extends State<GameMapScreen>
                 child: Builder(
                   builder: (context) {
                     final overlay = _overlaySnapshot(tokens);
-                    return GoogleMap(
-                      style: _mapVisual.mapStyleJson,
-                      initialCameraPosition: CameraPosition(
-                        target: _currentPosition,
-                        zoom: 16,
-                      ),
-                      myLocationEnabled: true,
-                      myLocationButtonEnabled: true,
-                      markers: GameMapOverlayBuilder.buildMarkers(overlay),
-                      polylines: GameMapOverlayBuilder.buildPolylines(overlay),
-                      circles: GameMapOverlayBuilder.buildCircles(overlay),
-                      polygons: GameMapOverlayBuilder.buildPolygons(overlay),
-                      onTap: _onMapTap,
-                      onMapCreated: _onMapCreated,
-                      onCameraIdle: _onCameraIdle,
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        GoogleMap(
+                          style: _mapVisual.mapStyleJson,
+                          initialCameraPosition: CameraPosition(
+                            target: _currentPosition,
+                            zoom: 16,
+                          ),
+                          myLocationEnabled: true,
+                          myLocationButtonEnabled: true,
+                          markers:
+                              GameMapOverlayBuilder.buildMarkers(overlay),
+                          polylines:
+                              GameMapOverlayBuilder.buildPolylines(overlay),
+                          circles:
+                              GameMapOverlayBuilder.buildCircles(overlay),
+                          polygons:
+                              GameMapOverlayBuilder.buildPolygons(overlay),
+                          onTap: _onMapTap,
+                          onMapCreated: _onMapCreated,
+                          onCameraIdle: _onCameraIdle,
+                        ),
+                        SkillMapPlacementLayer(
+                          mapController: _mapController,
+                          active: _skillMapPlacementActive,
+                          isBodyThrow: _rt.bodyThrowAwaitingMapTap,
+                          hint: _rt.bodyThrowAwaitingMapTap
+                              ? '指を離して人形を設置。下の×へドラッグでキャンセル'
+                              : '指を離して結界を設置。下の×へドラッグでキャンセル',
+                          onPreview: (latLng) {
+                            if (_skillPlacementPreviewLatLng == latLng) return;
+                            setState(() => _skillPlacementPreviewLatLng = latLng);
+                          },
+                          onConfirm: _confirmSkillMapPlacementAt,
+                          onCancel: _cancelSkillMapPlacement,
+                        ),
+                      ],
                     );
                   },
                 ),
               )
             else
               Positioned.fill(
-                child: PrepLobbyPanel(
+                child: Stack(
+                  children: [
+                    PrepLobbyPanel(
                   roomLabel: _roomSession.modeLabel,
                   playAreaLabel: _playAreaSummary(),
                   matchDurationMinutes: _matchDurationSeconds / 60,
@@ -2597,6 +2690,23 @@ class _GameMapScreenState extends State<GameMapScreen>
                   worldVisualProfile: _mapVisual.pack.profile,
                   startButtonKey: _prepStartKey,
                   customRulesKey: _prepCustomRulesKey,
+                  hostAbsent: _isOnlineFirestore &&
+                      !_isHost &&
+                      (_firestoreSession?.isHostAbsent(
+                            DateTime.now().toUtc(),
+                          ) ??
+                          false),
+                  hostLabel: _firestoreSession?.hostMember?.nickname,
+                  onClaimHost: _claimHostIfAbsent,
+                ),
+                    if (_isHost && !GoogleMapsConfig.isConfigured)
+                      const Positioned(
+                        top: 8,
+                        left: 12,
+                        right: 12,
+                        child: MapsApiKeyBanner(),
+                      ),
+                  ],
                 ),
               ),
             if (showGameMap)
@@ -2754,12 +2864,62 @@ class _GameMapScreenState extends State<GameMapScreen>
                 ),
               ),
             ],
+            if (_locationAccessStatus != null)
+              Positioned(
+                top: showHudPanel ? 72 : 8,
+                left: 12,
+                right: 12,
+                child: Material(
+                  elevation: 3,
+                  borderRadius: BorderRadius.circular(10),
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.location_off_rounded,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    title: Text(
+                      _locationStatusMessage(_locationAccessStatus!),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color:
+                            Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () {
+                        if (_locationAccessStatus == null) return;
+                        unawaited(
+                          showLocationPermissionPrompt(
+                            context,
+                            status: _locationAccessStatus!,
+                          ).then((_) => _setupLocation()),
+                        );
+                      },
+                      child: const Text('設定'),
+                    ),
+                  ),
+                ),
+              ),
+            if (_isHost &&
+                (showGameMap || _editingArea) &&
+                !GoogleMapsConfig.isConfigured)
+              Positioned(
+                top: _locationAccessStatus != null
+                    ? (showHudPanel ? 128 : 64)
+                    : (showHudPanel ? 72 : 8),
+                left: 12,
+                right: 12,
+                child: const MapsApiKeyBanner(),
+              ),
             if (showHudPanel)
               Positioned(
                 top: 18,
                 left: 16,
                 right: 16,
                 child: GameInfoPanel(
+                  key: _matchHudKey,
                   expanded: _hudExpanded,
                   onToggleExpanded: () =>
                       setState(() => _hudExpanded = !_hudExpanded),
@@ -2777,6 +2937,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                       _latestIntelLine().isNotEmpty,
                   onOpenIntelLog: _openCombinedIntelRevealLogSheet,
                   onOpenDisplaySettings: _openHudDisplaySheet,
+                  displaySettingsKey: _matchHudTuneKey,
                   showStatusLine: _hudShowStatusLine,
                   showConditionLine: _hudShowConditionLine,
                   timerText: MapGeoUtils.formatClock(_rt.remainingSeconds),
@@ -2808,6 +2969,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                   phaseLabel: _matchPhaseLabel(),
                   eventFeedLine: _matchEventFeedLine,
+                  connectionChipLabel: _onlineConnectionChipLabel(),
                   mapWorldProfile: _mapVisual.pack.profile,
                 ),
               ),
@@ -2894,6 +3056,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 right: 16,
                 child: running
                     ? GameControlPanel(
+                  skillPanelKey: _matchSkillPanelKey,
                   sheetMode: _controlSheetMode,
                   onCycleSheetMode: _cycleControlSheetMode,
                   onStart: _startGame,
@@ -2908,7 +3071,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onRefreshGps: _setupLocation,
                   onClearTraces: _clearTracePoints,
                   onToggleAreaEdit: _toggleAreaEditor,
-                  onOpenCustomMenu: _openCustomMenu,
                   onOpenPersonalSettings: _openPersonalSettings,
                   onOpenHelp: _showHowToPlaySheet,
                   onDismissPrepSheet: () => setState(() {
@@ -2970,6 +3132,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     )
                     : showGameMap
                     ? PrepMapBottomPanel(
+                        playAreaSummary: _playAreaSummary(),
                         isEditing: _editingArea,
                         areaEditorExpanded: _areaEditorPanelExpanded,
                         onToggleAreaEditorExpanded: () => setState(
@@ -3015,6 +3178,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         }),
                       )
                     : GameControlPanel(
+                        playAreaSummary: _playAreaSummary(),
                         sheetMode: _controlSheetMode,
                         onCycleSheetMode: _cycleControlSheetMode,
                         onStart: _startGame,
@@ -3029,7 +3193,6 @@ class _GameMapScreenState extends State<GameMapScreen>
                         onRefreshGps: _setupLocation,
                         onClearTraces: _clearTracePoints,
                         onToggleAreaEdit: _toggleAreaEditor,
-                        onOpenCustomMenu: _openCustomMenu,
                         onOpenPersonalSettings: _openPersonalSettings,
                         onOpenHelp: _showHowToPlaySheet,
                         onDismissPrepSheet: () => setState(() {

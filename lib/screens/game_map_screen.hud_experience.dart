@@ -94,6 +94,37 @@ extension _GameMapHudExperience on _GameMapScreenState {
     );
   }
 
+  /// 初回で告発施設に入ったときのみ、使い方を1回だけ案内する。
+  Future<void> _maybeShowAccusationIntro() async {
+    if (!mounted || _gameState != GameState.running) return;
+    if (await OnboardingPrefs.accusationIntroSeen()) return;
+
+    final copy = _accusationCopy;
+    await showAppDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AppDialog(
+          title: '${copy.facilityName} に到着',
+          icon: Icons.account_balance_outlined,
+          actions: [
+            AppDialogAction(
+              label: 'OK',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+          child: Text(
+            'このあと告発画面が開きます。'
+            '「${copy.accuseActionLabel}」で相手を選べます。\n'
+            '正解・失敗の影響は試合前のルール設定で決まります。',
+            style: theme.textTheme.bodyMedium,
+          ),
+        );
+      },
+    );
+    await OnboardingPrefs.markAccusationIntroSeen();
+  }
+
   bool get _secondGameCanUseCameraJack =>
       _afterCatchRule?.supportsCameraJack == true;
 

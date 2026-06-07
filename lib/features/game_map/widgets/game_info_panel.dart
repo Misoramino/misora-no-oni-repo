@@ -18,6 +18,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.showIntelLine,
     required this.onOpenIntelLog,
     required this.onOpenDisplaySettings,
+    this.displaySettingsKey,
     required this.timerText,
     required this.gameStateText,
     required this.statusText,
@@ -37,6 +38,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.mapWorldProfile,
     this.phaseLabel,
     this.eventFeedLine,
+    this.connectionChipLabel,
     super.key,
   });
 
@@ -50,6 +52,7 @@ class GameInfoPanel extends StatelessWidget {
   final bool showIntelLine;
   final VoidCallback onOpenIntelLog;
   final VoidCallback onOpenDisplaySettings;
+  final GlobalKey? displaySettingsKey;
   final String timerText;
   final String gameStateText;
   final String statusText;
@@ -69,6 +72,7 @@ class GameInfoPanel extends StatelessWidget {
   final WorldProfile mapWorldProfile;
   final String? phaseLabel;
   final String? eventFeedLine;
+  final String? connectionChipLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -115,32 +119,30 @@ class GameInfoPanel extends StatelessWidget {
         color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
         borderRadius: BorderRadius.circular(10),
         elevation: 1,
-        child: InkWell(
-          onTap: onToggleExpanded,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: areaColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    timerText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: areaColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  timerText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 6),
-                if (phaseLabel != null && phaseLabel!.isNotEmpty)
-                  Container(
+              ),
+              const SizedBox(width: 6),
+              if (phaseLabel != null && phaseLabel!.isNotEmpty)
+                Flexible(
+                  child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
@@ -149,59 +151,78 @@ class GameInfoPanel extends StatelessWidget {
                     ),
                     child: Text(
                       phaseLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: scheme.onPrimaryContainer,
                       ),
                     ),
                   ),
-                if (phaseLabel != null && phaseLabel!.isNotEmpty)
-                  const SizedBox(width: 6),
-                Expanded(
-                  child: HudMarqueeText(
-                    text: compactLineText,
-                    style: theme.textTheme.bodySmall,
+                ),
+              if (phaseLabel != null && phaseLabel!.isNotEmpty)
+                const SizedBox(width: 6),
+              if (connectionChipLabel != null &&
+                  connectionChipLabel!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Chip(
+                    label: Text(connectionChipLabel!),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Theme.of(context)
+                        .colorScheme
+                        .errorContainer
+                        .withValues(alpha: 0.85),
+                    labelStyle: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: '表示の切替（手がかり・地図レイヤー等）',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 32, minHeight: 32),
-                  onPressed: onOpenDisplaySettings,
-                  icon: Icon(Icons.tune, size: 20, color: scheme.primary),
-                ),
-                IconButton(
-                  tooltip: '位置情報・鬼の手がかりログ',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 32, minHeight: 32),
-                  onPressed: onOpenIntelLog,
-                  icon: Icon(Icons.radar, size: 20, color: scheme.primary),
-                ),
-                if (werewolfHudSummary != null)
-                  CooldownChip(label: werewolfHudSummary!, seconds: 0),
-                if (werewolfOniActive && werewolfHudSummary == null)
-                  const CooldownChip(label: '鬼化中', seconds: 0),
-                if (fakeCooldownSeconds > 0)
-                  CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
-                if (fakeIntelRevealCooldownSeconds > 0)
-                  CooldownChip(
-                    label: '偽情報CD',
-                    seconds: fakeIntelRevealCooldownSeconds,
+              Expanded(
+                child: InkWell(
+                  onTap: onToggleExpanded,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: HudMarqueeText(
+                      text: compactLineText,
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 28),
-                  onPressed: onToggleExpanded,
-                  icon: const Icon(Icons.expand_more, size: 20),
                 ),
-              ],
-            ),
+              ),
+              IconButton(
+                key: displaySettingsKey,
+                tooltip: '表示の切替（手がかり・地図レイヤー等）',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: onOpenDisplaySettings,
+                icon: Icon(Icons.tune, size: 20, color: scheme.primary),
+              ),
+              IconButton(
+                tooltip: '位置情報・鬼の手がかりログ',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: onOpenIntelLog,
+                icon: Icon(Icons.radar, size: 20, color: scheme.primary),
+              ),
+              IconButton(
+                tooltip: 'HUDを展開',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: onToggleExpanded,
+                icon: const Icon(Icons.expand_more, size: 20),
+              ),
+            ],
           ),
         ),
       );
@@ -250,6 +271,7 @@ class GameInfoPanel extends StatelessWidget {
               ),
               const Spacer(),
               IconButton(
+                key: displaySettingsKey,
                 tooltip: '表示の切替',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,

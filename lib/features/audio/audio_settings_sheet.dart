@@ -4,6 +4,7 @@ import '../../audio/audio_library.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../session/audio_prefs.dart';
+import '../../session/launch_branding_prefs.dart';
 
 /// サウンド設定（マスター/効果音/BGM 音量・ミュート）のボトムシート。
 Future<void> showAudioSettingsSheet(BuildContext context) {
@@ -15,8 +16,30 @@ Future<void> showAudioSettingsSheet(BuildContext context) {
   );
 }
 
-class _AudioSettingsSheet extends StatelessWidget {
+class _AudioSettingsSheet extends StatefulWidget {
   const _AudioSettingsSheet();
+
+  @override
+  State<_AudioSettingsSheet> createState() => _AudioSettingsSheetState();
+}
+
+class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
+  bool? _launchSoundOn;
+
+  @override
+  void initState() {
+    super.initState();
+    LaunchBrandingPrefs.loadSoundEnabled().then((v) {
+      if (mounted) setState(() => _launchSoundOn = v);
+    });
+  }
+
+  Future<void> _setLaunchSound(bool next) async {
+    await LaunchBrandingPrefs.saveSoundEnabled(next);
+    if (!mounted) return;
+    setState(() => _launchSoundOn = next);
+    GameAudio.instance.playSfx(SfxId.uiTap);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,82 +52,101 @@ class _AudioSettingsSheet extends StatelessWidget {
         child: ValueListenableBuilder<AudioSettings>(
           valueListenable: audio.settings,
           builder: (context, s, _) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.graphic_eq_rounded, color: theme.colorScheme.primary),
-                    const SizedBox(width: 10),
-                    Text('サウンド設定', style: theme.textTheme.titleLarge),
-                    const Spacer(),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        audio.toggleMute();
-                        if (s.muted) audio.playSfx(SfxId.uiToggle);
-                      },
-                      icon: Icon(
-                        s.muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.graphic_eq_rounded,
+                          color: theme.colorScheme.primary),
+                      const SizedBox(width: 10),
+                      Text('サウンド設定', style: theme.textTheme.titleLarge),
+                      const Spacer(),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          audio.toggleMute();
+                          if (s.muted) audio.playSfx(SfxId.uiToggle);
+                        },
+                        icon: Icon(
+                          s.muted
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
+                        ),
+                        label: Text(s.muted ? 'ミュート中' : 'オン'),
                       ),
-                      label: Text(s.muted ? 'ミュート中' : 'オン'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _VolumeRow(
-                  label: 'マスター',
-                  icon: Icons.tune_rounded,
-                  value: s.masterVolume,
-                  enabled: !s.muted,
-                  onChanged: (v) =>
-                      audio.updateSettings(s.copyWith(masterVolume: v)),
-                  onChangeEnd: (_) => audio.playSfx(SfxId.uiTap),
-                ),
-                _VolumeRow(
-                  label: '効果音',
-                  icon: Icons.music_note_rounded,
-                  value: s.sfxVolume,
-                  enabled: !s.muted,
-                  onChanged: (v) => audio.updateSettings(s.copyWith(sfxVolume: v)),
-                  onChangeEnd: (_) => audio.playSfx(SfxId.reward),
-                ),
-                _VolumeRow(
-                  label: 'BGM',
-                  icon: Icons.library_music_rounded,
-                  value: s.bgmVolume,
-                  enabled: !s.muted && s.bgmEnabled,
-                  onChanged: (v) => audio.updateSettings(s.copyWith(bgmVolume: v)),
-                ),
-                _VolumeRow(
-                  label: '環境音',
-                  icon: Icons.air_rounded,
-                  value: s.ambientVolume,
-                  enabled: !s.muted,
-                  onChanged: (v) =>
-                      audio.updateSettings(s.copyWith(ambientVolume: v)),
-                ),
-                const SizedBox(height: 14),
-                Text('BGMの曲', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 8),
-                _BgmChoicePicker(
-                  current: s.bgmChoice,
-                  onPick: (choice) {
-                    audio.updateSettings(s.copyWith(bgmChoice: choice));
-                    audio.playSfx(SfxId.uiTap);
-                  },
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '・タイトル／ロビーは選んだ曲（おまかせ＝世界観ごとの曲）を流します。\n'
-                  '・対戦中はBGMの代わりに、世界観の環境音をときどき鳴らします。\n'
-                  '・OFFにすると効果音と環境音だけになり、好きな音楽を裏で流せます。',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.4,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  _VolumeRow(
+                    label: 'マスター',
+                    icon: Icons.tune_rounded,
+                    value: s.masterVolume,
+                    enabled: !s.muted,
+                    onChanged: (v) =>
+                        audio.updateSettings(s.copyWith(masterVolume: v)),
+                    onChangeEnd: (_) => audio.playSfx(SfxId.uiTap),
+                  ),
+                  _VolumeRow(
+                    label: '効果音',
+                    icon: Icons.music_note_rounded,
+                    value: s.sfxVolume,
+                    enabled: !s.muted,
+                    onChanged: (v) =>
+                        audio.updateSettings(s.copyWith(sfxVolume: v)),
+                    onChangeEnd: (_) => audio.playSfx(SfxId.reward),
+                  ),
+                  _VolumeRow(
+                    label: 'BGM',
+                    icon: Icons.library_music_rounded,
+                    value: s.bgmVolume,
+                    enabled: !s.muted && s.bgmEnabled,
+                    onChanged: (v) =>
+                        audio.updateSettings(s.copyWith(bgmVolume: v)),
+                  ),
+                  _VolumeRow(
+                    label: '環境音',
+                    icon: Icons.air_rounded,
+                    value: s.ambientVolume,
+                    enabled: !s.muted,
+                    onChanged: (v) =>
+                        audio.updateSettings(s.copyWith(ambientVolume: v)),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('BGMの曲', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  _BgmChoicePicker(
+                    current: s.bgmChoice,
+                    onPick: (choice) {
+                      audio.updateSettings(s.copyWith(bgmChoice: choice));
+                      audio.playSfx(SfxId.uiTap);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text('起動演出', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('起動時の効果音'),
+                    subtitle: const Text('アプリ起動ロゴ表示時の短い効果音'),
+                    value: _launchSoundOn ?? true,
+                    onChanged: _launchSoundOn == null
+                        ? null
+                        : (v) => _setLaunchSound(v),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '・タイトル／ロビーは選んだ曲（おまかせ＝世界観ごとの曲）を流します。\n'
+                    '・対戦中はBGMの代わりに、世界観の環境音をときどき鳴らします。\n'
+                    '・OFFにすると効果音と環境音だけになり、好きな音楽を裏で流せます。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),

@@ -301,7 +301,7 @@ extension _GameMapSkills on _GameMapScreenState {
       _toast('偽情報暴露は $cdRemain 秒後に再使用できます');
       return;
     }
-    final self = await showAppDialog<bool>(
+    final self = await showAppDialog<bool?>(
       context: context,
       builder: (ctx) {
         final theme = Theme.of(ctx);
@@ -310,6 +310,12 @@ extension _GameMapSkills on _GameMapScreenState {
           icon: Icons.theater_comedy_rounded,
           accent: theme.colorScheme.tertiary,
           actions: [
+            AppDialogAction(
+              label: 'キャンセル',
+              filled: false,
+              sfx: SfxId.uiBack,
+              onPressed: () => Navigator.pop(ctx),
+            ),
             AppDialogAction(
               label: '自分（鬼）を暴露',
               filled: false,
@@ -323,10 +329,10 @@ extension _GameMapSkills on _GameMapScreenState {
             ),
           ],
           child: Text(
-            'どちらも名前付きの位置露見として地図に出ます（匿名ではありません）。\n'
+            'どちらも名前付きの位置露見として地図に出ます。\n'
             '・自分（鬼）… 別地点に自分の名前で露出\n'
             '・逃走者ランダム… 誰か1人の名前で別地点に露出\n'
-            '相手からは偽情報とは分かりません。囮・ワープ誘導向けです。',
+            '相手からは偽情報とは分かりません。',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -565,9 +571,8 @@ extension _GameMapSkills on _GameMapScreenState {
   void _activateCaptureZone() {
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.captureZone)) return;
-    final now = DateTime.now();
     if (_rt.waitingSkillLockMapTap) {
-      _toast('地図をタップして設置地点を選んでください');
+      _toast('地図を押し続けて範囲を確認し、離して設置');
       return;
     }
     final remain = _cooldownRemainingSeconds(
@@ -578,10 +583,9 @@ extension _GameMapSkills on _GameMapScreenState {
       _toast('捕獲結界の再使用まで $remain 秒');
       return;
     }
-    _rt.lastSkillLockPlacementAt = now;
     _syncSetState(() {
       _rt.waitingSkillLockMapTap = true;
-      _statusMessage = '地図タップ地点に捕獲結界を設置';
+      _statusMessage = '地図を押し続けて範囲を確認し、指を離して設置';
     });
   }
 
@@ -589,7 +593,7 @@ extension _GameMapSkills on _GameMapScreenState {
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.bodyThrow)) return;
     if (_rt.bodyThrowAwaitingMapTap) {
-      _toast('地図をタップして人形を置いてください');
+      _toast('地図を押し続けて位置を決め、離して設置');
       return;
     }
     if (_rt.bodyThrowPosition != null || _rt.bodyThrowEndsAt != null) {
@@ -615,8 +619,118 @@ extension _GameMapSkills on _GameMapScreenState {
         _currentPosition.longitude,
       );
       _statusMessage =
-          '地図をタップして人形を置く（現在地から ${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内）';
+          '地図を押し続けて人形の位置を決め、指を離して設置（${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内）';
     });
+  }
+
+  bool get _skillMapPlacementActive =>
+      _rt.waitingSkillLockMapTap || _rt.bodyThrowAwaitingMapTap;
+
+  void _cancelSkillMapPlacement() {
+    if (!_skillMapPlacementActive) return;
+    _syncSetState(() {
+      _rt.waitingSkillLockMapTap = false;
+      _rt.bodyThrowAwaitingMapTap = false;
+      _rt.bodyThrowTapDeadline = null;
+      _rt.bodyThrowSkillOriginLatLng = null;
+      _skillPlacementPreviewLatLng = null;
+      _statusMessage = 'スキル設置をキャンセルしました';
+    });
+  }
+
+  void _confirmSkillMapPlacementAt(LatLng pos) {
+    if (_rt.bodyThrowAwaitingMapTap) {
+      _placeBodyThrowAt(pos);
+      return;
+    }
+    if (_rt.waitingSkillLockMapTap) {
+      _placeCaptureZoneAt(pos);
+    }
+  }
+
+  void _placeBodyThrowAt(LatLng pos) {
+    final d = Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      pos.latitude,
+      pos.longitude,
+    );
+    if (d > GameConfig.bodyThrowDistanceMeters) {
+      _toast(
+        '人形は現在地から ${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内に置けます',
+      );
+      return;
+    }
+    if (!_playArea.contains(pos)) {
+      _toastBodyThrowAreaHint();
+      return;
+    }
+    final now = DateTime.now();
+    _syncSetState(() {
+      _rt.bodyThrowAwaitingMapTap = false;
+      _rt.bodyThrowTapDeadline = null;
+      _rt.bodyThrowSkillOriginLatLng = null;
+      _rt.lastBodyThrowAt = now;
+      _rt.bodyThrowPosition = pos;
+      _rt.bodyThrowEndsAt = now.add(
+        const Duration(seconds: GameConfig.bodyThrowDurationSeconds),
+      );
+      _skillPlacementPreviewLatLng = null;
+      _statusMessage = '人形稼働中（回収まで ${GameConfig.bodyThrowDurationSeconds} 秒）';
+    });
+    _emitMatchEvent(
+      type: 'body_throw_start',
+      message: '体投げ発動',
+      position: pos,
+      endsAtMs: _rt.bodyThrowEndsAt!.millisecondsSinceEpoch,
+    );
+    GameAudio.instance.playSfx(SfxId.skillCast);
+    _syncHunterBroadcastForBodyThrow();
+  }
+
+  void _placeCaptureZoneAt(LatLng pos) {
+    final now = DateTime.now();
+    final d = Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      pos.latitude,
+      pos.longitude,
+    );
+    final rawTargets = _captureZoneTargetsAt(pos, d);
+    final placeId =
+        'cz_${now.millisecondsSinceEpoch}_${_firestoreSession?.myUid ?? 'local'}';
+    _rt.lastSkillLockPlacementAt = now;
+    _syncSetState(() {
+      _rt.waitingSkillLockMapTap = false;
+      _rt.lockZoneCenter = pos;
+      _rt.lockZoneFromSkill = true;
+      _rt.lockZoneCapturePermitted = _captureZoneLethalForLocal;
+      _rt.lockZoneBoundIds = rawTargets;
+      _rt.lockZoneTargetLeftAt = null;
+      _rt.lockZoneEscapeRevealed = false;
+      _rt.lockZoneEndsAt = now.add(
+        const Duration(seconds: GameConfig.captureZoneDurationSeconds),
+      );
+      _skillPlacementPreviewLatLng = null;
+      _statusMessage = _captureZoneLethalForLocal
+          ? '捕獲結界を設置しました'
+          : '攪乱結界を設置（${MatchUiTerms.panicMechanic}・拘束のみ・捕獲不可）';
+    });
+    _emitMatchEvent(
+      type: 'capture_zone_start',
+      message: '捕獲結界を設置',
+      position: pos,
+      syncFirestore: !_isOnlineFirestore,
+    );
+    if (_isOnlineFirestore) {
+      unawaited(
+        _publishCaptureZonePlaced(placeId, pos, rawTargets, fromSkill: true),
+      );
+      if (_isHost) {
+        _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
+        _scheduleHostCaptureBoundOnce(placeId: placeId, center: pos);
+      }
+    }
   }
 
   int? get _matchEventSessionKey =>
@@ -1196,6 +1310,11 @@ extension _GameMapSkills on _GameMapScreenState {
   }
 
   String _conditionLine() {
+    if (_gameState == GameState.running &&
+        _bleProximityIssue != null &&
+        _bleProximityIssue!.isNotEmpty) {
+      return _bleProximityIssue!;
+    }
     final phase = _accusationPhaseHudLine();
     if (phase != null && _localRole == PlayerRole.runner && !_isEliminatedSpectator) {
       return phase;
@@ -1366,14 +1485,7 @@ extension _GameMapSkills on _GameMapScreenState {
     );
   }
 
-  String _playAreaSummary() {
-    switch (_playArea.type) {
-      case PlayAreaType.circle:
-        return '円エリア ・ 半径 ${_playArea.radiusMeters.toStringAsFixed(0)} m';
-      case PlayAreaType.polygon:
-        return '多角形エリア ・ ${_playArea.points.length} 頂点';
-    }
-  }
+  String _playAreaSummary() => _playArea.shapeSummary();
 
   void _toggleAreaEditor() {
     if (_gameState == GameState.running) {

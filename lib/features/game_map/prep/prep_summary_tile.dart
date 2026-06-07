@@ -7,6 +7,7 @@ class PrepSummaryTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.value,
+    this.subtitle,
     required this.expanded,
     required this.canEdit,
     this.onTap,
@@ -19,6 +20,7 @@ class PrepSummaryTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String value;
+  final String? subtitle;
   final bool expanded;
   final bool canEdit;
   final VoidCallback? onTap;
@@ -68,6 +70,16 @@ class PrepSummaryTile extends StatelessWidget {
                           value,
                           style: valueStyle,
                         ),
+                        if (subtitle != null && subtitle!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: pl?.muted ?? theme.colorScheme.onSurfaceVariant,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -43,6 +43,9 @@ class GameMapOverlaySnapshot {
     required this.fakePositionLatLng,
     required this.bodyThrowPosition,
     this.bodyThrowAwaitingMapTap = false,
+    this.waitingSkillLockMapTap = false,
+    this.skillPlacementPreviewLatLng,
+    this.skillPlacementPreviewRadiusMeters = 0,
     required this.afterCatchRule,
     required this.ghostRoughPositions,
     required this.editingArea,
@@ -102,6 +105,9 @@ class GameMapOverlaySnapshot {
   final LatLng? fakePositionLatLng;
   final LatLng? bodyThrowPosition;
   final bool bodyThrowAwaitingMapTap;
+  final bool waitingSkillLockMapTap;
+  final LatLng? skillPlacementPreviewLatLng;
+  final double skillPlacementPreviewRadiusMeters;
   final EliminationAftermathRule? afterCatchRule;
   final List<LatLng> ghostRoughPositions;
   final bool editingArea;

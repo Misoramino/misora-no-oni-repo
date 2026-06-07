@@ -8,6 +8,7 @@ import '../game/werewolf_faction_logic.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../widgets/confetti_overlay.dart';
+import '../widgets/motion_helpers.dart';
 import '../widgets/responsive_page.dart';
 
 /// 試合終了後の専用リザルト画面（ギャラリー・ロビー・次の準備への導線）。
@@ -27,6 +28,7 @@ class MatchResultScreen extends StatefulWidget {
     this.progress,
     this.newlyUnlockedTitles = const [],
     this.accusationPointsHuman = 0,
+    this.contextualHint,
     super.key,
   });
 
@@ -42,6 +44,8 @@ class MatchResultScreen extends StatefulWidget {
   final List<PlayerTitle> newlyUnlockedTitles;
   /// 告発ポイントモードで獲得した人陣営ポイント（0なら非表示）。
   final int accusationPointsHuman;
+  /// 初勝利・初試合などの状況ヒント（null なら非表示）。
+  final String? contextualHint;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
   final VoidCallback onOpenLobby;
@@ -57,6 +61,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
     duration: const Duration(milliseconds: 900),
   );
   bool _showConfetti = false;
+  bool _motionReduced = false;
 
   bool get _personalWon =>
       widget.winningFaction != null &&
@@ -65,13 +70,24 @@ class _MatchResultScreenState extends State<MatchResultScreen>
           (widget.factionAtDeath ?? widget.playerFactionAtEnd);
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = MotionHelpers.reduceMotionOf(context);
+    if (reduced && !_motionReduced) {
+      _motionReduced = true;
+      _intro.value = 1.0;
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _intro.forward();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final reduced = MotionHelpers.reduceMotionOf(context);
       GameAudio.instance.playSfx(_personalWon ? SfxId.matchWin : SfxId.matchLose);
-      if (_personalWon) {
+      if (_personalWon && !reduced) {
         setState(() => _showConfetti = true);
         GameAudio.instance.playSfx(SfxId.confetti);
       }
@@ -221,6 +237,36 @@ class _MatchResultScreenState extends State<MatchResultScreen>
               if (widget.newlyUnlockedTitles.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _NewTitlesCard(titles: widget.newlyUnlockedTitles),
+              ],
+              if (widget.contextualHint != null &&
+                  widget.contextualHint!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.45,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.tips_and_updates_outlined,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.contextualHint!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
               if (outcome == GameState.caughtByOni &&
                   widget.afterCatchRule != null) ...[

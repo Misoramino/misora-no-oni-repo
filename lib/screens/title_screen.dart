@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
-import '../features/audio/audio_settings_sheet.dart';
+import '../features/onboarding/offline_practice_intro.dart';
+import '../features/settings/settings_hub_sheet.dart';
 import '../features/onboarding/welcome_flow.dart';
 import '../features/tutorial/tutorial_entry.dart';
 import '../features/branding/launch_effect_overlay.dart';
 import '../features/branding/title_ambient_overlay.dart';
 import '../features/branding/launch_intro_timeline.dart';
-import '../session/launch_branding_prefs.dart';
 import '../session/onboarding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
@@ -47,7 +47,6 @@ class TitleScreen extends StatefulWidget {
 
 class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin {
   bool _booting = true;
-  bool _launchSoundOn = true;
   late WorldProfile _profile;
   AnimationController? _logoPulse;
   AnimationController? _ambientEffect;
@@ -115,11 +114,9 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
         await FirebaseBootstrap.tryInit();
       }
       final saved = await WorldProfilePrefs.load();
-      final soundOn = await LaunchBrandingPrefs.loadSoundEnabled();
       if (!mounted) return;
       setState(() {
         _profile = saved;
-        _launchSoundOn = soundOn;
         _booting = false;
       });
       widget.onProfileChanged?.call(saved);
@@ -135,9 +132,9 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
   Future<void> _maybeShowWelcomeOnFirstLaunch() async {
     if (widget.handoff != null) return;
     if (await OnboardingPrefs.welcomeSeen()) return;
-    await OnboardingPrefs.markWelcomeSeen();
     if (!mounted || widget.handoff != null) return;
     final result = await showWelcomeFlow(context, offerTutorial: true);
+    await OnboardingPrefs.markWelcomeSeen();
     if (!mounted) return;
     if (result == WelcomeResult.tutorial) await openTutorialPicker(context);
   }
@@ -290,38 +287,16 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       IconButton(
-                                        tooltip: 'サウンド設定',
+                                        tooltip: '設定',
                                         onPressed: handoff == null
                                             ? () {
                                                 GameAudio.instance
                                                     .playSfx(SfxId.uiTap);
-                                                showAudioSettingsSheet(context);
+                                                showSettingsHubSheet(context);
                                               }
                                             : null,
                                         icon: const Icon(
-                                          Icons.tune_rounded,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        tooltip: _launchSoundOn
-                                            ? '起動音 ON'
-                                            : '起動音 OFF',
-                                        onPressed: handoff == null
-                                            ? () async {
-                                                final next = !_launchSoundOn;
-                                                await LaunchBrandingPrefs
-                                                    .saveSoundEnabled(next);
-                                                if (!mounted) return;
-                                                setState(
-                                                  () => _launchSoundOn = next,
-                                                );
-                                              }
-                                            : null,
-                                        icon: Icon(
-                                          _launchSoundOn
-                                              ? Icons.volume_up_outlined
-                                              : Icons.volume_off_outlined,
+                                          Icons.settings_outlined,
                                           size: 22,
                                         ),
                                       ),
@@ -412,7 +387,10 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           onChanged: _onProfileSelected,
                                         ),
                                         const SizedBox(height: 20),
-                                        FilledButton.icon(
+                                        Semantics(
+                                          button: true,
+                                          label: 'オンラインルーム。友達とマルチプレイ',
+                                          child: FilledButton.icon(
                                           onPressed: () {
                                             GameAudio.instance
                                                 .playSfx(SfxId.uiConfirm);
@@ -431,11 +409,19 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             child: Text('オンラインルーム'),
                                           ),
                                         ),
+                                        ),
                                         const SizedBox(height: 12),
                                         OutlinedButton.icon(
-                                          onPressed: () {
+                                          onPressed: () async {
                                             GameAudio.instance
                                                 .playSfx(SfxId.uiTap);
+                                            final ok =
+                                                await confirmOfflinePracticeIntro(
+                                              context,
+                                            );
+                                            if (!context.mounted || !ok) {
+                                              return;
+                                            }
                                             AppNav.push<void>(
                                               context,
                                               (_) => GameMapScreen(
@@ -489,8 +475,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                         const SizedBox(height: 20),
                                         Text(
                                           FirebaseBootstrap.isReady
-                                              ? 'Firebase: 接続 OK'
-                                              : 'Firebase: 未接続（参加時に再試行）',
+                                              ? 'オンライン: 利用可能'
+                                              : 'オンライン: 未接続（参加時に再試行）',
                                           textAlign: TextAlign.center,
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(

@@ -36,6 +36,9 @@ class PrepLobbyPanel extends StatefulWidget {
     this.rulesOverviewLine,
     this.startButtonKey,
     this.customRulesKey,
+    this.hostAbsent = false,
+    this.hostLabel,
+    this.onClaimHost,
     super.key,
   });
 
@@ -62,6 +65,9 @@ class PrepLobbyPanel extends StatefulWidget {
   final String? rulesOverviewLine;
   final GlobalKey? startButtonKey;
   final GlobalKey? customRulesKey;
+  final bool hostAbsent;
+  final String? hostLabel;
+  final VoidCallback? onClaimHost;
 
   @override
   State<PrepLobbyPanel> createState() => _PrepLobbyPanelState();
@@ -94,117 +100,124 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                   Text(
-                    '準備',
+                    widget.isHost ? '試合の準備' : '開始を待っています',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: leg.title,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.isHost
-                        ? '制限時間とエリアを設定して開始。'
-                        : 'ホストの開始を待っています。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: leg.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (widget.settingsSummaryLine != null &&
-                      widget.settingsSummaryLine!.isNotEmpty)
+                  if (widget.isHost)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: leg.tileSurface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: leg.muted.withValues(alpha: 0.35),
-                          ),
+                      padding: const EdgeInsets.only(top: 4, bottom: 4),
+                      child: Text(
+                        '時間・エリア・ルールを決めて開始。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: leg.muted,
                         ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  if (widget.hostAbsent)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Material(
+                        color: scheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(10),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Icon(
-                                Icons.tune_rounded,
-                                size: 18,
-                                color: leg.link,
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.cloud_off_rounded,
+                                    color: scheme.onTertiaryContainer,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'ホストがオフラインです',
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        color: scheme.onTertiaryContainer,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  widget.settingsSummaryLine!,
+                              if (widget.hostLabel != null &&
+                                  widget.hostLabel!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  '「${widget.hostLabel}」が応答していません。',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: leg.body,
-                                    height: 1.35,
+                                    color: scheme.onTertiaryContainer,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (!widget.isHost &&
-                      widget.rulesOverviewLine != null &&
-                      widget.rulesOverviewLine!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Color.alphaBlend(
-                            scheme.secondaryContainer.withValues(alpha: 0.35),
-                            leg.tileSurface,
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.rule_folder_outlined,
-                                size: 18,
-                                color: scheme.secondary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '今のルール概要',
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: leg.title,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      widget.rulesOverviewLine!,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: leg.body,
-                                        height: 1.35,
-                                      ),
-                                    ),
-                                  ],
+                              ],
+                              if (widget.onClaimHost != null) ...[
+                                const SizedBox(height: 10),
+                                FilledButton.tonal(
+                                  onPressed: widget.onClaimHost,
+                                  child: const Text('ホストを引き継ぐ'),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
                       ),
                     ),
+                  Material(
+                    key: widget.customRulesKey,
+                    color: leg.tileSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: widget.onOpenCustomSettings,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.tune_rounded, size: 22, color: leg.link),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'ルール・役職',
+                                    style: theme.textTheme.labelMedium?.copyWith(
+                                      color: leg.tileTitle,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.isHost
+                                        ? (widget.settingsSummaryLine ?? 'タップして編集')
+                                        : (widget.rulesOverviewLine ??
+                                            (widget.participantRulesOpen
+                                                ? '編集可 — タップ'
+                                                : 'ホスト待ち — タップで確認')),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: leg.body,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: leg.muted),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   PrepSummaryTile(
                     prepLegibility: leg,
                     icon: Icons.timer_outlined,
@@ -245,6 +258,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     icon: Icons.crop_free,
                     title: 'プレイエリア',
                     value: widget.playAreaLabel,
+                    subtitle: '試合の舞台 · 枠の外は位置がバレやすい',
                     expanded: _areaExpanded,
                     canEdit: widget.isHost,
                     onTap: () => setState(() => _areaExpanded = !_areaExpanded),
@@ -258,7 +272,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                             children: [
                               if (widget.savedAreas.isEmpty)
                                 Text(
-                                  '地図でエリアを編集・保存してください。',
+                                  '右下のマップパネルで形状を編集し、保存してください。',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: leg.body,
                                   ),
@@ -375,8 +389,8 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         widget.participantRulesOpen
-                            ? 'カスタムルール編集: 開放中'
-                            : 'カスタムルール編集: 待ち',
+                            ? 'ルール編集: 開放中'
+                            : 'ルール編集: ホスト待ち',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: leg.muted,
                         ),
@@ -385,44 +399,30 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                   SizedBox(
                     key: widget.startButtonKey,
                     height: 52,
-                    child: FilledButton.icon(
-                      onPressed: widget.canStart ? widget.onStart : null,
-                      icon: const Icon(Icons.play_circle_fill, size: 28),
-                      label: Text(
-                        widget.isHost ? '試合を開始' : 'ホストの開始待ち',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                    child: Semantics(
+                      button: true,
+                      enabled: widget.canStart,
+                      label: widget.isHost
+                          ? '試合を開始'
+                          : 'ホストの開始を待っています',
+                      child: FilledButton.icon(
+                        onPressed: widget.canStart ? widget.onStart : null,
+                        icon: const Icon(Icons.play_circle_fill, size: 28),
+                        label: Text(
+                          widget.isHost ? '試合を開始' : 'ホストの開始待ち',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'エリアの形は右下「地図を表示」から編集。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: leg.muted,
-                      height: 1.35,
-                    ),
-                  ),
-                  TextButton(
-                    key: widget.customRulesKey,
-                    style: TextButton.styleFrom(foregroundColor: leg.link),
-                    onPressed: widget.onOpenCustomSettings,
-                    child: const Text('カスタムルール'),
-                  ),
-                  Text(
-                    'ギミック密度・脱落後ルールなどはカスタムルール内（マップ編集では変更しません）',
+                    'エリアの編集は右下「地図を表示」。',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: leg.muted,
-                      height: 1.35,
-                    ),
-                  ),
-                  Text(
-                    'ルーム確認は上部 Lobby。',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: leg.muted,
-                      height: 1.35,
                     ),
                   ),
                   SizedBox(height: math.max(16, constraints.maxHeight * 0.06)),

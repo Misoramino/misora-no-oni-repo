@@ -72,38 +72,32 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('カスタム設定', style: Theme.of(ctx).textTheme.titleLarge),
-                      Text(
-                        '役職・スキル・ルール。個人設定は準備画面から。',
-                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'ルーム共有',
-                        style: Theme.of(ctx).textTheme.titleSmall,
-                      ),
+                      Text('ルール設定', style: Theme.of(ctx).textTheme.titleLarge),
                       if (!isHost)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 6, top: 2),
+                          padding: const EdgeInsets.only(top: 4, bottom: 8),
                           child: Text(
-                            'ホストのみ編集。開放中は参加者も一部変更可。',
+                            'ホストが編集。開放中は一部変更できます。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                               color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                             ),
                           ),
-                        ),
+                        )
+                      else
+                        const SizedBox(height: 8),
                       if (isHost)
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('参加者にカスタムルール編集を許可'),
-                          subtitle: const Text('時間・エリアは準備画面'),
+                          title: const Text('参加者に編集を許可'),
                           value: selectedParticipantRulesOpen,
                           onChanged: (v) => setModalState(
                             () => selectedParticipantRulesOpen = v,
                           ),
                         ),
+                      _SettingsSection(
+                        title: '役職・スキル',
+                        initiallyExpanded: true,
+                        children: [
                       DropdownButtonFormField<OniIntelMode>(
                         initialValue: selectedIntel,
                         decoration: InputDecoration(
@@ -256,13 +250,21 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           ),
                         ],
                       ],
+                        ],
+                      ),
+                      _SettingsSection(
+                        title: '試合設定',
+                        initiallyExpanded: true,
+                        children: [
                       Text(
                         '制限時間: ${selectedDurationMinutes.round()} 分',
                         style: Theme.of(ctx).textTheme.titleSmall,
                       ),
-                      const Text(
-                        '準備画面と同じ設定（上級者向け）',
-                        style: TextStyle(fontSize: 12),
+                      Text(
+                        '準備画面と同期されます',
+                        style: Theme.of(ctx).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                            ),
                       ),
                       Slider(
                         min: 10,
@@ -278,16 +280,8 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                       if (isHost) ...[
                         const SizedBox(height: 12),
                         Text(
-                          '簡易プリセット',
+                          'プリセット',
                           style: Theme.of(ctx).textTheme.titleSmall,
-                        ),
-                        Text(
-                          '試合時間・円形エリアの広さ・ギミック密度をまとめて設定（世界観共通）。',
-                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(ctx)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
                         ),
                         const SizedBox(height: 8),
                         Wrap(
@@ -343,16 +337,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           'ギミック密度: ${selectedGimmickDensity.toStringAsFixed(2)}',
                           style: Theme.of(ctx).textTheme.titleSmall,
                         ),
-                        Text(
-                          '安全地帯・情報屋・監視カメラ・イベントエリアの個数に掛けられます（次の試合開始で全員に同じ配置が適用されます）。',
-                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        Tooltip(
-                          message:
-                              '低いほどマップがすっきり、高いほどギミックが増えます（試合開始時にホストが同期した値が使われます）。',
-                          child: Slider(
+                        Slider(
                             min: 0.45,
                             max: 1.55,
                             divisions: 22,
@@ -361,9 +346,13 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               () => selectedGimmickDensity = v.clamp(0.45, 1.55),
                             ),
                           ),
-                        ),
                       ],
-                      const SizedBox(height: 10),
+                        ],
+                      ),
+                      _SettingsSection(
+                        title: '脱落後',
+                        initiallyExpanded: false,
+                        children: [
                       DropdownButtonFormField<EliminationAftermathRule>(
                         initialValue: selectedElimination,
                         decoration: const InputDecoration(
@@ -384,45 +373,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               }
                             : null,
                       ),
-                      const SizedBox(height: 10),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          Icons.cloud_outlined,
-                          color: Theme.of(ctx).colorScheme.primary,
-                        ),
-                        title: const Text('オンラインルーム'),
-                        subtitle: Text(
-                          '参加・メンバー一覧は「タイトル」画面のオンラインルーム、'
-                          'またはゲーム画面上部の Lobby から行います。'
-                          'ホームに戻るとルームから退出した扱いになります。',
-                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                height: 1.35,
-                              ),
-                        ),
-                      ),
-                      if (!FirebaseBootstrap.isReady &&
-                          FirebaseBootstrap.lastErrorBrief != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: SelectableText(
-                            FirebaseBootstrap.lastErrorBrief!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(ctx).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          Icons.nightlight_round,
-                          color: Theme.of(ctx).colorScheme.primary,
-                        ),
-                        title: const Text('鬼ロール・鬼向け通知'),
-                        subtitle: const Text(
-                          'AppBar の「鬼コンソール」アイコンから設定します（バイブ・サウンド等）。',
-                        ),
+                      ],
                       ),
                       const SizedBox(height: 10),
                       if (isHost && onRequestGameDefaultsReset != null)
@@ -433,7 +384,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                               await onRequestGameDefaultsReset();
                             },
                             icon: const Icon(Icons.settings_backup_restore),
-                            label: const Text('ゲーム設定をデフォルトに戻す'),
+                            label: const Text('デフォルトに戻す'),
                           ),
                         ),
                       if (isHost && onRequestGameDefaultsReset != null)
@@ -489,6 +440,33 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
     accusationWeight: selectedAccusationWeight,
     quickPresetApplied: selectedQuickPreset,
   );
+}
+
+/// ルール設定シート内の折りたたみセクション。
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        childrenPadding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        children: children,
+      ),
+    );
+  }
 }
 
 /// 0〜12 のシンプルな増減ステッパー。

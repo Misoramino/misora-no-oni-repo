@@ -158,7 +158,7 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
                           contentPadding: const EdgeInsets.only(left: 8),
                           title: const Text('実機 BLE スキャン（近接推定）'),
                           subtitle: const Text(
-                            'オン: 同一ルーム端末のみ検出。オフ: GPS中心（開発テスト時のみモック）',
+                            'オン: 同一ルーム端末のみ検出。権限がない場合はGPSのみで動作します',
                           ),
                           value: selectedUseBle,
                           onChanged: (v) => setModal(() => selectedUseBle = v),

@@ -30,6 +30,7 @@ class PrepMapBottomPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
+    this.playAreaSummary,
     super.key,
   });
 
@@ -57,6 +58,7 @@ class PrepMapBottomPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
+  final String? playAreaSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +143,7 @@ class PrepMapBottomPanel extends StatelessWidget {
               ],
               PrepMapToolsPanel(
                 isEditing: isEditing,
+                playAreaSummary: playAreaSummary,
                 onToggleAreaEdit: onToggleAreaEdit,
                 onRecenterGps: onRecenterGps,
                 onRefreshGps: onRefreshGps,

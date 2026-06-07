@@ -48,6 +48,14 @@ class AreaEditorCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('プレイエリア編集', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'ここが試合の舞台です。枠の内側だけが有効範囲になります。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+            ),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
               segments: const [

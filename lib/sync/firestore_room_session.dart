@@ -46,6 +46,12 @@ String _describeFirebaseException(FirebaseException e) {
 /// 試合前の共有イベント（プレイエリア適用など）用 sessionKey。
 const int lobbySessionKey = 0;
 
+/// Firestore ルームの接続状態（HUD 表示用）。
+enum RoomConnectionStatus {
+  connected,
+  offline,
+}
+
 String? _validateRoomDocId(String id) {
   if (id.isEmpty) return 'ルームIDを入力してください';
   if (id.contains('/') || id.contains('\\')) {
@@ -91,6 +97,9 @@ class FirestoreRoomSession implements RoomSessionPort {
       StreamController<String>.broadcast();
   final StreamController<RoomMatchState> _roomMatchCtrl =
       StreamController<RoomMatchState>.broadcast();
+  final StreamController<RoomConnectionStatus> _connectionCtrl =
+      StreamController<RoomConnectionStatus>.broadcast();
+  RoomConnectionStatus _connectionStatus = RoomConnectionStatus.connected;
   final StreamController<RoomMatchEvent> _roomEventCtrl =
       StreamController<RoomMatchEvent>.broadcast();
 
@@ -150,6 +159,34 @@ class FirestoreRoomSession implements RoomSessionPort {
   String? get myUid => _uid;
   String? get hostUid => _hostUid;
   bool get isHost => _uid != null && _hostUid != null && _uid == _hostUid;
+
+  RoomMemberView? get hostMember {
+    final h = _hostUid;
+    if (h == null) return null;
+    for (final m in _latestLobby) {
+      if (m.uid == h) return m;
+    }
+    return null;
+  }
+
+  /// ホストがメンバー一覧にいない、またはハートビートが古い。
+  bool isHostAbsent(DateTime nowUtc) {
+    final h = _hostUid;
+    if (h == null) return true;
+    final member = hostMember;
+    if (member == null) return true;
+    return member.isStale(nowUtc);
+  }
+
+  RoomConnectionStatus get currentConnectionStatus => _connectionStatus;
+
+  Stream<RoomConnectionStatus> get connectionStatus => _connectionCtrl.stream;
+
+  void _setConnectionStatus(RoomConnectionStatus status) {
+    if (_connectionStatus == status) return;
+    _connectionStatus = status;
+    if (!_connectionCtrl.isClosed) _connectionCtrl.add(status);
+  }
 
   /// 現在のルームフェーズ（lobby / running / ended）。
   String get currentPhase => _phase;
@@ -319,8 +356,10 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (_roomId == null) return;
     final rid = _roomId!;
     _roomSub?.cancel();
-    _roomSub = _db.collection('rooms').doc(rid).snapshots().listen((roomSnap) {
-      final data = roomSnap.data();
+    _roomSub = _db.collection('rooms').doc(rid).snapshots().listen(
+      (roomSnap) {
+        _setConnectionStatus(RoomConnectionStatus.connected);
+        final data = roomSnap.data();
       _hostUid = data?[RoomDocFields.hostUid] as String?;
       final nextPhase = RoomPhase.normalize(
         data?[RoomDocFields.phase] as String?,
@@ -347,6 +386,8 @@ class FirestoreRoomSession implements RoomSessionPort {
       );
       if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
       _emitLobbyFromLastMembers();
+    }, onError: (_) {
+      _setConnectionStatus(RoomConnectionStatus.offline);
     });
     if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);
     if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
@@ -622,6 +663,27 @@ class FirestoreRoomSession implements RoomSessionPort {
       return null;
     } on FirebaseException catch (e) {
       return e.message ?? e.code;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// ホストが不在のとき、参加メンバーがホストを引き継ぐ。
+  Future<String?> claimHostIfAbsent() async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    if (isHost) return null;
+    if (!isHostAbsent(DateTime.now().toUtc())) {
+      return 'ホストはオンラインです';
+    }
+    try {
+      await _db.collection('rooms').doc(_roomId).update({
+        RoomDocFields.hostUid: _uid,
+      });
+      _hostUid = _uid;
+      _emitLobbyFromLastMembers();
+      return null;
+    } on FirebaseException catch (e) {
+      return _describeFirebaseException(e);
     } catch (e) {
       return '$e';
     }
