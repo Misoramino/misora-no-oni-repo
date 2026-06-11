@@ -610,15 +610,21 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
     return null;
   }
 
-  static String _trackLabel(String id) {
+  String _trackLabel(String id) {
+    final custom = widget.record.trackLabels[id];
+    if (custom != null && custom.isNotEmpty) return custom;
     if (id == MatchTrackIds.runnerLocal) return '自分（逃走側）';
     if (id == MatchTrackIds.oniLocal) return '鬼（ローカル）';
+    if (id.startsWith('player_')) return id.substring(7);
     return id;
   }
 
-  static String _trackTitle(String id) {
+  String _trackTitle(String id) {
+    final custom = widget.record.trackLabels[id];
+    if (custom != null && custom.isNotEmpty) return custom;
     if (id == MatchTrackIds.runnerLocal) return '逃走者（再生）';
     if (id == MatchTrackIds.oniLocal) return '鬼（再生）';
+    if (id.startsWith('player_')) return id.substring(7);
     return id;
   }
 

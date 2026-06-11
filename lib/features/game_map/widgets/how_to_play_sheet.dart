@@ -11,7 +11,11 @@ import 'how_to_play_diagrams.dart';
 import 'role_briefing_dialog.dart';
 
 /// 遊び方の説明ボトムシート。
-void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
+void showHowToPlaySheet(
+  BuildContext context, {
+  PlayerRole? yourRole,
+  bool prepPhase = false,
+}) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -30,6 +34,31 @@ void showHowToPlaySheet(BuildContext context, {PlayerRole? yourRole}) {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             Text('遊び方', style: Theme.of(sheetCtx).textTheme.titleLarge),
+            if (prepPhase) ...[
+              const SizedBox(height: 10),
+              Material(
+                color: Theme.of(sheetCtx).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Theme.of(sheetCtx).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'いまは準備中 — 「プレイエリア」「基本ルール」の章がおすすめです。',
+                          style: Theme.of(sheetCtx).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               '章を開いて読めます。初めての方は「かんたんガイド」から。',

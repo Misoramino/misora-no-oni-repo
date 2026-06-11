@@ -5,7 +5,14 @@ import '../../widgets/app_dialog.dart';
 import 'welcome_flow.dart';
 
 /// 初回ガイドの再視聴・リセット。
-Future<void> showOnboardingReplaySheet(BuildContext context) {
+///
+/// [showPrepCoachMarksNow] / [showMatchCoachMarksNow] を渡すと、
+/// 該当画面を開いているときにコーチマークを即時表示できる。
+Future<void> showOnboardingReplaySheet(
+  BuildContext context, {
+  Future<void> Function()? showPrepCoachMarksNow,
+  Future<void> Function()? showMatchCoachMarksNow,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -22,7 +29,7 @@ Future<void> showOnboardingReplaySheet(BuildContext context) {
               const SizedBox(height: 8),
               Text(
                 'かんたんガイドはいつでも見られます。'
-                'コーチマークは次に該当画面を開いたときに再表示されます。',
+                'コーチマークは「今すぐ」または次回の該当画面で再表示できます。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -40,11 +47,17 @@ Future<void> showOnboardingReplaySheet(BuildContext context) {
               ListTile(
                 leading: const Icon(Icons.flag_outlined),
                 title: const Text('準備コーチマークをもう一度'),
-                subtitle: const Text('次に準備画面を開いたとき'),
+                subtitle: Text(
+                  showPrepCoachMarksNow != null
+                      ? '今すぐ表示、または次に準備画面を開いたとき'
+                      : '次に準備画面を開いたとき',
+                ),
                 onTap: () async {
                   await OnboardingPrefs.resetPrepCoachMarks();
                   if (ctx.mounted) Navigator.pop(ctx);
-                  if (context.mounted) {
+                  if (showPrepCoachMarksNow != null && context.mounted) {
+                    await showPrepCoachMarksNow();
+                  } else if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('準備画面でコーチマークが再表示されます'),
@@ -53,14 +66,32 @@ Future<void> showOnboardingReplaySheet(BuildContext context) {
                   }
                 },
               ),
+              if (showPrepCoachMarksNow != null)
+                ListTile(
+                  leading: const Icon(Icons.play_circle_outline),
+                  title: const Text('準備コーチマークを今すぐ'),
+                  subtitle: const Text('いまの準備画面で案内を表示'),
+                  onTap: () async {
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      await showPrepCoachMarksNow();
+                    }
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.sports_esports_outlined),
                 title: const Text('試合コーチマークをもう一度'),
-                subtitle: const Text('次に試合が始まったとき'),
+                subtitle: Text(
+                  showMatchCoachMarksNow != null
+                      ? '今すぐ表示、または次の試合開始時'
+                      : '次に試合が始まったとき',
+                ),
                 onTap: () async {
                   await OnboardingPrefs.resetMatchCoachMarks();
                   if (ctx.mounted) Navigator.pop(ctx);
-                  if (context.mounted) {
+                  if (showMatchCoachMarksNow != null && context.mounted) {
+                    await showMatchCoachMarksNow();
+                  } else if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('次の試合開始時にガイドが再表示されます'),
@@ -69,6 +100,18 @@ Future<void> showOnboardingReplaySheet(BuildContext context) {
                   }
                 },
               ),
+              if (showMatchCoachMarksNow != null)
+                ListTile(
+                  leading: const Icon(Icons.play_circle_outline),
+                  title: const Text('試合コーチマークを今すぐ'),
+                  subtitle: const Text('いまの試合画面で HUD 案内を表示'),
+                  onTap: () async {
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      await showMatchCoachMarksNow();
+                    }
+                  },
+                ),
               const Divider(height: 24),
               TextButton(
                 onPressed: () async {

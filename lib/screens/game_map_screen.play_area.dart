@@ -122,7 +122,9 @@ extension _GameMapPlayArea on _GameMapScreenState {
         _editingArea = false;
         _waitingCircleCenterTap = false;
         _selectedPlayAreaSlotId = slot.id;
-        _statusMessage = 'エリアを保存しました（ホストが適用するまで試合には反映されません）';
+        _statusMessage = _isHost
+            ? 'エリアを保存しました（「適用」で試合に反映）'
+            : '端末に保存しました（試合への反映はホストの適用が必要）';
       });
       await _loadPlayAreaSlots();
       _returnToPrepAfterAreaEdit();
@@ -174,6 +176,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
         _circleDraftCenter = _playArea.center;
         _circleDraftRadiusMeters = _playArea.radiusMeters;
       }
+      _lobbyHostAreaSlotName = applied.name;
       _statusMessage = 'ホストが「${applied.name}」を適用しました';
     });
     unawaited(_areaStore.save(applied.area));
@@ -202,6 +205,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
         _circleDraftCenter = _playArea.center;
         _circleDraftRadiusMeters = _playArea.radiusMeters;
       }
+      _lobbyHostAreaSlotName = snap.slotName;
       final name = snap.slotName ?? 'ホスト';
       _statusMessage = 'ホストが「$name」のエリアを共有しました';
     });
@@ -229,6 +233,84 @@ extension _GameMapPlayArea on _GameMapScreenState {
     _applyLobbyPlayAreaSnapshot(snap);
   }
 
+  void _applyRemotePlayAreaProposal(RoomMatchEvent ev) {
+    if (!mounted || _gameState != GameState.waiting) return;
+    final proposal = PlayAreaProposalSnapshot.tryParseEvent(ev);
+    if (proposal == null) return;
+    if (!_isHost) return;
+    _syncSetState(() {
+      _lobbyAreaProposals[proposal.proposerUid] = proposal;
+      _statusMessage =
+          '「${proposal.proposerName}」からエリア提案「${proposal.slotName}」';
+    });
+  }
+
+  Future<void> _syncLobbyProposalsOnAttach() async {
+    final fs = _firestoreSession;
+    if (fs == null || !_isOnlineFirestore || !_isHost) return;
+    if (_gameState != GameState.waiting) return;
+    final map = await fs.fetchLobbyPlayAreaProposals();
+    if (!mounted || map.isEmpty) return;
+    _syncSetState(() => _lobbyAreaProposals.addAll(map));
+  }
+
+  Future<void> _proposePlayAreaToHost({String? slotId}) async {
+    final fs = _firestoreSession;
+    if (fs == null || !_isOnlineFirestore || _isHost) return;
+    final id = slotId ?? _selectedPlayAreaSlotId;
+    if (id == null) {
+      _toast('提案する保存エリアを選んでください');
+      return;
+    }
+    SavedPlayArea? slot;
+    for (final s in _savedPlayAreas) {
+      if (s.id == id) {
+        slot = s;
+        break;
+      }
+    }
+    if (slot == null) {
+      _toast('保存エリアが見つかりません');
+      return;
+    }
+    final err = await fs.publishPlayAreaProposal(
+      area: slot.area,
+      slotName: slot.name,
+      slotId: slot.id,
+      proposerName: _localPlayerLabel,
+    );
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+    } else {
+      _toast('ホストに「${slot.name}」を提案しました');
+    }
+  }
+
+  void _hostApplyAreaProposal(PlayAreaProposalSnapshot proposal) {
+    if (!_isHost) return;
+    _syncSetState(() {
+      _playArea = proposal.area;
+      if (_playArea.type == PlayAreaType.circle) {
+        _circleDraftCenter = _playArea.center;
+        _circleDraftRadiusMeters = _playArea.radiusMeters;
+      }
+      _selectedPlayAreaSlotId = proposal.slotId.isNotEmpty
+          ? proposal.slotId
+          : _selectedPlayAreaSlotId;
+      _lobbyAreaProposals.remove(proposal.proposerUid);
+      _statusMessage =
+          '「${proposal.proposerName}」の提案「${proposal.slotName}」を適用しました';
+    });
+    unawaited(_areaStore.save(proposal.area));
+    unawaited(
+      _publishLobbyPlayArea(
+        slotName: proposal.slotName,
+        slotId: proposal.slotId.isNotEmpty ? proposal.slotId : 'proposal',
+      ),
+    );
+  }
+
   void _setPrepDurationMinutes(double minutes) {
     if (!_isHost) return;
     _syncSetState(() {
@@ -245,7 +327,8 @@ extension _GameMapPlayArea on _GameMapScreenState {
   void _returnToPrepAfterAreaEdit() {
     if (_gameState != GameState.waiting) return;
     _syncSetState(() {
-      _mapVisibleInLobby = false;
+      _prepMapMode = PrepMapMode.hidden;
+      _previewFocusSlotId = null;
       _prepControlSheetOpen = false;
       _statusMessage = '準備画面に戻りました';
     });
@@ -256,6 +339,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
     if (_gameState != GameState.waiting) return;
     _syncSetState(() {
       _editingArea = false;
+      _prepMapMode = PrepMapMode.browse;
       _waitingCircleCenterTap = false;
       _polygonDraft.clear();
       _polygonDraftClosed = false;
@@ -263,4 +347,125 @@ extension _GameMapPlayArea on _GameMapScreenState {
     });
     _retuneRenderPump();
   }
+
+  void _enterPrepMapMode(PrepMapMode mode, {String? previewSlotId}) {
+    if (_gameState != GameState.waiting) return;
+    if (mode == PrepMapMode.edit) {
+      if (!_editingArea) _toggleAreaEditor();
+      _syncSetState(() {
+        _prepMapMode = PrepMapMode.edit;
+        _previewFocusSlotId = null;
+        _prepControlSheetOpen = true;
+        _controlSheetMode = ControlSheetMode.skillsOnly;
+      });
+      return;
+    }
+    if (_editingArea) {
+      _syncSetState(() {
+        _editingArea = false;
+        _waitingCircleCenterTap = false;
+        _polygonDraft.clear();
+        _polygonDraftClosed = false;
+      });
+    }
+    _syncSetState(() {
+      _prepMapMode = mode;
+      _previewFocusSlotId = previewSlotId;
+      _prepControlSheetOpen = true;
+      _controlSheetMode = ControlSheetMode.skillsOnly;
+      _statusMessage = switch (mode) {
+        PrepMapMode.preview => '保存エリアと適用中の形をプレビュー中',
+        PrepMapMode.browse => '地図を表示中',
+        _ => _statusMessage,
+      };
+    });
+    if (mode == PrepMapMode.preview) {
+      unawaited(_fitMapToPreviewFocus());
+    }
+  }
+
+  void _leavePrepMapToPanel() {
+    if (_gameState != GameState.waiting) return;
+    if (_editingArea) {
+      _syncSetState(() {
+        _editingArea = false;
+        _waitingCircleCenterTap = false;
+        _polygonDraft.clear();
+        _polygonDraftClosed = false;
+      });
+    }
+    _syncSetState(() {
+      _prepMapMode = PrepMapMode.hidden;
+      _previewFocusSlotId = null;
+      _prepControlSheetOpen = false;
+      _statusMessage = '準備画面に戻りました';
+    });
+  }
+
+  void _setPrepMapModeFromFab(PrepMapMode mode) {
+    if (mode == _prepMapMode && mode != PrepMapMode.preview) return;
+    _enterPrepMapMode(mode, previewSlotId: _previewFocusSlotId);
+  }
+
+  void _focusPreviewSlot(String? slotId) {
+    _syncSetState(() => _previewFocusSlotId = slotId);
+    if (slotId != null) {
+      _selectedPlayAreaSlotId = slotId;
+    }
+    unawaited(_fitMapToPreviewFocus());
+  }
+
+  Future<void> _fitMapToPreviewFocus() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    PlayArea? target;
+    if (_previewFocusSlotId == null) {
+      target = _playArea;
+    } else {
+      for (final slot in _savedPlayAreas) {
+        if (slot.id == _previewFocusSlotId) {
+          target = slot.area;
+          break;
+        }
+      }
+    }
+    target ??= _playArea;
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(target.bounds, 48),
+      );
+    } catch (_) {}
+  }
+
+  List<PlayAreaPreviewEntry> _playAreaPreviewEntries() {
+    if (_prepMapMode != PrepMapMode.preview) return const [];
+    final entries = <PlayAreaPreviewEntry>[
+      PlayAreaPreviewEntry(
+        id: '__active__',
+        area: _playArea,
+        label: '適用中',
+        focused: _previewFocusSlotId == null,
+        isActive: true,
+      ),
+    ];
+    for (final slot in _savedPlayAreas) {
+      entries.add(
+        PlayAreaPreviewEntry(
+          id: slot.id,
+          area: slot.area,
+          label: slot.name,
+          focused: slot.id == _previewFocusSlotId,
+          isActive: false,
+        ),
+      );
+    }
+    return entries;
+  }
+
+  String _prepMapModeTitle() => switch (_prepMapMode) {
+        PrepMapMode.edit => 'プレイエリア編集',
+        PrepMapMode.preview => 'エリアプレビュー',
+        PrepMapMode.browse => 'マップ',
+        PrepMapMode.hidden => '準備',
+      };
 }

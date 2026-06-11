@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../game/play_area.dart';
 
-/// ホストが選んで適用する、名前付きプレイエリアの下書き一覧。
+/// 端末ローカルの名前付きプレイエリア下書き（ホスト・参加者それぞれの端末）。
 class SavedPlayArea {
   const SavedPlayArea({
     required this.id,

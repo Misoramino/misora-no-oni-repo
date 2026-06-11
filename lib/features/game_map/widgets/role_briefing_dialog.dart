@@ -30,7 +30,7 @@ Future<void> showRoleBriefingDialog(
         accent: accent,
         actions: [
           AppDialogAction(
-            label: '了解 — 始める',
+            label: '了解',
             icon: Icons.play_arrow_rounded,
             onPressed: () => Navigator.pop(ctx),
           ),

@@ -338,7 +338,7 @@ extension _GameMapAccusation on _GameMapScreenState {
           if (accusedUid == _firestoreSession?.myUid ||
               accusedUid == 'local') {
             _eliminateLocalParticipant(
-              '告発により脱落 — 鬼影として戦線に残る',
+              '告発により脱落 — 復讐の鬼影として戦線に残る',
               cause: 'accusation_hunter',
             );
           } else {

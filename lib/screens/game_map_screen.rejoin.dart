@@ -18,6 +18,13 @@ extension _GameMapRejoin on _GameMapScreenState {
     _processedRoomEventDocIds.clear();
     await _replayHistoricalMatchEvents(snap.gimmickSeed);
     if (!mounted) return;
+    _ensureMatchRecorder(discardExisting: true);
+    await _runMatchStartPresentation(
+      rejoin: true,
+      inspector: false,
+      elapsedSeconds: _rt.elapsedSeconds,
+    );
+    if (!mounted) return;
     _startGameCore(rejoin: true);
     _toast(toastMessage ?? '試合に再参加しました');
   }
@@ -34,13 +41,30 @@ extension _GameMapRejoin on _GameMapScreenState {
     _processedRoomEventDocIds.clear();
     await _replayHistoricalMatchEvents(snap.gimmickSeed);
     if (!mounted) return;
+    final startedRaw = snap.startedAtUtc;
+    final startedUtc = startedRaw != null
+        ? DateTime.tryParse(startedRaw)?.toUtc()
+        : null;
+    _ensureSpectatorMatchRecorder(
+      discardExisting: true,
+      matchStartedAtUtc: startedUtc,
+    );
+    await _runMatchStartPresentation(
+      rejoin: true,
+      inspector: true,
+      elapsedSeconds: _rt.elapsedSeconds,
+    );
+    if (!mounted) return;
     _startGameCore(rejoin: true, inspector: true);
     final fs = _firestoreSession;
     if (fs != null) {
       fs.startInspectorFeedListener();
       _bindInspectorFeed(fs);
     }
-    _toast(toastMessage ?? 'インスペクターとして観戦中');
+    _toast(
+      toastMessage ??
+          '観戦モード — 全員の軌跡は観戦記録として保存されます',
+    );
   }
 
   void _tryEnterRunningMatch(
@@ -55,7 +79,11 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (uid != null && snap.assignmentFor(uid) != null) {
       unawaited(_rejoinRunningMatch(snap, toastMessage: playerToast));
     } else {
-      unawaited(_enterRoomInspectorMode(snap, toastMessage: inspectorToast));
+      unawaited(_enterRoomInspectorMode(
+        snap,
+        toastMessage: inspectorToast ??
+            '試合は既に開始済み — 観戦モードで参加します',
+      ));
     }
   }
 

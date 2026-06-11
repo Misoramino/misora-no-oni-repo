@@ -194,6 +194,65 @@ class PlayArea {
         (m['lng'] as num).toDouble(),
       );
 
+  /// 表示用の代表座標（円は中心、多角形は頂点の平均）。
+  LatLng get anchorCenter {
+    switch (type) {
+      case PlayAreaType.circle:
+        return center;
+      case PlayAreaType.polygon:
+        if (points.isEmpty) return center;
+        var lat = 0.0;
+        var lng = 0.0;
+        for (final p in points) {
+          lat += p.latitude;
+          lng += p.longitude;
+        }
+        return LatLng(lat / points.length, lng / points.length);
+    }
+  }
+
+  /// ざっくりした位置ラベル（ジオコーディングなし）。
+  String coarseLocationLabel() {
+    final c = anchorCenter;
+    final lat = c.latitude;
+    final lng = c.longitude;
+    final ns = lat >= 0 ? '北緯' : '南緯';
+    final ew = lng >= 0 ? '東経' : '西経';
+    return '$ns${lat.abs().toStringAsFixed(2)}° $ew${lng.abs().toStringAsFixed(2)}°';
+  }
+
+  LatLngBounds get bounds {
+    switch (type) {
+      case PlayAreaType.circle:
+        final d = radiusMeters / 111320;
+        return LatLngBounds(
+          southwest: LatLng(center.latitude - d, center.longitude - d),
+          northeast: LatLng(center.latitude + d, center.longitude + d),
+        );
+      case PlayAreaType.polygon:
+        if (points.isEmpty) {
+          return LatLngBounds(
+            southwest: center,
+            northeast: center,
+          );
+        }
+        var minLat = points.first.latitude;
+        var maxLat = minLat;
+        var minLng = points.first.longitude;
+        var maxLng = minLng;
+        for (final p in points) {
+          if (p.latitude < minLat) minLat = p.latitude;
+          if (p.latitude > maxLat) maxLat = p.latitude;
+          if (p.longitude < minLng) minLng = p.longitude;
+          if (p.longitude > maxLng) maxLng = p.longitude;
+        }
+        return LatLngBounds(
+          southwest: LatLng(minLat, minLng),
+          northeast: LatLng(maxLat, maxLng),
+        );
+    }
+  }
+
   /// 準備画面・マップパネル向けの形状サマリー。
   String shapeSummary() {
     switch (type) {

@@ -25,64 +25,71 @@ class GameMapOverflowMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final running = gameState == GameState.running;
-    final ended =
-        gameState == GameState.runnerWin || gameState == GameState.caughtByOni;
 
     return PopupMenuButton<String>(
       key: menuKey,
-      tooltip: 'More',
+      tooltip: 'その他',
       onSelected: onSelected,
       itemBuilder: (ctx) => [
-        const PopupMenuItem(
-          value: 'personal',
-          child: ListTile(
-            leading: Icon(Icons.person_outline),
-            title: Text('個人設定'),
-            subtitle: Text('プロフィール・鬼設定・プライバシー'),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
         const PopupMenuItem(
           value: 'settings',
           child: ListTile(
             leading: Icon(Icons.settings_outlined),
-            title: Text('アプリ設定'),
-            subtitle: Text('サウンド・ガイド・HUD表示'),
+            title: Text('設定'),
+            subtitle: Text('個人・サウンド・データ・HUD'),
             contentPadding: EdgeInsets.zero,
+            dense: true,
           ),
         ),
         const PopupMenuItem(
           value: 'help',
           child: ListTile(
-            leading: Icon(Icons.help_outline),
-            title: Text('遊び方'),
+            leading: Icon(Icons.menu_book_outlined),
+            title: Text('ガイド・遊び方'),
             contentPadding: EdgeInsets.zero,
+            dense: true,
           ),
         ),
-        PopupMenuItem(
-          value: 'area_gallery',
-          child: ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('エリアギャラリー'),
-            subtitle: Text(running ? '形の確認のみ' : '保存・GeoJSON'),
-            contentPadding: EdgeInsets.zero,
+        if (!running)
+          const PopupMenuItem(
+            value: 'area_gallery',
+            child: ListTile(
+              leading: Icon(Icons.photo_library_outlined),
+              title: Text('保存エリア一覧'),
+              subtitle: Text('保存・ファイル読込'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'gallery',
-          child: ListTile(
-            leading: Icon(Icons.movie_filter_outlined),
-            title: Text('試合ギャラリー'),
-            contentPadding: EdgeInsets.zero,
+        if (!running)
+          const PopupMenuItem(
+            value: 'gallery',
+            child: ListTile(
+              leading: Icon(Icons.movie_filter_outlined),
+              title: Text('試合ギャラリー'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'history',
-          child: ListTile(
-            leading: Icon(Icons.history),
-            title: Text('位置暴露ログ'),
-            contentPadding: EdgeInsets.zero,
+        if (running)
+          const PopupMenuItem(
+            value: 'role_briefing',
+            child: ListTile(
+              leading: Icon(Icons.badge_outlined),
+              title: Text('役職を確認'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
           ),
+        if (running)
+          const PopupMenuItem(
+            value: 'history',
+            child: ListTile(
+              leading: Icon(Icons.history),
+              title: Text('位置暴露ログ'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
           ),
         if (running)
           const PopupMenuItem(
@@ -102,15 +109,6 @@ class GameMapOverflowMenu extends StatelessWidget {
                 testMode ? Icons.bug_report : Icons.bug_report_outlined,
               ),
               title: Text(testMode ? 'テストモードをOFF' : 'テストモードをON'),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-        if (ended)
-          const PopupMenuItem(
-            value: 'result',
-            child: ListTile(
-              leading: Icon(Icons.emoji_events_outlined),
-              title: Text('リザルト画面'),
               contentPadding: EdgeInsets.zero,
             ),
           ),

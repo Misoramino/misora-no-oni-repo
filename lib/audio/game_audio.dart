@@ -33,12 +33,15 @@ class GameAudio {
   static const _sfxPoolSize = 4;
 
   /// 対戦開始から最初の環境音までの遅延（秒, ランダム下限/上限）。
-  static const _ambientFirstMinSec = 120;
-  static const _ambientFirstMaxSec = 240;
+  static const _ambientFirstMinSec = 900;
+  static const _ambientFirstMaxSec = 1500;
 
-  /// 環境音どうしの間隔（秒, ランダム下限/上限）。
-  static const _ambientGapMinSec = 360;
-  static const _ambientGapMaxSec = 720;
+  /// 環境音どうしの間隔（秒, ランダム下限/上限）— おおよそ20分前後。
+  static const _ambientGapMinSec = 1080;
+  static const _ambientGapMaxSec = 1320;
+
+  /// 通常の世界観音以外が流れる確率（珍しい音）。
+  static const _ambientRareChance = 0.12;
 
   /// 現在のサウンド設定。UI から監視・更新する。
   final ValueNotifier<AudioSettings> settings =
@@ -224,7 +227,7 @@ class GameAudio {
     if (profile == null) return;
     final vol = settings.value.effectiveAmbient;
     if (vol <= 0) return;
-    final id = WorldAudio.ambient(profile);
+    final id = _pickAmbientId(profile);
     final assetPath = _resolveAsset('audio/ambient', id.asset, _musicExts);
     if (assetPath == null) return;
     try {
@@ -235,6 +238,14 @@ class GameAudio {
     } catch (e) {
       debugPrint('GameAudio._playAmbientOneShot($id): $e');
     }
+  }
+
+  AmbientId _pickAmbientId(WorldProfile profile) {
+    final usual = WorldAudio.ambient(profile);
+    if (_rand.nextDouble() >= _ambientRareChance) return usual;
+    final pool = AmbientId.values.where((a) => a != usual).toList();
+    if (pool.isEmpty) return usual;
+    return pool[_rand.nextInt(pool.length)];
   }
 
   void _stopAmbientSchedule() {

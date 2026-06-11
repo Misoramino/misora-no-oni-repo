@@ -115,6 +115,9 @@ extension _GameMapOverlay on _GameMapScreenState {
             )
           : const [],
       inspectorLiveFeed: _isRoomInspector ? _inspectorLiveFeed : const {},
+      playAreaPreviewMode:
+          _prepMapMode == PrepMapMode.preview && _gameState == GameState.waiting,
+      playAreaPreviews: _playAreaPreviewEntries(),
     );
   }
 
@@ -141,5 +144,44 @@ extension _GameMapOverlay on _GameMapScreenState {
     if (_debugLogs.length > 120) {
       _debugLogs.removeLast();
     }
+  }
+
+  Widget _buildInteractiveGoogleMap(WorldProfileTokens tokens) {
+    final overlay = _overlaySnapshot(tokens);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GoogleMap(
+          style: _mapVisual.mapStyleJson,
+          initialCameraPosition: CameraPosition(
+            target: _currentPosition,
+            zoom: 16,
+          ),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          markers: GameMapOverlayBuilder.buildMarkers(overlay),
+          polylines: GameMapOverlayBuilder.buildPolylines(overlay),
+          circles: GameMapOverlayBuilder.buildCircles(overlay),
+          polygons: GameMapOverlayBuilder.buildPolygons(overlay),
+          onTap: _onMapTap,
+          onMapCreated: _onMapCreated,
+          onCameraIdle: _onCameraIdle,
+        ),
+        SkillMapPlacementLayer(
+          mapController: _mapController,
+          active: _skillMapPlacementActive,
+          isBodyThrow: _rt.bodyThrowAwaitingMapTap,
+          hint: _rt.bodyThrowAwaitingMapTap
+              ? '指を離して人形を設置。下の×へドラッグでキャンセル'
+              : '指を離して結界を設置。下の×へドラッグでキャンセル',
+          onPreview: (latLng) {
+            if (_skillPlacementPreviewLatLng == latLng) return;
+            _syncSetState(() => _skillPlacementPreviewLatLng = latLng);
+          },
+          onConfirm: _confirmSkillMapPlacementAt,
+          onCancel: _cancelSkillMapPlacement,
+        ),
+      ],
+    );
   }
 }

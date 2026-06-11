@@ -101,4 +101,7 @@ abstract final class RoomMatchEventTypes {
 
   /// ロビー中のプレイエリア共有（sessionKey = [FirestoreRoomSession.lobbySessionKey]）。
   static const lobbyPlayArea = 'lobby_play_area';
+
+  /// 非ホスト→ホストへのエリア提案（sessionKey = lobbySessionKey）。
+  static const lobbyPlayAreaProposal = 'lobby_play_area_proposal';
 }

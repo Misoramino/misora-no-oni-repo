@@ -9,6 +9,13 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     if (!mounted) return;
     if (_processedRoomEventDocIds.contains(ev.id)) return;
     _processedRoomEventDocIds.add(ev.id);
+
+    if (_gameState == GameState.waiting &&
+        ev.sessionKey == lobbySessionKey) {
+      _onRemoteLobbyPhaseEvent(ev);
+      return;
+    }
+
     final sk = _matchEventSessionKey;
     if (sk == null || ev.sessionKey != sk) return;
     // 捕獲後も残響体/鬼影として戦線に残るため、試合継続中はイベントを受け取る
@@ -112,10 +119,6 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       case RoomMatchEventTypes.cameraJack:
         _applyRemoteCameraJack(ev);
         return;
-      case RoomMatchEventTypes.lobbyPlayArea:
-        if (ev.actorUid == fs.myUid) return;
-        _applyRemoteLobbyPlayArea(ev);
-        return;
       case RoomMatchEventTypes.facilitySabotage:
         if (ev.actorUid == fs.myUid) return;
         _applyRemoteFacilitySabotage(ev);
@@ -140,7 +143,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final cause = ev.payload['cause'] as String? ?? 'eliminated';
     if (uid == myUid && _gameState == GameState.running) {
       final msg = cause == 'accusation_hunter'
-          ? '告発により脱落 — 鬼影として戦線に残る'
+          ? '告発により脱落 — 復讐の鬼影として戦線に残る'
           : '脱落 — 第二ゲームへ';
       _eliminateLocalParticipant(msg, cause: cause, publishOnline: false);
       return;
@@ -393,5 +396,19 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         _rt.matchEvents.removeLast();
       }
     });
+  }
+
+  void _onRemoteLobbyPhaseEvent(RoomMatchEvent ev) {
+    if (!mounted || _gameState != GameState.waiting) return;
+    final fs = _firestoreSession;
+    switch (ev.type) {
+      case RoomMatchEventTypes.lobbyPlayArea:
+        if (fs != null && ev.actorUid == fs.myUid) return;
+        _applyRemoteLobbyPlayArea(ev);
+      case RoomMatchEventTypes.lobbyPlayAreaProposal:
+        _applyRemotePlayAreaProposal(ev);
+      default:
+        break;
+    }
   }
 }

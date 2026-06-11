@@ -8,6 +8,8 @@ import '../../../game/elimination_aftermath_rule.dart';
 import '../../../game/game_config.dart';
 import '../../../game/player_role.dart';
 import '../../../game/play_area.dart';
+import '../../../game/play_area_preview_entry.dart';
+import '../../../theme/world_profile_tokens.dart';
 import 'game_map_overlay_snapshot.dart';
 import 'map_geo_format.dart';
 import 'map_marker_kind.dart';
@@ -697,7 +699,8 @@ abstract final class GameMapOverlayBuilder {
 
     if (L.playArea &&
         s.playArea.type == PlayAreaType.circle &&
-        !s.editingArea) {
+        !s.editingArea &&
+        !s.playAreaPreviewMode) {
       circles.add(
         Circle(
           circleId: const CircleId('play-area'),
@@ -752,10 +755,43 @@ abstract final class GameMapOverlayBuilder {
       }
     }
 
+    if (s.playAreaPreviewMode && !s.editingArea) {
+      circles.addAll(_previewCircles(s));
+    }
+
     return circles;
   }
 
+  static Iterable<Circle> _previewCircles(GameMapOverlaySnapshot s) {
+    final out = <Circle>[];
+    for (final entry in s.playAreaPreviews) {
+      if (entry.area.type != PlayAreaType.circle) continue;
+      final color = _previewColor(s.tokens, entry);
+      out.add(
+        Circle(
+          circleId: CircleId('preview_${entry.id}'),
+          center: entry.area.center,
+          radius: entry.area.radiusMeters,
+          strokeWidth: entry.focused ? 5 : 3,
+          fillColor: color.withValues(alpha: entry.focused ? 0.24 : 0.12),
+          strokeColor: color,
+          zIndex: entry.focused ? 14 : 11,
+        ),
+      );
+    }
+    return out;
+  }
+
+  static Color _previewColor(WorldProfileTokens tokens, PlayAreaPreviewEntry entry) {
+    if (entry.isActive) return tokens.playAreaColor;
+    if (entry.focused) return tokens.editDraftColor;
+    return tokens.playAreaColor.withValues(alpha: 0.55);
+  }
+
   static Set<Polygon> buildPolygons(GameMapOverlaySnapshot s) {
+    if (s.playAreaPreviewMode && !s.editingArea) {
+      return _previewPolygons(s);
+    }
     if (!s.editingArea &&
         s.layerToggles.playArea &&
         s.playArea.type == PlayAreaType.polygon) {
@@ -786,6 +822,28 @@ abstract final class GameMapOverlayBuilder {
       };
     }
     return {};
+  }
+
+  static Set<Polygon> _previewPolygons(GameMapOverlaySnapshot s) {
+    final out = <Polygon>{};
+    for (final entry in s.playAreaPreviews) {
+      if (entry.area.type != PlayAreaType.polygon ||
+          entry.area.points.length < 3) {
+        continue;
+      }
+      final color = _previewColor(s.tokens, entry);
+      out.add(
+        Polygon(
+          polygonId: PolygonId('preview_${entry.id}'),
+          points: MapGeoFormat.closedPolygonRing(entry.area.points),
+          strokeWidth: entry.focused ? 5 : 3,
+          strokeColor: color,
+          fillColor: color.withValues(alpha: entry.focused ? 0.24 : 0.12),
+          zIndex: entry.focused ? 14 : 11,
+        ),
+      );
+    }
+    return out;
   }
 
   static List<LatLng> ghostRoughPositions({

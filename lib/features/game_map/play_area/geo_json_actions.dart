@@ -10,13 +10,13 @@ abstract final class GeoJsonActions {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('GeoJSON を取り込み'),
+        title: const Text('ファイルから読み込み'),
         content: SingleChildScrollView(
           child: TextField(
             controller: controller,
             maxLines: 12,
             decoration: const InputDecoration(
-              hintText: 'Feature / FeatureCollection / Polygon を貼り付け',
+              hintText: '地図データ（Polygon など）を貼り付け',
             ),
           ),
         ),
@@ -27,7 +27,7 @@ abstract final class GeoJsonActions {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('取り込み'),
+            child: const Text('読み込む'),
           ),
         ],
       ),
@@ -47,7 +47,7 @@ abstract final class GeoJsonActions {
   }) async {
     final raw = area.toGeoJsonFeatureString();
     await Clipboard.setData(ClipboardData(text: raw));
-    onCopied?.call('GeoJSON をクリップボードにコピーしました');
+    onCopied?.call('地図データをクリップボードにコピーしました');
     if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,

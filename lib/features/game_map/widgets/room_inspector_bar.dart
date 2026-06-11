@@ -26,7 +26,7 @@ class RoomInspectorBar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('インスペクター（観戦）', style: theme.textTheme.titleSmall),
+                  Text('観戦モード', style: theme.textTheme.titleSmall),
                   Text(
                     'マップ・暴露イベント・ギミックを閲覧できます。'
                     '参加者のライブ GPS と最終判明位置を表示します。'

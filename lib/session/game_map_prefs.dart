@@ -24,4 +24,6 @@ abstract final class GameMapPrefs {
   static const accusationWeight = 'accusation_weight_v1';
   /// ホスト向けプリセット3択を出したルームID（再表示防止）。
   static const hostQuickPresetPromptRoom = 'host_quick_preset_prompt_room_v1';
+  /// 試合開始のロスター・オービットを省略（カウントダウンは維持）。
+  static const shortMatchStartCeremony = 'short_match_start_ceremony_v1';
 }

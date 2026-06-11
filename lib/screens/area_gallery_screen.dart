@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../game/play_area.dart';
 import '../services/play_area_slot_store.dart';
+import '../features/game_map/prep/area_gallery_pick.dart';
 import '../features/game_map/play_area/geo_json_actions.dart';
+import '../widgets/play_area_shape_preview.dart';
 
 /// 保存済みプレイエリアの一覧（写真フォルダ風）。
 class AreaGalleryScreen extends StatefulWidget {
@@ -43,11 +45,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
     });
   }
 
-  String _summary(PlayArea area) => switch (area.type) {
-        PlayAreaType.circle =>
-          '円 · 半径 ${area.radiusMeters.toStringAsFixed(0)} m',
-        PlayAreaType.polygon => '多角形 · ${area.points.length} 頂点',
-      };
+  String _summary(PlayArea area) => area.shapeSummary();
 
   Future<void> _rename(SavedPlayArea slot) async {
     final controller = TextEditingController(text: slot.name);
@@ -160,17 +158,54 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
     return ok == true ? name : null;
   }
 
+  Future<void> _showDetail(SavedPlayArea slot) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text(slot.name),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              PlayAreaShapePreview(
+                area: slot.area,
+                height: 160,
+                preserveAspect: true,
+              ),
+              const SizedBox(height: 10),
+              Text(slot.area.coarseLocationLabel()),
+              const SizedBox(height: 4),
+              Text(_summary(slot.area)),
+              const SizedBox(height: 4),
+              Text(
+                '保存: ${_formatDate(slot.savedAtUtc)}',
+                style: Theme.of(dCtx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.previewOnly ? 'エリア確認' : 'エリアギャラリー'),
+        title: Text(widget.previewOnly ? 'プレイエリア確認' : '保存エリア一覧'),
         actions: [
           if (widget.canEdit)
             IconButton(
-              tooltip: 'GeoJSON インポート',
+              tooltip: 'ファイルから読み込み',
               onPressed: _importGeoJson,
               icon: const Icon(Icons.upload_file_outlined),
             ),
@@ -178,7 +213,21 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _areas.isEmpty
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!widget.previewOnly)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Text(
+                      'この端末に保存したエリアです。試合への反映はホストが行います。',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: _areas.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -194,7 +243,8 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'マップパネルでエリアを編集して保存するか、右上から GeoJSON を取り込めます。',
+                          '準備画面のマップ → プレビューから編集・保存するか、'
+                          '右上から地図データを読み込めます。',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
@@ -205,17 +255,22 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                           FilledButton.tonalIcon(
                             onPressed: _importGeoJson,
                             icon: const Icon(Icons.upload_file_outlined),
-                            label: const Text('GeoJSON をインポート'),
+                            label: const Text('ファイルから読み込み'),
                           ),
                         ],
                       ],
                     ),
                   ),
                 )
-              : ListView.separated(
+              : GridView.builder(
                   padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.82,
+                  ),
                   itemCount: _areas.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final slot = _areas[index];
                     final selected = slot.id == widget.selectedId;
@@ -225,113 +280,115 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                           ? theme.colorScheme.primaryContainer
                               .withValues(alpha: 0.35)
                           : null,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Icon(
-                            slot.area.type == PlayAreaType.circle
-                                ? Icons.radio_button_unchecked
-                                : Icons.pentagon_outlined,
-                          ),
-                        ),
-                        title: Text(
-                          slot.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          '${_summary(slot.area)}\n保存: ${_formatDate(slot.savedAtUtc)}',
-                        ),
-                        isThreeLine: true,
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (v) async {
-                            switch (v) {
-                              case 'use':
-                                if (context.mounted) {
-                                  Navigator.pop(context, slot.id);
-                                }
-                              case 'preview':
-                                if (!context.mounted) return;
-                                await showDialog<void>(
-                                  context: context,
-                                  builder: (dCtx) => AlertDialog(
-                                    title: Text(slot.name),
-                                    content: Text(
-                                      '${_summary(slot.area)}\n\n'
-                                      '試合中はエリアを変更できません。'
-                                      '準備画面から適用してください。',
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: widget.previewOnly
+                            ? () => _showDetail(slot)
+                            : () => Navigator.pop(
+                                  context,
+                                  AreaGalleryPreviewPick(slot.id),
+                                ),
+                        onLongPress: () => _showDetail(slot),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: PlayAreaShapePreview(
+                                area: slot.area,
+                                height: double.infinity,
+                                preserveAspect: true,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 6, 4, 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          slot.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          slot.area.coarseLocationLabel(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    actions: [
-                                      FilledButton(
-                                        onPressed: () => Navigator.pop(dCtx),
-                                        child: const Text('OK'),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (v) async {
+                                      switch (v) {
+                                        case 'detail':
+                                          await _showDetail(slot);
+                                        case 'export':
+                                          if (!context.mounted) return;
+                                          await GeoJsonActions.exportToClipboard(
+                                            context,
+                                            slot.area,
+                                            onCopied: (m) {
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(content: Text(m)),
+                                              );
+                                            },
+                                          );
+                                        case 'rename':
+                                          if (widget.canEdit) await _rename(slot);
+                                        case 'delete':
+                                          if (widget.canEdit) await _delete(slot);
+                                      }
+                                    },
+                                    itemBuilder: (ctx) => [
+                                      const PopupMenuItem(
+                                        value: 'detail',
+                                        child: Text('詳細を見る'),
                                       ),
+                                      const PopupMenuItem(
+                                        value: 'export',
+                                        child: Text('ファイルへ書き出し'),
+                                      ),
+                                      if (widget.canEdit) ...[
+                                        const PopupMenuItem(
+                                          value: 'rename',
+                                          child: Text('名前を変更'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text('削除'),
+                                        ),
+                                      ],
                                     ],
                                   ),
-                                );
-                              case 'export':
-                                if (!context.mounted) return;
-                                await GeoJsonActions.exportToClipboard(
-                                  context,
-                                  slot.area,
-                                  onCopied: (m) {
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(SnackBar(content: Text(m)));
-                                  },
-                                );
-                              case 'rename':
-                                if (widget.canEdit) await _rename(slot);
-                              case 'delete':
-                                if (widget.canEdit) await _delete(slot);
-                            }
-                          },
-                          itemBuilder: (ctx) => [
-                            if (!widget.previewOnly)
-                              const PopupMenuItem(
-                                value: 'use',
-                                child: Text('このエリアを使う'),
+                                ],
                               ),
-                            if (widget.previewOnly)
-                              const PopupMenuItem(
-                                value: 'preview',
-                                child: Text('形を確認'),
-                              ),
-                            const PopupMenuItem(
-                              value: 'export',
-                              child: Text('GeoJSON エクスポート'),
                             ),
-                            if (widget.canEdit) ...[
-                              const PopupMenuItem(
-                                value: 'rename',
-                                child: Text('名前を変更'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('削除'),
-                              ),
-                            ],
                           ],
                         ),
-                        onTap: widget.previewOnly
-                            ? () async {
-                                await showDialog<void>(
-                                  context: context,
-                                  builder: (dCtx) => AlertDialog(
-                                    title: Text(slot.name),
-                                    content: Text(_summary(slot.area)),
-                                    actions: [
-                                      FilledButton(
-                                        onPressed: () => Navigator.pop(dCtx),
-                                        child: const Text('OK'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                            : () => Navigator.pop(context, slot.id),
                       ),
                     );
                   },
                 ),
+                ),
+              ],
+            ),
     );
   }
 

@@ -96,7 +96,17 @@ const _pages = <_WelcomePage>[
     lines: [
       '捕まっても試合は続きます。',
       '残響体：監視ジャックや告発施設の陣取り。',
-      '鬼影：告発妨害やカメラ停止で逆襲。',
+      '復讐の鬼影：告発妨害やカメラ停止で逆襲。',
+    ],
+  ),
+  _WelcomePage(
+    icon: Icons.wifi_tethering_rounded,
+    color: Color(0xFF5C6BC0),
+    title: '友達とオンライン',
+    lines: [
+      '同じルームIDで集まり、ホストが試合を開始。',
+      '途中参加は再参加、リスト外は観戦モード。',
+      '位置は原則非公開 — スキルとイベントで駆け引き。',
     ],
   ),
   _WelcomePage(

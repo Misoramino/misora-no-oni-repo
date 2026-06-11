@@ -45,18 +45,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
     }
 
+    game_feedback.Feedback.confirm();
     _progressRecordedForMatch = false;
     _lastNewlyUnlockedTitles = const [];
-    _matchRecorder?.discard();
-    _matchRecorder = null;
-    if (_trajectoryConsent) {
-      _matchRecorder = MatchRecorder(
-        playAreaSnapshot: _playArea,
-        consentedToTrajectory: true,
-        initialRunner: _currentPosition,
-        initialOni: _oniPosition,
-      );
-    }
+    _matchRoleBriefingShown = false;
+    _ensureMatchRecorder(discardExisting: true);
 
     if (_isOnlineFirestore && _isHost) {
       final snapshot = await _buildSharedMatchSnapshot();
@@ -82,6 +75,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     }
 
     _retuneGpsIfNeeded();
+    await _runMatchStartPresentation(rejoin: false, inspector: false);
+    if (!mounted) return;
     _startGameCore();
   }
 
@@ -96,8 +91,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _afterCatchRule = null;
       if (inspector) {
         _controlSheetMode = ControlSheetMode.hidden;
-        _mapVisibleInLobby = true;
-        _statusMessage = 'インスペクター — マップ・暴露イベントを観戦中（操作不可）';
+        _prepMapMode = PrepMapMode.browse;
+        _statusMessage = '観戦モード — マップ・暴露イベントを閲覧中（操作不可）';
       } else {
         _statusMessage = rejoin
             ? '試合再参加 — ${_localRole.displayName}'
@@ -137,14 +132,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _emitMatchEvent(
         type: 'gimmicks_generated',
         message:
-            'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / イベントエリア${_rt.commJammingZonePositions.length}',
+            'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / 通信障害${_rt.commJammingZonePositions.length}',
         position: _playAreaAnchor,
       );
-      _showRoleSkillDialog();
+      unawaited(_maybeShowMatchCoachMarks());
       _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
-      HapticFeedback.selectionClick();
-      SystemSound.play(SystemSoundType.click);
-      GameAudio.instance.playSfx(SfxId.matchStart);
     } else {
       _logDebug(
         'match_rejoin scale=${_timeScale}x inspector=$inspector online=$_isOnlineFirestore',
@@ -344,12 +336,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _accusationPromptOpen = false;
     _matchRecorder?.discard();
     _matchRecorder = null;
+    _spectatorMatchRecorder?.discard();
+    _spectatorMatchRecorder = null;
+    _lastSpectatorRecord = null;
     _finalizeRecordingFuture = null;
     _retuneGpsIfNeeded();
     _rt.resetToLobby(matchDurationSeconds: _matchDurationSeconds);
     _syncSetState(() {
       _gameState = GameState.waiting;
-      _mapVisibleInLobby = false;
+      _prepMapMode = PrepMapMode.hidden;
       _afterCatchRule = null;
       _isRoomInspector = false;
       _statusMessage = 'リセットしました。開始ボタンでゲーム開始。';
@@ -364,6 +359,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _eliminatedUids.clear();
     _factionAtDeath = null;
     _unbindInspectorFeed();
+    _lobbyAreaProposals.clear();
+    _inlineStatusTimer?.cancel();
+    _inlineStatusMessage = null;
     unawaited(_firestoreSession?.clearInspectorFeedPosition());
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
@@ -371,28 +369,6 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       unawaited(_firestoreSession!.updateRoomPhase(RoomPhase.lobby));
     }
     _logDebug('match_reset');
-  }
-
-  void _showRoleSkillDialog() {
-    if (_matchRoleBriefingShown) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _gameState != GameState.running) return;
-      if (_matchRoleBriefingShown) return;
-      _matchRoleBriefingShown = true;
-      final prevPanel = _controlSheetMode;
-      _syncSetState(() => _controlSheetMode = ControlSheetMode.hidden);
-      await showRoleBriefingDialog(
-        context,
-        role: _localRole,
-        skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
-        werewolfCurrentFaction: _localRole == PlayerRole.werewolf
-            ? _localFactionNow()
-            : null,
-      );
-      if (!mounted || _gameState != GameState.running) return;
-      _syncSetState(() => _controlSheetMode = prevPanel);
-      await _maybeShowMatchCoachMarks();
-    });
   }
 
   void _assignDefaultSetupIfNeeded() {
@@ -722,15 +698,17 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _prepControlSheetOpen = false;
     });
     HapticFeedback.mediumImpact();
-    SystemSound.play(SystemSoundType.alert);
     final localFaction = _effectiveLocalFaction();
-    final humanWon = result == GameState.runnerWin;
-    final personalWin = (humanWon && localFaction == FactionSide.humanTeam) ||
-        (!humanWon && localFaction == FactionSide.oniTeam);
-    GameAudio.instance.playSfx(personalWin ? SfxId.matchWin : SfxId.matchLose);
-    GameAudio.instance.playMenuBgm(_activeProfile);
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
+    if (_isRoomInspector) {
+      unawaited(() async {
+        await _finalizeSpectatorRecording(outcome);
+        if (mounted) await _openMatchResultScreen(spectator: true);
+        if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
+      }());
+      return;
+    }
     _finalizeRecordingFuture = Future<void>.microtask(
       () => _finalizeMatchRecording(outcome),
     );
@@ -743,7 +721,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         ),
       );
     }
-    unawaited(_openMatchResultScreen());
+    unawaited(() async {
+      await _playMatchEndFlash();
+      if (mounted) await _openMatchResultScreen();
+      if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
+    }());
   }
 
   String _inferEndReason(GameState result, String message) {

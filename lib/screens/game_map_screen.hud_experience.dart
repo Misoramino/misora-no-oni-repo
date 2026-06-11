@@ -105,18 +105,19 @@ extension _GameMapHudExperience on _GameMapScreenState {
       builder: (ctx) {
         final theme = Theme.of(ctx);
         return AppDialog(
-          title: '${copy.facilityName} に到着',
+          title: '告発施設: ${copy.facilityName}',
           icon: Icons.account_balance_outlined,
           actions: [
             AppDialogAction(
-              label: 'OK',
+              label: '了解',
               onPressed: () => Navigator.pop(ctx),
             ),
           ],
           child: Text(
-            'このあと告発画面が開きます。'
-            '「${copy.accuseActionLabel}」で相手を選べます。\n'
-            '正解・失敗の影響は試合前のルール設定で決まります。',
+            AccusationIntroCopy.body(
+              accuseActionLabel: copy.accuseActionLabel,
+              weight: _accusationWeight,
+            ),
             style: theme.textTheme.bodyMedium,
           ),
         );

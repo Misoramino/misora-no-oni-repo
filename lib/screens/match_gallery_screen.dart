@@ -4,6 +4,8 @@ import '../game/game_state.dart';
 import '../game/match_record.dart';
 import '../services/match_archive_store.dart';
 import '../widgets/confirm_dialog.dart';
+import '../session/world_profile_prefs.dart';
+import '../widgets/scene_transitions.dart';
 import 'match_replay_screen.dart';
 
 /// 端末に保存した試合一覧。同期前はローカルのみ。
@@ -112,7 +114,7 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '試合前に個人設定で「軌跡を端末保存」をオンにすると、'
+                                  '設定 → データ管理で「試合後に軌跡を端末保存」をオンにすると、'
                                   '終了後にここからリプレイできます。',
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context)
@@ -144,13 +146,13 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                                 '${m.startedAtUtc.toLocal()} 開始\n点数 逃:$rn 鬼:$on',
                               ),
                               isThreeLine: true,
-                              onTap: () {
-                                Navigator.push<void>(
+                              onTap: () async {
+                                final profile = await WorldProfilePrefs.load();
+                                if (!context.mounted) return;
+                                await AppNav.push<void>(
                                   context,
-                                  MaterialPageRoute<void>(
-                                    builder: (_) =>
-                                        MatchReplayScreen(record: m),
-                                  ),
+                                  (_) => MatchReplayScreen(record: m),
+                                  worldProfile: profile,
                                 );
                               },
                               trailing: IconButton(

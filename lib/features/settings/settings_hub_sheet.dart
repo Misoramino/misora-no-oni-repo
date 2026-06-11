@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../audio/audio_settings_sheet.dart';
-import '../onboarding/onboarding_replay_sheet.dart';
-import '../game_map/widgets/how_to_play_sheet.dart';
-import '../../game/player_role.dart';
+import '../../features/game_map/settings/player_personal_settings_models.dart';
+import '../../screens/data_management_screen.dart';
+import '../../screens/personal_settings_screen.dart';
+import '../../session/world_profile_prefs.dart';
+import '../../widgets/scene_transitions.dart';
 
-/// サウンド・ガイド再視聴などを1か所にまとめた設定ハブ。
+/// 個人設定・サウンド・データ管理をまとめた設定ハブ。
 Future<void> showSettingsHubSheet(
   BuildContext context, {
-  PlayerRole? yourRole,
+  void Function(PlayerPersonalSettingsResult result)? onPersonalSettingsApplied,
   VoidCallback? onOpenDisplaySettings,
 }) {
   return showModalBottomSheet<void>(
@@ -25,32 +27,46 @@ Future<void> showSettingsHubSheet(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                child: Text('アプリ設定', style: theme.textTheme.titleLarge),
+                child: Text('設定', style: theme.textTheme.titleLarge),
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('個人設定'),
+                subtitle: const Text('プロフィール・鬼設定・プライバシー'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final profile = await WorldProfilePrefs.load();
+                  if (!context.mounted) return;
+                  final applied =
+                      await AppNav.push<PlayerPersonalSettingsResult?>(
+                    context,
+                    (_) => const PersonalSettingsScreen(),
+                    worldProfile: profile,
+                  );
+                  if (applied != null) {
+                    onPersonalSettingsApplied?.call(applied);
+                  }
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.graphic_eq_rounded),
                 title: const Text('サウンド'),
                 subtitle: const Text('BGM・効果音の音量'),
+                onTap: () => showAudioSettingsSheet(ctx),
+              ),
+              ListTile(
+                leading: const Icon(Icons.storage_outlined),
+                title: const Text('データ管理'),
+                subtitle: const Text('試合ギャラリー・軌跡保存'),
                 onTap: () async {
-                await showAudioSettingsSheet(ctx);
-              },
-              ),
-              ListTile(
-                leading: const Icon(Icons.replay_rounded),
-                title: const Text('ガイド再視聴'),
-                subtitle: const Text('かんたんガイド・コーチマーク'),
-                onTap: () {
                   Navigator.pop(ctx);
-                  showOnboardingReplaySheet(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.help_outline_rounded),
-                title: const Text('遊び方'),
-                subtitle: const Text('ルール・スキル・ギミック'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  showHowToPlaySheet(context, yourRole: yourRole);
+                  final profile = await WorldProfilePrefs.load();
+                  if (!context.mounted) return;
+                  await AppNav.push<void>(
+                    context,
+                    (_) => const DataManagementScreen(),
+                    worldProfile: profile,
+                  );
                 },
               ),
               if (onOpenDisplaySettings != null)

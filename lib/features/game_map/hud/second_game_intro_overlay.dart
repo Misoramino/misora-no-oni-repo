@@ -53,7 +53,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 3), () {
+    _timer = Timer(const Duration(seconds: 5), () {
       if (mounted) Navigator.of(context).pop();
     });
   }

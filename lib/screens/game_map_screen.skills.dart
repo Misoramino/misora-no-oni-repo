@@ -80,7 +80,7 @@ extension _GameMapSkills on _GameMapScreenState {
 
   void _activateFakeSkill() {
     if (_gameState != GameState.running) {
-      _toast('ゲーム中のみ使えます');
+      _toast('ゲーム中のみ使えます', denied: true);
       return;
     }
     if (!_skillLoadout.contains(SkillIds.fakePosition)) return;
@@ -91,7 +91,7 @@ extension _GameMapSkills on _GameMapScreenState {
       final remain =
           GameConfig.fakeSkillCooldownSeconds -
           now.difference(_rt.lastFakeSkillAt!).inSeconds;
-      _toast('偽位置スキル再使用まで $remain 秒');
+      _toast('偽位置スキル再使用まで $remain 秒', denied: true);
       return;
     }
     _rt.lastFakeSkillAt = now;
@@ -146,7 +146,7 @@ extension _GameMapSkills on _GameMapScreenState {
         _werewolfCooldownSecondsForUi(),
       );
       if (remain > 0) {
-        _toast('切替の再発動まで $remain 秒');
+        _toast('切替の再発動まで $remain 秒', denied: true);
         return;
       }
     }
@@ -1470,7 +1470,36 @@ extension _GameMapSkills on _GameMapScreenState {
     _retuneGpsIfNeeded();
   }
 
-  void _toast(String msg, {Duration? duration}) {
+  void _showInlineStatus(String msg, {Duration? duration}) {
+    _inlineStatusTimer?.cancel();
+    _syncSetState(() {
+      _inlineStatusMessage = msg;
+      _statusMessage = msg;
+    });
+    _inlineStatusTimer = Timer(
+      duration ?? const Duration(seconds: 4),
+      () {
+        if (!mounted) return;
+        _syncSetState(() => _inlineStatusMessage = null);
+      },
+    );
+    _logDebug('inline:$msg');
+  }
+
+  void _toast(
+    String msg, {
+    Duration? duration,
+    bool forceSnackBar = false,
+    bool denied = false,
+  }) {
+    if (denied && _gameState == GameState.running) {
+      GameAudio.instance.playSfx(SfxId.denied);
+    }
+    final preferInline = !forceSnackBar && _gameState == GameState.waiting;
+    if (preferInline) {
+      _showInlineStatus(msg, duration: duration);
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
@@ -1492,6 +1521,7 @@ extension _GameMapSkills on _GameMapScreenState {
     _toast(
       'プレイエリア内に置いてください',
       duration: const Duration(milliseconds: 1400),
+      denied: true,
     );
   }
 
@@ -1506,7 +1536,7 @@ extension _GameMapSkills on _GameMapScreenState {
       final opening = !_editingArea;
       _editingArea = opening;
       if (opening) {
-        _mapVisibleInLobby = true;
+        _prepMapMode = PrepMapMode.edit;
         _prepControlSheetOpen = true;
         _areaEditorPanelExpanded = true;
         _polygonDraft.clear();

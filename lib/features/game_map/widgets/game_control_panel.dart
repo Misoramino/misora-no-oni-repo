@@ -328,7 +328,7 @@ class GameControlPanel extends StatelessWidget {
               FilledButton.tonalIcon(
                 onPressed: onToggleAreaEdit,
                 icon: Icon(isEditing ? Icons.check_circle : Icons.map_outlined),
-                label: Text(isEditing ? '編集を閉じる' : 'エリア編集'),
+                label: Text(isEditing ? '編集を閉じる' : 'プレイエリア編集'),
               ),
               const SizedBox(height: 6),
               OutlinedButton.icon(
@@ -470,7 +470,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
             ],
           ),
           Text(
-            'マップパネル',
+            '地図',
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
@@ -488,8 +488,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
               ),
             ),
           Text(
-            'プレイエリアの編集・保存は地図上で行います。'
-            'ルールは準備画面の「ルール・役職」から。',
+            'エリア編集は準備画面の「プレイエリア」タブからも開けます。',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
@@ -500,7 +499,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
             icon: const Icon(Icons.map_outlined),
             label: const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('地図を表示（編集・エリア保存）'),
+              child: Text('地図を開く'),
             ),
           ),
         ],

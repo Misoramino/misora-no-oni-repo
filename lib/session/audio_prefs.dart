@@ -7,7 +7,7 @@ class AudioSettings {
     this.masterVolume = 0.9,
     this.sfxVolume = 0.9,
     this.bgmVolume = 0.55,
-    this.ambientVolume = 0.5,
+    this.ambientVolume = 0.32,
     this.bgmChoice = bgmWorldDefault,
   });
 

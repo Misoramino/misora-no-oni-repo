@@ -190,7 +190,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                       ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('カスタム公開ルール'),
+                        title: const Text('役職公開ルール'),
                         subtitle: const Text('オフ時は開始時にランダム割当'),
                         value: selectedCustomRuleMode,
                         onChanged: (isHost || selectedParticipantRulesOpen)

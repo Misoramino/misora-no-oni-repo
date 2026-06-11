@@ -6,6 +6,7 @@ import '../../../game/inspector_intel_pin.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/oni_intel_trace.dart';
 import '../../../game/play_area.dart';
+import '../../../game/play_area_preview_entry.dart';
 import '../../../sync/inspector_feed_snapshot.dart';
 import '../../../sync/remote_member_snapshot.dart';
 import '../../../theme/world_profile_tokens.dart';
@@ -80,6 +81,8 @@ class GameMapOverlaySnapshot {
     this.showInspectorIntelPins = false,
     this.inspectorIntelPins = const [],
     this.inspectorLiveFeed = const {},
+    this.playAreaPreviewMode = false,
+    this.playAreaPreviews = const [],
   });
 
   final DateTime now;
@@ -157,4 +160,6 @@ class GameMapOverlaySnapshot {
   final bool showInspectorIntelPins;
   final List<InspectorIntelPin> inspectorIntelPins;
   final Map<String, InspectorFeedSnapshot> inspectorLiveFeed;
+  final bool playAreaPreviewMode;
+  final List<PlayAreaPreviewEntry> playAreaPreviews;
 }

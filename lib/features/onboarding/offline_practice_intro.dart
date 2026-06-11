@@ -22,7 +22,8 @@ Future<bool> confirmOfflinePracticeIntro(BuildContext context) {
       ],
       child: const Text(
         'このモードでできること\n'
-        '・地図・エリア編集の練習\n'
+        '・地図・プレイエリア編集の練習\n'
+        '・役職は本番と異なる場合があります\n'
         '・スキル操作・HUD の確認\n'
         '・1人でのルール試走\n\n'
         'できないこと\n'

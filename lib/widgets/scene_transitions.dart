@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// 画面遷移の演出（フェードスルー＋わずかなスケール/スライド）。
-///
-/// 素の [MaterialPageRoute] より上質な切り替え感を与えるための共通ルート。
+import '../session/world_profile_prefs.dart';
+import '../theme/world_profile.dart';
+import 'profile_scene_transition.dart';
+
+export 'profile_scene_transition.dart'
+    show ProfileSceneTransition, SceneTransitionDirection;
+
+/// 画面遷移の演出（フェードスルー＋世界観別モーション）。
 class ScenePageRoute<T> extends PageRouteBuilder<T> {
   ScenePageRoute({
     required this.builder,
     this.direction = SceneTransitionDirection.forward,
+    this.worldProfile,
     super.settings,
     Duration? duration,
   }) : super(
@@ -16,37 +22,20 @@ class ScenePageRoute<T> extends PageRouteBuilder<T> {
               builder(context),
           transitionsBuilder:
               (context, animation, secondaryAnimation, child) {
-            final curved = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-              reverseCurve: Curves.easeInCubic,
-            );
-            final slideDy = switch (direction) {
-              SceneTransitionDirection.forward => 0.045,
-              SceneTransitionDirection.back => -0.03,
-              SceneTransitionDirection.up => 0.12,
-            };
-            return FadeTransition(
-              opacity: curved,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: Offset(0, slideDy),
-                  end: Offset.zero,
-                ).animate(curved),
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
-                  child: child,
-                ),
-              ),
+            return ProfileSceneTransition.build(
+              animation: animation,
+              secondaryAnimation: secondaryAnimation,
+              child: child,
+              direction: direction,
+              profile: worldProfile,
             );
           },
         );
 
   final WidgetBuilder builder;
   final SceneTransitionDirection direction;
+  final WorldProfile? worldProfile;
 }
-
-enum SceneTransitionDirection { forward, back, up }
 
 /// アプリ標準のナビゲーション。演出付きで画面を切り替える。
 abstract final class AppNav {
@@ -54,9 +43,16 @@ abstract final class AppNav {
     BuildContext context,
     WidgetBuilder builder, {
     SceneTransitionDirection direction = SceneTransitionDirection.forward,
-  }) {
+    WorldProfile? worldProfile,
+  }) async {
+    final profile = worldProfile ?? await WorldProfilePrefs.load();
+    if (!context.mounted) return null;
     return Navigator.of(context).push<T>(
-      ScenePageRoute<T>(builder: builder, direction: direction),
+      ScenePageRoute<T>(
+        builder: builder,
+        direction: direction,
+        worldProfile: profile,
+      ),
     );
   }
 
@@ -64,9 +60,16 @@ abstract final class AppNav {
     BuildContext context,
     WidgetBuilder builder, {
     SceneTransitionDirection direction = SceneTransitionDirection.forward,
-  }) {
+    WorldProfile? worldProfile,
+  }) async {
+    final profile = worldProfile ?? await WorldProfilePrefs.load();
+    if (!context.mounted) return null;
     return Navigator.of(context).pushReplacement<T, TO>(
-      ScenePageRoute<T>(builder: builder, direction: direction),
+      ScenePageRoute<T>(
+        builder: builder,
+        direction: direction,
+        worldProfile: profile,
+      ),
     );
   }
 }

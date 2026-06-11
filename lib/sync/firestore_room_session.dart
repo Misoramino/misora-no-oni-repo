@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'firebase_bootstrap.dart';
 import 'firestore_room_blueprint.dart';
@@ -10,6 +11,7 @@ import 'inspector_feed_snapshot.dart';
 import 'remote_member_snapshot.dart';
 import 'room_member_view.dart';
 import '../game/game_state.dart';
+import '../game/match_record.dart';
 import '../game/player_role.dart';
 import '../game/play_area.dart';
 import 'room_match_event.dart';
@@ -77,6 +79,43 @@ class LobbyPlayAreaSnapshot {
       return LobbyPlayAreaSnapshot(
         area: PlayArea.fromJson(raw),
         slotName: ev.payload['slotName'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// 非ホストがホストへ送るプレイエリア提案。
+class PlayAreaProposalSnapshot {
+  const PlayAreaProposalSnapshot({
+    required this.proposerUid,
+    required this.proposerName,
+    required this.slotId,
+    required this.slotName,
+    required this.area,
+    required this.emittedAtMs,
+  });
+
+  final String proposerUid;
+  final String proposerName;
+  final String slotId;
+  final String slotName;
+  final PlayArea area;
+  final int emittedAtMs;
+
+  static PlayAreaProposalSnapshot? tryParseEvent(RoomMatchEvent ev) {
+    if (ev.type != RoomMatchEventTypes.lobbyPlayAreaProposal) return null;
+    final raw = ev.payload['playArea'];
+    if (raw is! Map<String, dynamic>) return null;
+    try {
+      return PlayAreaProposalSnapshot(
+        proposerUid: ev.actorUid,
+        proposerName: ev.payload['proposerName'] as String? ?? '参加者',
+        slotId: ev.payload['slotId'] as String? ?? '',
+        slotName: ev.payload['slotName'] as String? ?? '提案エリア',
+        area: PlayArea.fromJson(raw),
+        emittedAtMs: ev.emittedAtMs,
       );
     } catch (_) {
       return null;
@@ -654,6 +693,54 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
+  /// ホスト向け: 直近のエリア提案（提案者 uid ごとに最新 1 件）。
+  Future<Map<String, PlayAreaProposalSnapshot>> fetchLobbyPlayAreaProposals() async {
+    if (_roomId == null) return const {};
+    try {
+      final snap = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('events')
+          .where(RoomEventsFields.sessionKey, isEqualTo: lobbySessionKey)
+          .orderBy(RoomEventsFields.emittedAtMs, descending: true)
+          .limit(32)
+          .get();
+      final out = <String, PlayAreaProposalSnapshot>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ev = RoomMatchEvent.tryParse(doc.id, data);
+        if (ev == null) continue;
+        final parsed = PlayAreaProposalSnapshot.tryParseEvent(ev);
+        if (parsed == null) continue;
+        out.putIfAbsent(parsed.proposerUid, () => parsed);
+      }
+      return out;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// 非ホストのみ。ホストへプレイエリアを提案。
+  Future<String?> publishPlayAreaProposal({
+    required PlayArea area,
+    required String slotName,
+    required String slotId,
+    required String proposerName,
+  }) async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    if (isHost) return 'ホストは提案ではなく適用してください';
+    return publishRoomEvent(
+      type: RoomMatchEventTypes.lobbyPlayAreaProposal,
+      payload: {
+        'slotId': slotId,
+        'slotName': slotName,
+        'proposerName': proposerName,
+        'playArea': area.toJson(),
+      },
+      sessionKey: lobbySessionKey,
+    );
+  }
+
   /// 再参加時に過去イベントを再生するための一括取得。
   Future<List<RoomMatchEvent>> fetchMatchEvents(int sessionKey) async {
     if (_roomId == null) return const [];
@@ -993,6 +1080,208 @@ class FirestoreRoomSession implements RoomSessionPort {
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       unawaited(publishPresence(tension: false));
     });
+  }
+
+  /// 観戦記録などマルチトラックを 1 ドキュメントに保存（試合終了時 1 回）。
+  Future<String?> publishMatchArchiveFull({
+    required int sessionKey,
+    required SavedMatchRecord record,
+  }) async {
+    if (_roomId == null || _uid == null) return null;
+    try {
+      final tracksJson = <String, dynamic>{};
+      for (final e in record.tracks.entries) {
+        tracksJson[e.key] = e.value.map((s) => s.toJson()).toList();
+      }
+      await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('matchArchives')
+          .doc('full_$sessionKey')
+          .set({
+        MatchArchiveFields.kind: MatchArchiveKind.full,
+        MatchArchiveFields.sessionKey: sessionKey,
+        MatchArchiveFields.uploadedAtUtc:
+            DateTime.now().toUtc().toIso8601String(),
+        MatchArchiveFields.uploadedByUid: _uid,
+        MatchArchiveFields.startedAtUtc:
+            record.startedAtUtc.toIso8601String(),
+        MatchArchiveFields.endedAtUtc: record.endedAtUtc.toIso8601String(),
+        MatchArchiveFields.outcome: record.outcome.name,
+        MatchArchiveFields.playArea: record.playArea.toJson(),
+        MatchArchiveFields.tracks: tracksJson,
+        if (record.trackLabels.isNotEmpty)
+          MatchArchiveFields.trackLabels: record.trackLabels,
+      }, SetOptions(merge: true));
+      return null;
+    } on FirebaseException catch (e) {
+      return _describeFirebaseException(e);
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// 参加者が自分の軌跡だけを保存（試合終了時 1 回・簡易間引き済み想定）。
+  Future<String?> publishMatchTrackChunk({
+    required int sessionKey,
+    required String nickname,
+    required PlayerRole role,
+    required List<TrajectorySample> samples,
+  }) async {
+    if (_roomId == null || _uid == null) return null;
+    if (samples.isEmpty) return null;
+    try {
+      await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('matchArchives')
+          .doc('chunk_${sessionKey}_$_uid')
+          .set({
+        MatchArchiveFields.kind: MatchArchiveKind.chunk,
+        MatchArchiveFields.sessionKey: sessionKey,
+        MatchArchiveFields.uploadedAtUtc:
+            DateTime.now().toUtc().toIso8601String(),
+        MatchArchiveFields.uploadedByUid: _uid,
+        MatchArchiveFields.uid: _uid,
+        MatchArchiveFields.nickname: nickname,
+        MatchArchiveFields.role: role.name,
+        MatchArchiveFields.samples:
+            samples.map((s) => s.toJson()).toList(growable: false),
+      });
+      return null;
+    } on FirebaseException catch (e) {
+      return _describeFirebaseException(e);
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// ルームに保存された軌跡を取得して [SavedMatchRecord] に復元（フル優先、なければ chunk 結合）。
+  Future<SavedMatchRecord?> fetchMergedMatchArchive(int sessionKey) async {
+    if (_roomId == null) return null;
+    try {
+      final full = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('matchArchives')
+          .doc('full_$sessionKey')
+          .get();
+      if (full.exists) {
+        final data = full.data();
+        if (data != null) {
+          final parsed = _savedRecordFromArchiveMap(
+            sessionKey: sessionKey,
+            data: data,
+          );
+          if (parsed != null) return parsed;
+        }
+      }
+
+      final chunks = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('matchArchives')
+          .where(MatchArchiveFields.sessionKey, isEqualTo: sessionKey)
+          .where(MatchArchiveFields.kind, isEqualTo: MatchArchiveKind.chunk)
+          .get();
+
+      if (chunks.docs.isEmpty) return null;
+
+      final tracks = <String, List<TrajectorySample>>{};
+      final labels = <String, String>{};
+      PlayArea? area;
+      GameState? outcome;
+      DateTime? started;
+      DateTime? ended;
+
+      for (final doc in chunks.docs) {
+        final data = doc.data();
+        final uid = data[MatchArchiveFields.uid] as String?;
+        final rawSamples = data[MatchArchiveFields.samples] as List<dynamic>?;
+        if (uid == null || rawSamples == null || rawSamples.isEmpty) continue;
+        final trackId = 'player_$uid';
+        tracks[trackId] = rawSamples
+            .map(
+              (item) =>
+                  TrajectorySample.fromJson(item as Map<String, dynamic>),
+            )
+            .toList();
+        final nick = (data[MatchArchiveFields.nickname] as String?)?.trim();
+        final roleName = data[MatchArchiveFields.role] as String?;
+        final roleLabel = switch (roleName) {
+          'hunter' => '鬼',
+          'werewolf' => '人狼',
+          _ => '逃走者',
+        };
+        labels[trackId] =
+            nick != null && nick.isNotEmpty ? '$nick（$roleLabel）' : roleLabel;
+      }
+
+      if (tracks.isEmpty) return null;
+
+      final matchStart = _latestMatchStart;
+      area = matchStart?.playArea;
+      started = matchStart?.startedAtUtc != null
+          ? DateTime.tryParse(matchStart!.startedAtUtc!)?.toUtc()
+          : null;
+
+      return SavedMatchRecord(
+        version: SavedMatchRecord.currentVersion,
+        id: 'online_$sessionKey',
+        startedAtUtc: started ?? DateTime.now().toUtc(),
+        endedAtUtc: ended ?? DateTime.now().toUtc(),
+        outcome: outcome ?? GameState.waiting,
+        consentedToTrajectory: true,
+        playArea: area ??
+            PlayArea.circle(center: const LatLng(0, 0), radiusMeters: 100),
+        tracks: tracks,
+        trackLabels: labels,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  SavedMatchRecord? _savedRecordFromArchiveMap({
+    required int sessionKey,
+    required Map<String, dynamic> data,
+  }) {
+    final tracksRaw = data[MatchArchiveFields.tracks] as Map<String, dynamic>?;
+    if (tracksRaw == null || tracksRaw.isEmpty) return null;
+    final tracks = <String, List<TrajectorySample>>{};
+    for (final e in tracksRaw.entries) {
+      final list = e.value as List<dynamic>;
+      tracks[e.key] = list
+          .map(
+            (item) => TrajectorySample.fromJson(item as Map<String, dynamic>),
+          )
+          .toList();
+    }
+    final areaRaw = data[MatchArchiveFields.playArea] as Map<String, dynamic>?;
+    if (areaRaw == null) return null;
+    final startedRaw = data[MatchArchiveFields.startedAtUtc] as String?;
+    final endedRaw = data[MatchArchiveFields.endedAtUtc] as String?;
+    final outcomeRaw = data[MatchArchiveFields.outcome] as String?;
+    return SavedMatchRecord(
+      version: SavedMatchRecord.currentVersion,
+      id: 'online_full_$sessionKey',
+      startedAtUtc: startedRaw != null
+          ? DateTime.parse(startedRaw).toUtc()
+          : DateTime.now().toUtc(),
+      endedAtUtc: endedRaw != null
+          ? DateTime.parse(endedRaw).toUtc()
+          : DateTime.now().toUtc(),
+      outcome: GameState.values.firstWhere(
+        (s) => s.name == outcomeRaw,
+        orElse: () => GameState.waiting,
+      ),
+      consentedToTrajectory: true,
+      playArea: PlayArea.fromJson(areaRaw),
+      tracks: tracks,
+      trackLabels: (data[MatchArchiveFields.trackLabels] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, v as String)) ??
+          const {},
+    );
   }
 
   @override

@@ -28,20 +28,32 @@ import '../features/game_map/logic/map_geo_utils.dart';
 import '../features/game_map/logic/oni_intel_text_builder.dart';
 import '../features/game_map/logic/reveal_reason_pool.dart';
 import '../game/anonymous_reveal_trace.dart';
+import '../game/match_record.dart';
 import '../features/game_map/match/game_map_match_controller.dart';
 import '../features/game_map/match/gimmick_pickup_evaluator.dart';
 import '../features/game_map/match/match_geo_helpers.dart';
 import '../features/game_map/match/match_runtime_state.dart';
 import '../features/game_map/match/match_tick_effects.dart';
 import '../features/game_map/match/match_tick_evaluator.dart';
+import '../features/game_map/prep/area_gallery_pick.dart';
+import '../features/game_map/prep/prep_map_mode.dart';
+import '../features/game_map/prep/prep_map_mode_fab.dart';
+import '../features/game_map/prep/prep_map_preview_panel.dart';
 import '../features/game_map/prep/prep_lobby_panel.dart';
+import '../features/game_map/presentation/match_start_countdown_overlay.dart';
+import '../features/game_map/presentation/match_start_roster_overlay.dart';
+import '../features/game_map/presentation/match_rejoin_notice.dart';
+import '../features/game_map/presentation/play_area_orbit_cinema.dart';
+import '../features/game_map/presentation/prep_map_phase_shell.dart';
+import '../features/game_map/presentation/world_phase_flash.dart';
+import '../session/match_presentation_prefs.dart';
+import '../features/game_map/widgets/game_inline_status_badge.dart';
 import '../features/game_map/widgets/location_permission_prompt.dart';
 import '../game/role_briefing.dart';
 import '../features/game_map/widgets/role_briefing_dialog.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
 import '../features/game_map/settings/game_custom_settings_sheet.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
-import '../features/game_map/settings/player_personal_settings_sheet.dart';
 import '../session/avatar_image_store.dart';
 import '../session/avatar_thumb_codec.dart';
 import '../features/game_map/map/reveal_avatar_icon_cache.dart';
@@ -56,9 +68,8 @@ import '../features/game_map/widgets/game_info_panel.dart';
 import '../config/google_maps_config.dart';
 import '../features/game_map/widgets/maps_api_key_banner.dart';
 import '../features/match/match_result_hints.dart';
-import '../features/game_map/settings/personal_settings_hub_sheet.dart';
+import '../features/settings/guide_hub_sheet.dart';
 import '../features/settings/settings_hub_sheet.dart';
-import '../features/game_map/widgets/how_to_play_sheet.dart';
 import '../session/hud_display_prefs.dart';
 import '../features/game_map/widgets/game_map_overflow_menu.dart';
 import '../features/game_map/widgets/map_layer_toggle_strip.dart';
@@ -75,6 +86,7 @@ import '../game/spectral_territory_logic.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_config.dart';
 import '../game/accusation_block_logic.dart';
+import '../game/accusation_intro_copy.dart';
 import '../game/accusation_logic.dart';
 import '../game/accusation_weight.dart';
 import '../game/oni_path_trail.dart';
@@ -97,6 +109,7 @@ import '../game/location_reveal_event.dart';
 import '../game/match_event.dart';
 import '../game/oni_intel_mode.dart';
 import '../game/oni_intel_trace.dart';
+import '../game/play_area_preview_entry.dart';
 import '../game/play_area.dart';
 import '../game/player_role.dart';
 import '../game/polygon_area_resolver.dart';
@@ -121,6 +134,7 @@ import '../sync/room_member_view.dart';
 import '../services/location_service.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
+import '../services/spectator_match_recorder.dart';
 import '../services/play_area_slot_store.dart';
 import '../services/play_area_store.dart';
 import '../sync/room_session_port.dart';
@@ -132,14 +146,16 @@ import '../theme/elimination_role_copy.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import '../widgets/confirm_dialog.dart';
+import '../widgets/juicy_tap.dart' as game_feedback;
+import '../widgets/scene_transitions.dart';
 import '../session/game_map_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../settings/oni_operator_prefs.dart';
 import 'area_gallery_screen.dart';
 import 'match_gallery_screen.dart';
+import 'match_replay_screen.dart';
 import 'match_result_screen.dart';
-import 'oni_operator_screen.dart';
-import 'privacy_control_screen.dart';
+import 'personal_settings_screen.dart';
 import 'room_lobby_screen.dart';
 
 /// ゲームマップ画面 — 実装は `part` ファイルにドメイン別に分割されています。
@@ -171,6 +187,7 @@ part 'game_map_screen.second_game.dart';
 part 'game_map_screen.skills.dart';
 part 'game_map_screen.overlay.dart';
 part 'game_map_screen.rejoin.dart';
+part 'game_map_screen.presentation.dart';
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, this.onlineSession, super.key});
@@ -237,8 +254,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   double _circleDraftRadiusMeters = GameConfig.playAreaRadiusMeters;
   bool _waitingCircleCenterTap = false;
 
-  /// 待機中は地図を隠してロビー表示。エリア編集・試合中・試合終了後は地図を表示する。
-  bool _mapVisibleInLobby = false;
+  /// 準備中の地図表示モード。試合中・編集時は hidden 以外になりうる。
+  PrepMapMode _prepMapMode = PrepMapMode.hidden;
+
+  /// プレビューモードで強調表示する保存スロット（null = 適用中）。
+  String? _previewFocusSlotId;
 
   // --- Match rules & roles (logic: match_lifecycle, accusation parts) ---
   GameState _gameState = GameState.waiting;
@@ -258,8 +278,10 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   // --- Recording & visuals ---
   MatchRecorder? _matchRecorder;
+  SpectatorMatchRecorder? _spectatorMatchRecorder;
+  SavedMatchRecord? _lastSpectatorRecord;
   Future<void>? _finalizeRecordingFuture;
-  bool _trajectoryConsent = false;
+  bool _trajectoryConsent = true;
   late WorldProfile _activeProfile;
   late MapVisualController _mapVisual;
   String? _avatarImagePath;
@@ -283,6 +305,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _participantRulesOpen = false;
   List<SavedPlayArea> _savedPlayAreas = const [];
   String? _selectedPlayAreaSlotId;
+  String? _lobbyHostAreaSlotName;
+  final Map<String, PlayAreaProposalSnapshot> _lobbyAreaProposals = {};
 
   /// 準備・試合結果中は操作パネルを隠し、FAB「詳細設定」で開く。
   bool _prepControlSheetOpen = false;
@@ -364,6 +388,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _prepOnboardingChecked = false;
   bool _matchRoleBriefingShown = false;
   String? _matchEventFeedLine;
+  String? _inlineStatusMessage;
+  Timer? _inlineStatusTimer;
   bool _secondGameIntroHighlight = false;
   Timer? _secondGameHighlightTimer;
 
@@ -437,7 +463,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           ],
           child: Text(
             '30秒でわかる、かんたんガイドを見てみませんか？\n'
-            'あとからタイトルの「遊び方」やメニューからも見られます。',
+            'あとからタイトルの「ガイド・遊び方」やメニューからも見られます。',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -474,10 +500,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       CoachStep(
         targetKey: _prepMapFabKey,
         icon: Icons.map_rounded,
-        title: 'エリアを編集',
-        body: '右下の「マップパネル」から、試合の舞台（プレイエリア）の形を編集・保存できます。'
-            '枠の外に出すぎると位置がバレやすくなります。'
-            '地図スタイルの確認は試合中メニュー（⋮）の「エリアギャラリー」から。',
+        title: 'プレイエリアを編集',
+        body: '「プレイエリア」タブから地図プレビュー・編集・ギャラリーに進めます。'
+            '枠の外に出すぎると位置がバレやすくなります。',
       ),
     ]);
     if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
@@ -517,7 +542,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           child: Text(
             'HUD・スキル・メニューの使い方を、'
             '30秒ほどで案内します。\n'
-            'あとから ⋮ メニューの「遊び方」でも確認できます。',
+            'あとから ⋮ メニューの「ガイド・遊び方」でも確認できます。',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -560,7 +585,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         targetKey: _matchOverflowKey,
         icon: Icons.more_vert_rounded,
         title: 'メニュー（⋮）',
-        body: 'サウンド設定・遊び方・エリアギャラリーはここから。'
+        body: 'サウンド設定・ガイド・遊び方・保存エリア一覧はここから。'
             '試合を抜けるときは「試合中止の投票」を使ってください。',
       ),
     ]);
@@ -592,10 +617,13 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _loadTrajectoryConsent() async {
     final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getBool(GameMapPrefs.trajectoryConsent);
+    if (stored == null) {
+      await prefs.setBool(GameMapPrefs.trajectoryConsent, true);
+    }
     if (!mounted) return;
     setState(() {
-      _trajectoryConsent =
-          prefs.getBool(GameMapPrefs.trajectoryConsent) ?? true;
+      _trajectoryConsent = stored ?? true;
     });
   }
 
@@ -639,12 +667,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         prefs.getString(GameMapPrefs.accusationWeight),
       );
     });
-  }
-
-  Future<void> _setTrajectoryConsent(bool value) async {
-    setState(() => _trajectoryConsent = value);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(GameMapPrefs.trajectoryConsent, value);
   }
 
   Future<void> _refreshOfflineQueueCount() async {
@@ -761,6 +783,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _statusMessage = 'ルーム ${fs.roomId} に接続済み';
     unawaited(_syncAvatarThumbToFirestore());
     unawaited(_syncLobbyPlayAreaOnAttach());
+    unawaited(_syncLobbyProposalsOnAttach());
   }
 
   Future<void> _ingestRemoteAvatarThumbs(
@@ -796,6 +819,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
     _inspectorFeedSub = session.inspectorFeed.listen((map) {
       if (!mounted) return;
+      _spectatorMatchRecorder?.ingestInspectorFeed(map);
       setState(() => _inspectorLiveFeed = map);
     });
   }
@@ -1542,6 +1566,24 @@ class _GameMapScreenState extends State<GameMapScreen>
         _gpsAccuracyCount;
   }
 
+  void _ensureMatchRecorder({bool discardExisting = false}) {
+    if (_isRoomInspector || !_trajectoryConsent) {
+      if (discardExisting) {
+        _matchRecorder?.discard();
+        _matchRecorder = null;
+      }
+      return;
+    }
+    if (_matchRecorder != null && !discardExisting) return;
+    _matchRecorder?.discard();
+    _matchRecorder = MatchRecorder(
+      playAreaSnapshot: _playArea,
+      consentedToTrajectory: true,
+      initialRunner: _currentPosition,
+      initialOni: _oniPosition,
+    );
+  }
+
   Future<void> _finalizeMatchRecording(GameState outcome) async {
     final rec = _matchRecorder?.finalize(
       outcome: outcome,
@@ -1552,6 +1594,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (rec == null) return;
     try {
       await _matchArchive.save(rec);
+      unawaited(_uploadOnlineMatchArchive(rec));
       await _offlineQueue.push(
         OfflineSyncItem(
           id: 'rec_${rec.id}',
@@ -1571,6 +1614,50 @@ class _GameMapScreenState extends State<GameMapScreen>
     } catch (e) {
       if (mounted) {
         _toast('軌跡の保存に失敗: $e');
+      }
+    }
+  }
+
+  void _ensureSpectatorMatchRecorder({
+    bool discardExisting = false,
+    DateTime? matchStartedAtUtc,
+  }) {
+    if (!_isRoomInspector) {
+      if (discardExisting) {
+        _spectatorMatchRecorder?.discard();
+        _spectatorMatchRecorder = null;
+      }
+      return;
+    }
+    if (_spectatorMatchRecorder != null && !discardExisting) return;
+    _spectatorMatchRecorder?.discard();
+    _spectatorMatchRecorder = SpectatorMatchRecorder(
+      matchStartedAtUtc: matchStartedAtUtc,
+    );
+    if (_inspectorLiveFeed.isNotEmpty) {
+      _spectatorMatchRecorder!.ingestInspectorFeed(_inspectorLiveFeed);
+    }
+  }
+
+  Future<void> _finalizeSpectatorRecording(GameState outcome) async {
+    final rec = _spectatorMatchRecorder?.finalize(
+      outcome: outcome,
+      playArea: _playArea,
+      reveals: List<LocationRevealEvent>.from(_rt.revealLog),
+      events: List<MatchEvent>.from(_rt.matchEvents),
+    );
+    _spectatorMatchRecorder = null;
+    _lastSpectatorRecord = rec;
+    if (rec == null) return;
+    try {
+      await _matchArchive.save(rec);
+      unawaited(_uploadOnlineMatchArchive(rec));
+      if (mounted) {
+        _toast('観戦記録を端末に保存しました（軌跡再生で全員の動きを確認）');
+      }
+    } catch (e) {
+      if (mounted) {
+        _toast('観戦記録の保存に失敗: $e');
       }
     }
   }
@@ -1853,9 +1940,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     navigator.popUntil((route) => route is! PopupRoute);
   }
 
-  Future<void> _openMatchResultScreen() async {
+  Future<void> _openMatchResultScreen({bool spectator = false}) async {
     if (!mounted) return;
-    if (_gameState == GameState.caughtByOni && _isMatchStillActiveForLocalPlayer) {
+    if (!spectator &&
+        _gameState == GameState.caughtByOni &&
+        _isMatchStillActiveForLocalPlayer) {
       _toast('リザルトは試合終了後に表示できます');
       return;
     }
@@ -1863,21 +1952,23 @@ class _GameMapScreenState extends State<GameMapScreen>
         ? FactionSide.humanTeam
         : FactionSide.oniTeam;
     final localFaction = _effectiveLocalFaction();
-    final personalWon = winningFaction == localFaction;
-    final progressBefore = await ProgressStore.load();
-    final contextualHint = MatchResultHints.afterMatch(
-      before: progressBefore,
-      won: personalWon,
-    );
-    await _recordMatchProgressOnce(
-      won: personalWon,
-      faction: localFaction,
-    );
-    _dismissOpenModals();
-    if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => MatchResultScreen(
+    final personalWon = !spectator &&
+        winningFaction == localFaction;
+    if (!spectator) {
+      final progressBefore = await ProgressStore.load();
+      final contextualHint = MatchResultHints.afterMatch(
+        before: progressBefore,
+        won: personalWon,
+      );
+      await _recordMatchProgressOnce(
+        won: personalWon,
+        faction: localFaction,
+      );
+      _dismissOpenModals();
+      if (!mounted) return;
+      await AppNav.push<void>(
+        context,
+        (_) => MatchResultScreen(
           outcome: _gameState,
           detail: _statusMessage,
           roleSummary:
@@ -1904,7 +1995,64 @@ class _GameMapScreenState extends State<GameMapScreen>
             await _openRoomLobby();
           },
         ),
-      ),
+        direction: SceneTransitionDirection.up,
+        worldProfile: _activeProfile,
+      );
+      return;
+    }
+
+    _dismissOpenModals();
+    if (!mounted) return;
+    final spectatorRecord = _lastSpectatorRecord;
+    await AppNav.push<void>(
+      context,
+      (_) => MatchResultScreen(
+        spectatorMode: true,
+          outcome: _gameState,
+          detail: _statusMessage,
+          roleSummary: 'インスペクター（観戦）',
+          factionAtDeath: null,
+          playerFactionAtEnd: null,
+          winningFaction: winningFaction,
+          progress: null,
+          newlyUnlockedTitles: const [],
+          matchDurationLabel: _matchDurationLabel(),
+          accusationPointsHuman: _rt.accusationPointsHuman,
+          afterCatchRule: null,
+          contextualHint: null,
+          spectatorRecord: spectatorRecord,
+          onOpenReplay: spectatorRecord == null
+              ? null
+              : () {
+                  AppNav.push<void>(
+                    context,
+                    (_) => MatchReplayScreen(record: spectatorRecord),
+                    worldProfile: _activeProfile,
+                  );
+                },
+          onPrepareNext: () {
+            Navigator.of(context).pop();
+            _resetGame();
+          },
+          onOpenGallery: () async {
+            Navigator.of(context).pop();
+            if (spectatorRecord != null) {
+              await AppNav.push<void>(
+                context,
+                (_) => MatchReplayScreen(record: spectatorRecord),
+                worldProfile: _activeProfile,
+              );
+            } else {
+              await _openMatchGallery();
+            }
+          },
+          onOpenLobby: () async {
+            Navigator.of(context).pop();
+            await _openRoomLobby();
+          },
+        ),
+      direction: SceneTransitionDirection.up,
+      worldProfile: _activeProfile,
     );
   }
 
@@ -1937,20 +2085,20 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _openPersonalSettings() async {
-    final prefs0 = await SharedPreferences.getInstance();
-    final form = await SessionPrefs.loadForm();
-    if (!mounted) return;
-    final result = await showPlayerPersonalSettingsSheet(
-      context: context,
-      initial: PlayerPersonalSettingsInitial(
-        displayName: _localPlayerLabel,
-        profile: _activeProfile,
-        useBleScan: prefs0.getBool(GameMapPrefs.useBleScanProximity) ?? false,
-        trajectoryConsent: _trajectoryConsent,
-        avatarImagePath: _avatarImagePath,
-      ),
+    final result = await AppNav.push<PlayerPersonalSettingsResult?>(
+      context,
+      (_) => const PersonalSettingsScreen(),
+      worldProfile: _activeProfile,
     );
     if (!mounted || result == null) return;
+    await _applyPersonalSettingsResult(result);
+  }
+
+  Future<void> _applyPersonalSettingsResult(
+    PlayerPersonalSettingsResult result,
+  ) async {
+    final form = await SessionPrefs.loadForm();
+    if (!mounted) return;
 
     await SessionPrefs.saveForm(
       nickname: result.displayName,
@@ -1985,9 +2133,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     await _refreshPlayerAvatarIcon();
     unawaited(_syncAvatarThumbToFirestore());
     await _reloadProximityStackFromPrefs();
-    if (_trajectoryConsent != result.trajectoryConsent) {
-      await _setTrajectoryConsent(result.trajectoryConsent);
-    }
+    await _loadOniOperatorPrefs();
     if (mounted) _toast('個人設定を適用しました');
   }
 
@@ -2167,10 +2313,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     final fs = _roomSession is FirestoreRoomSession
         ? _roomSession as FirestoreRoomSession
         : null;
-    final returned = await Navigator.of(context).push<FirestoreRoomSession?>(
-      MaterialPageRoute<FirestoreRoomSession?>(
-        builder: (_) => RoomLobbyScreen(existingSession: fs),
-      ),
+    final returned = await AppNav.push<FirestoreRoomSession?>(
+      context,
+      (_) => RoomLobbyScreen(existingSession: fs),
+      worldProfile: _activeProfile,
     );
     if (!mounted) return;
     if (returned != null && returned.roomId != null) {
@@ -2191,22 +2337,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
   }
 
-  void _leaveMapViewToPrep() {
-    if (_gameState == GameState.running) return;
-    if (_editingArea) {
-      setState(() {
-        _editingArea = false;
-        _polygonDraft.clear();
-        _polygonDraftClosed = false;
-        _waitingCircleCenterTap = false;
-      });
-    }
-    setState(() {
-      _mapVisibleInLobby = false;
-      _prepControlSheetOpen = false;
-      _statusMessage = '準備画面に戻りました';
-    });
-  }
+  void _leaveMapViewToPrep() => _leavePrepMapToPanel();
 
   Future<void> _openMatchGallery() async {
     final pending = _finalizeRecordingFuture;
@@ -2215,8 +2346,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       await pending;
       if (!mounted) return;
     }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const MatchGalleryScreen()),
+    await AppNav.push<void>(
+      context,
+      (_) => const MatchGalleryScreen(),
+      worldProfile: _activeProfile,
     );
   }
 
@@ -2262,8 +2395,21 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ok ?? false;
   }
 
-  void _showHowToPlaySheet() =>
-      showHowToPlaySheet(context, yourRole: _localRole);
+  void _showHowToPlaySheet() {
+    unawaited(
+      showGuideHubSheet(
+        context,
+        yourRole: _localRole,
+        prepPhase: _gameState == GameState.waiting,
+        showPrepCoachMarksNow: _gameState == GameState.waiting
+            ? () => _showPrepCoachMarks()
+            : null,
+        showMatchCoachMarksNow: _gameState == GameState.running
+            ? () => _showMatchCoachMarks()
+            : null,
+      ),
+    );
+  }
 
   String? _bleIssueFromProximitySource(String source) {
     if (source.contains('ble_permission_denied')) {
@@ -2279,29 +2425,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _openSettingsHub() async {
     await showSettingsHubSheet(
       context,
-      yourRole: _localRole,
+      onPersonalSettingsApplied: (result) async {
+        await _applyPersonalSettingsResult(result);
+        await _loadTrajectoryConsent();
+      },
       onOpenDisplaySettings: _gameState == GameState.running
           ? _openHudDisplaySheet
           : null,
-    );
-  }
-
-  Future<void> _openPersonalSettingsHub() async {
-    await showPersonalSettingsHubSheet(
-      context,
-      onOpenProfile: _openPersonalSettings,
-      onOpenOniSettings: () async {
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(builder: (_) => const OniOperatorScreen()),
-        );
-        await _loadOniOperatorPrefs();
-      },
-      onOpenPrivacy: () async {
-        if (!context.mounted) return;
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(builder: (_) => const PrivacyControlScreen()),
-        );
-      },
     );
   }
 
@@ -2486,9 +2616,6 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _onOverflowMenuSelected(String value) async {
     switch (value) {
-      case 'personal':
-        await _openPersonalSettingsHub();
-        break;
       case 'settings':
         await _openSettingsHub();
         break;
@@ -2496,7 +2623,27 @@ class _GameMapScreenState extends State<GameMapScreen>
         await _openAreaGallery();
         break;
       case 'help':
-        _showHowToPlaySheet();
+        await showGuideHubSheet(
+          context,
+          yourRole: _localRole,
+          prepPhase: _gameState == GameState.waiting,
+          showPrepCoachMarksNow: _gameState == GameState.waiting
+              ? () => _showPrepCoachMarks()
+              : null,
+          showMatchCoachMarksNow: _gameState == GameState.running
+              ? () => _showMatchCoachMarks()
+              : null,
+        );
+        break;
+      case 'role_briefing':
+        await showRoleBriefingDialog(
+          context,
+          role: _localRole,
+          skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
+          werewolfCurrentFaction: _localRole == PlayerRole.werewolf
+              ? _localFactionNow()
+              : null,
+        );
         break;
       case 'gallery':
         await _openMatchGallery();
@@ -2510,12 +2657,6 @@ class _GameMapScreenState extends State<GameMapScreen>
       case 'test':
         _toggleTestMode();
         break;
-      case 'result':
-        final ended =
-            _gameState == GameState.runnerWin ||
-            _gameState == GameState.caughtByOni;
-        if (ended) await _openMatchResultScreen();
-        break;
       case 'dev_reset':
         if (_testMode) _resetGame();
         break;
@@ -2527,24 +2668,23 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _openAreaGallery() async {
     final running = _gameState == GameState.running;
-    final picked = await Navigator.of(context).push<String?>(
-      MaterialPageRoute<String?>(
-        builder: (_) => AreaGalleryScreen(
-          store: _areaSlotStore,
-          selectedId: _selectedPlayAreaSlotId,
-          canEdit: !running && _isHost,
-          previewOnly: running,
-        ),
+    final picked = await AppNav.push<AreaGalleryPick?>(
+      context,
+      (_) => AreaGalleryScreen(
+        store: _areaSlotStore,
+        selectedId: _selectedPlayAreaSlotId,
+        canEdit: !running,
+        previewOnly: running,
       ),
+      worldProfile: _activeProfile,
     );
     if (!mounted || picked == null) return;
     if (running) return;
     await _loadPlayAreaSlots();
     if (!mounted) return;
-    setState(() => _selectedPlayAreaSlotId = picked);
-    if (_isHost && _gameState == GameState.waiting) {
-      _hostApplySelectedPlayArea();
-      _toast('エリアを適用しました');
+    if (picked is AreaGalleryPreviewPick) {
+      setState(() => _selectedPlayAreaSlotId = picked.slotId);
+      _enterPrepMapMode(PrepMapMode.preview, previewSlotId: picked.slotId);
     }
   }
 
@@ -2560,6 +2700,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _connectionSub?.cancel();
     _matchTimer?.cancel();
     _hudRevealAlertTimer?.cancel();
+    _inlineStatusTimer?.cancel();
     _secondGameHighlightTimer?.cancel();
     _renderPump?.cancel();
     _cancelCaptureBoundTimers();
@@ -2608,14 +2749,16 @@ class _GameMapScreenState extends State<GameMapScreen>
           )
         : null;
     final showGameMap =
-        _editingArea || _mapVisibleInLobby || _gameState != GameState.waiting;
+        _prepMapMode != PrepMapMode.hidden || _gameState != GameState.waiting;
     final mq = MediaQuery.of(context);
     final narrow = mq.size.width < 400;
     final onPrepPanel =
         _gameState == GameState.waiting && !showGameMap && !_editingArea;
+    final waitingMapTitle = _prepMapModeTitle();
     final appTitle = narrow
         ? switch (_gameState) {
-            GameState.waiting => onPrepPanel ? 'Oni Game' : '準備',
+            GameState.waiting =>
+              onPrepPanel ? 'Oni Game' : waitingMapTitle,
             GameState.running => 'プレイ中',
             GameState.runnerWin => '逃走成功',
             GameState.caughtByOni => locallyEliminated
@@ -2623,7 +2766,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                 : '捕獲',
           }
         : switch (_gameState) {
-            GameState.waiting => onPrepPanel ? 'Oni Game' : 'Oni Game ・ 準備',
+            GameState.waiting => onPrepPanel
+                ? 'Oni Game'
+                : 'Oni Game ・ $waitingMapTitle',
             GameState.running => 'Oni Game ・ プレイ中',
             GameState.runnerWin => 'Oni Game ・ 逃走成功',
             GameState.caughtByOni => locallyEliminated
@@ -2674,60 +2819,26 @@ class _GameMapScreenState extends State<GameMapScreen>
         ),
         body: Stack(
           children: [
-            if (showGameMap)
+            if (_gameState != GameState.waiting && showGameMap)
+              Positioned.fill(child: _buildInteractiveGoogleMap(tokens))
+            else if (_gameState == GameState.waiting)
               Positioned.fill(
-                child: Builder(
-                  builder: (context) {
-                    final overlay = _overlaySnapshot(tokens);
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        GoogleMap(
-                          style: _mapVisual.mapStyleJson,
-                          initialCameraPosition: CameraPosition(
-                            target: _currentPosition,
-                            zoom: 16,
-                          ),
-                          myLocationEnabled: true,
-                          myLocationButtonEnabled: true,
-                          markers:
-                              GameMapOverlayBuilder.buildMarkers(overlay),
-                          polylines:
-                              GameMapOverlayBuilder.buildPolylines(overlay),
-                          circles:
-                              GameMapOverlayBuilder.buildCircles(overlay),
-                          polygons:
-                              GameMapOverlayBuilder.buildPolygons(overlay),
-                          onTap: _onMapTap,
-                          onMapCreated: _onMapCreated,
-                          onCameraIdle: _onCameraIdle,
-                        ),
-                        SkillMapPlacementLayer(
-                          mapController: _mapController,
-                          active: _skillMapPlacementActive,
-                          isBodyThrow: _rt.bodyThrowAwaitingMapTap,
-                          hint: _rt.bodyThrowAwaitingMapTap
-                              ? '指を離して人形を設置。下の×へドラッグでキャンセル'
-                              : '指を離して結界を設置。下の×へドラッグでキャンセル',
-                          onPreview: (latLng) {
-                            if (_skillPlacementPreviewLatLng == latLng) return;
-                            setState(() => _skillPlacementPreviewLatLng = latLng);
-                          },
-                          onConfirm: _confirmSkillMapPlacementAt,
-                          onCancel: _cancelSkillMapPlacement,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              )
-            else
-              Positioned.fill(
-                child: Stack(
+                child: PrepMapPhaseShell(
+                  showMap: showGameMap,
+                  profile: _activeProfile,
+                  mapChild: _buildInteractiveGoogleMap(tokens),
+                  prepChild: Stack(
                   children: [
                     PrepLobbyPanel(
                   roomLabel: _roomSession.modeLabel,
                   playAreaLabel: _playAreaSummary(),
+                  hostAppliedAreaNote: !_isHost
+                      ? (_lobbyHostAreaSlotName != null
+                          ? '適用中はホスト設定（$_lobbyHostAreaSlotName）'
+                          : '適用中はホスト設定')
+                      : null,
+                  areaProposals: _lobbyAreaProposals,
+                  onApplyAreaProposal: _hostApplyAreaProposal,
                   matchDurationMinutes: _matchDurationSeconds / 60,
                   isHost: _isHost,
                   settingsSummaryLine: _prepSettingsSummaryLine(),
@@ -2736,11 +2847,19 @@ class _GameMapScreenState extends State<GameMapScreen>
                   onDurationChanged: _setPrepDurationMinutes,
                   savedAreas: _savedPlayAreas,
                   selectedAreaId: _selectedPlayAreaSlotId,
-                  onSelectArea: (id) =>
-                      setState(() => _selectedPlayAreaSlotId = id),
                   onHostApplyArea: _hostApplySelectedPlayArea,
-                  onDeleteSavedArea: _deleteSavedPlayArea,
+                  onProposeToHost: !_isHost
+                      ? () => unawaited(_proposePlayAreaToHost())
+                      : null,
                   activePlayArea: _playArea,
+                  mapStyleJson: _mapVisual.mapStyleJson,
+                  mapTokens: _mapVisual.pack.tokens,
+                    onOpenMapEdit: () => _enterPrepMapMode(PrepMapMode.edit),
+                    onOpenMapPreview: () =>
+                        _enterPrepMapMode(PrepMapMode.preview),
+                    onOpenMapBrowse: () =>
+                        _enterPrepMapMode(PrepMapMode.browse),
+                  onOpenAreaGallery: _openAreaGallery,
                   onStart: _startGame,
                   canStart: !_editingArea && _isHost,
                   onOpenCustomSettings: _openCustomMenu,
@@ -2768,6 +2887,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         child: MapsApiKeyBanner(),
                       ),
                   ],
+                ),
                 ),
               ),
             if (showGameMap)
@@ -3194,16 +3314,37 @@ class _GameMapScreenState extends State<GameMapScreen>
                   mapToolsOnlyPanel:
                       _gameState == GameState.waiting && showGameMap,
                   mapWorldProfile: _mapVisual.pack.profile,
-                  onPrepShowMap: () => setState(() {
-                    _mapVisibleInLobby = true;
-                    _prepControlSheetOpen = true;
-                    _controlSheetMode = ControlSheetMode.skillsOnly;
-                    _statusMessage =
-                        '地図を表示しました。エリアの編集と保存ができます。';
-                  }),
+                  onPrepShowMap: () => _enterPrepMapMode(PrepMapMode.browse),
                     )
                     : showGameMap
-                    ? PrepMapBottomPanel(
+                    ? (_gameState == GameState.waiting &&
+                            _prepMapMode == PrepMapMode.preview
+                        ? PrepMapPreviewPanel(
+                            savedAreas: _savedPlayAreas,
+                            focusSlotId: _previewFocusSlotId,
+                            activePlayAreaLabel: _playAreaSummary(),
+                            isHost: _isHost,
+                            onFocusSlot: _focusPreviewSlot,
+                            onApplyFocused: _isHost
+                                ? () {
+                                    _hostApplySelectedPlayArea();
+                                    _toast('エリアを適用しました');
+                                  }
+                                : null,
+                            onProposeFocused: !_isHost && _previewFocusSlotId != null
+                                ? () => unawaited(
+                                      _proposePlayAreaToHost(
+                                        slotId: _previewFocusSlotId,
+                                      ),
+                                    )
+                                : null,
+                            onOpenGallery: _openAreaGallery,
+                            onRecenterGps: _recenterMapOnGps,
+                            onDismiss: () => setState(() {
+                              _prepControlSheetOpen = false;
+                            }),
+                          )
+                        : PrepMapBottomPanel(
                         playAreaSummary: _playAreaSummary(),
                         isEditing: _editingArea,
                         areaEditorExpanded: _areaEditorPanelExpanded,
@@ -3248,7 +3389,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           _prepControlSheetOpen = false;
                           if (_editingArea) _exitAreaEditKeepMap();
                         }),
-                      )
+                      ))
                     : GameControlPanel(
                         playAreaSummary: _playAreaSummary(),
                         sheetMode: _controlSheetMode,
@@ -3292,11 +3433,22 @@ class _GameMapScreenState extends State<GameMapScreen>
                         werewolfCooldownSeconds: 0,
                         prepLobbyMapHidden: true,
                         mapWorldProfile: _mapVisual.pack.profile,
-                        onPrepShowMap: () => setState(() {
-                          _mapVisibleInLobby = true;
-                          _prepControlSheetOpen = true;
-                        }),
+                        onPrepShowMap: () =>
+                            _enterPrepMapMode(PrepMapMode.browse),
                       ),
+              ),
+            if (_gameState == GameState.waiting &&
+                showGameMap &&
+                !_isRoomInspector)
+              Positioned(
+                top: _locationAccessStatus != null ? 56 : 8,
+                right: 8,
+                child: SafeArea(
+                  child: PrepMapModeFab(
+                    mode: _prepMapMode,
+                    onModeSelected: _setPrepMapModeFromFab,
+                  ),
+                ),
               ),
             if (showControlFab)
               Positioned(
@@ -3318,6 +3470,19 @@ class _GameMapScreenState extends State<GameMapScreen>
                       icon: Icon(running ? Icons.expand_less : Icons.tune),
                       label: Text(running ? '展開' : 'マップパネル'),
                     ),
+                  ),
+                ),
+              ),
+            if (_gameState == GameState.waiting &&
+                _inlineStatusMessage != null)
+              Positioned(
+                top: 8,
+                left: 16,
+                right: 16,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: GameInlineStatusBadge(
+                    message: _inlineStatusMessage!,
                   ),
                 ),
               ),

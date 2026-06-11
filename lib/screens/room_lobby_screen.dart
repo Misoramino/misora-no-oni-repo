@@ -17,6 +17,8 @@ import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
 import '../widgets/scene_transitions.dart';
 import '../features/game_map/prep/lobby_rules_summary_card.dart';
+import '../features/settings/guide_hub_sheet.dart';
+import '../features/settings/settings_hub_sheet.dart';
 import 'game_map_screen.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
@@ -192,21 +194,6 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     }
   }
 
-  Future<void> _claimHostIfAbsent() async {
-    final fs = _session;
-    if (fs == null) return;
-    final err = await fs.claimHostIfAbsent();
-    if (!mounted) return;
-    if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('あなたがホストになりました')),
-      );
-      setState(() {});
-    }
-  }
-
   Future<void> _copyRoomId() async {
     final id = _session?.roomId;
     if (id == null || id.isEmpty) return;
@@ -221,11 +208,42 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     final fs = _session;
     if (fs == null || fs.roomId == null) return;
     if (!mounted) return;
+    final rm = fs.currentRoomMatch;
+    if (rm.phase == RoomPhase.running && rm.matchStart != null) {
+      final uid = fs.myUid;
+      final inRoster =
+          uid != null && rm.matchStart!.assignmentFor(uid) != null;
+      if (!inRoster) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('観戦モードで入ります'),
+            content: const Text(
+              'この試合の参加者リストにあなたは含まれていません。\n'
+              'ゲーム画面では操作できない観戦モードでマップを閲覧します。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('キャンセル'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('観戦で入る'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true || !mounted) return;
+      }
+    }
+    if (!mounted) return;
     final profile = await WorldProfilePrefs.load();
     if (!mounted) return;
     await AppNav.push<void>(
       context,
       (_) => GameMapScreen(profile: profile, onlineSession: fs),
+      worldProfile: profile,
     );
     if (!mounted) return;
     GameAudio.instance.playMenuBgm(_worldProfile);
@@ -249,6 +267,18 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       appBar: AppBar(
         title: const Text('ルームロビー'),
         leading: BackButton(onPressed: () => Navigator.pop(context, _session)),
+        actions: [
+          IconButton(
+            tooltip: 'ガイド・遊び方',
+            icon: const Icon(Icons.menu_book_outlined),
+            onPressed: () => showGuideHubSheet(context),
+          ),
+          IconButton(
+            tooltip: '設定',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => showSettingsHubSheet(context),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -410,8 +440,8 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                             child: Text(
                                               '試合進行中です。'
                                               'ゲーム画面へ入ると、参加者は再参加、'
-                                              'それ以外はインスペクター（観戦）として'
-                                              'マップを閲覧できます。',
+                                              '参加者リストにいない場合は観戦モード'
+                                              '（操作なし）でマップを閲覧します。',
                                               style: theme.textTheme.bodySmall,
                                             ),
                                           ),
@@ -428,26 +458,22 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                     child: Padding(
                                       padding: const EdgeInsets.all(12),
-                                      child: Column(
+                                      child: Row(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            'ホストがオフラインです',
-                                            style: theme.textTheme.titleSmall
-                                                ?.copyWith(
-                                              fontWeight: FontWeight.bold,
+                                          Icon(
+                                            Icons.cloud_off_rounded,
+                                            color: theme.colorScheme.tertiary,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'ホストがオフラインです。'
+                                              'ゲーム画面の準備パネルで引き継ぎできます。',
+                                              style: theme.textTheme.bodySmall,
                                             ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          const Text(
-                                            'ゲーム画面で「ホストを引き継ぐ」から開始できます。',
-                                            style: TextStyle(fontSize: 13),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          FilledButton.tonal(
-                                            onPressed: _claimHostIfAbsent,
-                                            child: const Text('ホストを引き継ぐ'),
                                           ),
                                         ],
                                       ),

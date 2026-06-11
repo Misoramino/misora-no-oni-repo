@@ -16,7 +16,6 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
   final nameController = TextEditingController(text: initial.displayName);
   var selectedProfile = initial.profile;
   var selectedUseBle = initial.useBleScan;
-  var selectedConsent = initial.trajectoryConsent;
   var selectedAvatarPath = initial.avatarImagePath;
   var deviceExpanded = false;
 
@@ -152,7 +151,7 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
                       onExpansionChanged: (v) =>
                           setModal(() => deviceExpanded = v),
                       title: const Text('端末・近接'),
-                      subtitle: const Text('BLE・軌跡保存など'),
+                      subtitle: const Text('BLE 近接推定'),
                       children: [
                         SwitchListTile(
                           contentPadding: const EdgeInsets.only(left: 8),
@@ -162,12 +161,6 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
                           ),
                           value: selectedUseBle,
                           onChanged: (v) => setModal(() => selectedUseBle = v),
-                        ),
-                        SwitchListTile(
-                          contentPadding: const EdgeInsets.only(left: 8),
-                          title: const Text('軌跡を端末保存（同意）'),
-                          value: selectedConsent,
-                          onChanged: (v) => setModal(() => selectedConsent = v),
                         ),
                       ],
                     ),
@@ -236,7 +229,6 @@ Future<PlayerPersonalSettingsResult?> showPlayerPersonalSettingsSheet({
     displayName: displayName,
     profile: selectedProfile,
     useBleScan: selectedUseBle,
-    trajectoryConsent: selectedConsent,
     avatarImagePath: selectedAvatarPath,
   );
 }

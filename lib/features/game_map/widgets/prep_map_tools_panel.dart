@@ -45,7 +45,7 @@ class PrepMapToolsPanel extends StatelessWidget {
           Row(
             children: [
               Text(
-                'マップ・エリア',
+                'マップ・プレイエリア',
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
@@ -59,7 +59,7 @@ class PrepMapToolsPanel extends StatelessWidget {
             ],
           ),
           Text(
-            '現在地の確認・プレイエリアの編集・保存に使います（試合中のスキルパネルとは別）。',
+            '円・多角形の編集とスロットへの保存。',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
@@ -142,12 +142,6 @@ class PrepMapToolsPanel extends StatelessWidget {
                 label: Text('遊び方', style: TextStyle(color: fg, fontSize: 12)),
               ),
             ],
-          ),
-          Text(
-            '時間・ルールは準備画面の「ルール・役職」から。',
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: fgMuted, height: 1.35),
           ),
         ],
       ),

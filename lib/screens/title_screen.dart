@@ -4,6 +4,7 @@ import '../app_version.dart';
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
 import '../features/onboarding/offline_practice_intro.dart';
+import '../features/settings/guide_hub_sheet.dart';
 import '../features/settings/settings_hub_sheet.dart';
 import '../features/onboarding/welcome_flow.dart';
 import '../features/tutorial/tutorial_entry.dart';
@@ -139,11 +140,11 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
     if (result == WelcomeResult.tutorial) await openTutorialPicker(context);
   }
 
-  Future<void> _openWelcome() async {
-    GameAudio.instance.playSfx(SfxId.uiTap);
-    final result = await showWelcomeFlow(context, offerTutorial: true);
+  Future<void> _reloadProfileFromPrefs() async {
+    final next = await WorldProfilePrefs.load();
     if (!mounted) return;
-    if (result == WelcomeResult.tutorial) await openTutorialPicker(context);
+    setState(() => _profile = next);
+    widget.onProfileChanged?.call(next);
   }
 
   Future<void> _onProfileSelected(WorldProfile? next) async {
@@ -293,7 +294,12 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             ? () {
                                                 GameAudio.instance
                                                     .playSfx(SfxId.uiTap);
-                                                showSettingsHubSheet(context);
+                                                showSettingsHubSheet(
+                                                  context,
+                                                  onPersonalSettingsApplied:
+                                                      (_) =>
+                                                          _reloadProfileFromPrefs(),
+                                                );
                                               }
                                             : null,
                                         icon: const Icon(
@@ -398,6 +404,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             AppNav.push<void>(
                                               context,
                                               (_) => const RoomLobbyScreen(),
+                                              worldProfile: _profile,
                                             );
                                           },
                                           icon: const Icon(
@@ -428,6 +435,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                               (_) => GameMapScreen(
                                                 profile: _profile,
                                               ),
+                                              worldProfile: _profile,
                                             );
                                           },
                                           icon: const Icon(Icons.map_outlined),
@@ -443,11 +451,15 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           children: [
                                             Expanded(
                                               child: TextButton.icon(
-                                                onPressed: _openWelcome,
+                                                onPressed: () {
+                                                  GameAudio.instance
+                                                      .playSfx(SfxId.uiTap);
+                                                  showGuideHubSheet(context);
+                                                },
                                                 icon: const Icon(
-                                                  Icons.help_outline_rounded,
+                                                  Icons.menu_book_outlined,
                                                 ),
-                                                label: const Text('遊び方'),
+                                                label: const Text('ガイド・遊び方'),
                                               ),
                                             ),
                                             Expanded(
@@ -462,6 +474,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                     direction:
                                                         SceneTransitionDirection
                                                             .up,
+                                                    worldProfile: _profile,
                                                   );
                                                 },
                                                 icon: const Icon(
@@ -476,8 +489,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                         const SizedBox(height: 20),
                                         Text(
                                           FirebaseBootstrap.isReady
-                                              ? 'オンライン: 利用可能'
-                                              : 'オンライン: 未接続（参加時に再試行）',
+                                              ? 'オンラインプレイ: 準備OK'
+                                              : 'オンラインプレイ: 未接続（参加時に再試行）',
                                           textAlign: TextAlign.center,
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(

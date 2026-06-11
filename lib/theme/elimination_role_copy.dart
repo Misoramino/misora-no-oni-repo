@@ -56,8 +56,8 @@ class EliminationRoleCopy {
           '観戦のみ。位置のざっくり表示',
         ),
       EliminationAftermathRule.joinOni => (
-          '追跡の残影',
-          '鬼側索敵支援（ざっくり位置）',
+          '鬼側合流',
+          '索敵支援（ざっくり位置を共有）',
         ),
       EliminationAftermathRule.revenantOni => (
           '復讐の鬼影',

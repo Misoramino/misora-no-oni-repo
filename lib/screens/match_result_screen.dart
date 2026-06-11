@@ -4,7 +4,10 @@ import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
 import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
+import '../game/match_record.dart';
 import '../game/werewolf_faction_logic.dart';
+import '../features/game_map/widgets/match_flow_timeline.dart';
+import '../features/match/match_result_copy.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../widgets/confetti_overlay.dart';
@@ -29,6 +32,9 @@ class MatchResultScreen extends StatefulWidget {
     this.newlyUnlockedTitles = const [],
     this.accusationPointsHuman = 0,
     this.contextualHint,
+    this.spectatorMode = false,
+    this.spectatorRecord,
+    this.onOpenReplay,
     super.key,
   });
 
@@ -46,6 +52,11 @@ class MatchResultScreen extends StatefulWidget {
   final int accusationPointsHuman;
   /// 初勝利・初試合などの状況ヒント（null なら非表示）。
   final String? contextualHint;
+  /// インスペクター（観戦）向け。個人戦績・勝敗演出を省略。
+  final bool spectatorMode;
+  /// 観戦中に組み立てた試合記録（全員軌跡・イベント）。
+  final SavedMatchRecord? spectatorRecord;
+  final VoidCallback? onOpenReplay;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
   final VoidCallback onOpenLobby;
@@ -64,6 +75,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
   bool _motionReduced = false;
 
   bool get _personalWon =>
+      !widget.spectatorMode &&
       widget.winningFaction != null &&
       (widget.factionAtDeath ?? widget.playerFactionAtEnd) != null &&
       widget.winningFaction ==
@@ -86,7 +98,11 @@ class _MatchResultScreenState extends State<MatchResultScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final reduced = MotionHelpers.reduceMotionOf(context);
-      GameAudio.instance.playSfx(_personalWon ? SfxId.matchWin : SfxId.matchLose);
+      GameAudio.instance.playSfx(
+        widget.spectatorMode
+            ? SfxId.uiConfirm
+            : (_personalWon ? SfxId.matchWin : SfxId.matchLose),
+      );
       if (_personalWon && !reduced) {
         setState(() => _showConfetti = true);
         GameAudio.instance.playSfx(SfxId.confetti);
@@ -104,19 +120,24 @@ class _MatchResultScreenState extends State<MatchResultScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final outcome = widget.outcome;
-    final (IconData icon, String title, Color accent) = switch (outcome) {
+    final headline = MatchResultCopy.outcomeHeadline(
+      outcome: outcome,
+      factionAtDeath: widget.factionAtDeath,
+      playerFactionAtEnd: widget.playerFactionAtEnd,
+      afterCatchRule: widget.afterCatchRule,
+    );
+    final (IconData icon, Color accent) = switch (outcome) {
       GameState.runnerWin => (
         Icons.emoji_events_outlined,
-        '逃走成功',
         Colors.green.shade700,
       ),
       GameState.caughtByOni => (
         Icons.front_hand_outlined,
-        '捕獲',
         Colors.red.shade700,
       ),
-      _ => (Icons.flag_outlined, '試合終了', theme.colorScheme.primary),
+      _ => (Icons.flag_outlined, theme.colorScheme.primary),
     };
+    final title = headline.title;
 
     final factionWinLabel = widget.winningFaction?.label;
     final effectivePersonalFaction =
@@ -134,7 +155,9 @@ class _MatchResultScreenState extends State<MatchResultScreen>
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('リザルト')),
+      appBar: AppBar(
+        title: Text(widget.spectatorMode ? '観戦リザルト' : 'リザルト'),
+      ),
       body: Stack(
         children: [
           ResponsivePage(
@@ -156,6 +179,16 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                       color: accent,
                     ),
                   ),
+                  if (headline.subtitle != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      headline.subtitle!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   FadeTransition(
                     opacity: bodyFade,
                     child: Column(
@@ -171,7 +204,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   ),
                 ),
               ],
-              if (personalFactionLabel != null) ...[
+              if (!widget.spectatorMode && personalFactionLabel != null) ...[
                 const SizedBox(height: 6),
                 Text(
                   personalWon
@@ -184,6 +217,18 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   ),
                 ),
               ],
+              if (widget.spectatorMode) ...[
+                const SizedBox(height: 6),
+                Text(
+                  widget.spectatorRecord != null
+                      ? '観戦記録 — ${widget.spectatorRecord!.tracks.length} 人分の軌跡を保存'
+                      : '観戦モード — 個人の勝敗・戦績は記録されません',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(widget.detail, textAlign: TextAlign.center),
               const SizedBox(height: 16),
@@ -193,7 +238,10 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('あなたの役職・スキル', style: theme.textTheme.titleSmall),
+                      Text(
+                        widget.spectatorMode ? '観戦情報' : 'あなたの役職・スキル',
+                        style: theme.textTheme.titleSmall,
+                      ),
                       const SizedBox(height: 6),
                       Text(widget.roleSummary),
                       if (widget.factionAtDeath != null) ...[
@@ -227,6 +275,28 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   ),
                 ),
               ),
+              if (widget.spectatorMode && widget.spectatorRecord != null) ...[
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '試合の流れ',
+                          style: theme.textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        MatchFlowTimeline(
+                          reveals: widget.spectatorRecord!.reveals,
+                          events: widget.spectatorRecord!.events,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (widget.progress != null) ...[
                 const SizedBox(height: 12),
                 _ProgressCard(
@@ -301,12 +371,25 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                 ),
               ],
               const SizedBox(height: 24),
+              if (widget.spectatorMode && widget.onOpenReplay != null)
+                FilledButton.icon(
+                  onPressed: widget.onOpenReplay,
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Text('全員の軌跡を再生'),
+                  ),
+                ),
+              if (widget.spectatorMode && widget.onOpenReplay != null)
+                const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: widget.onOpenGallery,
                 icon: const Icon(Icons.play_circle_outline),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 10),
-                  child: Text('軌跡再生・ギャラリー'),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Text(
+                    widget.spectatorMode ? 'ギャラリー・過去の試合' : '軌跡再生・ギャラリー',
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -319,7 +402,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
               OutlinedButton.icon(
                 onPressed: widget.onPrepareNext,
                 icon: const Icon(Icons.restart_alt),
-                label: const Text('次の準備へ（地図オフ）'),
+                label: const Text('同じルームで次の試合の準備'),
               ),
                       ],
                     ),
@@ -329,7 +412,13 @@ class _MatchResultScreenState extends State<MatchResultScreen>
             ),
           ),
           if (_showConfetti)
-            const Positioned.fill(child: ConfettiOverlay()),
+            Positioned.fill(
+              child: ConfettiOverlay(
+                onFinished: () {
+                  if (mounted) setState(() => _showConfetti = false);
+                },
+              ),
+            ),
         ],
       ),
     );

@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/world_profile.dart';
+import '../../../theme/world_profile_tokens.dart';
 import '../../../game/play_area.dart';
 import '../../../services/play_area_slot_store.dart';
-import '../../../widgets/play_area_shape_preview.dart';
+import '../../../sync/firestore_room_session.dart';
 import 'prep_personal_tile.dart';
+import 'prep_play_area_collapsed_preview.dart';
+import 'prep_play_area_hub.dart';
 import 'prep_summary_tile.dart';
 
 /// 準備フェーズ（地図オフ）のメインパネル。
@@ -20,10 +23,18 @@ class PrepLobbyPanel extends StatefulWidget {
     required this.onDurationChanged,
     required this.savedAreas,
     required this.selectedAreaId,
-    required this.onSelectArea,
     required this.onHostApplyArea,
-    required this.onDeleteSavedArea,
+    this.onProposeToHost,
+    this.hostAppliedAreaNote,
+    this.areaProposals = const {},
+    this.onApplyAreaProposal,
     required this.activePlayArea,
+    required this.onOpenMapEdit,
+    required this.onOpenMapPreview,
+    required this.onOpenMapBrowse,
+    required this.onOpenAreaGallery,
+    required this.mapStyleJson,
+    required this.mapTokens,
     required this.onStart,
     required this.canStart,
     required this.onOpenCustomSettings,
@@ -49,10 +60,18 @@ class PrepLobbyPanel extends StatefulWidget {
   final ValueChanged<double> onDurationChanged;
   final List<SavedPlayArea> savedAreas;
   final String? selectedAreaId;
-  final ValueChanged<String?> onSelectArea;
   final VoidCallback onHostApplyArea;
-  final void Function(String id, String name) onDeleteSavedArea;
+  final VoidCallback? onProposeToHost;
+  final String? hostAppliedAreaNote;
+  final Map<String, PlayAreaProposalSnapshot> areaProposals;
+  final void Function(PlayAreaProposalSnapshot proposal)? onApplyAreaProposal;
   final PlayArea activePlayArea;
+  final VoidCallback onOpenMapEdit;
+  final VoidCallback onOpenMapPreview;
+  final VoidCallback onOpenMapBrowse;
+  final VoidCallback onOpenAreaGallery;
+  final String? mapStyleJson;
+  final WorldProfileTokens mapTokens;
   final VoidCallback onStart;
   final bool canStart;
   final VoidCallback onOpenCustomSettings;
@@ -76,6 +95,15 @@ class PrepLobbyPanel extends StatefulWidget {
 class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
   bool _durationExpanded = false;
   bool _areaExpanded = false;
+
+  String? _selectedSlotName() {
+    final id = widget.selectedAreaId;
+    if (id == null) return null;
+    for (final s in widget.savedAreas) {
+      if (s.id == id) return s.name;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -252,112 +280,78 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                           )
                         : null,
                   ),
+                  if (widget.isHost && widget.areaProposals.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final proposal in widget.areaProposals.values)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: scheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'エリア提案 — ${proposal.proposerName}',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '「${proposal.slotName}」 — ${proposal.area.coarseLocationLabel()}',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 8),
+                                FilledButton.tonal(
+                                  onPressed: widget.onApplyAreaProposal == null
+                                      ? null
+                                      : () => widget.onApplyAreaProposal!(
+                                            proposal,
+                                          ),
+                                  child: const Text('この提案を試合に適用'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 8),
                   PrepSummaryTile(
                     prepLegibility: leg,
                     icon: Icons.crop_free,
                     title: 'プレイエリア',
                     value: widget.playAreaLabel,
-                    subtitle: '試合の舞台 · 枠の外は位置がバレやすい',
+                    subtitle: widget.hostAppliedAreaNote,
                     expanded: _areaExpanded,
-                    canEdit: widget.isHost,
+                    canEdit: true,
                     onTap: () => setState(() => _areaExpanded = !_areaExpanded),
-                    preview: PlayAreaShapePreview(
-                      area: widget.activePlayArea,
-                      height: 48,
-                    ),
+                    preview: !_areaExpanded
+                        ? PrepPlayAreaCollapsedPreview(
+                            area: widget.activePlayArea,
+                            summary: widget.playAreaLabel,
+                            prepLegibility: leg,
+                          )
+                        : null,
                     child: _areaExpanded
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (widget.savedAreas.isEmpty)
-                                Text(
-                                  '右下のマップパネルで形状を編集し、保存してください。',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: leg.body,
-                                  ),
-                                )
-                              else
-                                ...widget.savedAreas.map((slot) {
-                                  final selected =
-                                      slot.id == widget.selectedAreaId;
-                                  return Card(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    color: selected
-                                        ? Color.alphaBlend(
-                                            scheme.primary
-                                                .withValues(alpha: 0.28),
-                                            leg.tileSurface,
-                                          )
-                                        : leg.tileSurface,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(8),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  slot.name,
-                                                  style: theme
-                                                      .textTheme.titleSmall
-                                                      ?.copyWith(
-                                                    color: leg.tileValue,
-                                                  ),
-                                                ),
-                                              ),
-                                              IconButton(
-                                                tooltip: '削除',
-                                                icon: Icon(
-                                                  Icons.delete_outline,
-                                                  size: 20,
-                                                  color: leg.muted,
-                                                ),
-                                                onPressed: () =>
-                                                    widget.onDeleteSavedArea(
-                                                  slot.id,
-                                                  slot.name,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          PlayAreaShapePreview(
-                                            area: slot.area,
-                                            height: 64,
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: OutlinedButton(
-                                                  onPressed: () => widget
-                                                      .onSelectArea(slot.id),
-                                                  child: Text(
-                                                    selected ? '選択中' : '選択',
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              if (widget.isHost)
-                                                Expanded(
-                                                  child: FilledButton.tonal(
-                                                    onPressed: selected
-                                                        ? widget
-                                                            .onHostApplyArea
-                                                        : null,
-                                                    child: const Text('適用'),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }),
-                            ],
+                        ? PrepPlayAreaHub(
+                            activePlayArea: widget.activePlayArea,
+                            playAreaSummary: widget.playAreaLabel,
+                            selectedSlotName: _selectedSlotName(),
+                            savedCount: widget.savedAreas.length,
+                            isHost: widget.isHost,
+                            worldProfile: widget.worldVisualProfile,
+                            mapStyleJson: widget.mapStyleJson,
+                            tokens: widget.mapTokens,
+                            prepLegibility: leg,
+                            onOpenMapEdit: widget.onOpenMapEdit,
+                            onOpenMapPreview: widget.onOpenMapPreview,
+                            onOpenMapBrowse: widget.onOpenMapBrowse,
+                            onOpenAreaGallery: widget.onOpenAreaGallery,
+                            onHostApplyArea: widget.onHostApplyArea,
+                            onProposeToHost: widget.onProposeToHost,
                           )
                         : null,
                   ),
@@ -384,6 +378,16 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       ),
                     ),
                   ),
+                  if (!widget.isHost)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'ルールはホストがカスタム設定で決めます。プレイエリアの形は提案できます。',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: leg.muted,
+                        ),
+                      ),
+                    ),
                   if (!widget.isHost)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -416,13 +420,6 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'エリアの編集は右下「地図を表示」。',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: leg.muted,
                     ),
                   ),
                   SizedBox(height: math.max(16, constraints.maxHeight * 0.06)),

@@ -10,14 +10,16 @@ class ConfettiOverlay extends StatefulWidget {
     super.key,
     this.pieceCount = 90,
     this.colors,
-    this.duration = const Duration(milliseconds: 2600),
+    this.duration = const Duration(milliseconds: 3200),
     this.loop = false,
+    this.onFinished,
   });
 
   final int pieceCount;
   final List<Color>? colors;
   final Duration duration;
   final bool loop;
+  final VoidCallback? onFinished;
 
   @override
   State<ConfettiOverlay> createState() => _ConfettiOverlayState();
@@ -57,6 +59,13 @@ class _ConfettiOverlayState extends State<ConfettiOverlay>
         wobble: 0.02 + rng.nextDouble() * 0.05,
       );
     });
+    if (!widget.loop) {
+      _controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          widget.onFinished?.call();
+        }
+      });
+    }
     if (widget.loop) {
       _controller.repeat();
     } else {
@@ -122,11 +131,14 @@ class _ConfettiPainter extends CustomPainter {
     for (final p in pieces) {
       final local = ((t - p.startDelay) / p.fallSpan).clamp(0.0, 1.0);
       if (local <= 0) continue;
-      final fade = local > 0.85 ? (1 - (local - 0.85) / 0.15) : 1.0;
+      final fade = local > 0.72
+          ? (1 - (local - 0.72) / 0.28).clamp(0.0, 1.0)
+          : 1.0;
+      if (fade <= 0) continue;
       final dx = (p.x + p.drift * local +
               math.sin(local * math.pi * 6) * p.wobble) *
           size.width;
-      final dy = (local * 1.15 - 0.1) * size.height;
+      final dy = (local * 1.35 - 0.08) * size.height;
       final angle = local * p.rotations * math.pi * 2;
 
       canvas.save();

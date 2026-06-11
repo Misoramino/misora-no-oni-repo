@@ -45,6 +45,7 @@ class SavedMatchRecord {
     required this.consentedToTrajectory,
     required this.playArea,
     required this.tracks,
+    this.trackLabels = const {},
     this.reveals = const [],
     this.events = const [],
   });
@@ -61,6 +62,9 @@ class SavedMatchRecord {
 
   /// 例: `runner_local`, `oni_local` … 同期時は Firebase uid に置き換え可能。
   final Map<String, List<TrajectorySample>> tracks;
+
+  /// 再生 UI 用の表示名（観戦記録など）。
+  final Map<String, String> trackLabels;
   final List<LocationRevealEvent> reveals;
   final List<MatchEvent> events;
 
@@ -75,6 +79,7 @@ class SavedMatchRecord {
         'tracks': tracks.map(
           (k, v) => MapEntry(k, v.map((e) => e.toJson()).toList()),
         ),
+        if (trackLabels.isNotEmpty) 'trackLabels': trackLabels,
         'reveals': reveals.map((e) => e.toJson()).toList(),
         'events': events.map((e) => e.toJson()).toList(),
       };
@@ -96,6 +101,8 @@ class SavedMatchRecord {
       consentedToTrajectory: json['consentedToTrajectory'] as bool,
       playArea: PlayArea.fromJson(json['playArea'] as Map<String, dynamic>),
       tracks: tracks,
+      trackLabels: (json['trackLabels'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
       reveals: (json['reveals'] as List<dynamic>? ?? [])
           .map((r) => LocationRevealEvent.fromJson(r as Map<String, dynamic>))
           .toList(),

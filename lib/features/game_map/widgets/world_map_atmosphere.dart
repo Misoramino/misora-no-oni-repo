@@ -4,6 +4,7 @@ import '../../../theme/world_profile.dart';
 import '../../../theme/world_visual_pack.dart';
 import 'reveal_noise_overlay.dart';
 import 'vhs_overlay.dart';
+import 'world_map_theme_painters.dart';
 
 /// 世界観ごとの地図上ビネット・reveal フラッシュ（軽量 overlay）。
 class WorldMapAtmosphere extends StatelessWidget {
@@ -29,6 +30,12 @@ class WorldMapAtmosphere extends StatelessWidget {
     final flashScale = pack.usePinBounceFlash && revealFlashActive ? 1.08 : 1.0;
     final profile = pack.profile;
 
+    final vignetteScale = switch (profile) {
+      WorldProfile.magical => 0.78,
+      WorldProfile.astronomy => 0.82,
+      WorldProfile.sport => 0.88,
+      _ => 1.0,
+    };
     final pulseBase = profile == WorldProfile.horror ? 0.38 : 0.34;
     final pulseMult = profile == WorldProfile.horror ? 0.52 : 0.35;
 
@@ -44,9 +51,14 @@ class WorldMapAtmosphere extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          WorldMapThemeOverlay(
+            profile: profile,
+            phase: scanPhase,
+            accent: pack.tokens.markerAccent,
+          ),
           if (profile == WorldProfile.arg)
             ColoredBox(
-              color: const Color(0xFF1A1D24).withValues(alpha: 0.075),
+              color: const Color(0xFF1A1D24).withValues(alpha: 0.06),
             ),
           if (profile == WorldProfile.sport)
             DecoratedBox(
@@ -71,7 +83,9 @@ class WorldMapAtmosphere extends StatelessWidget {
                   radius: 1.05,
                   colors: [
                     vignette.withValues(
-                      alpha: (vignette.a * (pulseBase + dangerPulse * pulseMult))
+                      alpha: (vignette.a *
+                              vignetteScale *
+                              (pulseBase + dangerPulse * pulseMult))
                           .clamp(0.0, 1.0),
                     ),
                     Colors.transparent,

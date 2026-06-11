@@ -6,14 +6,12 @@ class PlayerPersonalSettingsInitial {
     required this.displayName,
     required this.profile,
     required this.useBleScan,
-    required this.trajectoryConsent,
     this.avatarImagePath,
   });
 
   final String displayName;
   final WorldProfile profile;
   final bool useBleScan;
-  final bool trajectoryConsent;
   final String? avatarImagePath;
 }
 
@@ -23,13 +21,11 @@ class PlayerPersonalSettingsResult {
     required this.displayName,
     required this.profile,
     required this.useBleScan,
-    required this.trajectoryConsent,
     this.avatarImagePath,
   });
 
   final String displayName;
   final WorldProfile profile;
   final bool useBleScan;
-  final bool trajectoryConsent;
   final String? avatarImagePath;
 }

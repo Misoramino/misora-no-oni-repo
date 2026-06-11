@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../game/play_area.dart';
 
@@ -10,12 +11,16 @@ class PlayAreaShapePreview extends StatelessWidget {
     required this.area,
     this.height = 72,
     this.width = double.infinity,
+    this.preserveAspect = false,
     super.key,
   });
 
   final PlayArea area;
   final double height;
   final double width;
+
+  /// true のとき縦横比を維持して中央にフィット（ギャラリー用）。
+  final bool preserveAspect;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +43,7 @@ class PlayAreaShapePreview extends StatelessWidget {
               area: area,
               fill: theme.colorScheme.primary.withValues(alpha: 0.22),
               stroke: theme.colorScheme.primary,
+              preserveAspect: preserveAspect,
             ),
             child: const SizedBox.expand(),
           ),
@@ -52,11 +58,13 @@ class _PlayAreaShapePainter extends CustomPainter {
     required this.area,
     required this.fill,
     required this.stroke,
+    required this.preserveAspect,
   });
 
   final PlayArea area;
   final Color fill;
   final Color stroke;
+  final bool preserveAspect;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -105,20 +113,62 @@ class _PlayAreaShapePainter extends CustomPainter {
         if (dLat < 1e-12 && dLng < 1e-12) {
           return [Offset(size.width / 2, size.height / 2)];
         }
-        return [
-          for (final p in area.points)
-            Offset(
-              pad + (p.longitude - minLng) / (dLng == 0 ? 1 : dLng) * w,
-              pad + (maxLat - p.latitude) / (dLat == 0 ? 1 : dLat) * h,
-            ),
-        ];
+        return _mapGeoPoints(
+          size: size,
+          pad: pad,
+          w: w,
+          h: h,
+          minLat: minLat,
+          maxLat: maxLat,
+          minLng: minLng,
+          maxLng: maxLng,
+          dLat: dLat,
+          dLng: dLng,
+          geo: area.points,
+        );
     }
+  }
+
+  List<Offset> _mapGeoPoints({
+    required Size size,
+    required double pad,
+    required double w,
+    required double h,
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    required double dLat,
+    required double dLng,
+    required List<LatLng> geo,
+  }) {
+    if (!preserveAspect) {
+      return [
+        for (final p in geo)
+          Offset(
+            pad + (p.longitude - minLng) / (dLng == 0 ? 1 : dLng) * w,
+            pad + (maxLat - p.latitude) / (dLat == 0 ? 1 : dLat) * h,
+          ),
+      ];
+    }
+    final scale = math.min(w / (dLng == 0 ? 1 : dLng), h / (dLat == 0 ? 1 : dLat));
+    final drawW = dLng * scale;
+    final drawH = dLat * scale;
+    final ox = pad + (w - drawW) / 2;
+    final oy = pad + (h - drawH) / 2;
+    return [
+      for (final p in geo)
+        Offset(
+          ox + (p.longitude - minLng) * scale,
+          oy + (maxLat - p.latitude) * scale,
+        ),
+    ];
   }
 
   List<Offset> _circleApprox(Size size, double pad) {
     final w = size.width - pad * 2;
     final h = size.height - pad * 2;
-    final r = (w < h ? w : h) / 2 * 0.9;
+    final r = (w < h ? w : h) / 2 * (preserveAspect ? 0.42 : 0.45);
     final cx = size.width / 2;
     final cy = size.height / 2;
     const segments = 32;
@@ -130,5 +180,6 @@ class _PlayAreaShapePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PlayAreaShapePainter oldDelegate) =>
-      oldDelegate.area != area;
+      oldDelegate.area != area ||
+      oldDelegate.preserveAspect != preserveAspect;
 }

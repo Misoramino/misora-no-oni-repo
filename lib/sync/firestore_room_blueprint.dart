@@ -12,6 +12,31 @@ abstract final class FirestorePaths {
       '${roomDoc(roomId)}/inspectorFeed';
   static String inspectorFeedDoc(String roomId, String uid) =>
       '${inspectorFeedColl(roomId)}/$uid';
+  static String matchArchivesColl(String roomId) =>
+      '${roomDoc(roomId)}/matchArchives';
+}
+
+/// 試合終了後の軌跡アーカイブ（1 試合あたり数回の書き込みのみ）。
+abstract final class MatchArchiveFields {
+  static const kind = 'kind';
+  static const sessionKey = 'sessionKey';
+  static const uploadedAtUtc = 'uploadedAtUtc';
+  static const uploadedByUid = 'uploadedByUid';
+  static const startedAtUtc = 'startedAtUtc';
+  static const endedAtUtc = 'endedAtUtc';
+  static const outcome = 'outcome';
+  static const playArea = 'playArea';
+  static const tracks = 'tracks';
+  static const trackLabels = 'trackLabels';
+  static const uid = 'uid';
+  static const nickname = 'nickname';
+  static const role = 'role';
+  static const samples = 'samples';
+}
+
+abstract final class MatchArchiveKind {
+  static const full = 'full';
+  static const chunk = 'chunk';
 }
 
 /// メインのルーム文書フィールドを表す名前（バックエンド実装時の契約）。
