@@ -229,10 +229,10 @@ class GameInfoPanel extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
       decoration: BoxDecoration(
         color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
         ],
@@ -283,7 +283,7 @@ class GameInfoPanel extends StatelessWidget {
                 ),
               Text(
                 timerText,
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),

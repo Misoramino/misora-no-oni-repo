@@ -67,11 +67,18 @@ extension _GameMapAccusation on _GameMapScreenState {
     if (fs == null || sk == null || uid == null || !_isOnlineFirestore) {
       return;
     }
+    final faction = _localFactionNow();
+    final rule = EliminationAftermathRule.forEliminatedFaction(
+      matchDefault: _eliminationAftermathRule,
+      factionAtDeath: faction,
+    );
     await fs.publishRoomEvent(
       type: RoomMatchEventTypes.playerEliminated,
       payload: {
         'uid': uid,
         'cause': ?cause,
+        'factionAtDeath': faction.name,
+        'afterCatchRule': rule.name,
       },
       sessionKey: sk,
     );

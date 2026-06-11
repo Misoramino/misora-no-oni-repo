@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../game_map/widgets/how_to_play_sheet.dart';
 import '../onboarding/onboarding_replay_sheet.dart';
+import '../tutorial/tutorial_entry.dart';
 import '../../game/player_role.dart';
 
 /// ガイド・遊び方を設定とは別にまとめたハブ。
 Future<void> showGuideHubSheet(
   BuildContext context, {
   PlayerRole? yourRole,
-  bool prepPhase = false,
   Future<void> Function()? showPrepCoachMarksNow,
   Future<void> Function()? showMatchCoachMarksNow,
 }) {
@@ -29,9 +29,9 @@ Future<void> showGuideHubSheet(
                 child: Text('ガイド・遊び方', style: theme.textTheme.titleLarge),
               ),
               ListTile(
-                leading: const Icon(Icons.replay_rounded),
+                leading: const Icon(Icons.auto_awesome_rounded),
                 title: const Text('かんたんガイド'),
-                subtitle: const Text('初回チュートリアル・コーチマークの再視聴'),
+                subtitle: const Text('基本スライド・コーチマーク・初回リセット'),
                 onTap: () {
                   Navigator.pop(ctx);
                   showOnboardingReplaySheet(
@@ -42,16 +42,24 @@ Future<void> showGuideHubSheet(
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.help_outline_rounded),
+                leading: const Icon(Icons.menu_book_outlined),
                 title: const Text('遊び方'),
-                subtitle: const Text('ルール・スキル・ギミック'),
+                subtitle: const Text('勝ち方・役職・第二ゲーム・ギミック'),
                 onTap: () {
                   Navigator.pop(ctx);
                   showHowToPlaySheet(
                     context,
                     yourRole: yourRole,
-                    prepPhase: prepPhase,
                   );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.school_rounded),
+                title: const Text('チュートリアル'),
+                subtitle: const Text('GPS不要・1〜2分で基本操作を体験'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  openTutorialPicker(context);
                 },
               ),
             ],

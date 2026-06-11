@@ -16,7 +16,6 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
     _processedRoomEventDocIds.clear();
-    await _replayHistoricalMatchEvents(snap.gimmickSeed);
     if (!mounted) return;
     _ensureMatchRecorder(discardExisting: true);
     await _runMatchStartPresentation(
@@ -26,6 +25,9 @@ extension _GameMapRejoin on _GameMapScreenState {
     );
     if (!mounted) return;
     _startGameCore(rejoin: true);
+    _rejoinRestoringEvents = true;
+    await _replayHistoricalMatchEvents(snap.gimmickSeed);
+    _rejoinRestoringEvents = false;
     _toast(toastMessage ?? '試合に再参加しました');
   }
 
@@ -39,7 +41,6 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
     _processedRoomEventDocIds.clear();
-    await _replayHistoricalMatchEvents(snap.gimmickSeed);
     if (!mounted) return;
     final startedRaw = snap.startedAtUtc;
     final startedUtc = startedRaw != null
@@ -56,6 +57,9 @@ extension _GameMapRejoin on _GameMapScreenState {
     );
     if (!mounted) return;
     _startGameCore(rejoin: true, inspector: true);
+    _rejoinRestoringEvents = true;
+    await _replayHistoricalMatchEvents(snap.gimmickSeed);
+    _rejoinRestoringEvents = false;
     final fs = _firestoreSession;
     if (fs != null) {
       fs.startInspectorFeedListener();
@@ -107,7 +111,19 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (fs == null) return;
     final events = await fs.fetchMatchEvents(sessionKey);
     if (!mounted) return;
+    final myUid = fs.myUid;
     for (final ev in events) {
+      if (ev.type == RoomMatchEventTypes.playerEliminated &&
+          myUid != null &&
+          (ev.payload['uid'] as String? ?? ev.actorUid) == myUid) {
+        final cause = ev.payload['cause'] as String? ?? 'eliminated';
+        final msg = cause == 'accusation_hunter'
+            ? '告発により脱落 — 復讐の鬼影として戦線に残る'
+            : '脱落 — 第二ゲームへ';
+        _restoreLocalEliminationFromEvent(ev, message: msg);
+        _processedRoomEventDocIds.add(ev.id);
+        continue;
+      }
       _onRemoteRoomMatchEvent(ev);
     }
   }

@@ -97,7 +97,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
             showOni: true,
           ),
           _Step(
-            text: 'ピンチのときはスキルで揺さぶる。スキルを押してみよう。',
+            text: 'ピンチのときはスキルで揺さぶる。偽位置は地図に置いて鬼を惑わせる。',
             act: _Act.pressSkill,
             showOni: true,
           ),
@@ -136,7 +136,11 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
       case PlayerRole.werewolf:
         return const [
           _Step(
-            text: 'あなたは人狼。人と鬼の「少ない方」の味方だ。',
+            text: 'あなたは人狼。人数の少ない陣営に自動で乗り換える特殊役だ。',
+            act: _Act.tapNext,
+          ),
+          _Step(
+            text: '人陣営のときは鬼化して追える。鬼陣営のときは拘束はするが捕獲はできない。',
             act: _Act.tapNext,
           ),
           _Step(
@@ -144,15 +148,15 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
             act: _Act.move,
           ),
           _Step(
-            text: '状況に応じて鬼の力を使える。変身スキルを押してみよう。',
+            text: '変身スキルで鬼の力を使える。押してみよう。',
             act: _Act.pressSkill,
           ),
           _Step(
-            text: '人のふりをして近づき、隙をつくのが人狼の強み。',
+            text: '人数差を見て、人のふり・鬼のふりを使い分けよう。',
             act: _Act.tapNext,
           ),
           _Step(
-            text: '準備OK！陣営の人数を見ながら立ち回ろう。',
+            text: '準備OK！実戦では陣営の人数を見ながら立ち回ろう。',
             act: _Act.tapNext,
           ),
         ];

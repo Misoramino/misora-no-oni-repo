@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
@@ -48,22 +46,6 @@ class _SecondGameIntroOverlay extends StatefulWidget {
 }
 
 class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(const Duration(seconds: 5), () {
-      if (mounted) Navigator.of(context).pop();
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -73,12 +55,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
     );
     final tips = _tipsForRule(widget.rule, copy);
 
-    return GestureDetector(
-      onTap: () {
-        _timer?.cancel();
-        if (mounted) Navigator.of(context).pop();
-      },
-      child: SafeArea(
+    return SafeArea(
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -139,9 +116,14 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('続ける'),
+                  ),
+                  const SizedBox(height: 4),
                   Text(
-                    'タップで閉じる · 使える施設が地図で強調表示されます',
+                    '使える施設が地図で強調表示されます',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.outline,
@@ -152,7 +134,6 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
             ),
           ),
         ),
-      ),
       ),
     );
   }

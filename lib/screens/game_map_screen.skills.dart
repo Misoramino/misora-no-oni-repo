@@ -74,7 +74,9 @@ extension _GameMapSkills on _GameMapScreenState {
   );
 
   bool get _showGimmickMapMarkers =>
-      _testMode || _gameState == GameState.running;
+      _testMode ||
+      _gameState == GameState.running ||
+      (_gameState == GameState.caughtByOni && _afterCatchRule != null);
 
   bool get _showOniMarker => _testMode || _remoteOniKnown;
 
@@ -319,26 +321,33 @@ extension _GameMapSkills on _GameMapScreenState {
               sfx: SfxId.uiBack,
               onPressed: () => Navigator.pop(ctx),
             ),
-            AppDialogAction(
-              label: '自分（鬼）を暴露',
-              filled: false,
-              icon: Icons.person_pin_circle_rounded,
-              onPressed: () => Navigator.pop(ctx, true),
-            ),
-            AppDialogAction(
-              label: '逃走者をランダム暴露',
-              icon: Icons.shuffle_rounded,
-              onPressed: () => Navigator.pop(ctx, false),
-            ),
           ],
-          child: Text(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
             'どちらも名前付きの位置露見として地図に出ます。\n'
             '・自分（鬼）… 別地点に自分の名前で露出\n'
             '・逃走者ランダム… 誰か1人の名前で別地点に露出\n'
-            '相手からは偽情報とは分かりません。',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+                '相手からは偽情報とは分かりません。',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.tonalIcon(
+                onPressed: () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.person_pin_circle_rounded),
+                label: const Text('自分（鬼）を暴露'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(ctx, false),
+                icon: const Icon(Icons.shuffle_rounded),
+                label: const Text('逃走者をランダム暴露'),
+              ),
+            ],
           ),
         );
       },
@@ -1313,10 +1322,15 @@ extension _GameMapSkills on _GameMapScreenState {
     final scaleHint = siteTotal > 0
         ? '（解禁時 有効1箇所・陣取りで増減）'
         : '';
+    final elimMin = (MatchDurationScaling.accusationUnlockMinElapsedSeconds(
+              _matchDurationSeconds,
+            ) /
+            60)
+        .ceil();
     if (_rt.syncedEliminationCount < 1) {
-      return '情報収集フェーズ — 告発は約$min分後（または脱落+5分後）$scaleHint';
+      return '情報収集フェーズ — 告発は約$min分後（脱落1人+${elimMin}分、または試合60%）$scaleHint';
     }
-    return '情報収集フェーズ — 告発は約$min分後（脱落後5分経過で解禁）$scaleHint';
+    return '情報収集フェーズ — 告発は約$min分後（脱落後${elimMin}分経過で解禁）$scaleHint';
   }
 
   String _conditionLine() {

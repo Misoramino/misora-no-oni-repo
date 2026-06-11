@@ -31,6 +31,8 @@ class SkillMapPlacementLayer extends StatefulWidget {
 class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
   bool _pointerDown = false;
   bool _cancelHover = false;
+  bool _deferToMap = false;
+  int _activePointers = 0;
   Offset? _lastLocal;
 
   @override
@@ -46,9 +48,10 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
 
   Rect get _cancelTarget {
     final size = MediaQuery.sizeOf(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     const box = 56.0;
     return Rect.fromCenter(
-      center: Offset(size.width / 2, size.height - 72),
+      center: Offset(size.width / 2, size.height - bottomInset - 148),
       width: box,
       height: box,
     );
@@ -75,6 +78,11 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
   }
 
   void _finishPointer() {
+    _activePointers = (_activePointers - 1).clamp(0, 8);
+    if (_activePointers > 1) return;
+    if (_activePointers == 0) {
+      _deferToMap = false;
+    }
     if (!_pointerDown) return;
     _pointerDown = false;
     if (_cancelHover) {
@@ -95,6 +103,7 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
   @override
   Widget build(BuildContext context) {
     if (!widget.active) return const SizedBox.shrink();
+    if (_deferToMap) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     final cancelRect = _cancelTarget;
@@ -105,10 +114,23 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
         Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: (e) {
+            _activePointers++;
+            if (_activePointers > 1) {
+              setState(() {
+                _deferToMap = true;
+                _pointerDown = false;
+                _cancelHover = false;
+              });
+              widget.onPreview(null);
+              return;
+            }
             _pointerDown = true;
             _updatePreview(e.localPosition);
           },
-          onPointerMove: (e) => _updatePreview(e.localPosition),
+          onPointerMove: (e) {
+            if (_deferToMap || !_pointerDown) return;
+            _updatePreview(e.localPosition);
+          },
           onPointerUp: (_) => _finishPointer(),
           onPointerCancel: (_) => _finishPointer(),
         ),

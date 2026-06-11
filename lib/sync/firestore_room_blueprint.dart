@@ -88,6 +88,8 @@ abstract final class MatchEndReason {
   static const hostEnded = 'host_ended';
   static const hostAbort = 'host_abort';
   static const accusationSuccess = 'accusation_success';
+  static const allHumansEliminated = 'all_humans_eliminated';
+  static const oniEliminated = 'oni_eliminated';
 }
 
 /// メンバー文書：`members/{uid}`。live 位置は置かず、接続状態だけを軽く同期する。

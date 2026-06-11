@@ -1,166 +1,96 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../../../features/onboarding/welcome_flow.dart';
-import '../../../features/onboarding/onboarding_replay_sheet.dart';
-import '../../../features/tutorial/tutorial_entry.dart';
 import '../../../game/player_role.dart';
-import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
+import 'how_to_play_content.dart';
 import 'how_to_play_diagrams.dart';
 import 'role_briefing_dialog.dart';
 
-/// 遊び方の説明ボトムシート。
+/// 遊び方の説明ボトムシート（ゲームプレイに集中。準備・エリア編集は含めない）。
 void showHowToPlaySheet(
   BuildContext context, {
   PlayerRole? yourRole,
-  bool prepPhase = false,
 }) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-      builder: (sheetCtx) => DraggableScrollableSheet(
+    builder: (sheetCtx) => DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.82,
+      initialChildSize: 0.85,
       minChildSize: 0.45,
       maxChildSize: 0.95,
       builder: (_, scrollController) {
         final otherRoles = PlayerRole.values
             .where((r) => r != yourRole)
             .toList(growable: false);
+        final gimmicks = SkillCatalog.gimmicks
+            .where(
+              (g) =>
+                  g.id != 'runner_analyst' && g.id != 'runner_hacker',
+            )
+            .toList(growable: false);
+
         return ListView(
           controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             Text('遊び方', style: Theme.of(sheetCtx).textTheme.titleLarge),
-            if (prepPhase) ...[
-              const SizedBox(height: 10),
-              Material(
-                color: Theme.of(sheetCtx).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Theme.of(sheetCtx).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'いまは準備中 — 「プレイエリア」「基本ルール」の章がおすすめです。',
-                          style: Theme.of(sheetCtx).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 8),
             Text(
-              '章を開いて読めます。初めての方は「かんたんガイド」から。',
+              'ゲーム中のルールと役職の説明です。'
+              '準備画面やエリア編集は、準備画面のコーチマークをご覧ください。',
               style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
                     color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
+                    height: 1.4,
                   ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    Navigator.pop(sheetCtx);
-                    showWelcomeFlow(context);
-                  },
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('かんたんガイド'),
-                ),
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetCtx);
-                    openTutorialPicker(context);
-                  },
-                  icon: const Icon(Icons.school_rounded),
-                  label: const Text('チュートリアル'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetCtx);
-                    showOnboardingReplaySheet(context);
-                  },
-                  icon: const Icon(Icons.replay_rounded),
-                  label: const Text('ガイド再視聴'),
-                ),
-              ],
             ),
             const SizedBox(height: 12),
             _HelpExpansion(
-              icon: Icons.flag_outlined,
-              title: '基本ルール',
+              icon: Icons.info_outline,
+              title: 'このゲームについて',
+              initiallyExpanded: true,
+              child: _bodyText(sheetCtx, HowToPlayContent.intro),
+            ),
+            _HelpExpansion(
+              icon: Icons.emoji_events_outlined,
+              title: '勝ち方・負け方',
               initiallyExpanded: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const HelpFlowDiagram(
-                    steps: [
-                      (icon: Icons.groups_outlined, label: '準備', color: null),
-                      (icon: Icons.play_circle, label: '開始', color: null),
-                      (icon: Icons.map_outlined, label: '逃走', color: null),
-                      (icon: Icons.emoji_events, label: '勝敗', color: null),
-                    ],
-                  ),
-                  Text(
-                    SkillCatalog.coreRule,
-                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            _HelpExpansion(
-              icon: Icons.emoji_events_outlined,
-              title: '勝利と陣営',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
                   const HelpFactionDiagram(),
-                  Text(
-                    RoleBriefingCatalog.winConditions.trim(),
-                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
-                  ),
+                  _bodyText(sheetCtx, HowToPlayContent.winConditions),
                 ],
               ),
             ),
             _HelpExpansion(
               icon: Icons.route_outlined,
-              title: '1 試合の流れ',
-              child: Text(
-                SkillCatalog.matchFlow,
-                style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(height: 1.45),
-              ),
-            ),
-            _HelpExpansion(
-              icon: Icons.map_outlined,
-              title: 'プレイエリアとマップ',
+              title: '1試合の流れ',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const HelpMapConceptDiagram(),
-                  Text(
-                    SkillCatalog.playAreaGuide,
-                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
+                  const HelpFlowDiagram(
+                    steps: [
+                      (icon: Icons.play_circle, label: '開始', color: null),
+                      (icon: Icons.map_outlined, label: '逃走', color: null),
+                      (icon: Icons.front_hand, label: '捕獲', color: null),
+                      (icon: Icons.emoji_events, label: '勝敗', color: null),
+                    ],
                   ),
+                  _bodyText(sheetCtx, HowToPlayContent.matchFlow),
                 ],
               ),
+            ),
+            _HelpExpansion(
+              icon: Icons.radar_outlined,
+              title: '位置情報のルール',
+              child: _bodyText(sheetCtx, HowToPlayContent.positionRules),
+            ),
+            _HelpExpansion(
+              icon: Icons.warning_amber_outlined,
+              title: 'プレイエリア外',
+              child: _bodyText(sheetCtx, HowToPlayContent.outsideAreaRules),
             ),
             _HelpExpansion(
               icon: Icons.touch_app_outlined,
@@ -170,27 +100,33 @@ void showHowToPlaySheet(
                 children: [
                   const HelpFlowDiagram(
                     steps: [
-                      (icon: Icons.bolt, label: 'スキル\nを押す', color: null),
+                      (icon: Icons.bolt, label: 'スキル', color: null),
                       (
                         icon: Icons.pan_tool_alt_outlined,
-                        label: '地図を\n押し続け',
+                        label: '長押し',
                         color: null,
                       ),
                       (
                         icon: Icons.check_circle_outline,
-                        label: '指を離して\n設置',
+                        label: '離して設置',
                         color: null,
                       ),
                     ],
                   ),
-                  Text(
-                    SkillCatalog.mapSkillPlacementGuide,
-                    style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
-                  ),
+                  _bodyText(sheetCtx, HowToPlayContent.mapSkillPlacement),
                 ],
               ),
+            ),
+            _HelpExpansion(
+              icon: Icons.bolt_outlined,
+              title: '第二ゲーム（残響体・復讐の鬼影）',
+              initiallyExpanded: yourRole != null,
+              child: _bodyText(sheetCtx, HowToPlayContent.secondGame),
+            ),
+            _HelpExpansion(
+              icon: Icons.account_balance_outlined,
+              title: '告発施設',
+              child: _bodyText(sheetCtx, HowToPlayContent.accusationRules),
             ),
             if (yourRole != null)
               _HelpExpansion(
@@ -216,27 +152,35 @@ void showHowToPlaySheet(
             ),
             _HelpExpansion(
               icon: Icons.scatter_plot_outlined,
-              title: 'マップ・ギミック',
+              title: 'マップのギミック',
               child: Column(
                 children: [
-                  for (final g in SkillCatalog.gimmicks)
-                    _compactEntry(sheetCtx, g.title, g.body, _iconFor(g.iconName)),
+                  for (final g in gimmicks)
+                    _compactEntry(
+                      sheetCtx,
+                      g.title,
+                      g.body,
+                      _iconFor(g.iconName),
+                    ),
                 ],
               ),
             ),
             _HelpExpansion(
               icon: Icons.cloud_sync_outlined,
               title: 'オンライン',
-              child: Text(
-                'ホストが開始・終了すると役職・エリア・ギミックも同期します。'
-                '試合中止は投票で決まります。',
-                style: Theme.of(sheetCtx).textTheme.bodyMedium?.copyWith(height: 1.45),
-              ),
+              child: _bodyText(sheetCtx, HowToPlayContent.onlineBrief),
             ),
           ],
         );
       },
     ),
+  );
+}
+
+Widget _bodyText(BuildContext ctx, String text) {
+  return Text(
+    text.trim(),
+    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.55),
   );
 }
 
@@ -277,7 +221,7 @@ Widget _compactEntry(
   IconData icon,
 ) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.only(bottom: 12),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -288,10 +232,10 @@ Widget _compactEntry(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: Theme.of(ctx).textTheme.titleSmall),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 body,
-                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(height: 1.4),
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(height: 1.45),
               ),
             ],
           ),
@@ -313,5 +257,8 @@ IconData _iconFor(String name) => switch (name) {
       'bubble_chart' => Icons.bubble_chart_outlined,
       'front_hand' => Icons.front_hand_outlined,
       'schedule' => Icons.schedule_outlined,
+      'account_balance' => Icons.account_balance_outlined,
+      'timeline' => Icons.timeline_outlined,
+      'place' => Icons.place_outlined,
       _ => Icons.help_outline,
     };

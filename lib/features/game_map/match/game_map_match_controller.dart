@@ -27,7 +27,8 @@ class GameMapMatchController {
     required bool oniKnown,
     required bool isHunterNow,
     required bool runnerProximityActive,
-    required bool applyRunnerOutsideRules,
+    required bool applyOutsideAreaRules,
+    required bool oniOutsideEndsMatch,
     required ProximityBand proximityBand,
     required bool proximityCapturePermitted,
     required DateTime now,
@@ -43,6 +44,70 @@ class GameMapMatchController {
       now: now,
     )) {
       effects.addAll(_effectsForSkillOutcome(outcome, playerPosition));
+    }
+
+    if (applyOutsideAreaRules) {
+      final overflowMeters = playArea.overflowDistanceMeters(playerPosition);
+      if (overflowMeters > GameConfig.outsideAreaGraceMeters) {
+        runtime.outsideAreaSince ??= now;
+      }
+      final outsideSec = runtime.outsideAreaSince == null
+          ? 0
+          : now.difference(runtime.outsideAreaSince!).inSeconds;
+      final sinceReveal = runtime.lastOutsideRevealAt == null
+          ? outsideSec
+          : now.difference(runtime.lastOutsideRevealAt!).inSeconds;
+      final outsideAction = MatchTickEvaluator.evaluateOutsideArea(
+        OutsideAreaTickInput(
+          overflowMeters: overflowMeters,
+          outsideSeconds: outsideSec,
+          revealedInCurrentOutside: runtime.revealedInCurrentOutside,
+          safeZoneCharges: runtime.safeZoneCharges,
+          secondsSinceLastOutsideReveal: sinceReveal,
+        ),
+      );
+      switch (outsideAction) {
+        case null:
+          break;
+        case MatchTickAction.consumeSafeChargeAvoidReveal:
+          if (!oniOutsideEndsMatch) {
+            runtime.safeZoneCharges -= 1;
+            runtime.outsideAreaSince = null;
+            runtime.revealedInCurrentOutside = false;
+            runtime.lastOutsideRevealAt = null;
+            effects.add(const MatchConsumeSafeChargeEffect());
+            effects.add(
+              const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'),
+            );
+          }
+        case MatchTickAction.triggerLocationReveal:
+        case MatchTickAction.triggerOutsidePeriodicReveal:
+          runtime.revealedInCurrentOutside = true;
+          runtime.lastOutsideRevealAt = now;
+          effects.add(MatchAreaRevealEffect(overflowMeters));
+        case MatchTickAction.outsideElimination:
+          effects.add(
+            MatchEndEffect(
+              state: oniOutsideEndsMatch
+                  ? GameState.runnerWin
+                  : GameState.caughtByOni,
+              message: MatchTickEvaluator.endMessageFor(
+                MatchTickAction.outsideElimination,
+              ),
+              heavyHaptic: true,
+            ),
+          );
+          return effects;
+        case MatchTickAction.resetOutsideTracking:
+          runtime.outsideAreaSince = null;
+          runtime.revealedInCurrentOutside = false;
+          runtime.lastOutsideRevealAt = null;
+          effects.add(const MatchResetOutsideTrackingEffect());
+        case MatchTickAction.none:
+        case MatchTickAction.endRunnerWin:
+        case MatchTickAction.endCaughtByOni:
+          break;
+      }
     }
 
     if (!runnerProximityActive) {
@@ -168,66 +233,6 @@ class GameMapMatchController {
         ),
       );
       return effects;
-    }
-
-    if (applyRunnerOutsideRules) {
-      final overflowMeters = playArea.overflowDistanceMeters(playerPosition);
-      if (overflowMeters > GameConfig.outsideAreaGraceMeters) {
-        runtime.outsideAreaSince ??= now;
-      }
-      final outsideSec = runtime.outsideAreaSince == null
-          ? 0
-          : now.difference(runtime.outsideAreaSince!).inSeconds;
-      final sinceReveal = runtime.lastOutsideRevealAt == null
-          ? outsideSec
-          : now.difference(runtime.lastOutsideRevealAt!).inSeconds;
-      final outsideAction = MatchTickEvaluator.evaluateOutsideArea(
-        OutsideAreaTickInput(
-          overflowMeters: overflowMeters,
-          outsideSeconds: outsideSec,
-          revealedInCurrentOutside: runtime.revealedInCurrentOutside,
-          safeZoneCharges: runtime.safeZoneCharges,
-          secondsSinceLastOutsideReveal: sinceReveal,
-        ),
-      );
-      switch (outsideAction) {
-        case null:
-          break;
-        case MatchTickAction.consumeSafeChargeAvoidReveal:
-          runtime.safeZoneCharges -= 1;
-          runtime.outsideAreaSince = null;
-          runtime.revealedInCurrentOutside = false;
-          runtime.lastOutsideRevealAt = null;
-          effects.add(const MatchConsumeSafeChargeEffect());
-          effects.add(
-            const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'),
-          );
-        case MatchTickAction.triggerLocationReveal:
-        case MatchTickAction.triggerOutsidePeriodicReveal:
-          runtime.revealedInCurrentOutside = true;
-          runtime.lastOutsideRevealAt = now;
-          effects.add(MatchAreaRevealEffect(overflowMeters));
-        case MatchTickAction.outsideElimination:
-          effects.add(
-            MatchEndEffect(
-              state: GameState.caughtByOni,
-              message: MatchTickEvaluator.endMessageFor(
-                MatchTickAction.outsideElimination,
-              ),
-              heavyHaptic: true,
-            ),
-          );
-          return effects;
-        case MatchTickAction.resetOutsideTracking:
-          runtime.outsideAreaSince = null;
-          runtime.revealedInCurrentOutside = false;
-          runtime.lastOutsideRevealAt = null;
-          effects.add(const MatchResetOutsideTrackingEffect());
-        case MatchTickAction.none:
-        case MatchTickAction.endRunnerWin:
-        case MatchTickAction.endCaughtByOni:
-          break;
-      }
     }
 
     final distance = MatchGeoHelpers.distanceToOni(

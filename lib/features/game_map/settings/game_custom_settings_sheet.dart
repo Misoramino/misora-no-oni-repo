@@ -393,7 +393,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         alignment: Alignment.centerRight,
                         child: FilledButton(
                           onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('適用'),
+                          child: const Text('保存して閉じる'),
                         ),
                       ),
                     ],

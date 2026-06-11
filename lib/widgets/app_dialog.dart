@@ -48,6 +48,7 @@ class AppDialog extends StatelessWidget {
     this.accent,
     this.actions = const [],
     this.maxWidth = 420,
+    this.maxHeightFraction = 0.85,
   });
 
   final String title;
@@ -56,27 +57,29 @@ class AppDialog extends StatelessWidget {
   final Color? accent;
   final List<Widget> actions;
   final double maxWidth;
+  final double maxHeightFraction;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final color = accent ?? scheme.primary;
+    final maxHeight = MediaQuery.sizeOf(context).height * maxHeightFraction;
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
       ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -113,21 +116,34 @@ class AppDialog extends StatelessWidget {
             ),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
                 child: child,
               ),
             ),
             if (actions.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    for (final a in actions) ...[
-                      a,
-                      if (a != actions.last) const SizedBox(width: 8),
-                    ],
-                  ],
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 300;
+                    if (narrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final a in actions) ...[
+                            a,
+                            if (a != actions.last) const SizedBox(height: 8),
+                          ],
+                        ],
+                      );
+                    }
+                    return Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: actions,
+                    );
+                  },
                 ),
               ),
           ],

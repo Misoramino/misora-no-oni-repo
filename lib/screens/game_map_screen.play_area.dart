@@ -322,6 +322,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
         _rt.remainingSeconds = _matchDurationSeconds;
       }
     });
+    unawaited(_persistMatchDuration());
   }
 
   void _returnToPrepAfterAreaEdit() {

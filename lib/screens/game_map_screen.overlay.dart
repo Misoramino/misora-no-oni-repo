@@ -18,7 +18,7 @@ extension _GameMapOverlay on _GameMapScreenState {
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
     final showSpectatorOverlays = _isRoomInspector;
-    final hideMapIntel = locallyEliminated && !showSpectatorOverlays;
+    final hideMapIntel = false;
     return GameMapOverlaySnapshot(
       now: DateTime.now(),
       playerMarkerPosition: _playerMarkerPosition,
@@ -116,7 +116,9 @@ extension _GameMapOverlay on _GameMapScreenState {
           : const [],
       inspectorLiveFeed: _isRoomInspector ? _inspectorLiveFeed : const {},
       playAreaPreviewMode:
-          _prepMapMode == PrepMapMode.preview && _gameState == GameState.waiting,
+          _prepMapMode == PrepMapMode.preview &&
+          _gameState == GameState.waiting &&
+          !_matchPresentationActive,
       playAreaPreviews: _playAreaPreviewEntries(),
     );
   }

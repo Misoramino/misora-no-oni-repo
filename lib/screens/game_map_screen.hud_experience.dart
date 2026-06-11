@@ -76,6 +76,7 @@ extension _GameMapHudExperience on _GameMapScreenState {
         );
       }),
     );
+    unawaited(_persistMatchDuration());
   }
 
   Future<void> _onSecondGameIntroAfterElimination() async {

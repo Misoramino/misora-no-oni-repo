@@ -32,6 +32,7 @@ class GameControlPanel extends StatelessWidget {
     required this.onHidePanel,
     required this.isHost,
     required this.isRunning,
+    this.secondGameMode = false,
     required this.matchEnded,
     required this.canStartMatch,
     required this.isEditing,
@@ -79,6 +80,7 @@ class GameControlPanel extends StatelessWidget {
   final VoidCallback onHidePanel;
   final bool isHost;
   final bool isRunning;
+  final bool secondGameMode;
   final bool matchEnded;
   final bool canStartMatch;
   final bool isEditing;
@@ -260,7 +262,7 @@ class GameControlPanel extends StatelessWidget {
                 ),
               if (isRunning)
                 Text(
-                  'スキル',
+                  secondGameMode ? '第二ゲーム' : 'スキル',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: fg,
                     fontWeight: FontWeight.w600,
@@ -349,6 +351,31 @@ class GameControlPanel extends StatelessWidget {
                   label: const Text('設定リセット'),
                 ),
             ],
+          ] else if (secondGameMode) ...[
+            Text(
+              '上部 HUD からログを確認できます。地図の施設マーカーで支援操作ができます。',
+              style: TextStyle(color: fgMuted, fontSize: 11, height: 1.35),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onOpenHelp,
+                    icon: const Icon(Icons.help_outline, size: 18),
+                    label: const Text('遊び方'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onRecenterGps,
+                    icon: const Icon(Icons.center_focus_strong, size: 18),
+                    label: const Text('現在地へ'),
+                  ),
+                ),
+              ],
+            ),
           ] else ...[
             _buildSkillRow(compact: sheetMode == ControlSheetMode.skillsOnly),
             if (expanded) ...[

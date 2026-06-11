@@ -15,6 +15,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
     required this.onOpenGallery,
     required this.onRecenterGps,
     required this.onDismiss,
+    this.onCreateNew,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
   final VoidCallback onOpenGallery;
   final VoidCallback onRecenterGps;
   final VoidCallback onDismiss;
+  final VoidCallback? onCreateNew;
 
   SavedPlayArea? get _focused {
     if (focusSlotId == null) return null;
@@ -119,6 +121,14 @@ class PrepMapPreviewPanel extends StatelessWidget {
                 ),
               ],
             ),
+            if (isHost && onCreateNew != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: onCreateNew,
+                icon: const Icon(Icons.add_location_alt_outlined, size: 20),
+                label: const Text('新規エリアを作成'),
+              ),
+            ],
             if (isHost && focused != null) ...[
               const SizedBox(height: 8),
               FilledButton.icon(

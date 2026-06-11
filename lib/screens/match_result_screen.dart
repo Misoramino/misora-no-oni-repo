@@ -6,6 +6,7 @@ import '../game/elimination_aftermath_rule.dart';
 import '../game/game_state.dart';
 import '../game/match_record.dart';
 import '../game/werewolf_faction_logic.dart';
+import '../sync/firestore_room_blueprint.dart';
 import '../features/game_map/widgets/match_flow_timeline.dart';
 import '../features/match/match_result_copy.dart';
 import '../progression/player_progress.dart';
@@ -23,7 +24,7 @@ class MatchResultScreen extends StatefulWidget {
     required this.matchDurationLabel,
     required this.onPrepareNext,
     required this.onOpenGallery,
-    required this.onOpenLobby,
+    this.endReason,
     this.afterCatchRule,
     this.factionAtDeath,
     this.playerFactionAtEnd,
@@ -57,9 +58,9 @@ class MatchResultScreen extends StatefulWidget {
   /// 観戦中に組み立てた試合記録（全員軌跡・イベント）。
   final SavedMatchRecord? spectatorRecord;
   final VoidCallback? onOpenReplay;
+  final String? endReason;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
-  final VoidCallback onOpenLobby;
 
   @override
   State<MatchResultScreen> createState() => _MatchResultScreenState();
@@ -122,29 +123,36 @@ class _MatchResultScreenState extends State<MatchResultScreen>
     final outcome = widget.outcome;
     final headline = MatchResultCopy.outcomeHeadline(
       outcome: outcome,
+      winningFaction: widget.winningFaction,
+      endReason: widget.endReason,
       factionAtDeath: widget.factionAtDeath,
       playerFactionAtEnd: widget.playerFactionAtEnd,
       afterCatchRule: widget.afterCatchRule,
     );
-    final (IconData icon, Color accent) = switch (outcome) {
-      GameState.runnerWin => (
-        Icons.emoji_events_outlined,
-        Colors.green.shade700,
-      ),
-      GameState.caughtByOni => (
-        Icons.front_hand_outlined,
-        Colors.red.shade700,
-      ),
-      _ => (Icons.flag_outlined, theme.colorScheme.primary),
-    };
+    final personalWon = _personalWon;
+    final (IconData icon, Color accent) = widget.endReason ==
+            MatchEndReason.hostAbort
+        ? (Icons.pause_circle_outline, theme.colorScheme.outline)
+        : personalWon
+        ? (Icons.emoji_events_outlined, Colors.green.shade700)
+        : widget.winningFaction == FactionSide.oniTeam
+        ? (Icons.front_hand_outlined, Colors.red.shade700)
+        : switch (outcome) {
+            GameState.runnerWin => (
+              Icons.flag_outlined,
+              theme.colorScheme.primary,
+            ),
+            GameState.caughtByOni => (
+              Icons.front_hand_outlined,
+              Colors.red.shade700,
+            ),
+            _ => (Icons.flag_outlined, theme.colorScheme.primary),
+          };
     final title = headline.title;
 
-    final factionWinLabel = widget.winningFaction?.label;
     final effectivePersonalFaction =
         widget.factionAtDeath ?? widget.playerFactionAtEnd;
     final personalFactionLabel = effectivePersonalFaction?.label;
-    final personalWon = _personalWon;
-
     final iconPop = CurvedAnimation(
       parent: _intro,
       curve: const Interval(0, 0.6, curve: Curves.elasticOut),
@@ -194,16 +202,6 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-              if (factionWinLabel != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  '$factionWinLabel の勝利',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
               if (!widget.spectatorMode && personalFactionLabel != null) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -391,12 +389,6 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                     widget.spectatorMode ? 'ギャラリー・過去の試合' : '軌跡再生・ギャラリー',
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: widget.onOpenLobby,
-                icon: const Icon(Icons.groups_outlined),
-                label: const Text('ルームロビーへ'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(

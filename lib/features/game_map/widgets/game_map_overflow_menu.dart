@@ -31,12 +31,16 @@ class GameMapOverflowMenu extends StatelessWidget {
       tooltip: 'その他',
       onSelected: onSelected,
       itemBuilder: (ctx) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'settings',
           child: ListTile(
-            leading: Icon(Icons.settings_outlined),
-            title: Text('設定'),
-            subtitle: Text('個人・サウンド・データ・HUD'),
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('設定'),
+            subtitle: Text(
+              running
+                  ? '個人・サウンド・データ・HUD'
+                  : '個人・サウンド・データ',
+            ),
             contentPadding: EdgeInsets.zero,
             dense: true,
           ),

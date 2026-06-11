@@ -91,10 +91,48 @@ class GameAudio {
     settings.value = next;
     await AudioPrefs.save(next);
 
-    // メニュー中は選曲/音量を即反映。対戦中の環境音は次のワンショットから反映される。
     if (_mode == _MusicMode.menu) {
       final profile = _profile;
       if (profile != null) await playMenuBgm(profile);
+      return;
+    }
+    if (_mode == _MusicMode.match) {
+      final profile = _profile;
+      if (profile == null) return;
+      if (next.bgmEnabled) {
+        await _playMatchBgm(profile, next);
+      } else {
+        await _stopBgm(fadeOut: true);
+      }
+    }
+  }
+
+  Future<void> _playMatchBgm(WorldProfile profile, AudioSettings s) async {
+    if (kIsWeb) return;
+    final id = _resolveBgm(profile, s);
+    final assetPath = _resolveAsset('audio/bgm', id.asset, _musicExts);
+    if (assetPath == null) {
+      await _stopBgm();
+      return;
+    }
+    final vol = s.effectiveBgm;
+    if (_playingBgm == id && _bgmPlayer != null) {
+      _bgmFadeTimer?.cancel();
+      _bgmFadeTimer = null;
+      await _bgmPlayer!.setVolume(vol);
+      return;
+    }
+    _playingBgm = id;
+    try {
+      final p = _bgmPlayer ??= AudioPlayer(playerId: 'bgm');
+      await p.setReleaseMode(ReleaseMode.loop);
+      _bgmFadeTimer?.cancel();
+      _bgmFadeTimer = null;
+      await p.stop();
+      await p.play(AssetSource(assetPath), volume: 0);
+      _fadeBgm(from: 0, to: vol);
+    } catch (e) {
+      debugPrint('GameAudio._playMatchBgm($id): $e');
     }
   }
 

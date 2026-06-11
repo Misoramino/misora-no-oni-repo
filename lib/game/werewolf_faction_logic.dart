@@ -38,6 +38,28 @@ abstract final class WerewolfFactionLogic {
     };
   }
 
+  /// 脱落していない参加者の陣営別人数（勝敗判定用）。
+  static ({int humanAlive, int oniAlive}) countAliveFactions({
+    required List<MatchParticipantState> players,
+  }) {
+    var human = 0;
+    var oni = 0;
+    for (final p in players) {
+      if (p.eliminated) continue;
+      switch (factionFor(
+        assignmentRole: p.assignmentRole,
+        players: players,
+        uid: p.uid,
+      )) {
+        case FactionSide.humanTeam:
+          human++;
+        case FactionSide.oniTeam:
+          oni++;
+      }
+    }
+    return (humanAlive: human, oniAlive: oni);
+  }
+
   /// 自分以外の生存者について人ロール／鬼ロール数を数える。
   static ({int humanCount, int oniCount}) countOthersPerceivedRoles({
     required List<MatchParticipantState> players,

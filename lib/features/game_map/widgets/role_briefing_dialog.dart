@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
@@ -5,6 +7,7 @@ import '../../../game/role_briefing.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 import '../../../widgets/app_dialog.dart';
+import '../../tutorial/tutorial_entry.dart';
 
 /// 試合開始時: 役職の要点だけを短く伝える演出付きダイアログ。
 Future<void> showRoleBriefingDialog(
@@ -29,6 +32,15 @@ Future<void> showRoleBriefingDialog(
         icon: roleIcon(role),
         accent: accent,
         actions: [
+          AppDialogAction(
+            label: 'チュートリアル',
+            filled: false,
+            icon: Icons.school_rounded,
+            onPressed: () {
+              Navigator.pop(ctx);
+              unawaited(openTutorialPicker(context));
+            },
+          ),
           AppDialogAction(
             label: '了解',
             icon: Icons.play_arrow_rounded,

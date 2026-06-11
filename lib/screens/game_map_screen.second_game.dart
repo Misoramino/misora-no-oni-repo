@@ -53,7 +53,39 @@ extension _GameMapSecondGame on _GameMapScreenState {
     if (cause != 'accusation_failed') {
       _recordMatchFeed('脱落 — ${rule.label}');
     }
-    unawaited(_onSecondGameIntroAfterElimination());
+    if (!_rejoinRestoringEvents) {
+      unawaited(_onSecondGameIntroAfterElimination());
+    }
+    _maybeEndMatchForFactionElimination();
+  }
+
+  void _restoreLocalEliminationFromEvent(
+    RoomMatchEvent ev, {
+    required String message,
+  }) {
+    final factionName = ev.payload['factionAtDeath'] as String?;
+    final ruleName = ev.payload['afterCatchRule'] as String?;
+    final faction = factionName != null
+        ? FactionSide.values.byName(factionName)
+        : _localFactionNow();
+    final rule = ruleName != null
+        ? EliminationAftermathRule.values.byName(ruleName)
+        : EliminationAftermathRule.forEliminatedFaction(
+            matchDefault: _eliminationAftermathRule,
+            factionAtDeath: faction,
+          );
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    _eliminatedUids.add(myUid);
+    _syncSetState(() {
+      _gameState = GameState.caughtByOni;
+      _afterCatchRule = rule;
+      _factionAtDeath = faction;
+      _statusMessage = _eliminationStatusMessage(rule, message);
+      _controlSheetMode = ControlSheetMode.skillsOnly;
+      _accusationPromptOpen = false;
+      _prepControlSheetOpen = false;
+    });
+    _updateDangerPulse();
   }
 
   String _eliminationStatusMessage(

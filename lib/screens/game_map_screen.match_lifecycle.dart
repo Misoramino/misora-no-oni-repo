@@ -158,18 +158,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         }
       });
       if (_rt.remainingSeconds <= 0) {
-        if (_gameState == GameState.running) {
-          _endGame(
-            GameState.runnerWin,
-            MatchTickEvaluator.endMessageFor(MatchTickAction.endRunnerWin),
-            endReason: MatchEndReason.timeUp,
-          );
-        } else if (_isHost) {
-          _endGame(
-            GameState.runnerWin,
-            MatchTickEvaluator.endMessageFor(MatchTickAction.endRunnerWin),
-            endReason: MatchEndReason.timeUp,
-          );
+        if (_isHost) {
+          _endGameForTimeUp();
         }
         return;
       }
@@ -427,7 +417,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (!mounted || ok != true) return;
       _toast('試合を中止しました');
       if (_isOnlineFirestore && _isHost) {
-        _endGame(GameState.runnerWin, 'ホストにより試合中止');
+        _abortMatch('ホストにより試合中止');
       } else {
         _resetGame();
       }
@@ -628,12 +618,79 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _abortProposalInitiatorUid = null;
       _abortProposalExpiresAt = null;
       _abortVoteYesUids.clear();
+      _abortMatch('参加者の過半数が賛成し、試合を中止しました');
+    }
+  }
+
+  void _endGameForTimeUp() {
+    final counts = WerewolfFactionLogic.countAliveFactions(
+      players: _matchParticipants(),
+    );
+    if (counts.humanAlive == 0 && counts.oniAlive > 0) {
+      _endGame(
+        GameState.caughtByOni,
+        '全逃走者捕獲 — 鬼陣営の勝利',
+        endReason: MatchEndReason.allHumansEliminated,
+      );
+      return;
+    }
+    _endGame(
+      GameState.runnerWin,
+      MatchTickEvaluator.endMessageFor(MatchTickAction.endRunnerWin),
+      endReason: MatchEndReason.timeUp,
+    );
+  }
+
+  void _maybeEndMatchForFactionElimination() {
+    if (!_isHost) return;
+    if (_gameState != GameState.running &&
+        !(_gameState == GameState.caughtByOni && _afterCatchRule != null)) {
+      return;
+    }
+    final counts = WerewolfFactionLogic.countAliveFactions(
+      players: _matchParticipants(),
+    );
+    if (counts.humanAlive == 0) {
+      _endGame(
+        GameState.caughtByOni,
+        counts.oniAlive > 0
+            ? '全逃走者捕獲 — 鬼陣営の勝利'
+            : '全員脱落 — 鬼陣営の勝利',
+        endReason: MatchEndReason.allHumansEliminated,
+      );
+      return;
+    }
+    if (counts.oniAlive == 0 && counts.humanAlive > 0) {
       _endGame(
         GameState.runnerWin,
-        '参加者の過半数が賛成し、試合を中止しました',
-        endReason: MatchEndReason.hostAbort,
+        '鬼陣営全滅 — 逃走者陣営の勝利',
+        endReason: MatchEndReason.oniEliminated,
       );
     }
+  }
+
+  void _abortMatch(String message) {
+    if (_isOnlineFirestore && _isHost) {
+      unawaited(
+        _firestoreSession!.publishMatchEnd(
+          outcome: GameState.runnerWin,
+          endReason: MatchEndReason.hostAbort,
+          message: message,
+        ),
+      );
+    }
+    _matchTimer?.cancel();
+    _cancelCaptureBoundTimers();
+    _afterCatchRule = null;
+    unawaited(_finalizeMatchRecording(GameState.runnerWin));
+    _syncSetState(() {
+      _gameState = GameState.waiting;
+      _statusMessage = message;
+      _prepControlSheetOpen = true;
+      _prepMapMode = PrepMapMode.hidden;
+    });
+    _retuneGpsIfNeeded();
+    GameAudio.instance.playMenuBgm(_activeProfile);
   }
 
   Future<bool?> _showAbortVoteDialog() async {
@@ -687,6 +744,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     String message, {
     String? endReason,
     bool skipFirestoreSync = false,
+    bool skipResultScreen = false,
   }) {
     _matchTimer?.cancel();
     _cancelCaptureBoundTimers();
@@ -696,9 +754,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _gameState = result;
       _statusMessage = message;
       _prepControlSheetOpen = false;
+      _prepMapMode = PrepMapMode.browse;
     });
     HapticFeedback.mediumImpact();
-    final localFaction = _effectiveLocalFaction();
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
     if (_isRoomInspector) {
@@ -721,9 +779,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         ),
       );
     }
+  if (skipResultScreen) {
+      if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
+      return;
+    }
     unawaited(() async {
       await _playMatchEndFlash();
-      if (mounted) await _openMatchResultScreen();
+      if (mounted) {
+        await _openMatchResultScreen(endReason: endReason);
+      }
       if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
     }());
   }
@@ -772,11 +836,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       isHunterNow: _isPerceivedOniNow,
       runnerProximityActive:
           _chaseTargetsPresent && !_isPerceivedOniNow,
-      applyRunnerOutsideRules:
-          WerewolfFactionLogic.subjectToOniProximityRules(
-            assignmentRole: _localRole,
-            werewolfInOniForm: _rt.werewolfInOniForm,
-          ),
+      applyOutsideAreaRules: _gameState == GameState.running,
+      oniOutsideEndsMatch: _isPerceivedOniNow,
       proximityBand: _latestProximityBand,
       proximityCapturePermitted: _proximityCapturePermittedForRunner(),
       now: DateTime.now(),
@@ -796,9 +857,19 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           } else {
             HapticFeedback.mediumImpact();
           }
+          if (state == GameState.runnerWin &&
+              message.contains(MatchTickEvaluator.outsideEliminationMarker)) {
+            _endGame(
+              GameState.runnerWin,
+              '鬼がプレイエリア外に長時間 — 逃走者陣営の勝利',
+              endReason: MatchEndReason.oniEliminated,
+            );
+            return;
+          }
           if (state == GameState.caughtByOni) {
             GameAudio.instance.playSfx(SfxId.capture);
             _eliminateLocalParticipant(message, cause: 'caught');
+            _maybeEndMatchForFactionElimination();
             return;
           }
           _endGame(state, message);

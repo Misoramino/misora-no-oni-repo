@@ -26,4 +26,8 @@ abstract final class GameMapPrefs {
   static const hostQuickPresetPromptRoom = 'host_quick_preset_prompt_room_v1';
   /// 試合開始のロスター・オービットを省略（カウントダウンは維持）。
   static const shortMatchStartCeremony = 'short_match_start_ceremony_v1';
+  /// ルームロビーへ行く前の説明ダイアログを省略。
+  static const skipLobbyNavHint = 'skip_lobby_nav_hint_v1';
+  /// オフライン準備の試合時間（秒）。オンライン試合中はホスト設定が優先。
+  static const matchDurationSeconds = 'match_duration_seconds_v1';
 }

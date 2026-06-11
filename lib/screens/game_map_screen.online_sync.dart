@@ -154,6 +154,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     });
     _recordMatchFeed('誰かが脱落しました');
     _maybeHostPublishAccusationUnlock();
+    _maybeEndMatchForFactionElimination();
   }
 
   void _applyRemoteAccusationPointScored(RoomMatchEvent ev) {

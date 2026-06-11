@@ -65,11 +65,14 @@ abstract final class MatchTickEvaluator {
     return null;
   }
 
+  /// [_applyMatchTickEffects] がエリア外脱落と判定するための目印。
+  static const outsideEliminationMarker = 'プレイエリア外に長時間';
+
   static String endMessageFor(MatchTickAction action) => switch (action) {
         MatchTickAction.endRunnerWin => '逃走成功。時間切れです。',
         MatchTickAction.endCaughtByOni => 'BLE接近で接触判定。鬼に捕まりました。',
         MatchTickAction.outsideElimination =>
-          'プレイエリア外に長時間 — ルール上脱落しました。',
+          '$outsideEliminationMarker — ルール上脱落しました。',
         _ => '',
       };
 
