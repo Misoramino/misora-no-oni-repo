@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-/// 地図タップスキル（捕獲結界・体投げ）の長押し→離して設置／×へドラッグでキャンセル。
+/// 地図タップスキル（捕獲結界・体投げ）の長押し→離して設置／×でキャンセル。
 class SkillMapPlacementLayer extends StatefulWidget {
   const SkillMapPlacementLayer({
     required this.mapController,
@@ -30,8 +30,6 @@ class SkillMapPlacementLayer extends StatefulWidget {
 
 class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
   bool _pointerDown = false;
-  bool _cancelHover = false;
-  bool _deferToMap = false;
   int _activePointers = 0;
   Offset? _lastLocal;
 
@@ -40,21 +38,9 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
     super.didUpdateWidget(oldWidget);
     if (!widget.active && oldWidget.active) {
       _pointerDown = false;
-      _cancelHover = false;
       _lastLocal = null;
       widget.onPreview(null);
     }
-  }
-
-  Rect get _cancelTarget {
-    final size = MediaQuery.sizeOf(context);
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    const box = 56.0;
-    return Rect.fromCenter(
-      center: Offset(size.width / 2, size.height - bottomInset - 148),
-      width: box,
-      height: box,
-    );
   }
 
   Future<LatLng?> _latLngAt(Offset local) async {
@@ -71,24 +57,14 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
       if (!mounted || !_pointerDown) return;
       widget.onPreview(latLng);
     }));
-    final hover = _cancelTarget.contains(local);
-    if (hover != _cancelHover) {
-      setState(() => _cancelHover = hover);
-    }
   }
 
   void _finishPointer() {
     _activePointers = (_activePointers - 1).clamp(0, 8);
-    if (_activePointers > 1) return;
-    if (_activePointers == 0) {
-      _deferToMap = false;
-    }
+    if (_activePointers > 0) return;
     if (!_pointerDown) return;
     _pointerDown = false;
-    if (_cancelHover) {
-      widget.onPreview(null);
-      widget.onCancel();
-    } else if (_lastLocal != null) {
+    if (_lastLocal != null) {
       unawaited(_latLngAt(_lastLocal!).then((latLng) {
         if (!mounted || latLng == null) return;
         widget.onPreview(null);
@@ -97,38 +73,36 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
     } else {
       widget.onPreview(null);
     }
-    setState(() => _cancelHover = false);
+  }
+
+  void _cancelPlacement() {
+    if (!widget.active) return;
+    _pointerDown = false;
+    _lastLocal = null;
+    widget.onPreview(null);
+    widget.onCancel();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!widget.active) return const SizedBox.shrink();
-    if (_deferToMap) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final cancelRect = _cancelTarget;
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Stack(
       fit: StackFit.expand,
       children: [
         Listener(
-          behavior: HitTestBehavior.translucent,
+          behavior: HitTestBehavior.opaque,
           onPointerDown: (e) {
             _activePointers++;
-            if (_activePointers > 1) {
-              setState(() {
-                _deferToMap = true;
-                _pointerDown = false;
-                _cancelHover = false;
-              });
-              widget.onPreview(null);
-              return;
-            }
+            if (_activePointers > 1) return;
             _pointerDown = true;
             _updatePreview(e.localPosition);
           },
           onPointerMove: (e) {
-            if (_deferToMap || !_pointerDown) return;
+            if (_activePointers > 1 || !_pointerDown) return;
             _updatePreview(e.localPosition);
           },
           onPointerUp: (_) => _finishPointer(),
@@ -138,19 +112,19 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
           child: Align(
             alignment: Alignment.topCenter,
             child: Padding(
-              padding: const EdgeInsets.only(top: 96, left: 16, right: 16),
+              padding: EdgeInsets.only(top: topInset + 72, left: 16, right: 16),
               child: Material(
-                color: Colors.black.withValues(alpha: 0.72),
+                color: Colors.black.withValues(alpha: 0.78),
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Text(
-                    widget.hint,
+                    '${widget.hint}\n指を離すと設置',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.white,
-                      height: 1.35,
+                      height: 1.4,
                     ),
                   ),
                 ),
@@ -159,37 +133,18 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
           ),
         ),
         Positioned(
-          left: cancelRect.left,
-          top: cancelRect.top,
-          width: cancelRect.width,
-          height: cancelRect.height,
-          child: IgnorePointer(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              decoration: BoxDecoration(
-                color: (_cancelHover ? Colors.red : Colors.black)
-                    .withValues(alpha: _cancelHover ? 0.88 : 0.62),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: _cancelHover ? Colors.white : Colors.white54,
-                  width: _cancelHover ? 2.5 : 1.5,
-                ),
-              ),
-              child: const Icon(Icons.close_rounded, color: Colors.white),
-            ),
-          ),
-        ),
-        IgnorePointer(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: cancelRect.height + 24),
-              child: Text(
-                '×へドラッグでキャンセル',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: Colors.white,
-                  shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
-                ),
+          top: topInset + 12,
+          right: 12,
+          child: Material(
+            color: Colors.black.withValues(alpha: 0.72),
+            shape: const CircleBorder(),
+            elevation: 6,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: _cancelPlacement,
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Icon(Icons.close_rounded, color: Colors.white, size: 28),
               ),
             ),
           ),

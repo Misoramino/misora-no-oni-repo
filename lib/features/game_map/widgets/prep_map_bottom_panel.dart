@@ -30,6 +30,7 @@ class PrepMapBottomPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
+    this.onCreateNewArea,
     this.playAreaSummary,
     super.key,
   });
@@ -58,6 +59,7 @@ class PrepMapBottomPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
+  final VoidCallback? onCreateNewArea;
   final String? playAreaSummary;
 
   @override
@@ -150,6 +152,7 @@ class PrepMapBottomPanel extends StatelessWidget {
                 onClearTraces: onClearTraces,
                 onOpenHelp: onOpenHelp,
                 onDismissPrepSheet: onDismissPrepSheet,
+                onCreateNewArea: onCreateNewArea,
               ),
             ],
           ),

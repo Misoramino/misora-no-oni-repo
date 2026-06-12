@@ -12,7 +12,7 @@ void main() {
         expect(copy.lockedHint, AccusationFacilityCopy.lockedHintBase);
         expect(copy.unlockLines.last, contains(GuideTerms.trueOni));
         expect(copy.accuseActionLabel, isNot(contains('容疑者')));
-        expect(copy.accuseActionLabel, isNot(contains('犯人')));
+        expect(copy.accuseActionLabel, isNot(contains('標的')));
       });
     }
 
@@ -23,7 +23,7 @@ void main() {
       );
       expect(
         AccusationFacilityCopy.accuseTargetLine,
-        contains(GuideTerms.werewolf),
+        contains(GuideTerms.realOni),
       );
     });
   });

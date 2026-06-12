@@ -4,18 +4,16 @@ import 'guide_diagram_type.dart';
 import 'guide_models.dart';
 import 'guide_terms.dart';
 
-/// 作戦マニュアルのヘッダー。
+/// 遊び方のヘッダー。
 const guideHeader = GuideHeaderData(
-  title: 'ONI PIN 作戦マニュアル',
-  subtitle: '位置は見えない。痕跡を読み、鬼を出し抜け。',
-  body:
-      '屋外GPSタッグに推理と情報戦を組み合わせた対戦ゲームです。\n'
-      '困ったときは、下の項目から必要な章だけ開いてください。',
-  hint: '全部を最初から読む必要はありません。',
+  title: 'ONI PIN の遊び方',
+  subtitle: '相手の位置は見えない。手がかりを読もう。',
+  body: '屋外で遊ぶ鬼ごっこ＋推理ゲームです。\n困ったときだけ、下の章を開いてください。',
+  hint: '最初から全部読む必要はありません。',
   indexPrompt: 'よく見る章',
 );
 
-/// 12章の作戦マニュアル本文。
+/// 12章の遊び方本文。
 final howToPlaySections = <GuideSectionData>[
   _introSection,
   _winSection,
@@ -36,6 +34,15 @@ GuideSectionData? guideSectionById(String id) {
     if (s.id == id) return s;
   }
   return null;
+}
+
+/// 詳細ルール章のカード ID 一覧（ジャンプ先検証用）。
+Iterable<String> get guideSpecCardIds sync* {
+  final spec = guideSectionById('spec');
+  if (spec == null) return;
+  for (final c in spec.cards) {
+    yield c.id;
+  }
 }
 
 // --- helpers ---
@@ -73,7 +80,30 @@ GuideCardData _card({
   );
 }
 
-const _detail = GuideDetailData.new;
+GuideDetailData _detail({
+  required String title,
+  required String body,
+  String? specCardId,
+}) =>
+    GuideDetailData(title: title, body: body, specCardId: specCardId);
+
+GuideCardData _specCard({
+  required String id,
+  required String title,
+  required IconData icon,
+  required String oneLine,
+  List<GuideSpecRow> rows = const [],
+  List<GuideSpecGroup> groups = const [],
+}) =>
+    GuideCardData(
+      id: id,
+      title: title,
+      icon: icon,
+      oneLine: oneLine,
+      body: '',
+      specRows: rows,
+      specGroups: groups,
+    );
 
 // --- sections ---
 
@@ -81,42 +111,36 @@ final _introSection = GuideSectionData(
   id: 'intro',
   title: 'はじめに',
   icon: Icons.info_outline,
-  oneLine: 'ONI PINは、位置を読む情報戦です。',
+  oneLine: '屋外で遊ぶ、鬼ごっこ＋推理です。',
   initiallyExpanded: true,
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.introClues,
-    title: '相手のライブ位置は基本見えない',
-    caption: '見えるのは手がかり（暴露・痕跡・施設）です。',
+    title: '相手の位置は基本見えない',
+    caption: '見えるのは手がかりだけ',
   ),
   cards: [
     _card(
       id: 'about',
-      title: 'このゲームについて',
+      title: '何をするゲーム？',
       icon: Icons.sports_esports_outlined,
-      oneLine: '鬼ごっこに、推理と情報戦を組み合わせたゲームです。',
-      body:
-          '人側は逃げながら情報を集め、鬼側は痕跡や暴露から追い詰めます。\n\n'
-          '相手の現在地が常に見えるわけではないので、断片情報の読み方が勝敗を左右します。',
+      oneLine: '逃げる・追う・当てる。',
+      body: '人は逃げ、鬼は追います。地図の点は「いまここ」ではなく手がかりです。',
     ),
     _card(
       id: 'first_things',
-      title: 'まず覚えること',
+      title: 'まず3つ',
       icon: Icons.lightbulb_outline,
-      oneLine: 'ライブ位置ではなく、痕跡を読むゲームです。',
+      oneLine: 'これだけ覚えれば始められます。',
       body:
-          'ONI PINで最初に覚えることは3つです。\n\n'
-          '・相手のライブ位置は基本見えない\n'
-          '・情報には「${GuideTerms.namedReveal}」と「${GuideTerms.anonTrace}」がある\n'
-          '・鬼に近づくほど、${GuideTerms.panic}・拘束・捕獲の危険が高まる\n\n'
-          '細かい秒数や距離は、あとから詳細ルールで確認できます。',
-    ),
-  ],
-  details: [
-    _detail(
-      title: 'おすすめの遊び方',
-      body:
-          'おすすめは、5〜6人、30〜60分、やや広めのエリアです。\n\n'
-          '人数が少ないと鬼ごっこ寄りになり、人数が増えると人狼・情報戦の要素が強くなります。',
+          '① 相手の位置は基本見えない\n'
+          '② 手がかりを読む（${GuideTerms.namedReveal}・${GuideTerms.anonTrace}）\n'
+          '③ 鬼に近づきすぎると危ない',
+      details: [
+        _detail(
+          title: 'おすすめの人数・時間',
+          body: '5〜6人、30〜60分、やや広めのエリアが目安です。',
+        ),
+      ],
     ),
   ],
   relatedSectionIds: ['win', 'info', 'combat'],
@@ -126,55 +150,43 @@ final _winSection = GuideSectionData(
   id: 'win',
   title: '勝ち方',
   icon: Icons.emoji_events_outlined,
-  oneLine:
-      '人側は生き残るか${GuideTerms.trueOni}を当てる。鬼側は人側を全員捕まえます。',
+  oneLine: '人は逃げ切るか鬼を当てる。鬼は全員捕まえる。',
   initiallyExpanded: true,
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.factionWin,
     title: '陣営ごとの勝利条件',
-    caption: '個人の脱落と陣営の勝敗は別です。',
+    caption: '個人の脱落と陣営の勝敗は別',
   ),
   cards: [
     _card(
       id: 'human_win',
       title: '${GuideTerms.humanFaction}の勝ち',
       icon: Icons.directions_run_rounded,
-      oneLine: '逃げ切る・当てる・${GuideTerms.trueOni}を消す、のどれかで勝ちです。',
-      body:
-          '${GuideTerms.humanFaction}は、次のどれかを達成すると勝ちです。\n\n'
-          '・制限時間まで人側の生存者が1人以上残る\n'
-          '・告発施設で${GuideTerms.trueOni}を当てる\n'
-          '・${GuideTerms.trueOni}が全員脱落する\n\n'
-          '${GuideTerms.werewolf}が${GuideTerms.oniFaction}に残っていても、'
-          '${GuideTerms.trueOni}がいなければ${GuideTerms.humanFaction}の勝ちです。',
+      oneLine: '時間切れで生き残る／告発で鬼を当てる／鬼が全員いなくなる。',
+      body: 'どれか1つで勝ちです。${GuideTerms.werewolf}だけ残っても、${GuideTerms.realOni}がいなければ人側の勝ちです。',
+      details: [
+        _detail(
+          title: '人側の勝ち条件（一覧）',
+          body:
+              '・制限時間まで生存者が1人以上\n'
+              '・告発で${GuideTerms.realOni}を当てる（標準設定）\n'
+              '・${GuideTerms.realOni}が全員脱落',
+        ),
+      ],
     ),
     _card(
       id: 'oni_win',
       title: '${GuideTerms.oniFaction}の勝ち',
       icon: Icons.nightlight_round,
-      oneLine: '人側の生存者を0人にすれば勝ちです。',
-      body:
-          '${GuideTerms.oniFaction}は、逃走者を捕獲し、人側の生存者を0人にすると勝ちです。\n\n'
-          '告発に成功される前に、人側を追い詰めましょう。',
+      oneLine: '人側の生存者を0人にする。',
+      body: '逃走者を捕獲して追い詰めます。告発される前に決着をつけましょう。',
     ),
     _card(
       id: 'elim_not_end',
-      title: '脱落しても終わりではありません',
+      title: '脱落≠終了',
       icon: Icons.replay_circle_filled_outlined,
-      oneLine: '個人の脱落と、陣営の勝敗は別です。',
-      body:
-          '捕獲・告発失敗・エリア外などで脱落しても、試合にはまだ関われます。\n\n'
-          '脱落後は、陣営に応じて${GuideTerms.secondGame}に入り、'
-          '味方を助けたり、相手を妨害したりできます。',
-    ),
-  ],
-  details: [
-    _detail(
-      title: '試合中止',
-      body:
-          '試合中止は、参加者の過半数投票またはホスト操作で行われます。\n\n'
-          '中止時は勝敗・戦績・トロフィーは付与されません。\n\n'
-          '軌跡保存に同意している場合、ギャラリーには「試合中止」として保存されることがあります。',
+      oneLine: '落ちても${GuideTerms.secondGame}で味方を助けられます。',
+      body: '捕獲・告発失敗・エリア外などで脱落しても、陣営の勝敗にはまだ関われます。',
     ),
   ],
   relatedSectionIds: ['info', 'accusation', 'second_game'],
@@ -184,116 +196,75 @@ final _infoSection = GuideSectionData(
   id: 'info',
   title: '情報戦',
   icon: Icons.radar_outlined,
-  oneLine: 'ライブ位置は見えません。痕跡と暴露から相手を読みます。',
+  oneLine: '相手の位置は見えない。手がかりを読む。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.informationTypes,
-    title: '情報は「現在地」ではなく「手がかり」',
-    caption: 'ライブ位置は基本見えません。',
+    title: '地図の点は手がかり',
+    caption: '「いまここ」と決めつけない',
   ),
   cards: [
     _card(
       id: 'no_live',
-      title: 'ライブ位置は基本見えません',
+      title: '基本ルール',
       icon: Icons.visibility_off_outlined,
-      oneLine: '地図の点は「今ここ」ではなく、手がかりです。',
-      body:
-          '監視カメラ、${GuideTerms.panic}、情報屋、エリア外などで手がかりが出ます。\n\n'
-          '「今ここにいる」と決めつけず、「少し前にここにいたかもしれない」と読んでください。',
+      oneLine: '地図の点＝手がかり。現在地とは限りません。',
+      body: 'カメラ・${GuideTerms.panic}・施設などで点が出ます。「少し前にここにいたかも」と読みましょう。',
     ),
     _card(
       id: 'named_reveal',
       title: GuideTerms.namedReveal,
       icon: Icons.person_pin_circle_outlined,
-      oneLine: '「○○がここにいた」と分かる強い情報です。',
-      body:
-          '${GuideTerms.namedReveal}は、プレイヤー名が付いた位置情報です。\n\n'
-          'エリア外に長くいる、告発に失敗する、情報屋に見つかる、偽情報暴露を受けるなどで発生します。\n\n'
-          '名前が出るため強い情報ですが、暴露されたあとに移動している可能性があります。',
+      oneLine: '「○○がここにいた」と分かる。強い手がかり。',
+      body: '名前付きなので信頼度は高いです。ただし暴露後に動いていることもあります。',
       details: [
         _detail(
-          title: '主な発生源',
-          body:
-              '・エリア外の初回暴露\n'
-              '・エリア外の再暴露\n'
-              '・告発失敗\n'
-              '・${GuideTerms.trueOni}の情報屋使用\n'
-              '・偽情報暴露\n'
-              '・体投げ失敗\n'
-              '・拘束円や結界からの脱出失敗',
+          title: '出やすい場面',
+          body: 'エリア外・告発失敗・情報屋・偽情報・体投げ失敗・拘束失敗など',
         ),
       ],
-    ),
-    _card(
-      id: 'info_strength',
-      title: '情報の強さ',
-      icon: Icons.signal_cellular_alt_rounded,
-      oneLine: '名前付き暴露が強く、匿名痕跡は複数で強くなります。',
-      body:
-          '情報には強弱があります。\n\n'
-          '${GuideTerms.namedReveal}や情報屋は強い手がかりです。\n\n'
-          '${GuideTerms.anonTrace}は1つだけでは弱いですが、'
-          '複数をつなぐと移動方向が読めます。',
-      diagram: const GuideDiagramData(
-        type: GuideDiagramType.infoStrength,
-        title: '情報の強さ',
-        caption: '匿名痕跡は量で補える',
-      ),
     ),
     _card(
       id: 'anon_trace',
       title: GuideTerms.anonTrace,
       icon: Icons.help_outline,
-      oneLine: '「誰かがここにいた」とだけ分かる情報です。',
+      oneLine: '「誰かがいた」だけ分かる。複数で方向が読める。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.infoTraceChain,
         title: '痕跡をつなぐ',
-        caption: '？＋？＋？で移動が見える',
+        caption: '？を並べると移動が見える',
       ),
-      body:
-          '${GuideTerms.anonTrace}は、名前が出ない位置情報です。\n\n'
-          '誰の痕跡かは分かりません。\n\n'
-          '1つだけでは弱い情報ですが、複数の痕跡をつなぐと、移動方向や待ち伏せ場所を推理できます。',
+      body: '誰の痕跡かは基本わかりません。点をつなげると逃げた方向の推理につながります。',
       details: [
         _detail(
-          title: '主な発生源',
-          body:
-              '・定期匿名痕跡\n'
-              '・${GuideTerms.panic}中の痕跡\n'
-              '・監視カメラ通過\n'
-              '・一部の通信混線や傍受',
+          title: '出やすい場面',
+          body: '定期匿名・${GuideTerms.panic}中・監視カメラ・通信混線など',
+        ),
+        _detail(
+          title: '定期匿名の間隔',
+          body: '試合中、ランダムに1人の近くへ名前なしの痕跡。間隔の目安は75〜180秒（詳細ルール参照）。',
         ),
       ],
     ),
     _card(
-      id: 'periodic_anon',
-      title: '定期匿名痕跡',
-      icon: Icons.schedule_outlined,
-      oneLine: '試合中、ときどき誰か1人の位置が名前なしで漏れます。',
-      body:
-          '試合中、全員の中からランダムで1人が選ばれ、その人の近くに${GuideTerms.anonTrace}が出ることがあります。\n\n'
-          '動き続けていると、移動ルートの近くに痕跡が残りやすくなります。\n\n'
-          '同じ場所に留まり続けると、痕跡が重なって「誰かがここにいる」と読まれやすくなります。',
-      details: [
-        _detail(
-          title: '間隔の目安',
-          body:
-              '定期匿名痕跡は、試合時間に応じておおよそ75〜180秒間隔で発生します。\n\n'
-              '45分試合では、おおよそ108秒に1回が目安です。\n\n'
-              '対象者はランダムです。発生するのは名前なしの${GuideTerms.anonTrace}です。',
-        ),
-      ],
+      id: 'info_strength',
+      title: '強さの目安',
+      icon: Icons.signal_cellular_alt_rounded,
+      oneLine: '名前付き＞匿名。匿名は量で補う。',
+      body: '${GuideTerms.namedReveal}は強い。${GuideTerms.anonTrace}は1つより複数の方が読みやすいです。',
+      diagram: const GuideDiagramData(
+        type: GuideDiagramType.infoStrength,
+        title: '情報の強さ',
+        caption: '匿名は量で補える',
+      ),
     ),
   ],
   details: [
     _detail(
       title: 'よくある誤解',
       body:
-          'Q. 地図に出た点は現在地ですか？\n'
-          'A. いいえ。多くの場合、現在地ではなく「一度バレた場所」や「痕跡」です。\n\n'
-          'Q. ${GuideTerms.anonTrace}は誰のものか分かりますか？\n'
-          'A. 基本的には分かりません。アナリストなど、一部の役職は読み取り補助がありますが、名前が直接出るわけではありません。\n\n'
-          'Q. ${GuideTerms.namedReveal}は確定情報ですか？\n'
-          'A. その人がその場所で暴露されたことは強い情報です。ただし、今もそこにいるとは限りません。',
+          '・地図の点＝現在地？ → 多くは違います\n'
+          '・匿名痕跡の本人は？ → 基本わかりません\n'
+          '・名前付き＝今もそこ？ → 必ずしもそうではありません',
     ),
   ],
   relatedSectionIds: ['combat', 'facilities', 'roles'],
@@ -301,68 +272,50 @@ final _infoSection = GuideSectionData(
 
 final _combatSection = GuideSectionData(
   id: 'combat',
-  title: '鬼との戦い',
+  title: '鬼との距離',
   icon: Icons.front_hand_outlined,
-  oneLine: '鬼に近づくほど、${GuideTerms.panic}・拘束・捕獲の危険が高まります。',
+  oneLine: '近いほど危ない。円は3段階。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.combatDanger,
-    title: '鬼に近いほど危険',
-    caption: '安全 → パニック → 拘束 → 捕獲',
+    title: '遠い → 近い → ごく近い',
+    caption: 'パニック → 止められる → 捕まる',
   ),
   cards: [
     _card(
       id: 'danger_flow',
-      title: '近づくほど危険になります',
+      title: '3段階',
       icon: Icons.trending_up,
-      oneLine: '${GuideTerms.panic}は警告、拘束はピンチ、捕獲は脱落です。',
+      oneLine: '①パニック ②止められる ③捕まる',
       body:
-          '鬼に近づくと、まず${GuideTerms.panic}になりやすくなります。\n\n'
-          'さらに近づくと接触され、拘束状態になります。\n\n'
-          '拘束から逃げ切れない、または鬼が至近距離まで近づくと捕獲されます。',
+          '① やや遠い円：長くいると${GuideTerms.panic}（脱落しない・痕跡が出やすい）\n'
+          '② 近い円：しばらくいると動きを止められる\n'
+          '③ ごく近い：止められ中に鬼が来ると捕獲',
     ),
     _card(
       id: 'panic',
       title: GuideTerms.panic,
       icon: Icons.bubble_chart_outlined,
-      oneLine: '脱落ではありませんが、${GuideTerms.anonTrace}が出て追われやすくなります。',
-      body:
-          '${GuideTerms.panic}は、鬼の近くにしばらくいると起きる状態です。\n\n'
-          '${GuideTerms.panic}中は脱落しません。\n\n'
-          'ただし、名前なしの痕跡が定期的に残るため、鬼に位置を読まれやすくなります。\n\n'
-          '「足がすくんで、手がかりを残してしまう」状態だと考えてください。',
+      oneLine: '脱落しない。離れれば落ち着く。',
+      body: '鬼の外側の円に長くいると不安定になり、動くと${GuideTerms.anonTrace}が残りやすくなります。',
       details: [
         _detail(
-          title: 'パニックの目安',
-          body:
-              '${GuideTerms.panic}は、鬼の${GuideTerms.panic}圏に約6秒いると発生します。\n\n'
-              '持続時間は約22秒です。\n\n'
-              '${GuideTerms.panic}中は約7秒ごとに${GuideTerms.anonTrace}が出ます。\n\n'
-              '偽位置スキル中は、痕跡がデコイ側に出ることがあります。',
+          title: '数値を見る',
+          body: '約6秒で発生・約22秒続く・約7秒ごとに痕跡が出ます。',
+          specCardId: 'spec_panic',
         ),
       ],
     ),
     _card(
       id: 'restraint',
-      title: '接触・拘束',
+      title: '止められる',
       icon: Icons.lock_outline,
-      oneLine: '鬼の接触圏に留まると拘束。円の外へ逃げ切れば助かります。',
-      body:
-          '鬼の接触圏に留まり続けると、接触拘束が始まります。\n\n'
-          '拘束されても、すぐに脱落するわけではありません。\n\n'
-          'ポイントは「拘束円の外へ出る」ことです。外に出て一定時間逃げ切れればセーフです。\n\n'
-          '円の外に出ても、約10秒以内に戻ってしまうと猶予はリセットされません。\n'
-          '10秒以上外にいられれば、位置暴露後の捕獲を避けられます。\n\n'
-          '戻らなければいけない、という意味ではありません。',
+      oneLine: '近い円から外に出れば解除。',
+      body: '止められてもすぐ脱落しません。大きな円の外へ逃げましょう。',
       details: [
         _detail(
-          title: '拘束の目安',
-          body:
-              '接触圏: 約35〜95m（エリア規模に連動）\n'
-              '拘束円: 約45〜110m（接触圏より広め）\n'
-              '接触が約4秒続くと拘束開始\n\n'
-              '拘束円の外に出ても、約10秒以内に戻ると猶予はリセットされません。\n\n'
-              '約10秒以上外にいられれば、位置暴露後の捕獲を避けられます。\n\n'
-              '拘束の持続時間はエリア規模に応じて変わります。',
+          title: '数値を見る',
+          body: '近い円に約4秒で止められる。大きな円の外に約10秒で解除の目安。',
+          specCardId: 'spec_capture',
         ),
       ],
     ),
@@ -370,33 +323,15 @@ final _combatSection = GuideSectionData(
       id: 'capture',
       title: '捕獲',
       icon: Icons.front_hand,
-      oneLine: '捕獲されると脱落します。',
-      body:
-          '鬼が至近距離まで近づくと捕獲されます。\n\n'
-          'GPSでかなり近い場合や、BLE接触がある場合は特に危険です。\n\n'
-          '捕獲された後も、${GuideTerms.secondGame}で試合に関与できます。',
+      oneLine: '至近まで来られると脱落。',
+      body: '捕獲後も${GuideTerms.secondGame}で関われます。',
       details: [
         _detail(
-          title: '捕獲の目安',
-          body:
-              '直接捕獲の目安はGPS約12m以内です。\n\n'
-              'BLE接触がある場合、GPSより強い接近情報として扱われることがあります。\n\n'
-              '細かい判定は端末や通信状況の影響を受ける場合があります。',
+          title: '数値を見る',
+          body: '直接捕獲の目安はGPS約12m。BLE接触はより強い接近情報として扱われます。',
+          specCardId: 'spec_capture',
         ),
       ],
-    ),
-  ],
-  details: [
-    _detail(
-      title: '距離の目安',
-      body:
-          '鬼との危険範囲は、プレイエリアの広さに応じて変わります。\n\n'
-          '${GuideTerms.panic}圏: 約58〜115m（接触圏より外側）\n'
-          '接触圏: 約35〜95m\n'
-          '拘束円: 約45〜110m\n'
-          '直接捕獲GPS: 約12m\n\n'
-          '捕獲結界はスキルで地図に置く拘束エリアです。くわしくは「スキル」章と「詳細ルール」を参照してください。\n\n'
-          '正確な範囲は試合設定やエリア規模によって変わるため、画面上の警告を優先してください。',
     ),
   ],
   relatedSectionIds: ['info', 'skills', 'spec'],
@@ -406,66 +341,42 @@ final _outsideSection = GuideSectionData(
   id: 'outside',
   title: 'エリア外',
   icon: Icons.warning_amber_outlined,
-  oneLine: '外に出ても即脱落ではありませんが、長くいるほど危険です。',
+  oneLine: '外は逃げ道だが、長くいるほどバレる。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.outsideAreaFlow,
-    title: 'エリア外は徐々に危険が高まる',
-    caption: '猶予 → 暴露 → 再暴露 → 脱落',
+    title: 'エリア外は危険',
+    caption: '行けば行くほどバレやすい',
   ),
   cards: [
     _card(
       id: 'outside_basic',
-      title: 'エリア外は徐々に危険が高まります',
+      title: '基本',
       icon: Icons.map_outlined,
-      oneLine: '外に出た瞬間ではなく、外に居続けることが危険です。',
-      body:
-          'プレイエリアの外に出ても、すぐに脱落するわけではありません。\n\n'
-          'ただし、外に居続けると、${GuideTerms.namedReveal}が発生します。\n\n'
-          'さらに外に居続けると、一定間隔で再び暴露されます。\n\n'
-          '最終的に、長時間外にいると脱落します。',
-    ),
-    _card(
-      id: 'outside_named',
-      title: '外にいると名前付きでバレます',
-      icon: Icons.person_off_outlined,
-      oneLine: 'エリア外は、逃げ道であると同時に大きなリスクです。',
-      body:
-          'エリア外に長くいると、自分の${GuideTerms.namedReveal}が発生します。\n\n'
-          'つまり、「誰がどこでエリア外にいたか」が相手に伝わります。\n\n'
-          'エリア端を使って逃げることはできますが、使いすぎると位置を読まれやすくなります。',
+      oneLine: 'すぐ脱落しない。長くいると名前付き暴露→脱落。',
+      body: '枠の外はリスクです。端を使う逃げは有効ですが、使いすぎ注意。',
     ),
     _card(
       id: 'oni_outside',
-      title: '鬼もエリア外で脱落します',
+      title: '鬼も同じ',
       icon: Icons.nightlight_outlined,
-      oneLine: '鬼だけが特別に許されるわけではありません。',
-      body:
-          '${GuideTerms.trueOni}も、エリア外に居続けると脱落します。\n\n'
-          'ただし、鬼がエリア外に出た瞬間に${GuideTerms.humanFaction}の勝ちになるわけではありません。\n\n'
-          '${GuideTerms.trueOni}が全員いなくなったとき、${GuideTerms.humanFaction}の勝ちになります。',
+      oneLine: '鬼も外に長くいると脱落。即人側勝利にはならない。',
+      body: '${GuideTerms.realOni}が全員いなくなったとき、人側の勝ちです。',
     ),
     _card(
       id: 'safe_zone_charge',
-      title: 'ステルスチャージで暴露を防ぐ',
+      title: '保険',
       icon: Icons.shield_outlined,
-      oneLine: '安全地帯のステルスチャージで、エリア外暴露を1回防げます。',
-      body:
-          '安全地帯でステルスチャージを得ていると、エリア外による${GuideTerms.namedReveal}を1回防げます。\n\n'
-          'エリア端を使って逃げるときの保険になります。\n\n'
-          'ただし、エリア外脱落そのものを無限に防げるわけではありません。',
+      oneLine: '安全地帯のチャージで、暴露を1回防げる。',
+      body: 'エリア端逃げの保険になります。脱落そのものは防げません。',
     ),
   ],
   details: [
     _detail(
-      title: 'エリア外の詳細',
+      title: 'くわしく',
       body:
-          '・境界から約25m以内なら、エリア外タイマーは進みにくくなります。\n'
-          '・エリア外が約8秒続くと、警告段階を超えます。\n'
-          '・安全地帯チャージがない場合、${GuideTerms.namedReveal}が発生します。\n'
-          '・外に居続けると、約25秒ごとに再暴露されます。\n'
-          '・約90秒続くと脱落します。\n'
-          '・鬼も同じようにエリア外脱落します。\n'
-          '・鬼のエリア外は即${GuideTerms.humanFaction}勝利ではなく、鬼の脱落として処理されます。',
+          '境界付近（約25m）はタイマーが進みにくい。\n'
+          '約8秒で警告、名前付き暴露、約25秒ごとに再暴露、約90秒で脱落。',
+      specCardId: 'spec_outside',
     ),
   ],
   relatedSectionIds: ['facilities', 'win', 'spec'],
@@ -475,35 +386,29 @@ final _facilitiesSection = GuideSectionData(
   id: 'facilities',
   title: 'マップ施設',
   icon: Icons.place_outlined,
-  oneLine: '施設は、逃走・索敵・告発を大きく動かします。',
+  oneLine: '地図上のポイント。逃げ・追う・告発に効く。',
   sectionDiagram: const GuideDiagramData(
     type: GuideDiagramType.mapConcept,
     title: 'マップの見方',
-    caption: 'プレイエリア・鬼の手がかり・施設の位置関係',
+    caption: 'エリア・手がかり・施設',
   ),
   cards: [
     _card(
       id: 'safe_zone',
       title: '安全地帯',
       icon: Icons.shield_outlined,
-      oneLine: 'ステルスチャージで、エリア外暴露を1回防げます。',
+      oneLine: 'チャージ取得。エリア外暴露を1回防げる。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.facilityRoles,
-        title: '施設の役割',
-        caption: '安全地帯・情報屋・監視カメラ・告発施設など',
+        title: '施設の種類',
+        caption: '安全地帯・情報屋・カメラ・告発など',
       ),
-      body:
-          '安全地帯では、ステルスチャージ（エリア外暴露を1回防ぐ）を得られます。\n\n'
-          '装備スキルの再使用待ち短縮もあります。使用後は施設が別の場所へ移動します。\n\n'
-          'エリア端を使って逃げたいときの保険になりますが、チャージには上限があります。',
+      body: '使うと別の場所へ移動します。スキルの再使用待ち短縮もあります。',
       details: [
         _detail(
-          title: '安全地帯の目安',
-          body:
-              '安全地帯の半径は約40mです。\n\n'
-              '最大チャージは2です。\n\n'
-              '同じ地点でのチャージには約25秒のクールダウンがあります。\n\n'
-              '安全地帯は一定時間後に再出現します。',
+          title: '数値を見る',
+          body: '半径約40m・最大チャージ2・使用後は別の場所へ移動。',
+          specCardId: 'spec_info',
         ),
       ],
     ),
@@ -511,19 +416,13 @@ final _facilitiesSection = GuideSectionData(
       id: 'info_house',
       title: '情報屋',
       icon: Icons.storefront_outlined,
-      oneLine: '相手の手がかりを得られる施設です。',
-      body:
-          '情報屋は、相手陣営の情報を得るための施設です。\n\n'
-          '逃走者は、鬼の方角や距離帯などの手がかりを得られます。\n\n'
-          '${GuideTerms.trueOni}は、逃走者1人の位置を名前付きで暴露できます。',
+      oneLine: '人は鬼の手がかり、鬼は逃走者を名前付き暴露。',
+      body: '陣営ごとに得られる情報が違います。ホスト設定で変わることがあります。',
       details: [
         _detail(
-          title: '情報屋の目安',
-          body:
-              '情報屋の半径は約30mです。\n\n'
-              '逃走者の使用クールダウンは約120秒です。\n\n'
-              '${GuideTerms.trueOni}の使用クールダウンは約90秒です。\n\n'
-              '情報屋の効果は、ホスト設定や情報屋モードによって変わることがあります。',
+          title: '数値を見る',
+          body: '半径約30m。逃走者CD約120秒、鬼CD約90秒。',
+          specCardId: 'spec_info',
         ),
       ],
     ),
@@ -531,18 +430,13 @@ final _facilitiesSection = GuideSectionData(
       id: 'camera',
       title: '監視カメラ',
       icon: Icons.videocam_outlined,
-      oneLine: '通ると${GuideTerms.anonTrace}が残ります。',
-      body:
-          '監視カメラの近くを通ると、${GuideTerms.anonTrace}が残ります。\n\n'
-          '誰が通ったかは基本的に分かりません。\n\n'
-          '通る側にはリスクですが、追う側には重要な手がかりになります。',
+      oneLine: '通過で${GuideTerms.anonTrace}。誰かは基本わからない。',
+      body: '追う側には重要な手がかりです。',
       details: [
         _detail(
-          title: '監視カメラの目安',
-          body:
-              '監視カメラの検知半径は約18mです。\n\n'
-              '同じカメラの再検知には約90秒のクールダウンがあります。\n\n'
-              '${GuideTerms.vengefulShadow}によって停止されることがあります。',
+          title: '数値を見る',
+          body: '検知半径約18m。同じカメラの再検知は約90秒。',
+          specCardId: 'spec_info',
         ),
       ],
     ),
@@ -550,21 +444,15 @@ final _facilitiesSection = GuideSectionData(
       id: 'jam_zone',
       title: '通信妨害ゾーン',
       icon: Icons.wifi_off_outlined,
-      oneLine: '情報戦をかき乱すエリアです。',
-      body:
-          '通信妨害ゾーンは、一定周期で通信が乱れるエリアです。\n\n'
-          '情報の読み合いを複雑にする場所として使われます。\n\n'
-          '逃げる側も追う側も、周囲の痕跡や暴露と合わせて判断してください。',
+      oneLine: '通信が乱れるエリア。',
+      body: '情報の読み合いが複雑になります。周囲の痕跡と合わせて判断しましょう。',
     ),
     _card(
       id: 'accusation_site',
       title: '告発施設',
       icon: Icons.account_balance_outlined,
-      oneLine: '${GuideTerms.trueOni}を当てるための施設です。',
-      body:
-          '告発施設では、${GuideTerms.trueOni}だと思う相手を選んで告発できます。\n\n'
-          '標準設定では、告発に成功すると${GuideTerms.humanFaction}の勝利です。\n\n'
-          'ただし、告発は試合開始直後から使えるわけではありません。',
+      oneLine: '後半に解禁。${GuideTerms.realOni}を当てる場所。',
+      body: '標準設定では当てれば人側の勝ち。開始直後は使えません。',
     ),
   ],
   relatedSectionIds: ['info', 'accusation'],
@@ -574,93 +462,70 @@ final _accusationSection = GuideSectionData(
   id: 'accusation',
   title: '告発',
   icon: Icons.gavel_outlined,
-  oneLine: '${GuideTerms.trueOni}を見抜けば、${GuideTerms.humanFaction}の大きな勝ち筋になります。',
+  oneLine: '生存中の逃走者が、${GuideTerms.realOni}を当てる。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.accusationFlow,
     title: '告発の流れ',
-    caption: '推理 → 施設へ → 正解なら勝利',
+    caption: '推理 → 施設 → 正解なら勝利',
   ),
   cards: [
     _card(
       id: 'what',
       title: '告発とは',
       icon: Icons.help_outline,
-      oneLine: '${GuideTerms.trueOni}を推理して当てる仕組みです。',
-      body:
-          '告発は、${GuideTerms.humanFaction}が${GuideTerms.trueOni}を見抜くための仕組みです。\n\n'
-          '情報戦で得た痕跡や暴露をもとに、${GuideTerms.trueOni}だと思う相手を選びます。\n\n'
-          '標準設定では、正解すると${GuideTerms.humanFaction}の勝利です。',
+      oneLine: '手がかりから${GuideTerms.realOni}を指名する。',
+      body: '標準設定では当てれば人側の勝ち。${GuideTerms.werewolf}は正解になりません。',
     ),
     _card(
       id: 'who',
-      title: '告発できる人',
+      title: '誰ができる？',
       icon: Icons.person_outline,
-      oneLine: '告発できるのは、生存中の逃走者です。',
-      body:
-          '告発できるのは、生存中の逃走者です。\n\n'
-          '${GuideTerms.werewolf}、鬼、脱落者は告発できません。\n\n'
-          '${GuideTerms.werewolf}は${GuideTerms.trueOni}ではないため、告発の扱いも${GuideTerms.trueOni}とは異なります。',
+      oneLine: '生存中の逃走者だけ。3人以上の試合で使えます。',
+      body: '鬼・人狼・脱落者は告発できません。',
     ),
     _card(
       id: 'unlock',
-      title: '告発は後半に解禁されます',
+      title: 'いつ使える？',
       icon: Icons.lock_clock_outlined,
-      oneLine: '試合開始直後からは使えません。',
-      body:
-          '告発施設は、試合がある程度進むまで無効です。\n\n'
-          '試合時間が進むか、脱落者が出て一定時間が経過すると解禁されます。\n\n'
-          '解禁後、有効な告発施設で告発できます。',
+      oneLine: '試合の後半に解禁。',
+      body: '時間が経つか、脱落が出ると使えるようになります。',
       details: [
         _detail(
-          title: '解禁条件',
-          body:
-              '告発は、次のどちらか早い方で解禁されます。\n\n'
-              '・試合時間の60%が経過\n'
-              '・脱落者が1人以上出て、試合時間の25%が経過\n\n'
-              'ただし、脱落者による早期解禁には最短5分、最長15分の範囲があります。',
-        ),
-      ],
-    ),
-    _card(
-      id: 'facility_fight',
-      title: '告発施設は奪い合いになります',
-      icon: Icons.groups_outlined,
-      oneLine: '${GuideTerms.echoForm}は増やし、鬼影は減らし、${GuideTerms.trueOni}は守ります。',
-      body:
-          '告発施設の有効数は、${GuideTerms.secondGame}の影響を受けます。\n\n'
-          '${GuideTerms.echoForm}は、告発施設を陣取って有効施設を増やせます。\n\n'
-          '${GuideTerms.vengefulShadow}は、告発施設を妨害して有効施設を減らせます。\n\n'
-          '生存中の${GuideTerms.trueOni}が施設付近にいる間、その施設では告発できません。',
-      details: [
-        _detail(
-          title: '施設数の目安',
-          body:
-              '告発解禁時の有効施設数は基本1です。\n\n'
-              '${GuideTerms.echoForm}の陣取りで有効施設が+1されます。試合中2回までです。\n\n'
-              '${GuideTerms.vengefulShadow}の妨害で有効施設が-1されます。試合中3回までです。\n\n'
-              '${GuideTerms.trueOni}が告発施設の半径内にいる間、その施設では告発できません。',
+          title: '数値を見る',
+          body: '試合時間60%経過、または脱落1人＋時間25%経過（早期解禁は5〜15分）。',
+          specCardId: 'spec_accusation',
         ),
       ],
     ),
     _card(
       id: 'fail',
-      title: '告発失敗',
+      title: '外したら？',
       icon: Icons.close_rounded,
-      oneLine: '外すと大きなリスクがあります。',
-      body:
-          '標準設定では、告発に失敗すると告発者が脱落します。\n\n'
-          'また、告発失敗によって位置が暴露されることがあります。\n\n'
-          '確信がない告発は、試合の流れを大きく変えるリスクがあります。',
+      oneLine: '標準設定では告発者が脱落。位置がバレることも。',
+      body: '確信がない告発はリスク大です。',
+      details: [
+        _detail(
+          title: 'くわしく',
+          body:
+              '標準: 正解で人側勝利、失敗で告発者脱落。\n'
+              '脱落モード: 正解で鬼脱落・試合続行、失敗は告発権のみ消費。\n'
+              'ポイント: 正解でポイント加算、失敗は告発権のみ消費。',
+        ),
+      ],
     ),
-  ],
-  details: [
-    _detail(
-      title: 'ホスト設定による違い',
-      body:
-          '告発の効果は、ホスト設定によって変わる場合があります。\n\n'
-          '標準設定:\n正解すると${GuideTerms.humanFaction}勝利。失敗すると告発者が脱落します。\n\n'
-          '鬼を脱落モード:\n正解すると${GuideTerms.trueOni}が脱落し、試合は続きます。失敗時は告発権消費のみです。\n\n'
-          'ポイントモード:\n正解すると${GuideTerms.humanFaction}にポイントが入り、終了時に集計されます。失敗時は告発権消費のみです。',
+    _card(
+      id: 'facility_fight',
+      title: '施設の奪い合い',
+      icon: Icons.groups_outlined,
+      oneLine: '残響体は増やす、鬼影は減らす。鬼が近くにいる施設は使えない。',
+      body: '${GuideTerms.secondGame}の行動で、使える施設の数が変わります。',
+      details: [
+        _detail(
+          title: '数値を見る',
+          body: '解禁時は基本1施設。残響体+1（2回まで）、鬼影-1（3回まで）。',
+          specCardId: 'spec_accusation',
+        ),
+      ],
     ),
   ],
   relatedSectionIds: ['info', 'roles', 'second_game'],
@@ -670,89 +535,64 @@ final _rolesSection = GuideSectionData(
   id: 'roles',
   title: '役職',
   icon: Icons.groups_outlined,
-  oneLine: '逃走者・${GuideTerms.trueOni}・${GuideTerms.werewolf}で、目的と見え方が変わります。',
+  oneLine: '逃走者・鬼・人狼。目的が違います。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.roleOverview,
     title: '役職の全体像',
-    caption: '人陣営・鬼陣営・特殊（人狼）',
+    caption: '人陣営・鬼陣営・人狼',
   ),
   cards: [
     _card(
       id: 'runner',
       title: GuideTerms.runner,
       icon: Icons.directions_run_rounded,
-      oneLine: '生き残り、情報を集め、${GuideTerms.trueOni}を見抜きます。',
-      body:
-          '${GuideTerms.runner}は、${GuideTerms.humanFaction}の基本役職です。\n\n'
-          '鬼から逃げながら、痕跡や暴露を読んで${GuideTerms.trueOni}を推理します。\n\n'
-          '告発施設が解禁されたら、${GuideTerms.trueOni}を告発できます。',
+      oneLine: '逃げて、手がかりを読み、鬼を当てる。',
+      body: '人陣営の基本。告発が解禁されたら${GuideTerms.realOni}を指名できます。',
     ),
     _card(
       id: 'true_oni',
       title: GuideTerms.trueOni,
       icon: Icons.nightlight_round,
-      oneLine: '逃走者を捕獲する鬼側の中心役職です。',
-      body:
-          '${GuideTerms.trueOni}は、${GuideTerms.oniFaction}の中心となる役職です。\n\n'
-          '痕跡や暴露を読み、逃走者を追い詰めて捕獲します。\n\n'
-          '${GuideTerms.trueOni}が全員いなくなると、${GuideTerms.humanFaction}の勝ちになります。',
+      oneLine: '追って、捕まえる。鬼陣営の中心。',
+      body: '手がかりから逃走者を追い詰めます。全員脱落すると人側の勝ちです。',
     ),
     _card(
       id: 'werewolf',
       title: GuideTerms.werewolf,
       icon: Icons.psychology_alt_rounded,
-      oneLine: '鬼のように動けますが、${GuideTerms.trueOni}ではありません。',
-      body:
-          '${GuideTerms.werewolf}は、${GuideTerms.trueOni}でも${GuideTerms.runner}でもない特殊役職です。\n\n'
-          '通常は単独行動ですが、「鬼化」スキル中だけ、鬼のように追跡・拘束ができます。\n\n'
-          '鬼化していないときや、${GuideTerms.trueOni}の通常スキルとは別物です。\n\n'
-          '${GuideTerms.humanFaction}が告発で当てるべきなのは${GuideTerms.trueOni}だけです。\n\n'
-          '${GuideTerms.trueOni}が全員いなくなった場合、${GuideTerms.werewolf}が残っていても${GuideTerms.humanFaction}の勝ちになります。',
-      details: [
-        _detail(
-          title: '人狼の立場',
-          body:
-              '${GuideTerms.werewolf}は、状況によって${GuideTerms.humanFaction}側・${GuideTerms.oniFaction}側の扱いが変わります。\n\n'
-              '鬼化中でも、${GuideTerms.trueOni}とは異なる扱いになる場合があります。\n\n'
-              '${GuideTerms.werewolf}は告発できません。\n\n'
-              '${GuideTerms.werewolf}の詳細な立場は試合状況によって変わるため、役職開示と画面表示を確認してください。',
-        ),
-      ],
+      oneLine: '鬼のようには動けるが、${GuideTerms.realOni}ではない。',
+      body: '「鬼化」中だけ追跡・拘束可能。告発の正解にはなりません。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.werewolfNotOni,
-        title: '${GuideTerms.werewolf} ≠ ${GuideTerms.trueOni}',
-        caption: '告発の対象は${GuideTerms.trueOni}です。',
+        title: '${GuideTerms.werewolf} ≠ ${GuideTerms.realOni}',
+        caption: '告発の対象は${GuideTerms.realOni}',
       ),
+      details: [
+        _detail(
+          title: '立場の補足',
+          body: '状況で人側・鬼側の見え方が変わることがあります。画面表示を確認してください。',
+        ),
+      ],
     ),
     _card(
       id: 'analyst',
       title: 'アナリスト',
       icon: Icons.analytics_outlined,
-      oneLine: '${GuideTerms.anonTrace}を読みやすくする逃走者特化です。',
-      body:
-          'アナリストは、${GuideTerms.anonTrace}の読み取りに強い逃走者です。\n\n'
-          '痕跡の時間帯、発生源、信頼度などを読む補助があります。\n\n'
-          'ただし、${GuideTerms.anonTrace}に名前が直接出るわけではありません。',
+      oneLine: '逃走者特化。匿名痕跡を読みやすい。',
+      body: '名前は直接は出ません。痕跡の補助情報が得られます。',
     ),
     _card(
       id: 'hacker',
       title: 'ハッカー',
       icon: Icons.terminal_outlined,
-      oneLine: '情報屋から、より精密な手がかりを得やすい逃走者特化です。',
-      body:
-          'ハッカーは、情報屋の手がかりをより精密に扱える逃走者です。\n\n'
-          '鬼の方角や距離帯の情報を読みやすくなります。\n\n'
-          'ただし、座標ピンが常に出るわけではありません。',
+      oneLine: '逃走者特化。情報屋の手がかりが精密。',
+      body: '鬼の方角・距離帯を読みやすくなります。',
     ),
   ],
   details: [
     _detail(
-      title: 'オンラインの役職配分',
-      body:
-          '2人以下では、最低1人の逃走者と1人の対立役が配置されます。\n\n'
-          '3人以上のランダム設定では、基本的に鬼1人・人狼1人・残り逃走者になります。\n\n'
-          '6人以上では、人狼が2人になる場合があります。\n\n'
-          '人数指定モードでは、ホストが鬼や人狼の人数を指定できます。',
+      title: '人数と配分',
+      body: '3人以上は基本「鬼1・人狼1・残り逃走者」。6人以上で人狼2のことも。ホストが人数指定も可能。',
     ),
   ],
   relatedSectionIds: ['skills', 'accusation', 'win'],
@@ -762,141 +602,76 @@ final _skillsSection = GuideSectionData(
   id: 'skills',
   title: 'スキル',
   icon: Icons.bolt_outlined,
-  oneLine: 'スキルは、逃げる・惑わせる・捕まえるための切り札です。',
+  oneLine: '試合前に装備。役職ごとに違う。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.skillOverview,
     title: '役職ごとのスキル',
-    caption: '逃走者・本鬼・人狼で装備が異なります。',
+    caption: '逃走者・鬼・人狼',
   ),
   cards: [
     _card(
       id: 'skill_basic',
-      title: 'スキルの基本',
+      title: '基本',
       icon: Icons.info_outline,
-      oneLine: '役職ごとに装備できるスキルが違います。',
+      oneLine: 'ボタンで発動。再使用まで待ち時間あり。',
       body:
-          'スキルは試合前に装備します。ボタンを押すと発動し、クールダウン後に再使用できます。\n\n'
-          '・${GuideTerms.runner}: 逃げる・惑わせる（候補から1つ装備）\n'
-          '・${GuideTerms.trueOni}: 追跡・拘束・偽情報（候補から2つ装備）\n'
-          '・${GuideTerms.werewolf}: 鬼化（専用スキル）\n\n'
-          '地図に置くスキル（捕獲結界・体投げなど）は、ボタン → 長押し → 離して設置です。',
+          '逃走者：候補から1つ\n'
+          '鬼：候補から2つ\n'
+          '人狼：鬼化',
       details: [
         _detail(
-          title: '装備数',
-          body:
-              '逃走者は、候補スキルから1つを装備します。\n\n'
-              '${GuideTerms.trueOni}は、候補スキルから2つを装備します。\n\n'
-              '${GuideTerms.werewolf}は、鬼化を装備します。',
+          title: '数値を見る',
+          body: '各スキルの持続・射程・クールダウンは詳細ルールに一覧があります。',
+          specCardId: 'spec_skills',
         ),
       ],
     ),
     _card(
       id: 'map_place',
-      title: '地図に置くスキル',
+      title: '地図に置く',
       icon: Icons.touch_app_outlined,
-      oneLine: '長押しで範囲を確認し、指を離して設置します。',
-      body:
-          '捕獲結界や体投げなど、一部のスキルは地図上に置いて使います。\n\n'
-          'スキルボタンを押したあと、地図を押し続けると範囲を確認できます。\n\n'
-          '指を離すと設置します。\n\n'
-          'キャンセルしたいときは、画面下の×へドラッグしてください。',
-      footnote: '設置中も、2本指で地図を動かせます。',
+      oneLine: 'ボタン → 地図を長押し → 離して設置。',
+      body: '捕獲結界・体投げなど。キャンセルは画面右上の×。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.skillPlacement,
-        title: '地図に置くスキルの流れ',
-        caption: 'スキル → 長押し → 離して設置',
+        title: '設置の流れ',
+        caption: '長押しで範囲確認',
       ),
     ),
     _card(
       id: 'fake_position',
       title: '偽位置',
       icon: Icons.scatter_plot_outlined,
-      oneLine: '自分の暴露位置をずらして、鬼の判断を惑わせます。',
-      body:
-          '偽位置は、一定時間、自分の暴露位置をずらすスキルです。\n\n'
-          '鬼の注意をそらしたいときや、痕跡から逃げ道を読まれたくないときに使います。\n\n'
-          'ただし、定期匿名痕跡そのものを止めるわけではありません。',
-      details: [
-        _detail(
-          title: '偽位置の目安',
-          body:
-              '偽位置は約20秒間続きます。\n\n'
-              'クールダウンは約72秒です。\n\n'
-              '暴露位置は進行方向側にずれ、デコイのように表示されることがあります。',
-        ),
-      ],
+      oneLine: '暴露位置をずらす（逃走者）。',
+      body: '鬼の読みを乱します。定期匿名は止まりません。',
     ),
     _card(
       id: 'capture_zone_skill',
       title: '捕獲結界',
       icon: Icons.trip_origin,
-      oneLine: 'スキルで地図上に拘束エリアを置きます。',
-      body:
-          '捕獲結界は装備ではなく、スキルです。\n\n'
-          '地図上に危険エリアを置き、範囲内に入った相手を拘束します。逃げ切れなければ捕獲につながります。\n\n'
-          '${GuideTerms.runner}と${GuideTerms.trueOni}のどちらも、候補スキルとして装備できます。',
-      details: [
-        _detail(
-          title: '捕獲結界の目安',
-          body:
-              '半径: 約55m\n'
-              '持続: 約24秒\n'
-              'クールダウン: 約80秒\n'
-              '拘束円外猶予: 約10秒',
-        ),
-      ],
+      oneLine: '地図に危険エリアを置く（人・鬼どちらも可）。',
+      body: '範囲内の相手を拘束。逃げ切れなければ捕獲につながります。',
     ),
     _card(
       id: 'fake_intel',
       title: '偽情報暴露',
       icon: Icons.psychology_alt_outlined,
-      oneLine: '${GuideTerms.namedReveal}のような偽情報を出します。',
-      body:
-          '偽情報暴露は、${GuideTerms.trueOni}側のスキルです。\n\n'
-          '相手に本物の暴露のような情報を見せ、判断を迷わせます。\n\n'
-          '情報戦をかき乱すために使います。',
-      details: [
-        _detail(title: 'クールダウン', body: 'クールダウンは約75秒です。'),
-      ],
+      oneLine: '本物っぽい偽の暴露（鬼）。',
+      body: '相手の判断を迷わせます。',
     ),
     _card(
       id: 'body_throw',
       title: '体投げ',
       icon: Icons.near_me_outlined,
-      oneLine: '離れた場所に人形を投げるように設置します。',
-      body:
-          '体投げは、${GuideTerms.trueOni}側のスキルです。\n\n'
-          '離れた場所に人形を投げるように配置し、相手の動きを乱します。\n\n'
-          '配置に失敗したり、時間内に置けなかったりすると、自分の位置が暴露されることがあります。',
-      details: [
-        _detail(
-          title: '体投げの目安',
-          body:
-              '射程は約90mです。\n\n'
-              '人形の持続は約12秒です。\n\n'
-              'クールダウンは約75秒です。\n\n'
-              '地図タップの猶予は約22秒です。',
-        ),
-      ],
+      oneLine: '離れた場所に人形を置く（鬼）。',
+      body: '置けない・時間切れだと自分がバレることがあります。',
     ),
     _card(
       id: 'werewolf_transform',
       title: '鬼化',
       icon: Icons.auto_fix_high_outlined,
-      oneLine: '${GuideTerms.werewolf}だけが使える、一時的な鬼モードです。',
-      body:
-          '鬼化は、${GuideTerms.werewolf}専用のスキルです。\n\n'
-          'ONの間だけ追跡・拘束ができますが、${GuideTerms.trueOni}そのものではありません。\n\n'
-          '告発の対象にもならず、勝敗の扱いも${GuideTerms.trueOni}とは別です。',
-      details: [
-        _detail(
-          title: '鬼化の目安',
-          body:
-              '${GuideTerms.werewolf}の強制切替間隔は、試合時間に応じて変わります。\n\n'
-              '目安は、試合時間の3分の1、最大約10分です。\n\n'
-              '任意切替にはクールダウンがあります。',
-        ),
-      ],
+      oneLine: '一時的に鬼のように追える（人狼）。',
+      body: '${GuideTerms.realOni}ではなく、告発の正解にもなりません。',
     ),
   ],
   relatedSectionIds: ['combat', 'roles'],
@@ -906,38 +681,31 @@ final _secondGameSection = GuideSectionData(
   id: 'second_game',
   title: GuideTerms.secondGame,
   icon: Icons.replay_circle_filled_outlined,
-  oneLine: '脱落しても、試合にはまだ関われます。',
+  oneLine: '脱落後も勝敗に関われる。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.secondGameBranch,
     title: '脱落後の分岐',
-    caption: '人側 → 残響体 / 鬼側 → 復讐の鬼影',
+    caption: '人側→残響体 / 鬼側→鬼影',
   ),
   cards: [
     _card(
       id: 'not_over',
-      title: '脱落後も終わりではありません',
+      title: '脱落≠観戦',
       icon: Icons.hourglass_bottom_outlined,
-      oneLine: '${GuideTerms.secondGame}で、味方を助けたり相手を妨害したりできます。',
-      body:
-          'ONI PINでは、捕獲・告発失敗・エリア外などで脱落しても、試合から完全に外れるわけではありません。\n\n'
-          '脱落後は、陣営に応じて${GuideTerms.secondGame}に入ります。\n\n'
-          '最後まで陣営の勝敗に関わることができます。',
+      oneLine: '陣営に応じて、まだ動ける。',
+      body: '捕獲・告発失敗・エリア外などで落ちても、${GuideTerms.secondGame}に入ります。',
     ),
     _card(
       id: 'echo',
       title: GuideTerms.echoForm,
       icon: Icons.sensors_outlined,
-      oneLine: '人側として脱落した後の姿です。',
-      body:
-          '人側として脱落すると、${GuideTerms.echoForm}になります。\n\n'
-          '${GuideTerms.echoForm}は、監視端子をジャックして鬼の位置を味方に暴露できます。\n\n'
-          'また、告発施設の近くで陣取りを行い、有効な告発施設を増やせます。',
+      oneLine: '人側脱落後。端子ジャック・告発施設の陣取り。',
+      body: '鬼の位置を味方に暴露したり、使える告発施設を増やせます。',
       details: [
         _detail(
-          title: '${GuideTerms.echoForm}の行動',
-          body:
-              '監視端子ジャック:\n・チャージ約15秒\n・個人クールダウン約100秒\n・試合上限5回\n\n'
-              '告発施設陣取り:\n・チャージ約16秒\n・個人クールダウン約90秒\n・試合上限2回\n・告発解禁後に有効',
+          title: '数値を見る',
+          body: '端子ジャック・告発施設の陣取りのチャージ時間と回数上限があります。',
+          specCardId: 'spec_second',
         ),
       ],
     ),
@@ -945,39 +713,14 @@ final _secondGameSection = GuideSectionData(
       id: 'shadow',
       title: GuideTerms.vengefulShadow,
       icon: Icons.blur_on_outlined,
-      oneLine: '鬼側として脱落した後の姿です。',
-      body:
-          '鬼側として脱落すると、${GuideTerms.vengefulShadow}になります。\n\n'
-          '${GuideTerms.vengefulShadow}は、告発施設を妨害して有効な施設を減らせます。\n\n'
-          'また、監視カメラを停止して、${GuideTerms.echoForm}のジャックを妨害できます。',
-      details: [
-        _detail(
-          title: '${GuideTerms.vengefulShadow}の行動',
-          body:
-              '告発施設妨害:\n・チャージ約18秒\n・個人クールダウン約90秒\n・試合上限3回\n\n'
-              'カメラ停止:\n・チャージ約14秒\n・個人クールダウン約25秒\n・各カメラ1回まで',
-        ),
-      ],
-    ),
-    _card(
-      id: 'impact',
-      title: '${GuideTerms.secondGame}は勝敗に影響します',
-      icon: Icons.trending_up,
-      oneLine: '脱落者の行動で、告発や情報戦が変わります。',
-      body:
-          '${GuideTerms.secondGame}は、ただの観戦ではありません。\n\n'
-          '${GuideTerms.echoForm}は${GuideTerms.humanFaction}の告発を助けます。\n\n'
-          '${GuideTerms.vengefulShadow}は、告発や監視カメラを妨害します。\n\n'
-          '脱落後の動きが、終盤の勝敗を変えることがあります。',
+      oneLine: '鬼側脱落後。告発妨害・カメラ停止。',
+      body: '人側の告発を遅らせたり、残響体のジャックを妨げられます。',
     ),
   ],
   details: [
     _detail(
-      title: '脱落後モードの違い',
-      body:
-          'ホスト設定によって、脱落後の扱いが変わる場合があります。\n\n'
-          '既定では、陣営に応じて${GuideTerms.echoForm}または${GuideTerms.vengefulShadow}になります。\n\n'
-          '設定によっては、幽霊として観戦したり、鬼側に合流したりする場合があります。',
+      title: 'ホスト設定',
+      body: '観戦のみ・鬼側合流など、脱落後の扱いが変わる設定があります。',
     ),
   ],
   relatedSectionIds: ['accusation', 'facilities', 'online'],
@@ -987,56 +730,33 @@ final _onlineSection = GuideSectionData(
   id: 'online',
   title: 'オンライン・記録',
   icon: Icons.cloud_sync_outlined,
-  oneLine: '試合開始・中止・再接続・ギャラリー保存に関するルールです。',
+  oneLine: '同期・再接続・中止・保存について。',
   sectionDiagram: const GuideDiagramData(
     type: GuideDiagramType.onlineMatch,
     title: '試合中止と記録',
-    caption: '勝敗なし・同意時はギャラリー保存',
+    caption: '中止は勝敗なし',
   ),
   cards: [
     _card(
       id: 'sync',
-      title: 'オンライン同期',
+      title: '同期',
       icon: Icons.sync_outlined,
-      oneLine: 'ホストが開始すると、試合情報が全員に同期されます。',
-      body:
-          'ホストが試合を開始すると、役職、エリア、ギミック、試合状態が参加者に同期されます。\n\n'
-          '試合中に再接続した場合も、経過時間や脱落後の状態が復元されます。',
+      oneLine: 'ホスト開始で全員に同じ試合状態。',
+      body: '再接続しても、経過時間や脱落後の状態は復元されます。',
     ),
     _card(
       id: 'abort',
       title: '試合中止',
       icon: Icons.stop_circle_outlined,
-      oneLine: '中止時は勝敗・戦績・トロフィーは付与されません。',
-      body:
-          '試合中止は、参加者の過半数投票またはホスト操作で行われます。\n\n'
-          '中止された試合では、勝敗や戦績は記録されません。\n\n'
-          '軌跡保存に同意している場合、ギャラリーには「試合中止」として保存されることがあります。',
-      details: [
-        _detail(
-          title: '中止の詳細',
-          body:
-              '中止投票の回答期限は約60秒です。\n\n'
-              '試合中止の終了理由は、host_abortとして扱われます。',
-        ),
-      ],
+      oneLine: '過半数投票かホスト操作。勝敗・戦績は付かない。',
+      body: '同意していればギャラリーに「試合中止」として残ることがあります。',
     ),
     _card(
       id: 'gallery',
-      title: 'ギャラリー保存',
+      title: 'ギャラリー',
       icon: Icons.photo_library_outlined,
-      oneLine: '軌跡保存にはユーザー同意が必要です。',
-      body:
-          '試合の軌跡やイベントを保存するには、ユーザーの同意が必要です。\n\n'
-          '保存される内容には、プレイヤー軌跡、暴露ログ、イベント、プレイエリア、ギミック配置などが含まれます。',
-      details: [
-        _detail(
-          title: '保存の注意',
-          body:
-              '単独逃走では鬼軌跡は記録されません。\n\n'
-              '軌跡サンプルは一定間隔で記録され、簡略化される場合があります。',
-        ),
-      ],
+      oneLine: '軌跡保存は同意が必要。',
+      body: '軌跡・暴露ログ・エリアなどが含まれます。',
     ),
   ],
   relatedSectionIds: ['win', 'second_game'],
@@ -1046,111 +766,152 @@ final _specSection = GuideSectionData(
   id: 'spec',
   title: '詳細ルール',
   icon: Icons.table_chart_outlined,
-  oneLine: '秒数・距離・クールダウンを確認したい人向けです。',
+  oneLine: '秒数・距離・クールダウンの一覧です。',
   cards: [
-    _card(
+    _specCard(
       id: 'spec_outside',
       title: 'エリア外',
       icon: Icons.map_outlined,
-      oneLine: 'エリア外の秒数・距離',
-      body:
-          '・境界から約25m以内: エリア外タイマーは進みにくい\n'
-          '・エリア外約8秒: 警告段階を超える\n'
-          '・初回暴露: ${GuideTerms.namedReveal}\n'
-          '・再暴露: 約25秒ごと\n'
-          '・脱落: 約90秒継続\n'
-          '・鬼も同様に脱落対象',
+      oneLine: '外に出たときのタイマー',
+      rows: [
+        const GuideSpecRow('境界付近', '約25m以内はタイマーが進みにくい'),
+        const GuideSpecRow('警告', 'エリア外 約8秒'),
+        const GuideSpecRow('初回暴露', GuideTerms.namedReveal),
+        const GuideSpecRow('再暴露', '約25秒ごと'),
+        const GuideSpecRow('脱落', '約90秒継続'),
+        const GuideSpecRow('鬼', '人側と同様に脱落対象'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_panic',
       title: GuideTerms.panic,
       icon: Icons.bubble_chart_outlined,
-      oneLine: 'パニックの秒数',
-      body:
-          '・発動: 鬼の${GuideTerms.panic}圏に約6秒\n'
-          '・持続: 約22秒\n'
-          '・痕跡: 約7秒ごと\n'
-          '・痕跡種別: ${GuideTerms.anonTrace}\n'
-          '・脱落: しない\n'
-          '・偽位置中: デコイ側に出ることがある',
+      oneLine: '近づきすぎ圏',
+      rows: [
+        const GuideSpecRow('発動', '圏内に約6秒'),
+        const GuideSpecRow('持続', '約22秒'),
+        const GuideSpecRow('痕跡', '約7秒ごと'),
+        const GuideSpecRow('種別', GuideTerms.anonTrace),
+        const GuideSpecRow('脱落', 'しない'),
+        const GuideSpecRow('偽位置中', 'デコイ側に出ることがある'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_capture',
       title: '接触・拘束・捕獲',
       icon: Icons.front_hand_outlined,
-      oneLine: '距離・秒数の一覧',
-      body:
-          '・${GuideTerms.panic}圏: 約58〜115m（エリア規模に連動）\n'
-          '・${GuideTerms.panic}発動: 圏内に約6秒\n'
-          '・接触圏: 約35〜95m\n'
-          '・接触拘束開始: 接触圏内に約4秒\n'
-          '・拘束円: 約45〜110m\n'
-          '・拘束円外猶予: 約10秒\n'
-          '・直接捕獲GPS: 約12m\n'
-          '・BLE接触: 強い接近情報として扱われる',
+      oneLine: '鬼との距離',
+      rows: [
+        GuideSpecRow('${GuideTerms.panic}圏', '約58〜115m（エリア規模に連動）'),
+        const GuideSpecRow('接触圏', '約35〜95m'),
+        const GuideSpecRow('拘束開始', '接触圏内 約4秒'),
+        const GuideSpecRow('拘束円', '約45〜110m'),
+        const GuideSpecRow('円外猶予', '約10秒'),
+        const GuideSpecRow('直接捕獲', 'GPS 約12m'),
+        const GuideSpecRow('BLE接触', '強い接近情報として扱う'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_zone',
       title: '捕獲結界',
       icon: Icons.trip_origin,
-      oneLine: '結界の数値',
-      body:
-          '・半径: 約55m\n'
-          '・持続: 約24秒\n'
-          '・クールダウン: 約80秒\n'
-          '・拘束円外猶予: 約10秒',
+      oneLine: 'スキルで置く拘束エリア',
+      rows: const [
+        GuideSpecRow('半径', '約55m'),
+        GuideSpecRow('持続', '約24秒'),
+        GuideSpecRow('クールダウン', '約80秒'),
+        GuideSpecRow('円外猶予', '約10秒'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_info',
-      title: '情報・痕跡',
+      title: '情報・施設',
       icon: Icons.radar_outlined,
-      oneLine: '定期匿名・施設の数値',
-      body:
-          '・定期匿名痕跡: 試合時間の約4%\n'
-          '・間隔: 約75〜180秒\n'
-          '・45分試合の目安: 約108秒\n'
-          '・監視カメラ半径: 約18m\n'
-          '・監視カメラ再検知: 約90秒\n'
-          '・情報屋半径: 約30m',
+      oneLine: '痕跡とマップ施設',
+      rows: const [
+        GuideSpecRow('定期匿名', '試合時間の約4%'),
+        GuideSpecRow('匿名間隔', '約75〜180秒'),
+        GuideSpecRow('45分試合目安', '約108秒に1回'),
+        GuideSpecRow('監視カメラ半径', '約18m'),
+        GuideSpecRow('カメラ再検知', '約90秒'),
+        GuideSpecRow('情報屋半径', '約30m'),
+        GuideSpecRow('逃走者 情報屋CD', '約120秒'),
+        GuideSpecRow('鬼 情報屋CD', '約90秒'),
+        GuideSpecRow('安全地帯半径', '約40m'),
+        GuideSpecRow('安全地帯チャージ', '最大2'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_accusation',
       title: '告発',
       icon: Icons.gavel_outlined,
-      oneLine: '告発の数値',
-      body:
-          '・使用可能人数: 3人以上\n'
-          '・解禁1: 試合時間60%経過\n'
-          '・解禁2: 脱落1人以上 + 試合時間25%経過\n'
-          '・早期解禁の範囲: 最短5分、最長15分\n'
-          '・解禁時有効施設: 基本1\n'
-          '・${GuideTerms.echoForm}陣取り: +1、試合2回まで\n'
-          '・${GuideTerms.vengefulShadow}妨害: -1、試合3回まで\n'
-          '・${GuideTerms.trueOni}が施設付近にいる間、その施設では告発不可',
+      oneLine: '解禁と施設数',
+      rows: [
+        const GuideSpecRow('使用人数', '3人以上'),
+        const GuideSpecRow('解禁A', '試合時間 60%経過'),
+        const GuideSpecRow('解禁B', '脱落1人＋時間25%経過'),
+        const GuideSpecRow('早期解禁', '5〜15分の範囲'),
+        const GuideSpecRow('解禁時の施設', '基本1'),
+        GuideSpecRow('${GuideTerms.echoForm}陣取り', '+1（試合2回まで）'),
+        GuideSpecRow('${GuideTerms.vengefulShadow}妨害', '-1（試合3回まで）'),
+        GuideSpecRow('${GuideTerms.trueOni}が近く', 'その施設では告発不可'),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_second',
       title: GuideTerms.secondGame,
       icon: Icons.replay_circle_filled_outlined,
-      oneLine: '第二ゲームの数値',
-      body:
-          '${GuideTerms.echoForm}:\n'
-          '・監視端子ジャック: チャージ約15秒、CD約100秒、試合5回まで\n'
-          '・告発施設陣取り: チャージ約16秒、CD約90秒、試合2回まで\n\n'
-          '${GuideTerms.vengefulShadow}:\n'
-          '・告発施設妨害: チャージ約18秒、CD約90秒、試合3回まで\n'
-          '・カメラ停止: チャージ約14秒、CD約25秒、各カメラ1回まで',
+      oneLine: '脱落後のチャージと回数',
+      groups: [
+        GuideSpecGroup(
+          title: GuideTerms.echoForm,
+          rows: const [
+            GuideSpecRow('端子ジャック', 'チャージ約15秒 / CD約100秒 / 5回'),
+            GuideSpecRow('告発施設陣取り', 'チャージ約16秒 / CD約90秒 / 2回'),
+          ],
+        ),
+        GuideSpecGroup(
+          title: GuideTerms.vengefulShadow,
+          rows: const [
+            GuideSpecRow('告発施設妨害', 'チャージ約18秒 / CD約90秒 / 3回'),
+            GuideSpecRow('カメラ停止', 'チャージ約14秒 / CD約25秒 / 各1回'),
+          ],
+        ),
+      ],
     ),
-    _card(
+    _specCard(
       id: 'spec_skills',
       title: 'スキル',
       icon: Icons.bolt_outlined,
-      oneLine: 'スキルの数値',
-      body:
-          '偽位置:\n・持続約20秒\n・CD約72秒\n\n'
-          '偽情報暴露:\n・CD約75秒\n\n'
-          '体投げ:\n・射程約90m\n・人形約12秒\n・CD約75秒\n・地図タップ猶予約22秒\n\n'
-          '${GuideTerms.werewolf}の鬼化:\n・強制切替は試合時間に連動\n・目安は試合時間の3分の1、最大約10分',
+      oneLine: '装備スキルの数値',
+      groups: const [
+        GuideSpecGroup(
+          title: '偽位置（逃走者）',
+          rows: [
+            GuideSpecRow('持続', '約20秒'),
+            GuideSpecRow('CD', '約72秒'),
+          ],
+        ),
+        GuideSpecGroup(
+          title: '偽情報暴露（鬼）',
+          rows: [GuideSpecRow('CD', '約75秒')],
+        ),
+        GuideSpecGroup(
+          title: '体投げ（鬼）',
+          rows: [
+            GuideSpecRow('射程', '約90m'),
+            GuideSpecRow('人形', '約12秒'),
+            GuideSpecRow('設置猶予', '約22秒'),
+            GuideSpecRow('CD', '約75秒'),
+          ],
+        ),
+        GuideSpecGroup(
+          title: '鬼化（人狼）',
+          rows: [
+            GuideSpecRow('強制切替', '試合時間÷3（最大約10分）'),
+          ],
+        ),
+      ],
     ),
   ],
   relatedSectionIds: ['outside', 'combat', 'accusation'],

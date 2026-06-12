@@ -35,6 +35,7 @@ class _Step {
     this.showRunner = false,
     this.showAnonMarker = false,
     this.showAccusationMarker = false,
+    this.guideSectionId,
   });
 
   final String text;
@@ -43,6 +44,7 @@ class _Step {
   final bool showRunner;
   final bool showAnonMarker;
   final bool showAccusationMarker;
+  final String? guideSectionId;
 }
 
 class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
@@ -94,6 +96,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
           showRunner: copies[i].showRunner,
           showAnonMarker: copies[i].showAnonMarker,
           showAccusationMarker: copies[i].showAccusationMarker,
+          guideSectionId: copies[i].guideSectionId,
         ),
     ];
   }
@@ -108,7 +111,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
           _ => _Act.tapNext,
         };
       case PlayerRole.hunter:
-        return index == 4 ? _Act.chase : _Act.tapNext;
+        return index == 5 ? _Act.chase : _Act.tapNext;
       case PlayerRole.werewolf:
         return switch (index) {
           1 => _Act.move,
@@ -320,6 +323,9 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                   accent: _accent,
                   missionLabel: 'ミッション ${_index + 1}/${_steps.length}',
                   done: _stepDone,
+                  onOpenGuide: _step.guideSectionId == null
+                      ? null
+                      : () => _openGuideSection(_step.guideSectionId!),
                 ),
                 Expanded(
                   child: Padding(
@@ -369,8 +375,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                   role: widget.role,
                   skillLabel: _skillLabel,
                   skillActive: skillActive,
-                  showNext:
-                      _step.act == _Act.tapNext && _stepElapsed >= 2.5,
+                  showNext: _step.act == _Act.tapNext,
                   onSkill: _onSkill,
                   onNext: _advance,
                   accent: _accent,

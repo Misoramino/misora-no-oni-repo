@@ -57,6 +57,13 @@ class MapLayerToggleStrip extends StatelessWidget {
               onToggle: (v) => onChanged(toggles.copyWith(infoBrokers: v)),
             ),
             _chip(
+              label: '告発施設',
+              icon: Icons.account_balance_outlined,
+              on: toggles.accusationFacilities,
+              onToggle: (v) =>
+                  onChanged(toggles.copyWith(accusationFacilities: v)),
+            ),
+            _chip(
               label: '通信障害',
               icon: Icons.wifi_off,
               on: toggles.commJamming,

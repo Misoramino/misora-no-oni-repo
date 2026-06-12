@@ -3,81 +3,89 @@ part of 'game_map_screen.dart';
 /// 試合開始・終了・リセット・ティック評価・中止投票。
 extension _GameMapMatchLifecycle on _GameMapScreenState {
   Future<void> _startGame() async {
+    if (_matchPresentationActive || _matchStartInFlight) return;
     if (_gameState != GameState.waiting) {
       if (_gameState == GameState.running) return;
       _toast('新しい試合を始めるには「リセット」で結果を閉じてからにしてください');
       return;
     }
-    if (_editingArea) {
-      _toast('エリア編集中は開始できません');
-      return;
-    }
-    if (_isOnlineFirestore && !_isHost) {
-      _toast('試合の開始はホストのみできます');
-      return;
-    }
-
-    if (_isOnlineFirestore && _isHost) {
-      final count = _lobbyParticipantCount();
-      if (count < GameConfig.accusationMinPlayers) {
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('少人数で開始'),
-            content: Text(
-              '現在 $count 人です。'
-              '${GameConfig.accusationMinPlayers}人未満の試合では告発は使えません。\n'
-              'このまま開始しますか？',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('待つ'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('開始する'),
-              ),
-            ],
-          ),
-        );
-        if (proceed != true || !mounted) return;
-      }
-    }
-
-    game_feedback.Feedback.confirm();
-    _progressRecordedForMatch = false;
-    _lastNewlyUnlockedTitles = const [];
-    _matchRoleBriefingShown = false;
-    _ensureMatchRecorder(discardExisting: true);
-
-    if (_isOnlineFirestore && _isHost) {
-      final snapshot = await _buildSharedMatchSnapshot();
-      final err = await _firestoreSession!.publishMatchStart(snapshot);
-      if (err != null) {
-        _toast(err);
+    _matchStartInFlight = true;
+    try {
+      if (_editingArea) {
+        _toast('エリア編集中は開始できません');
         return;
       }
-      await _applySharedMatchStart(snapshot);
-    } else {
-      _assignDefaultSetupIfNeeded();
-      final seed = DateTime.now().millisecondsSinceEpoch;
-      final gimmicks = await GeneratedGimmicks.createForMatchStart(
-        area: _playArea,
-        seed: seed,
-        density: _gimmickDensity,
-        googleMapsApiKey: GoogleMapsConfig.apiKey,
-      );
-      _rt.applyStartGimmicks(
-        gimmicks: gimmicks,
-        matchDurationSeconds: _matchDurationSeconds,
-      );
-    }
+      if (_isOnlineFirestore && !_isHost) {
+        _toast('試合の開始はホストのみできます');
+        return;
+      }
 
-    _retuneGpsIfNeeded();
-    await _runMatchStartPresentation(rejoin: false, inspector: false);
-    if (!mounted) return;
-    _startGameCore();
+      if (_isOnlineFirestore && _isHost) {
+        final count = _lobbyParticipantCount();
+        if (count < GameConfig.accusationMinPlayers) {
+          final proceed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('少人数で開始'),
+              content: Text(
+                '現在 $count 人です。'
+                '${GameConfig.accusationMinPlayers}人未満の試合では告発は使えません。\n'
+                'このまま開始しますか？',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('待つ'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('開始する'),
+                ),
+              ],
+            ),
+          );
+          if (proceed != true || !mounted) return;
+        }
+      }
+
+      game_feedback.Feedback.confirm();
+      unawaited(GameAudio.instance.stopMusic());
+      _progressRecordedForMatch = false;
+      _lastNewlyUnlockedTitles = const [];
+      _matchRoleBriefingShown = false;
+      _ensureMatchRecorder(discardExisting: true);
+
+      if (_isOnlineFirestore && _isHost) {
+        final snapshot = await _buildSharedMatchSnapshot();
+        final err = await _firestoreSession!.publishMatchStart(snapshot);
+        if (err != null) {
+          _toast(err);
+          return;
+        }
+        await _applySharedMatchStart(snapshot);
+      } else {
+        _assignDefaultSetupIfNeeded();
+        final seed = DateTime.now().millisecondsSinceEpoch;
+        final gimmicks = await GeneratedGimmicks.createForMatchStart(
+          area: _playArea,
+          seed: seed,
+          density: _gimmickDensity,
+          googleMapsApiKey: GoogleMapsConfig.apiKey,
+        );
+        _rt.applyStartGimmicks(
+          gimmicks: gimmicks,
+          matchDurationSeconds: _matchDurationSeconds,
+        );
+      }
+
+      _retuneGpsIfNeeded();
+      await _runMatchStartPresentation(rejoin: false, inspector: false);
+      if (!mounted) return;
+      _startGameCore();
+    } finally {
+      _matchStartInFlight = false;
+      _matchPresentationActive = false;
+    }
   }
 
   void _startGameCore({bool rejoin = false, bool inspector = false}) {
@@ -332,6 +340,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _finalizeRecordingFuture = null;
     _retuneGpsIfNeeded();
     _rt.resetToLobby(matchDurationSeconds: _matchDurationSeconds);
+    _matchPresentationActive = false;
+    _matchStartInFlight = false;
     _syncSetState(() {
       _gameState = GameState.waiting;
       _prepMapMode = PrepMapMode.hidden;
@@ -758,6 +768,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _cancelCaptureBoundTimers();
     final outcome = result;
     _afterCatchRule = null;
+    _matchPresentationActive = false;
+    _matchStartInFlight = false;
     _syncSetState(() {
       _gameState = result;
       _statusMessage = message;

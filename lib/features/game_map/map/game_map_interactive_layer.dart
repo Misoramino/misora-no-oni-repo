@@ -97,6 +97,7 @@ class _GameMapInteractiveLayerState extends State<GameMapInteractiveLayer> {
               onMapCreated: widget.onMapCreated,
               onTap: widget.onTap,
               onCameraIdle: widget.onCameraIdle,
+              mapGesturesEnabled: !widget.skillPlacementActive,
             ),
           ),
         SkillMapPlacementLayer(
@@ -122,6 +123,7 @@ class _GoogleMapOverlayView extends StatefulWidget {
     required this.onMapCreated,
     required this.onTap,
     required this.onCameraIdle,
+    required this.mapGesturesEnabled,
   });
 
   final GameMapOverlaySnapshot overlay;
@@ -130,6 +132,7 @@ class _GoogleMapOverlayView extends StatefulWidget {
   final void Function(GoogleMapController controller) onMapCreated;
   final void Function(LatLng position) onTap;
   final VoidCallback onCameraIdle;
+  final bool mapGesturesEnabled;
 
   @override
   State<_GoogleMapOverlayView> createState() => _GoogleMapOverlayViewState();
@@ -165,6 +168,7 @@ class _GoogleMapOverlayViewState extends State<_GoogleMapOverlayView> {
   @override
   Widget build(BuildContext context) {
     final overlay = widget.overlay;
+    final gestures = widget.mapGesturesEnabled;
     return GoogleMap(
       key: const ValueKey('game_map_core'),
       style: widget.mapStyleJson,
@@ -172,8 +176,12 @@ class _GoogleMapOverlayViewState extends State<_GoogleMapOverlayView> {
         target: widget.initialCameraTarget,
         zoom: 16,
       ),
+      scrollGesturesEnabled: gestures,
+      zoomGesturesEnabled: gestures,
+      rotateGesturesEnabled: gestures,
+      tiltGesturesEnabled: gestures,
       myLocationEnabled: true,
-      myLocationButtonEnabled: true,
+      myLocationButtonEnabled: !gestures,
       markers: _cachedMarkers ?? GameMapOverlayBuilder.buildMarkers(overlay),
       polylines: GameMapOverlayBuilder.buildPolylines(overlay),
       circles: GameMapOverlayBuilder.buildCircles(overlay),

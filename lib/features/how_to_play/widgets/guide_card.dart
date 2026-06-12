@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../guide_models.dart';
 import 'guide_detail_expansion.dart';
 import 'guide_diagram_slot.dart';
+import 'guide_spec_table.dart';
 
-/// 作戦マニュアルの1テーマ1カード。
+/// 遊び方の1テーマ1カード。
 class GuideCard extends StatelessWidget {
   const GuideCard({
     required this.data,
+    this.onOpenSpecCard,
     super.key,
   });
 
   final GuideCardData data;
+  final ValueChanged<String>? onOpenSpecCard;
 
   @override
   Widget build(BuildContext context) {
@@ -58,11 +61,16 @@ class GuideCard extends StatelessWidget {
               const SizedBox(height: 10),
               GuideDiagramSlot(data: data.diagram!),
             ],
-            const SizedBox(height: 8),
-            Text(
-              data.body,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
-            ),
+            if (data.specRows.isNotEmpty || data.specGroups.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GuideSpecTable(rows: data.specRows, groups: data.specGroups),
+            ] else ...[
+              const SizedBox(height: 8),
+              Text(
+                data.body,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+              ),
+            ],
             if (data.bullets.isNotEmpty) ...[
               const SizedBox(height: 8),
               for (final b in data.bullets)
@@ -96,7 +104,10 @@ class GuideCard extends StatelessWidget {
             ],
             if (data.details.isNotEmpty) ...[
               const SizedBox(height: 6),
-              GuideDetailExpansion(details: data.details),
+              GuideDetailExpansion(
+                details: data.details,
+                onOpenSpecCard: onOpenSpecCard,
+              ),
             ],
           ],
         ),

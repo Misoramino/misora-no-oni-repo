@@ -56,6 +56,8 @@ class GuideCardData {
     this.diagram,
     this.details = const [],
     this.footnote,
+    this.specRows = const [],
+    this.specGroups = const [],
   });
 
   final String id;
@@ -67,6 +69,28 @@ class GuideCardData {
   final GuideDiagramData? diagram;
   final List<GuideDetailData> details;
   final String? footnote;
+
+  /// [id] == spec のカード用。ラベルと値の表形式で表示する。
+  final List<GuideSpecRow> specRows;
+
+  /// 見出し付きの表ブロック（第二ゲームなど）。
+  final List<GuideSpecGroup> specGroups;
+}
+
+/// 詳細ルール表の1行。
+class GuideSpecRow {
+  const GuideSpecRow(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+/// 詳細ルール表のグループ見出し。
+class GuideSpecGroup {
+  const GuideSpecGroup({required this.title, required this.rows});
+
+  final String title;
+  final List<GuideSpecRow> rows;
 }
 
 /// 折りたたみ詳細。
@@ -74,10 +98,14 @@ class GuideDetailData {
   const GuideDetailData({
     required this.title,
     required this.body,
+    this.specCardId,
   });
 
   final String title;
   final String body;
+
+  /// 指定時、「詳細ルールで見る」から該当カードへジャンプできる。
+  final String? specCardId;
 }
 
 /// 図解スロット（Phase B で描画を差し込む）。

@@ -86,7 +86,7 @@ const _pages = <_WelcomePage>[
     lines: [
       '画面下のボタンでスキルを発動。',
       '地図に置くスキルは押し続けて範囲を確認、指を離して設置。',
-      '×へドラッグでキャンセル。まず押してみればすぐ分かる！',
+      '右上の×でキャンセル。まず押してみればすぐ分かる！',
     ],
   ),
   _WelcomePage(
@@ -102,20 +102,11 @@ const _pages = <_WelcomePage>[
   _WelcomePage(
     icon: Icons.wifi_tethering_rounded,
     color: Color(0xFF5C6BC0),
-    title: '友達とオンライン',
+    title: '友達と遊ぶ・育てる',
     lines: [
       '同じルームIDで集まり、ホストが試合を開始。',
       '途中参加は再参加、リスト外は観戦モード。',
-      '位置は原則非公開 — スキルとイベントで駆け引き。',
-    ],
-  ),
-  _WelcomePage(
-    icon: Icons.emoji_events_rounded,
-    color: Color(0xFF1FA98A),
-    title: '勝って称号を集めよう',
-    lines: [
-      '勝つと連勝・称号がたまっていく。',
-      'さあ、最初の1戦をはじめよう！',
+      '勝つと連勝・称号がたまっていく。さあ、最初の1戦を！',
     ],
   ),
 ];

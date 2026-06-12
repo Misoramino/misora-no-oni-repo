@@ -1,9 +1,9 @@
-/// 作戦マニュアル・告発・勝敗説明で使う用語。
+/// 遊び方・告発・勝敗説明で使う用語。
 ///
-/// ゲーム全体の表示名（[PlayerRole.displayName] 等）は「鬼」のまま。
-/// ルール上の正式説明では [trueOni] を使う。
+/// [trueOni] は告発対象などルール上の「鬼」。[realOni] は人狼と区別するときだけ使う。
 abstract final class GuideTerms {
-  static const trueOni = '本鬼';
+  static const trueOni = '鬼';
+  static const realOni = '本物の鬼';
   static const runner = '逃走者';
   static const werewolf = '人狼';
   static const humanFaction = '人陣営';

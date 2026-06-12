@@ -271,7 +271,7 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     final finishCopy = TutorialCopyCatalog.finishForSecondGame(widget.kind);
     final title = TutorialCopyCatalog.secondGameTutorialTitle(widget.kind);
     final showAction = _step.act == _Act.chargeAtMarker && !_stepDone;
-    final showNext = _step.act == _Act.tapNext && _stepElapsed >= 2.0;
+    final showNext = _step.act == _Act.tapNext;
 
     return Scaffold(
       appBar: AppBar(

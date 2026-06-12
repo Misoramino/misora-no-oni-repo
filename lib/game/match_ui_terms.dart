@@ -14,7 +14,7 @@ abstract final class MatchUiTerms {
 
   static const panicOnly = 'パニックのみ';
 
-  static const operationsManual = '作戦マニュアル';
+  static const operationsManual = '遊び方';
 
   static const guideHub = 'ガイド・遊び方';
 
@@ -27,5 +27,5 @@ abstract final class MatchUiTerms {
   static const namedReveal = '名前付き暴露';
 
   static const learnMoreHint =
-      'くわしいルールやスキルは「チュートリアル」か ⋮ →「$guideHub」→「$operationsManual」で確認できます。';
+      'くわしいルールは「チュートリアル」か ⋮ →「$guideHub」→「$operationsManual」で見られます。';
 }

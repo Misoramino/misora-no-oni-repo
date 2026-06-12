@@ -1,6 +1,7 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/anonymous_reveal_trace.dart';
+import 'game_map_layer_toggles.dart';
 import 'game_map_overlay_snapshot.dart';
 
 /// 地図オーバーレイの描画更新が必要かどうかの軽量判定（ゲームロジックには非依存）。
@@ -19,6 +20,8 @@ abstract final class GameMapOverlayVisual {
       s.oniIntelTraces.length,
       s.remoteMembers.length,
       s.showGimmickMarkers,
+      _layerTogglesKey(s.layerToggles),
+      (s.mapZoom * 4).round(),
       s.safeZonePositions.length,
       s.infoBrokerPositions.length,
       s.accusationFacilityPositions.length,
@@ -66,4 +69,21 @@ abstract final class GameMapOverlayVisual {
       (p.longitude * 1e5).round(),
     );
   }
+
+  static int _layerTogglesKey(GameMapLayerToggles L) => Object.hashAll([
+        L.playArea,
+        L.remotePlayers,
+        L.safeZones,
+        L.infoBrokers,
+        L.accusationFacilities,
+        L.commJamming,
+        L.cameras,
+        L.traces,
+        L.reveals,
+        L.oniIntel,
+        L.captureZone,
+        L.skillMarkers,
+        L.ghostRough,
+        L.inspectorIntel,
+      ]);
 }

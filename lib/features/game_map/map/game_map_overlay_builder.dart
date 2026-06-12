@@ -211,7 +211,7 @@ abstract final class GameMapOverlayBuilder {
           );
         }
       }
-      if (L.infoBrokers && showGimmickIcons) {
+      if (L.accusationFacilities && showGimmickIcons) {
         for (var i = 0; i < s.accusationFacilityPositions.length; i++) {
           final active = s.activeAccusationSiteIndices.contains(i);
           final usable = active &&
@@ -540,6 +540,27 @@ abstract final class GameMapOverlayBuilder {
                 alpha: s.infoBrokerAvailable ? 0.12 : 0.04,
               ),
               strokeColor: tokens.infoColor,
+              zIndex: 1,
+            ),
+          );
+        }
+      }
+      if (L.accusationFacilities) {
+        const accusationColor = Color(0xFFE91E63);
+        for (var i = 0; i < s.accusationFacilityPositions.length; i++) {
+          final active = s.activeAccusationSiteIndices.contains(i);
+          circles.add(
+            Circle(
+              circleId: CircleId('accusation-facility-$i'),
+              center: s.accusationFacilityPositions[i],
+              radius: GameConfig.accusationFacilityRadiusMeters,
+              strokeWidth: 2,
+              fillColor: accusationColor.withValues(
+                alpha: active ? 0.10 : 0.04,
+              ),
+              strokeColor: active
+                  ? accusationColor
+                  : accusationColor.withValues(alpha: 0.45),
               zIndex: 1,
             ),
           );

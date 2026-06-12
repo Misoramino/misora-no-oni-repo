@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../audio/game_audio.dart';
@@ -30,7 +32,7 @@ Future<void> openTutorialPicker(BuildContext context) async {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'GPS不要・各約1分。終了後は作戦マニュアルへ進めます。',
+                'GPS不要・各約1分。終了後は遊び方を見られます。',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   height: 1.45,
@@ -81,7 +83,7 @@ Future<void> openTutorialPicker(BuildContext context) async {
                   showHowToPlaySheet(context);
                 },
                 icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('作戦マニュアルを見る'),
+                label: const Text('遊び方を見る'),
               ),
             ],
           ),
@@ -101,6 +103,7 @@ Future<void> openTutorialPicker(BuildContext context) async {
 
 /// 役職チュートリアル（サンドボックス）を開く。
 Future<void> openRoleTutorial(BuildContext context, PlayerRole role) {
+  unawaited(GameAudio.instance.stopMusic());
   return AppNav.push<void>(
     context,
     (_) => TutorialSandboxScreen(role: role),

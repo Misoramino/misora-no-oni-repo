@@ -638,7 +638,7 @@ class IntroCluesDiagram extends StatelessWidget {
               Icon(Icons.location_off_outlined, size: 28, color: scheme.error),
               const SizedBox(height: 4),
               Text(
-                '相手のライブ位置',
+                '相手の位置',
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               Text(

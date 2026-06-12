@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../game/match_ui_terms.dart';
+
 /// 準備フェーズの「地図確認・エリア編集」専用ツール（ゲーム中 HUD とは別ウィジェット）。
 class PrepMapToolsPanel extends StatelessWidget {
   const PrepMapToolsPanel({
@@ -10,6 +12,7 @@ class PrepMapToolsPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
+    this.onCreateNewArea,
     this.playAreaSummary,
     super.key,
   });
@@ -21,6 +24,7 @@ class PrepMapToolsPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
+  final VoidCallback? onCreateNewArea;
   final String? playAreaSummary;
 
   @override
@@ -99,6 +103,14 @@ class PrepMapToolsPanel extends StatelessWidget {
             ),
             label: Text(isEditing ? '編集をやめる（地図のまま）' : 'エリア編集'),
           ),
+          if (onCreateNewArea != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onCreateNewArea,
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text('新規エリアを作成'),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -139,7 +151,7 @@ class PrepMapToolsPanel extends StatelessWidget {
               TextButton.icon(
                 onPressed: onOpenHelp,
                 icon: Icon(Icons.help_outline, size: 18, color: fg),
-                label: Text('作戦マニュアル',
+                label: Text(MatchUiTerms.operationsManual,
                     style: TextStyle(color: fg, fontSize: 12)),
               ),
             ],

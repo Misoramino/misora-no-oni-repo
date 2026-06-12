@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AudioSettings {
   const AudioSettings({
     this.muted = false,
-    this.masterVolume = 0.82,
+    this.masterVolume = 0.70,
     this.sfxVolume = 0.85,
     this.bgmVolume = 0.38,
     this.ambientVolume = 0.26,

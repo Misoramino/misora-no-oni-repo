@@ -1489,7 +1489,17 @@ extension _GameMapSkills on _GameMapScreenState {
     _retuneGpsIfNeeded();
   }
 
+  void _dismissInlineStatus() {
+    _inlineStatusTimer?.cancel();
+    _inlineStatusTimer = null;
+    if (_inlineStatusMessage == null) return;
+    _syncSetState(() => _inlineStatusMessage = null);
+  }
+
   void _showInlineStatus(String msg, {Duration? duration}) {
+    if (_inlineStatusMessage == msg && _inlineStatusTimer?.isActive == true) {
+      return;
+    }
     _inlineStatusTimer?.cancel();
     _syncSetState(() {
       _inlineStatusMessage = msg;
@@ -1500,6 +1510,7 @@ extension _GameMapSkills on _GameMapScreenState {
       () {
         if (!mounted) return;
         _syncSetState(() => _inlineStatusMessage = null);
+        _inlineStatusTimer = null;
       },
     );
     _logDebug('inline:$msg');
@@ -1519,7 +1530,9 @@ extension _GameMapSkills on _GameMapScreenState {
       _showInlineStatus(msg, duration: duration);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Text(msg),
         duration:

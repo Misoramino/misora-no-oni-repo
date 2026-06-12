@@ -11,8 +11,8 @@ void main() {
       );
       expect(body, contains('告発する'));
       expect(body, contains(AccusationWeight.points.helperText));
-      expect(body, contains('本鬼'));
-      expect(body, contains('人狼'));
+      expect(body, contains('鬼'));
+      expect(body, contains('本物の鬼'));
     });
 
     test('instant win explains elimination on failure', () {

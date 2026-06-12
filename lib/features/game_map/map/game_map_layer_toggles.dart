@@ -8,6 +8,7 @@ class GameMapLayerToggles {
     this.remotePlayers = true,
     this.safeZones = true,
     this.infoBrokers = true,
+    this.accusationFacilities = true,
     this.commJamming = true,
     this.cameras = true,
     this.traces = true,
@@ -23,6 +24,10 @@ class GameMapLayerToggles {
   final bool remotePlayers;
   final bool safeZones;
   final bool infoBrokers;
+
+  /// 告発施設マーカー・範囲円
+  final bool accusationFacilities;
+
   final bool commJamming;
   final bool cameras;
   final bool traces;
@@ -46,6 +51,7 @@ class GameMapLayerToggles {
     bool? remotePlayers,
     bool? safeZones,
     bool? infoBrokers,
+    bool? accusationFacilities,
     bool? commJamming,
     bool? cameras,
     bool? traces,
@@ -61,6 +67,8 @@ class GameMapLayerToggles {
       remotePlayers: remotePlayers ?? this.remotePlayers,
       safeZones: safeZones ?? this.safeZones,
       infoBrokers: infoBrokers ?? this.infoBrokers,
+      accusationFacilities:
+          accusationFacilities ?? this.accusationFacilities,
       commJamming: commJamming ?? this.commJamming,
       cameras: cameras ?? this.cameras,
       traces: traces ?? this.traces,

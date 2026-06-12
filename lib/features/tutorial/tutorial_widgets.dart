@@ -12,6 +12,7 @@ class TutorialInstructionBanner extends StatelessWidget {
     required this.done,
     this.missionLabel,
     this.flash,
+    this.onOpenGuide,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class TutorialInstructionBanner extends StatelessWidget {
   final bool done;
   final String? missionLabel;
   final String? flash;
+  final VoidCallback? onOpenGuide;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +68,17 @@ class TutorialInstructionBanner extends StatelessWidget {
               style: theme.textTheme.labelLarge?.copyWith(
                 color: accent,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          if (onOpenGuide != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onOpenGuide,
+                icon: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('遊び方でくわしく'),
               ),
             ),
           ],

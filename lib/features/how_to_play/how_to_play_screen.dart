@@ -8,11 +8,13 @@ class HowToPlayScreen extends StatefulWidget {
   const HowToPlayScreen({
     this.yourRole,
     this.initialSectionId,
+    this.initialSpecCardId,
     super.key,
   });
 
   final PlayerRole? yourRole;
   final String? initialSectionId;
+  final String? initialSpecCardId;
 
   @override
   State<HowToPlayScreen> createState() => _HowToPlayScreenState();
@@ -37,12 +39,13 @@ class _HowToPlayScreenState extends State<HowToPlayScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('作戦マニュアル'),
+        title: const Text('遊び方'),
       ),
       body: HowToPlayGuideBody(
         scrollController: _scrollController,
         yourRole: widget.yourRole,
         initialSectionId: widget.initialSectionId,
+        initialSpecCardId: widget.initialSpecCardId,
       ),
     );
   }
@@ -53,12 +56,14 @@ void openHowToPlayScreen(
   BuildContext context, {
   PlayerRole? yourRole,
   String? initialSectionId,
+  String? initialSpecCardId,
 }) {
   Navigator.of(context).push<void>(
     MaterialPageRoute<void>(
       builder: (_) => HowToPlayScreen(
         yourRole: yourRole,
         initialSectionId: initialSectionId,
+        initialSpecCardId: initialSpecCardId,
       ),
     ),
   );

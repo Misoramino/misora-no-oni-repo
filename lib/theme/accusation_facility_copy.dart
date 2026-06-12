@@ -18,7 +18,7 @@ class AccusationFacilityCopy {
   /// 選択シート・初回案内で使う、ルール上の告発対象の説明。
   static const accuseTargetLine =
       '告発対象は${GuideTerms.trueOni}です。'
-      '${GuideTerms.werewolf}は${GuideTerms.trueOni}ではないため選べません。';
+      '${GuideTerms.werewolf}は${GuideTerms.realOni}ではないため選べません。';
 
   /// 未解禁時の共通説明（解禁条件はロジックと一致）。
   static const lockedHintBase =
@@ -31,9 +31,9 @@ class AccusationFacilityCopy {
             unlockLines: [
               '第一被害確認',
               '調査本部 起動',
-              '本鬼告発プロトコル 解禁',
+              '鬼告発プロトコル 解禁',
             ],
-            accuseActionLabel: '本鬼を告発',
+            accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
         WorldProfile.sciFi => const AccusationFacilityCopy(
@@ -41,9 +41,9 @@ class AccusationFacilityCopy {
             unlockLines: [
               '生体信号ロスト',
               '制御中枢 接続',
-              '本鬼告発プロトコル 解禁',
+              '鬼告発プロトコル 解禁',
             ],
-            accuseActionLabel: '本鬼を告発',
+            accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
         WorldProfile.arg => const AccusationFacilityCopy(
@@ -51,19 +51,19 @@ class AccusationFacilityCopy {
             unlockLines: [
               '被害発生を確認',
               '情報統制ネットワーク 起動',
-              '本鬼識別権限 解放',
+              '鬼識別権限 解放',
             ],
-            accuseActionLabel: '本鬼を告発',
+            accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
         WorldProfile.sport => const AccusationFacilityCopy(
             facilityName: '交番',
             unlockLines: [
               '事件発生！',
-              '交番で本鬼の指名通報が可能に！',
-              '本鬼通報システム 解禁！',
+              '交番で鬼の指名通報が可能に！',
+              '鬼通報システム 解禁！',
             ],
-            accuseActionLabel: '本鬼を通報',
+            accuseActionLabel: '鬼を通報',
             lockedHint: lockedHintBase,
           ),
         WorldProfile.magical => const AccusationFacilityCopy(
@@ -71,9 +71,9 @@ class AccusationFacilityCopy {
             unlockLines: [
               '禁術反応を検知しました',
               '魔導審問局との交信を確立',
-              '本鬼告発の儀式が可能になりました',
+              '鬼告発の儀式が可能になりました',
             ],
-            accuseActionLabel: '本鬼を告発',
+            accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
         WorldProfile.astronomy => const AccusationFacilityCopy(
@@ -81,9 +81,9 @@ class AccusationFacilityCopy {
             unlockLines: [
               '異常天体反応を観測',
               '地球支部との通信確立',
-              '本鬼識別プロトコル 解禁',
+              '鬼識別プロトコル 解禁',
             ],
-            accuseActionLabel: '本鬼を告発',
+            accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
       };

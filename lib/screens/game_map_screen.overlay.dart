@@ -190,8 +190,8 @@ extension _GameMapOverlay on _GameMapScreenState {
       skillPlacementActive: _skillMapPlacementActive,
       bodyThrowAwaitingMapTap: _rt.bodyThrowAwaitingMapTap,
       skillPlacementHint: _rt.bodyThrowAwaitingMapTap
-          ? '指を離して人形を設置。下の×へドラッグでキャンセル'
-          : '指を離して結界を設置。下の×へドラッグでキャンセル',
+          ? '長押しで人形の位置を決める'
+          : '長押しで結界の位置を決める',
       onSkillPlacementPreview: _onSkillPlacementPreview,
       onSkillPlacementConfirm: _confirmSkillMapPlacementAt,
       onSkillPlacementCancel: _cancelSkillMapPlacement,

@@ -15,6 +15,8 @@ class GuideSectionWidget extends StatelessWidget {
     required this.expanded,
     required this.onExpansionChanged,
     required this.onRelatedSectionTap,
+    this.onOpenSpecCard,
+    this.cardKeys,
     this.yourRole,
     super.key,
   });
@@ -23,6 +25,8 @@ class GuideSectionWidget extends StatelessWidget {
   final bool expanded;
   final ValueChanged<bool> onExpansionChanged;
   final ValueChanged<String> onRelatedSectionTap;
+  final ValueChanged<String>? onOpenSpecCard;
+  final Map<String, GlobalKey>? cardKeys;
   final PlayerRole? yourRole;
 
   @override
@@ -82,11 +86,21 @@ class GuideSectionWidget extends StatelessWidget {
                 children: [
                   if (section.sectionDiagram != null)
                     GuideDiagramSlot(data: section.sectionDiagram!),
-                  for (final card in section.cards) GuideCard(data: card),
+                  for (final card in section.cards)
+                    KeyedSubtree(
+                      key: cardKeys?[card.id],
+                      child: GuideCard(
+                        data: card,
+                        onOpenSpecCard: onOpenSpecCard,
+                      ),
+                    ),
                   if (section.id == 'roles')
                     _RoleBriefingsPanel(yourRole: yourRole),
                   if (section.details.isNotEmpty)
-                    GuideDetailExpansion(details: section.details),
+                    GuideDetailExpansion(
+                      details: section.details,
+                      onOpenSpecCard: onOpenSpecCard,
+                    ),
                   GuideRelatedLinks(
                     relatedSectionIds: section.relatedSectionIds,
                     onSectionTap: onRelatedSectionTap,

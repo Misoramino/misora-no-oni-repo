@@ -43,6 +43,19 @@ void main() {
     expect(steps[5].showAccusationMarker, isTrue);
   });
 
+  test('hunter tutorial includes map placement step', () {
+    final steps = TutorialCopyCatalog.stepsFor(PlayerRole.hunter);
+    expect(steps.length, 6);
+    expect(steps[4].text, contains('長押し'));
+    expect(steps[4].guideSectionId, 'skills');
+  });
+
+  test('guide spec card ids are unique', () {
+    final ids = guideSpecCardIds.toList();
+    expect(ids.toSet().length, ids.length);
+    expect(ids, contains('spec_skills'));
+  });
+
   test('second game tutorial finish links map to guide sections', () {
     for (final kind in SecondGameTutorialKind.values) {
       final finish = TutorialCopyCatalog.finishForSecondGame(kind);

@@ -43,7 +43,7 @@ Future<void> showGuideHubSheet(
               ),
               ListTile(
                 leading: const Icon(Icons.menu_book_outlined),
-                title: const Text('作戦マニュアル'),
+                title: const Text('遊び方'),
                 subtitle: const Text('勝ち方・情報戦・告発・詳細ルール'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -52,7 +52,7 @@ Future<void> showGuideHubSheet(
               ),
               ListTile(
                 leading: const Icon(Icons.view_agenda_outlined),
-                title: const Text('作戦マニュアル（シート）'),
+                title: const Text('遊び方（シート）'),
                 subtitle: const Text('試合中と同じボトムシート表示'),
                 onTap: () {
                   Navigator.pop(ctx);

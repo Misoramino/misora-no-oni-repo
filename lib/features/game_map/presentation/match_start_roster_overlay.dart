@@ -35,7 +35,7 @@ Future<void> showMatchStartRoster({
   if (!context.mounted || entries.isEmpty) return;
   await showGeneralDialog<void>(
     context: context,
-    barrierDismissible: true,
+    barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.55),
     transitionDuration: const Duration(milliseconds: 280),
     pageBuilder: (_, __, ___) => _MatchStartRosterOverlay(
@@ -78,7 +78,10 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
 
   void _close() {
     if (!mounted) return;
-    Navigator.of(context).pop();
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
   }
 
   @override
@@ -96,55 +99,56 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
 
     return Material(
       color: Colors.transparent,
-      child: GestureDetector(
-        onTap: _close,
-        behavior: HitTestBehavior.opaque,
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: CurvedAnimation(parent: _intro, curve: Curves.easeOut),
-            child: Column(
-              children: [
-                const SizedBox(height: 28),
-                Text(
-                  '参加者',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: accent.withValues(alpha: 0.85),
-                    letterSpacing: 2.4,
-                    fontWeight: FontWeight.w700,
-                  ),
+      child: SafeArea(
+        child: FadeTransition(
+          opacity: CurvedAnimation(parent: _intro, curve: Curves.easeOut),
+          child: Column(
+            children: [
+              const SizedBox(height: 28),
+              Text(
+                '参加者',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: accent.withValues(alpha: 0.85),
+                  letterSpacing: 2.4,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$count 人が参加',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$count 人が参加',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return _RosterBody(
-                        entries: widget.entries,
-                        accent: accent,
-                        maxWidth: constraints.maxWidth,
-                        maxHeight: constraints.maxHeight,
-                      );
-                    },
-                  ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return _RosterBody(
+                      entries: widget.entries,
+                      accent: accent,
+                      maxWidth: constraints.maxWidth,
+                      maxHeight: constraints.maxHeight,
+                    );
+                  },
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Text(
-                    'タップでスキップ',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white38,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _close,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
                     ),
+                    child: const Text('スキップ'),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

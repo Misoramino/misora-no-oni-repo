@@ -349,6 +349,28 @@ extension _GameMapPlayArea on _GameMapScreenState {
     _retuneRenderPump();
   }
 
+  /// 保存済みエリアを読み込まず、白紙の円から新規作成する。
+  void _beginNewPlayAreaEdit() {
+    if (_gameState != GameState.waiting) return;
+    _syncSetState(() {
+      _editingArea = true;
+      _prepMapMode = PrepMapMode.edit;
+      _prepControlSheetOpen = true;
+      _areaEditorPanelExpanded = true;
+      _controlSheetMode = ControlSheetMode.skillsOnly;
+      _editCircleMode = true;
+      _circleDraftCenter = _currentPosition;
+      _circleDraftRadiusMeters = 400;
+      _polygonDraft.clear();
+      _polygonDraftClosed = false;
+      _waitingCircleCenterTap = false;
+      _previewFocusSlotId = null;
+      _selectedPlayAreaSlotId = null;
+      _statusMessage = '新しいエリアを描きます（いまの多角形は表示しません）';
+    });
+    _retuneRenderPump();
+  }
+
   void _enterPrepMapMode(PrepMapMode mode, {String? previewSlotId}) {
     if (_gameState != GameState.waiting) return;
     if (mode == PrepMapMode.edit) {
@@ -395,6 +417,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
         _polygonDraftClosed = false;
       });
     }
+    _dismissInlineStatus();
     _syncSetState(() {
       _prepMapMode = PrepMapMode.hidden;
       _previewFocusSlotId = null;

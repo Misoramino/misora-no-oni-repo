@@ -96,7 +96,7 @@ void main() {
 
       RoleBriefingCatalog.matchStartStatusLine(PlayerRole.hunter),
 
-      contains('捕'),
+      contains('追'),
 
     );
 

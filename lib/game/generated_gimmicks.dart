@@ -53,6 +53,14 @@ class GeneratedGimmicks {
       density: density,
     );
     if (googleMapsApiKey.isEmpty) return base;
+    final safeZones = await RoadsSnapService.snapToNearestRoads(
+      candidates: base.safeZones,
+      apiKey: googleMapsApiKey,
+    );
+    final infoBrokers = await RoadsSnapService.snapToNearestRoads(
+      candidates: base.infoBrokers,
+      apiKey: googleMapsApiKey,
+    );
     final eventAreas = await RoadsSnapService.snapToNearestRoads(
       candidates: base.eventAreas,
       apiKey: googleMapsApiKey,
@@ -73,8 +81,8 @@ class GeneratedGimmicks {
       cameraJackSites.add(cameras.first);
     }
     return GeneratedGimmicks(
-      safeZones: base.safeZones,
-      infoBrokers: base.infoBrokers,
+      safeZones: safeZones,
+      infoBrokers: infoBrokers,
       cameras: cameras,
       eventAreas: eventAreas,
       accusationFacilities: accusationFacilities,
@@ -141,7 +149,7 @@ class GeneratedGimmicks {
       GameConfig.accusationFacilityMinCount,
       GameConfig.accusationFacilityMaxCount,
     );
-    final minGap = (radius * 0.18).clamp(60.0, 180.0);
+    final minGap = (radius * 0.14).clamp(48.0, 150.0);
 
     final used = <LatLng>[];
     List<LatLng> group({
@@ -152,9 +160,16 @@ class GeneratedGimmicks {
     }) {
       final out = <LatLng>[];
       final gap = minGapOverride ?? minGap;
+      // 中心に固まらないよう、角度と距離をばらつかせる（外側・中間・内側の帯）。
+      final bands = <double>[
+        (radiusFactor + 0.22).clamp(0.38, 0.92),
+        (radiusFactor + 0.08).clamp(0.32, 0.82),
+        (radiusFactor - 0.06).clamp(0.28, 0.72),
+      ];
       for (var i = 0; i < count; i++) {
-        final angle = angleSeed + i * (360 / math.max(1, count));
-        final dist = radius * (radiusFactor + 0.08 * (i % 2));
+        final angle =
+            angleSeed + i * (137.5 + 360.0 / math.max(1, count)) + (s % 11);
+        final dist = radius * bands[i % bands.length];
         final p = pointInArea(
           area: area,
           center: center,
@@ -162,6 +177,7 @@ class GeneratedGimmicks {
           distanceMeters: dist,
           avoid: used,
           minGapMeters: gap,
+          seed: s + i * 31,
         );
         out.add(p);
         used.add(p);
@@ -262,12 +278,30 @@ class GeneratedGimmicks {
     required double distanceMeters,
     required List<LatLng> avoid,
     required double minGapMeters,
+    int seed = 0,
   }) {
-    for (final scale in const [1.0, 0.75, 0.55, 0.35]) {
-      final p = _offset(center, angleDegrees, distanceMeters * scale);
+    final scales = <double>[1.0, 0.88, 0.76, 0.64, 0.52, 0.40];
+    for (var attempt = 0; attempt < scales.length; attempt++) {
+      final angleJitter = (seed + attempt * 47) % 360;
+      final p = _offset(
+        center,
+        angleDegrees + angleJitter * 0.15,
+        distanceMeters * scales[attempt],
+      );
       if (area.contains(p) && _farEnough(p, avoid, minGapMeters)) return p;
     }
-    return center;
+    // 最後の手段: 中心ではなく、少しずらした地点を試す（中心固まり防止）。
+    for (var k = 0; k < 8; k++) {
+      final fallback = _offset(
+        center,
+        angleDegrees + k * 45 + (seed % 30),
+        math.max(40.0, distanceMeters * 0.35),
+      );
+      if (area.contains(fallback) && _farEnough(fallback, avoid, minGapMeters * 0.7)) {
+        return fallback;
+      }
+    }
+    return _offset(center, angleDegrees, math.min(distanceMeters * 0.3, 120));
   }
 
   static bool _farEnough(LatLng p, List<LatLng> avoid, double minGapMeters) {

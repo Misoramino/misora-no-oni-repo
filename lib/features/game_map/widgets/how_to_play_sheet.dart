@@ -9,6 +9,7 @@ void showHowToPlaySheet(
   BuildContext context, {
   PlayerRole? yourRole,
   String? initialSectionId,
+  String? initialSpecCardId,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -23,6 +24,7 @@ void showHowToPlaySheet(
         scrollController: scrollController,
         yourRole: yourRole,
         initialSectionId: initialSectionId,
+        initialSpecCardId: initialSpecCardId,
       ),
     ),
   );
@@ -33,6 +35,7 @@ void openHowToPlayManual(
   BuildContext context, {
   PlayerRole? yourRole,
   String? initialSectionId,
+  String? initialSpecCardId,
   bool fullScreen = true,
 }) {
   if (fullScreen) {
@@ -40,12 +43,14 @@ void openHowToPlayManual(
       context,
       yourRole: yourRole,
       initialSectionId: initialSectionId,
+      initialSpecCardId: initialSpecCardId,
     );
   } else {
     showHowToPlaySheet(
       context,
       yourRole: yourRole,
       initialSectionId: initialSectionId,
+      initialSpecCardId: initialSpecCardId,
     );
   }
 }

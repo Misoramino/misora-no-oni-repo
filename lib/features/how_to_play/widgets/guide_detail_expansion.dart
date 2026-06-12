@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../../audio/game_audio.dart';
+import '../../../audio/sfx_id.dart';
 import '../guide_models.dart';
 
-/// 折りたたみ詳細（秒数・距離・例外など）。ExpansionTile より軽量な制御 UI。
+/// 折りたたみ詳細（秒数・距離・例外など）。
 class GuideDetailExpansion extends StatefulWidget {
   const GuideDetailExpansion({
     required this.details,
+    this.onOpenSpecCard,
     super.key,
   });
 
   final List<GuideDetailData> details;
+  final ValueChanged<String>? onOpenSpecCard;
 
   @override
   State<GuideDetailExpansion> createState() => _GuideDetailExpansionState();
@@ -29,14 +33,19 @@ class _GuideDetailExpansionState extends State<GuideDetailExpansion> {
           _DetailTile(
             data: widget.details[i],
             expanded: _open.contains(i),
-            onTap: () => setState(() {
-              if (_open.contains(i)) {
-                _open.remove(i);
-              } else {
-                _open.add(i);
-              }
-            }),
+            onTap: () {
+              final opening = !_open.contains(i);
+              setState(() {
+                if (opening) {
+                  _open.add(i);
+                } else {
+                  _open.remove(i);
+                }
+              });
+              if (opening) GameAudio.instance.playSfx(SfxId.uiTap);
+            },
             bodyStyle: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+            onOpenSpecCard: widget.onOpenSpecCard,
           ),
       ],
     );
@@ -49,12 +58,14 @@ class _DetailTile extends StatelessWidget {
     required this.expanded,
     required this.onTap,
     required this.bodyStyle,
+    this.onOpenSpecCard,
   });
 
   final GuideDetailData data;
   final bool expanded;
   final VoidCallback onTap;
   final TextStyle? bodyStyle;
+  final ValueChanged<String>? onOpenSpecCard;
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +101,26 @@ class _DetailTile extends StatelessWidget {
           if (expanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-              child: Text(data.body, style: bodyStyle),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(data.body, style: bodyStyle),
+                  if (data.specCardId != null && onOpenSpecCard != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          GameAudio.instance.playSfx(SfxId.uiTap);
+                          onOpenSpecCard!(data.specCardId!);
+                        },
+                        icon: const Icon(Icons.table_chart_outlined, size: 18),
+                        label: const Text('詳細ルールで数値を見る'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
         ],
       ),

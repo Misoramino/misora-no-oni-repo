@@ -39,7 +39,7 @@ Future<void> runPlayAreaOrbitCinema({
 
   await showGeneralDialog<void>(
     context: context,
-    barrierDismissible: true,
+    barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (_, __, ___) => _OrbitCinemaMapDialog(

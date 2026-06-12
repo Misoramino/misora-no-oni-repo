@@ -6,6 +6,7 @@ import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 import '../../../widgets/app_dialog.dart';
 import '../../tutorial/tutorial_entry.dart';
+import 'how_to_play_sheet.dart';
 
 /// 試合開始時: 役職の要点だけを短く伝える演出付きダイアログ。
 Future<void> showRoleBriefingDialog(
@@ -124,11 +125,26 @@ Future<void> showRoleBriefingDialog(
               ),
             ),
             const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  final host = context;
+                  Navigator.pop(ctx);
+                  showHowToPlaySheet(
+                    host,
+                    yourRole: role,
+                    initialSectionId: 'roles',
+                  );
+                },
+                icon: const Icon(Icons.menu_book_outlined, size: 18),
+                label: const Text('遊び方を見る'),
+              ),
+            ),
             Text(
               start.learnMoreHint,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
               ),
             ),
           ],
