@@ -1,5 +1,6 @@
 import '../../../game/game_config.dart';
 import '../../../game/game_state.dart';
+import '../../../game/match_hud_copy.dart';
 
 /// 1 ティックあたりの勝敗・エリア外判定結果。
 enum MatchTickAction {
@@ -69,10 +70,10 @@ abstract final class MatchTickEvaluator {
   static const outsideEliminationMarker = 'プレイエリア外に長時間';
 
   static String endMessageFor(MatchTickAction action) => switch (action) {
-        MatchTickAction.endRunnerWin => '逃走成功。時間切れです。',
-        MatchTickAction.endCaughtByOni => 'BLE接近で接触判定。鬼に捕まりました。',
+        MatchTickAction.endRunnerWin => MatchHudCopy.matchEndTimeUp(),
+        MatchTickAction.endCaughtByOni => MatchHudCopy.captureSucceeded,
         MatchTickAction.outsideElimination =>
-          '$outsideEliminationMarker — ルール上脱落しました。',
+          '$outsideEliminationMarker — ${MatchHudCopy.outsideEliminationSuffix}',
         _ => '',
       };
 

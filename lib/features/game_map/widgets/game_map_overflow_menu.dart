@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../../game/game_state.dart';
+import '../../../game/match_hud_copy.dart';
+import '../../../game/match_ui_terms.dart';
 
 /// ゲーム画面 AppBar の「More」メニュー。
 class GameMapOverflowMenu extends StatelessWidget {
@@ -90,7 +92,7 @@ class GameMapOverflowMenu extends StatelessWidget {
             value: 'history',
             child: ListTile(
               leading: Icon(Icons.history),
-              title: Text('位置暴露ログ'),
+              title: Text(MatchHudCopy.revealLogTitle),
               contentPadding: EdgeInsets.zero,
               dense: true,
             ),

@@ -19,6 +19,7 @@ class EliminationSupportBar extends StatelessWidget {
     this.secondaryActionLine,
     this.personalCooldownSeconds,
     this.statusLine,
+    this.onOpenTutorial,
     super.key,
   });
 
@@ -34,6 +35,7 @@ class EliminationSupportBar extends StatelessWidget {
   final String? secondaryActionLine;
   final int? personalCooldownSeconds;
   final String? statusLine;
+  final VoidCallback? onOpenTutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +79,12 @@ class EliminationSupportBar extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onOpenTutorial != null)
+                  TextButton.icon(
+                    onPressed: onOpenTutorial,
+                    icon: const Icon(Icons.school_outlined, size: 18),
+                    label: const Text('操作を練習'),
+                  ),
                 if (showResultButton && onOpenResult != null)
                   TextButton(
                     onPressed: onOpenResult,

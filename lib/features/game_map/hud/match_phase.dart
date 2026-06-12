@@ -9,7 +9,7 @@ abstract final class MatchPhase {
       final min = (remainingSeconds / 60).ceil().clamp(1, 10);
       return '残り$min分';
     }
-    if (accusationUnlocked) return '告発解禁';
+    if (accusationUnlocked) return '告発可';
     final elapsed = matchDurationSeconds - remainingSeconds;
     if (elapsed < matchDurationSeconds * 0.15) return '隠密逃走';
     return '追跡戦';

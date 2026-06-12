@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
+import '../../how_to_play/how_to_play_screen.dart';
 import '../../how_to_play/widgets/how_to_play_guide_body.dart';
 
-/// 作戦マニュアル（遊び方）ボトムシート。
+/// 作戦マニュアル（試合中など手早く開くボトムシート）。
 void showHowToPlaySheet(
   BuildContext context, {
   PlayerRole? yourRole,
@@ -25,4 +26,26 @@ void showHowToPlaySheet(
       ),
     ),
   );
+}
+
+/// 作戦マニュアルを全画面で開く（ガイドハブ・タイトル向け）。
+void openHowToPlayManual(
+  BuildContext context, {
+  PlayerRole? yourRole,
+  String? initialSectionId,
+  bool fullScreen = true,
+}) {
+  if (fullScreen) {
+    openHowToPlayScreen(
+      context,
+      yourRole: yourRole,
+      initialSectionId: initialSectionId,
+    );
+  } else {
+    showHowToPlaySheet(
+      context,
+      yourRole: yourRole,
+      initialSectionId: initialSectionId,
+    );
+  }
 }

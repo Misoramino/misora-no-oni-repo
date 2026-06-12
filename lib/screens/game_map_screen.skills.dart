@@ -327,7 +327,7 @@ extension _GameMapSkills on _GameMapScreenState {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-            'どちらも名前付きの位置露見として地図に出ます。\n'
+            'どちらも${MatchUiTerms.namedReveal}として地図に出ます。\n'
             '・自分（鬼）… 別地点に自分の名前で露出\n'
             '・逃走者ランダム… 誰か1人の名前で別地点に露出\n'
                 '相手からは偽情報とは分かりません。',
@@ -732,12 +732,12 @@ extension _GameMapSkills on _GameMapScreenState {
       );
       _skillPlacementPreviewLatLng = null;
       _statusMessage = _captureZoneLethalForLocal
-          ? '捕獲結界を設置しました'
-          : '攪乱結界を設置（${MatchUiTerms.panicMechanic}・拘束のみ・捕獲不可）';
+          ? MatchHudCopy.captureZonePlacedStatus
+          : MatchHudCopy.disruptionZonePlaced;
     });
     _emitMatchEvent(
       type: 'capture_zone_start',
-      message: '捕獲結界を設置',
+      message: MatchHudCopy.captureZonePlaced,
       position: pos,
       syncFirestore: !_isOnlineFirestore,
     );
@@ -1370,21 +1370,24 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     if (_rt.lockZoneBoundIds.contains('self') &&
         _rt.lockZoneEndsAt != null) {
-      return '捕捉ロック中: 残り ${_secondsUntil(_rt.lockZoneEndsAt)}秒 / 至近またはBLE接触で捕獲';
+      return '${MatchHudCopy.restraintLockStatusPrefix} '
+          '${_secondsUntil(_rt.lockZoneEndsAt)}'
+          '${MatchHudCopy.restraintLockStatusSuffix}';
     }
     if (_rt.touchLockNoticeShown && _rt.touchLockStartedAt != null) {
       final held = DateTime.now().difference(_rt.touchLockStartedAt!).inSeconds;
       final remain = (GameConfig.touchLockRequiredSeconds - held).clamp(0, 99);
-      return '接触圏内: あと $remain秒以内に離脱';
+      return '${MatchHudCopy.contactRingCountdownPrefix} $remain'
+          '${MatchHudCopy.contactRingCountdownSuffix}';
     }
     if (_rt.isInfectedNow) {
       final fakeNote = _rt.fakePositionActive ? ' — 露出は偽位置側' : '';
-      return '${MatchUiTerms.panicActive} (${_secondsUntil(_rt.infectionEndsAt)}秒)$fakeNote';
+      return '${MatchHudCopy.panicActiveCountdown(_secondsUntil(_rt.infectionEndsAt))}$fakeNote';
     }
     if (_localRole != PlayerRole.hunter && _rt.infectionExposureSeconds > 0) {
       final left =
           GameConfig.infectionExposureSeconds - _rt.infectionExposureSeconds;
-      return '${MatchUiTerms.panicDanger}: 至近のまま約$left秒で${MatchUiTerms.panicMechanic}（匿名痕跡）';
+      return '${MatchHudCopy.panicDangerCountdown(left)}';
     }
     if (_rt.fakePositionActive) {
       final left = _secondsUntil(_rt.fakePositionEndsAt);

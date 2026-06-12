@@ -16,12 +16,15 @@ import '../progression/progress_store.dart';
 import '../session/onboarding_prefs.dart';
 import '../features/onboarding/coach_marks.dart';
 import '../features/onboarding/welcome_flow.dart';
+import '../features/tutorial/second_game_tutorial_kind.dart';
 import '../features/tutorial/tutorial_entry.dart';
 import '../widgets/app_dialog.dart';
 import '../features/game_map/control_sheet_mode.dart';
 import '../features/game_map/map/game_map_layer_toggles.dart';
+import '../features/game_map/map/game_map_interactive_layer.dart';
 import '../features/game_map/map/game_map_overlay_builder.dart';
 import '../features/game_map/map/game_map_overlay_snapshot.dart';
+import '../features/game_map/map/game_map_overlay_visual.dart';
 import '../features/game_map/map/map_geo_format.dart';
 import '../features/game_map/logic/gimmick_relocator.dart';
 import '../features/game_map/logic/map_geo_utils.dart';
@@ -75,12 +78,13 @@ import '../features/settings/settings_hub_sheet.dart';
 import '../session/hud_display_prefs.dart';
 import '../features/game_map/widgets/game_map_overflow_menu.dart';
 import '../features/game_map/widgets/map_layer_toggle_strip.dart';
-import '../features/game_map/widgets/skill_map_placement_layer.dart';
 import '../features/game_map/widgets/prep_map_bottom_panel.dart';
 import '../features/game_map/widgets/elimination_support_bar.dart';
 import '../features/game_map/widgets/room_inspector_bar.dart';
 import '../game/accusation_sites.dart';
 import '../game/camera_jack_logic.dart';
+import '../features/how_to_play/guide_terms.dart';
+import '../game/match_hud_copy.dart';
 import '../game/match_ui_terms.dart';
 import '../game/camera_shutdown_logic.dart';
 import '../game/facility_sabotage_logic.dart';
@@ -300,6 +304,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _hudShowStatusLine = true;
   bool _hudShowConditionLine = true;
   double _mapMarkerIconScale = 1.0;
+  bool _mapLowSpecMode = false;
   HudCompactLineSlot _hudCompactLineSlot = HudCompactLineSlot.all;
 
   // --- Prep lobby & host settings ---
@@ -399,6 +404,17 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   late final AnimationController _dangerPulseController;
 
+  /// 地図マーカー／円／線だけを局所更新するためのスナップショット。
+  final ValueNotifier<GameMapOverlaySnapshot?> _mapOverlayNotifier =
+      ValueNotifier<GameMapOverlaySnapshot?>(null);
+
+  /// 大気演出のスキャン位相（親 setState を減らすため）。
+  final ValueNotifier<double> _cameraPulseNotifier = ValueNotifier(0);
+
+  int _lastMapOverlayFingerprint = 0;
+  bool _mapOverlayPublishScheduled = false;
+  LatLng? _lastSmoothOverlayPlayerPos;
+
   @override
   void initState() {
     super.initState();
@@ -468,7 +484,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           ],
           child: Text(
             '30秒でわかる、かんたんガイドを見てみませんか？\n'
-            'あとからタイトルの「ガイド・遊び方」やメニューからも見られます。',
+            'あとからタイトルの「${MatchUiTerms.guideHub}」やメニューからも見られます。',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -556,7 +572,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         targetKey: _matchOverflowKey,
         icon: Icons.more_vert_rounded,
         title: 'メニュー（⋮）',
-        body: 'サウンド設定・ガイド・遊び方・保存エリア一覧はここから。'
+        body: 'サウンド設定・${MatchUiTerms.guideHub}・保存エリア一覧はここから。'
             '試合を抜けるときは「試合中止の投票」を使ってください。',
       ),
     ]);
@@ -942,7 +958,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     MatchEndReason.caught => '鬼に捕まりました。',
     MatchEndReason.hostAbort => 'ホストが試合を中止しました。',
     MatchEndReason.accusationSuccess =>
-      '告発成功。逃走者陣営の勝利です。',
+      MatchHudCopy.matchEndAccusationSuccess(),
     _ => 'ホストが試合を終了しました。',
   };
 
@@ -1050,7 +1066,10 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   /// extension は `@protected` な `setState` を直接呼べないため経由する。
-  void _syncSetState(void Function() fn) => setState(fn);
+  void _syncSetState(void Function() fn) {
+    setState(fn);
+    _publishMapOverlay(force: true);
+  }
 
   void _pushHudRevealAlert(String message) {
     _hudRevealAlertTimer?.cancel();
@@ -1072,6 +1091,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     final profile = await WorldProfilePrefs.load();
     final hud = await HudDisplayPrefs.load();
     _mapMarkerIconScale = hud.markerIconScale;
+    _mapLowSpecMode = hud.mapLowSpecMode;
     _mapVisual.markerIconScale = hud.markerIconScale;
     await _mapVisual.reloadForProfile(profile);
     await _refreshPlayerAvatarIcon();
@@ -1092,6 +1112,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _hudShowStatusLine = hud.showStatusLine;
       _hudShowConditionLine = hud.showConditionLine;
       _mapMarkerIconScale = hud.markerIconScale;
+      _mapLowSpecMode = hud.mapLowSpecMode;
     });
     if (_mapVisual.markerIconScale != hud.markerIconScale) {
       await _applyMapMarkerIconScale(hud.markerIconScale);
@@ -1154,7 +1175,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     try {
       _mapVisual.updateZoom(await controller.getZoomLevel());
     } catch (_) {}
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _publishMapOverlay(force: true);
+    }
   }
 
   Future<void> _onCameraIdle() async {
@@ -1294,10 +1318,14 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   int get _renderPumpIntervalMs {
+    if (_mapLowSpecMode && _gameState == GameState.running) return 100;
     if (_gameState == GameState.running) return 50;
     if (_editingArea) return 100;
     return 250;
   }
+
+  double get _mapOverlayMoveThresholdMeters =>
+      _mapLowSpecMode ? 1.5 : 0.75;
 
   void _retuneRenderPump() {
     final interval = _renderPumpIntervalMs;
@@ -1316,32 +1344,43 @@ class _GameMapScreenState extends State<GameMapScreen>
   void _pulseVisualSmoothing() {
     if (!mounted || _editingArea) return;
     final running = _gameState == GameState.running;
+    var overlayDirty = false;
+
     final s = _runnerSmooth;
-    if (s == null) {
-      if (running &&
-          (_rt.bodyThrowAwaitingMapTap ||
-              (_rt.bodyThrowPosition != null && _rt.bodyThrowEndsAt != null))) {
-        setState(() {});
+    if (s != null) {
+      final blend = _visualSmoothBlend(_distanceToOni());
+      s.stepTowardTarget(blend);
+      final pos = _playerMarkerPosition;
+      final last = _lastSmoothOverlayPlayerPos;
+      if (last == null ||
+          Geolocator.distanceBetween(
+                last.latitude,
+                last.longitude,
+                pos.latitude,
+                pos.longitude,
+              ) >=
+              _mapOverlayMoveThresholdMeters) {
+        _lastSmoothOverlayPlayerPos = pos;
+        overlayDirty = true;
       }
-      return;
     }
-    final blend = _visualSmoothBlend(_distanceToOni());
-    final before = s.residualMeters;
-    s.stepTowardTarget(blend);
-    final after = s.residualMeters;
-    var shouldRepaint =
-        running || (before - after).abs() > 0.25 || !s.isNearlyThere;
-    if (running && _mapLayerToggles.cameras && _rt.cameraPositions.isNotEmpty) {
+
+    if (!_mapLowSpecMode &&
+        running &&
+        _mapLayerToggles.cameras &&
+        _rt.cameraPositions.isNotEmpty) {
       _cameraPulsePhase = (_cameraPulsePhase + 0.04) % 1.0;
-      shouldRepaint = true;
+      overlayDirty = true;
     }
+
     if (running &&
         (_rt.bodyThrowAwaitingMapTap ||
             (_rt.bodyThrowPosition != null && _rt.bodyThrowEndsAt != null))) {
-      shouldRepaint = true;
+      overlayDirty = true;
     }
-    if (shouldRepaint && (running || after > 1.2 || !s.isNearlyThere)) {
-      setState(() {});
+
+    if (overlayDirty) {
+      _publishMapOverlay();
     }
   }
 
@@ -1519,14 +1558,21 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
 
     _recordMovementBearing(next);
-    setState(() {
+    final overlayOnly = _gameState == GameState.running && !_editingArea;
+    if (overlayOnly) {
       _currentPosition = next;
-      if (!_editingArea) {
-        _statusMessage = '追跡中（GPS更新あり）';
-      }
       _lastAcceptedPositionAt = now;
       _updateGpsAccuracy(position.accuracy);
-    });
+    } else {
+      setState(() {
+        _currentPosition = next;
+        if (!_editingArea) {
+          _statusMessage = '追跡中（GPS更新あり）';
+        }
+        _lastAcceptedPositionAt = now;
+        _updateGpsAccuracy(position.accuracy);
+      });
+    }
     _advanceFakePositionDrift();
 
     _runnerSmooth ??= RunnerDisplaySmoothing(initial: next);
@@ -1566,6 +1612,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         );
         _maybePublishInspectorFeed();
       }
+    }
+    if (overlayOnly) {
+      _scheduleMapOverlayPublish();
     }
     _retuneGpsIfNeeded();
   }
@@ -1769,7 +1818,7 @@ class _GameMapScreenState extends State<GameMapScreen>
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               Text(
-                '位置暴露ログ',
+                MatchHudCopy.revealLogTitle,
                 style: theme.textTheme.titleMedium,
               ),
               Text(
@@ -1825,7 +1874,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                       child: Text(
-                        '鬼情報・位置暴露',
+                        MatchHudCopy.intelAndRevealTitle,
                         style: theme.textTheme.titleMedium,
                       ),
                     ),
@@ -1837,7 +1886,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                       child: SegmentedButton<int>(
                         segments: const [
                           ButtonSegment(value: 0, label: Text('概要')),
-                          ButtonSegment(value: 1, label: Text('暴露ログ')),
+                          ButtonSegment(
+                            value: 1,
+                            label: Text(MatchHudCopy.revealLogTitle),
+                          ),
                           ButtonSegment(value: 2, label: Text('鬼情報履歴')),
                         ],
                         selected: {t},
@@ -1860,7 +1912,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                '直近の位置暴露',
+                                '直近の${MatchUiTerms.namedReveal}',
                                 style: theme.textTheme.titleSmall,
                               ),
                               if (_rt.revealLog.isEmpty)
@@ -2530,6 +2582,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         var compactSlot = _hudCompactLineSlot;
         var layers = _mapLayerToggles;
         var iconScale = _mapMarkerIconScale;
+        var lowSpec = _mapLowSpecMode;
         var compactLineExpanded = false;
         return StatefulBuilder(
           builder: (ctx, setModal) {
@@ -2617,6 +2670,15 @@ class _GameMapScreenState extends State<GameMapScreen>
                             color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                           ),
                     ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('低スペックモード'),
+                      subtitle: const Text(
+                        '地図の更新頻度とカメラ演出を抑えて軽くします',
+                      ),
+                      value: lowSpec,
+                      onChanged: (v) => setModal(() => lowSpec = v),
+                    ),
                     const SizedBox(height: 4),
                     ExpansionTile(
                       tilePadding: EdgeInsets.zero,
@@ -2673,6 +2735,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           showStatusLine: showStatus,
                           showConditionLine: showCondition,
                           markerIconScale: iconScale,
+                          mapLowSpecMode: lowSpec,
                         );
                         setState(() {
                           _hudShowIntelLine = showIntel;
@@ -2681,7 +2744,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                           _hudCompactLineSlot = compactSlot;
                           _mapLayerToggles = layers;
                           _mapMarkerIconScale = iconScale;
+                          _mapLowSpecMode = lowSpec;
                         });
+                        _retuneRenderPump();
                         await HudDisplayPrefs.save(hud);
                         if (ctx.mounted) Navigator.pop(ctx);
                       },
@@ -2787,6 +2852,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     _renderPump?.cancel();
     _cancelCaptureBoundTimers();
     _dangerPulseController.dispose();
+    _mapOverlayNotifier.dispose();
+    _cameraPulseNotifier.dispose();
     _revealFlash.dispose();
     _proximityService.stop();
     unawaited(_bleAdvertiser.stop());
@@ -2835,6 +2902,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         : null;
     final showGameMap =
         _prepMapMode != PrepMapMode.hidden || _gameState != GameState.waiting;
+    if (showGameMap) {
+      _scheduleMapOverlayPublish();
+    }
     final mq = MediaQuery.of(context);
     final narrow = mq.size.width < 400;
     final onPrepPanel =
@@ -2861,17 +2931,23 @@ class _GameMapScreenState extends State<GameMapScreen>
                 : 'Oni Game ・ 捕獲',
           };
 
+    final blockSystemBack = running || _matchPresentationActive;
+
     return PopScope(
-      canPop: !running,
+      canPop: !blockSystemBack,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && running) {
-          _toast('試合中は端末の「戻る」では抜けません。右上の More（⋮）から「試合中止の投票」を使ってください。');
+        if (!didPop && blockSystemBack) {
+          if (_matchPresentationActive) {
+            _toast('試合開始の演出中は戻れません。');
+          } else {
+            _toast('試合中は端末の「戻る」では抜けません。右上の More（⋮）から「試合中止の投票」を使ってください。');
+          }
         }
       },
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          leading: running
+          leading: blockSystemBack
               ? const SizedBox.shrink()
               : (showGameMap || _editingArea)
               ? IconButton(
@@ -2989,12 +3065,17 @@ class _GameMapScreenState extends State<GameMapScreen>
                       return Stack(
                         fit: StackFit.expand,
                         children: [
-                          WorldMapAtmosphere(
-                            pack: _mapVisual.pack,
-                            dangerPulse: dangerExtra,
-                            revealFlashActive: _revealFlash.active,
-                            scanPhase: _cameraPulsePhase,
-                            revealNoiseSeed: _revealFlash.noiseSeed,
+                          ValueListenableBuilder<double>(
+                            valueListenable: _cameraPulseNotifier,
+                            builder: (context, scanPhase, _) {
+                              return WorldMapAtmosphere(
+                                pack: _mapVisual.pack,
+                                dangerPulse: dangerExtra,
+                                revealFlashActive: _revealFlash.active,
+                                scanPhase: scanPhase,
+                                revealNoiseSeed: _revealFlash.noiseSeed,
+                              );
+                            },
                           ),
                           if (dangerExtra > 0.05)
                             DecoratedBox(
@@ -3077,6 +3158,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                   secondaryActionLine: _eliminationSecondaryLine,
                   personalCooldownSeconds: _eliminationPersonalCooldownSeconds,
                   statusLine: _statusMessage,
+                  onOpenTutorial:
+                      secondGameTutorialKindForRule(_afterCatchRule!) != null
+                          ? _openSecondGameTutorialFromMatch
+                          : null,
                 ),
               ),
             ],
@@ -3171,7 +3256,8 @@ class _GameMapScreenState extends State<GameMapScreen>
                           : _gameState.label),
                   statusText: _statusMessage,
                   areaText: isOutBeyondGrace
-                      ? 'エリア外 +${overflowMeters.toStringAsFixed(0)}m（境界から離れすぎ）'
+                      ? '${MatchHudCopy.outsideAreaFarFromBorder} '
+                          '+${overflowMeters.toStringAsFixed(0)}m'
                       : 'エリア内',
                   areaColor: isOutBeyondGrace
                       ? Colors.red.shade700
@@ -3587,8 +3673,9 @@ class _OutsideAreaWarningBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 imminent
-                    ? 'エリア外 — あと $remain 秒で脱落'
-                    : 'エリア外 — 境界から離れています',
+                    ? '${MatchHudCopy.outsideAreaCountdownPrefix} $remain '
+                        '${MatchHudCopy.outsideAreaCountdownSuffix}'
+                    : MatchHudCopy.outsideAreaBorderHint,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,

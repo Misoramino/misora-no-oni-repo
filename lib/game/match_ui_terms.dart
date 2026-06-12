@@ -13,4 +13,19 @@ abstract final class MatchUiTerms {
   static const panicDanger = 'パニック危険';
 
   static const panicOnly = 'パニックのみ';
+
+  static const operationsManual = '作戦マニュアル';
+
+  static const guideHub = 'ガイド・遊び方';
+
+  static const restraint = '拘束';
+
+  static const capture = '捕獲';
+
+  static const anonTrace = '匿名痕跡';
+
+  static const namedReveal = '名前付き暴露';
+
+  static const learnMoreHint =
+      'くわしいルールやスキルは「チュートリアル」か ⋮ →「$guideHub」→「$operationsManual」で確認できます。';
 }

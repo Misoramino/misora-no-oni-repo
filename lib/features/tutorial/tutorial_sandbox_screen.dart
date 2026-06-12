@@ -10,6 +10,7 @@ import '../../widgets/juicy_tap.dart';
 import '../game_map/widgets/how_to_play_sheet.dart';
 import '../game_map/widgets/role_briefing_dialog.dart';
 import 'tutorial_copy.dart';
+import 'tutorial_widgets.dart';
 
 /// GPS・通信に依存しない、役職別のスクリプト型チュートリアル。
 ///
@@ -64,6 +65,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   double _travel = 0;
   bool _skillPressed = false;
   bool _finished = false;
+  double _lastUiPaintAt = 0;
 
   Color get _accent => roleAccentColor(widget.role);
   _Step get _step => _steps[_index];
@@ -130,6 +132,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     if (_finished) return;
 
     _stepElapsed += dt;
+    var dirty = false;
 
     // プレイヤー移動（タップ目標へ）。
     final target = _moveTarget;
@@ -142,6 +145,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
         final next = _player + delta / dist * step;
         _travel += step;
         _player = _clampToArea(next);
+        dirty = true;
       } else {
         _moveTarget = null;
       }
@@ -151,14 +155,22 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     switch (_step.act) {
       case _Act.flee:
         // 鬼がゆっくり追う。
-        _oni = _moveToward(_oni, _player, 0.16 * dt);
+        final nextOni = _moveToward(_oni, _player, 0.16 * dt);
+        if ((nextOni - _oni).distance > 0.0005) {
+          _oni = nextOni;
+          dirty = true;
+        }
       case _Act.chase:
         // 逃走者が逃げる。
         final away = _runner - _player;
         if (away.distance < 0.34) {
-          _runner = _clampToArea(
+          final nextRunner = _clampToArea(
             _moveToward(_runner, _runner + away, 0.22 * dt),
           );
+          if ((nextRunner - _runner).distance > 0.0005) {
+            _runner = nextRunner;
+            dirty = true;
+          }
         }
       case _Act.tapNext:
       case _Act.move:
@@ -167,17 +179,26 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     }
 
     _evaluateCompletion();
-    if (mounted) setState(() {});
+
+    final nowSec = elapsed.inMicroseconds / 1e6;
+    final animating = _step.act == _Act.flee || _step.act == _Act.chase;
+    if (dirty || animating) {
+      if (nowSec - _lastUiPaintAt >= 1 / 20) {
+        _lastUiPaintAt = nowSec;
+        if (mounted) setState(() {});
+      }
+    }
   }
 
   void _evaluateCompletion() {
     if (_stepDone) return;
     final done = switch (_step.act) {
       _Act.tapNext => false, // ボタンで進む
-      _Act.move => _travel >= 0.18,
-      _Act.pressSkill => _skillPressed,
-      _Act.flee => _stepElapsed >= 4.5,
-      _Act.chase => (_runner - _player).distance <= 0.09,
+      _Act.move => _travel >= 0.28 && _stepElapsed >= 1.5,
+      _Act.pressSkill => _skillPressed && _stepElapsed >= 1.2,
+      _Act.flee => _travel >= 0.15 && _stepElapsed >= 5.5,
+      _Act.chase =>
+        (_runner - _player).distance <= 0.07 && _stepElapsed >= 3.5,
     };
     if (done) _completeStep();
   }
@@ -285,7 +306,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
         ],
       ),
       body: _finished
-          ? _TutorialFinishPanel(
+          ? TutorialFinishPanel(
               copy: finishCopy,
               accent: _accent,
               onClose: () => Navigator.of(context).pop(),
@@ -294,11 +315,10 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
             )
           : Column(
               children: [
-                _InstructionBanner(
+                TutorialInstructionBanner(
                   text: _step.text,
                   accent: _accent,
-                  step: _index + 1,
-                  total: _steps.length,
+                  missionLabel: 'ミッション ${_index + 1}/${_steps.length}',
                   done: _stepDone,
                 ),
                 Expanded(
@@ -349,7 +369,8 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                   role: widget.role,
                   skillLabel: _skillLabel,
                   skillActive: skillActive,
-                  showNext: _step.act == _Act.tapNext,
+                  showNext:
+                      _step.act == _Act.tapNext && _stepElapsed >= 2.5,
                   onSkill: _onSkill,
                   onNext: _advance,
                   accent: _accent,
@@ -357,57 +378,6 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                 const SizedBox(height: 12),
               ],
             ),
-    );
-  }
-}
-
-class _InstructionBanner extends StatelessWidget {
-  const _InstructionBanner({
-    required this.text,
-    required this.accent,
-    required this.step,
-    required this.total,
-    required this.done,
-  });
-
-  final String text;
-  final Color accent;
-  final int step;
-  final int total;
-  final bool done;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      color: accent.withValues(alpha: 0.12),
-      child: Row(
-        children: [
-          Icon(
-            done ? Icons.check_circle_rounded : Icons.school_rounded,
-            color: done ? Colors.green.shade600 : accent,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'ミッション $step/$total',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -471,7 +441,7 @@ class _ControlBar extends StatelessWidget {
   }
 }
 
-class _PulsingWrap extends StatefulWidget {
+class _PulsingWrap extends StatelessWidget {
   const _PulsingWrap({
     required this.active,
     required this.color,
@@ -483,125 +453,21 @@ class _PulsingWrap extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_PulsingWrap> createState() => _PulsingWrapState();
-}
-
-class _PulsingWrapState extends State<_PulsingWrap>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!widget.active) return widget.child;
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withValues(alpha: 0.4 + _c.value * 0.4),
-                blurRadius: 8 + _c.value * 14,
-                spreadRadius: _c.value * 3,
-              ),
-            ],
+    if (!active) return child;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withValues(alpha: 0.85), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.35),
+            blurRadius: 10,
+            spreadRadius: 1,
           ),
-          child: child,
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
-class _TutorialFinishPanel extends StatelessWidget {
-  const _TutorialFinishPanel({
-    required this.copy,
-    required this.accent,
-    required this.onClose,
-    required this.onRetry,
-    required this.onOpenGuide,
-  });
-
-  final TutorialFinishCopy copy;
-  final Color accent;
-  final VoidCallback onClose;
-  final VoidCallback onRetry;
-  final void Function(String sectionId) onOpenGuide;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(Icons.check_circle_rounded, size: 48, color: accent),
-            const SizedBox(height: 12),
-            Text(
-              copy.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              copy.body,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
-            ),
-            const SizedBox(height: 20),
-            Text('もっと詳しく見る', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final g in copy.relatedGuides)
-                  ActionChip(
-                    avatar: const Icon(Icons.menu_book_outlined, size: 16),
-                    label: Text(g.title),
-                    onPressed: () => onOpenGuide(g.sectionId),
-                  ),
-              ],
-            ),
-            const Spacer(),
-            JuicyTap(
-              onTap: onClose,
-              sfx: SfxId.uiConfirm,
-              child: IgnorePointer(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accent,
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  onPressed: () {},
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('とじる'),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.replay_rounded),
-              label: const Text('もう一度'),
-            ),
-          ],
-        ),
+        ],
       ),
+      child: child,
     );
   }
 }

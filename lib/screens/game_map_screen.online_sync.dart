@@ -143,8 +143,8 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final cause = ev.payload['cause'] as String? ?? 'eliminated';
     if (uid == myUid && _gameState == GameState.running) {
       final msg = cause == 'accusation_hunter'
-          ? '告発により脱落 — 復讐の鬼影として戦線に残る'
-          : '脱落 — 第二ゲームへ';
+          ? '${MatchHudCopy.accusationSuccess} — ${GuideTerms.vengefulShadow}として戦線に残る'
+          : '${MatchHudCopy.captureSucceeded} — ${GuideTerms.secondGame}へ';
       _eliminateLocalParticipant(msg, cause: cause, publishOnline: false);
       return;
     }
@@ -152,7 +152,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       _rt.syncedEliminationCount += 1;
       _eliminatedUids.add(uid);
     });
-    _recordMatchFeed('誰かが脱落しました');
+    _recordMatchFeed(MatchHudCopy.eliminatedFeed);
     _maybeHostPublishAccusationUnlock();
     _maybeEndMatchForFactionElimination();
   }
@@ -174,7 +174,9 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       return;
     }
     if (_localRole == PlayerRole.hunter) {
-      _pushHudRevealAlert('告発失敗 — 誤った標的');
+      _pushHudRevealAlert(
+        '${MatchHudCopy.accusationFailed} — ${MatchHudCopy.accusationFailedDetail}',
+      );
     }
   }
 
@@ -203,7 +205,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       _statusMessage = ev.payload['message'] as String? ?? '位置情報を受信';
     });
     unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
-    _pushHudRevealAlert('$label の位置が露見しました（$reasonSummary）');
+    _pushHudRevealAlert(MatchHudCopy.namedRevealAlert(label, reasonSummary));
     HapticFeedback.mediumImpact();
     GameAudio.instance.playSfx(SfxId.reveal);
   }
@@ -243,10 +245,11 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         ),
       );
       if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
-      _statusMessage = narrative.isNotEmpty ? narrative : '位置が露見';
+      _statusMessage =
+          narrative.isNotEmpty ? narrative : MatchHudCopy.anonTraceFallback;
     });
     unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
-    _pushHudRevealAlert('$label の位置が露見しました（$summary）');
+    _pushHudRevealAlert(MatchHudCopy.namedRevealAlert(label, summary));
     HapticFeedback.mediumImpact();
     GameAudio.instance.playSfx(SfxId.reveal);
   }

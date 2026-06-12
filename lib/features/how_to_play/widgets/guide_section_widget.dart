@@ -32,39 +32,70 @@ class GuideSectionWidget extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: theme.copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          key: ValueKey('${section.id}-$expanded'),
-          initiallyExpanded: expanded,
-          onExpansionChanged: onExpansionChanged,
-          leading: Icon(section.icon, color: scheme.primary),
-          title: Text(
-            section.title,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            section.oneLine,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              height: 1.35,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => onExpansionChanged(!expanded),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(section.icon, color: scheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          section.title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          section.oneLine,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (section.sectionDiagram != null)
-              GuideDiagramSlot(data: section.sectionDiagram!),
-            for (final card in section.cards) GuideCard(data: card),
-            if (section.id == 'roles') _RoleBriefingsPanel(yourRole: yourRole),
-            if (section.details.isNotEmpty)
-              GuideDetailExpansion(details: section.details),
-            GuideRelatedLinks(
-              relatedSectionIds: section.relatedSectionIds,
-              onSectionTap: onRelatedSectionTap,
+          if (expanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (section.sectionDiagram != null)
+                    GuideDiagramSlot(data: section.sectionDiagram!),
+                  for (final card in section.cards) GuideCard(data: card),
+                  if (section.id == 'roles')
+                    _RoleBriefingsPanel(yourRole: yourRole),
+                  if (section.details.isNotEmpty)
+                    GuideDetailExpansion(details: section.details),
+                  GuideRelatedLinks(
+                    relatedSectionIds: section.relatedSectionIds,
+                    onSectionTap: onRelatedSectionTap,
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

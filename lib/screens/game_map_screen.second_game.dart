@@ -51,7 +51,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
     SystemSound.play(SystemSoundType.alert);
     GameAudio.instance.playSfx(SfxId.eliminated);
     if (cause != 'accusation_failed') {
-      _recordMatchFeed('脱落 — ${rule.label}');
+      _recordMatchFeed('${MatchHudCopy.captureSucceeded} — ${rule.label}');
     }
     if (!_rejoinRestoringEvents) {
       unawaited(_onSecondGameIntroAfterElimination());
@@ -94,14 +94,13 @@ extension _GameMapSecondGame on _GameMapScreenState {
   ) {
     final copy = EliminationRoleCopy.forProfile(_mapVisual.pack.profile, rule);
     return switch (rule) {
-      EliminationAftermathRule.spectralOperative =>
-        '捕獲 — ${copy.roleTitle}として戦線に残ります。監視端子と告発施設を使えます。',
+      EliminationAftermathRule.spectralOperative ||
       EliminationAftermathRule.revenantOni =>
-        '捕獲 — ${copy.roleTitle}として戦線に残ります。告発妨害とカメラ停止が使えます。',
+        MatchHudCopy.eliminationCaptured(copy.roleTitle, copy.roleSubtitle),
       EliminationAftermathRule.ghostSpectator =>
-        '脱落 — ${copy.roleTitle}として観戦します。試合終了までお待ちください。',
+        MatchHudCopy.eliminationSpectator(copy.roleTitle),
       EliminationAftermathRule.joinOni =>
-        '脱落 — ${copy.roleTitle}として鬼側の索敵を支援します。',
+        MatchHudCopy.eliminationJoinOni(copy.roleTitle),
     };
   }
 
@@ -316,7 +315,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
         _syncSetState(() {
           _rt.spectralTerritoryChargeSiteIndex = i;
           _rt.spectralTerritoryChargeStartedAt = now;
-          _statusMessage = '告発施設で陣取りチャージ中…';
+          _statusMessage = MatchHudCopy.spectralTerritoryCharging;
         });
         return;
       }
@@ -331,7 +330,9 @@ extension _GameMapSecondGame on _GameMapScreenState {
       _rt.lastSpectralTerritoryAt = now;
       _rt.spectralTerritoryMatchUses += 1;
       _rt.accusationTerritoryBonus += 1;
-      _statusMessage = '陣取り成功 — 有効告発施設が増える方向へ';
+      _statusMessage =
+          '${MatchHudCopy.spectralTerritorySuccess} — '
+          '${MatchHudCopy.spectralTerritorySuccessDetail}';
     });
     _refreshAccusationSitesAfterTerritoryChange();
     unawaited(_publishSpectralTerritory(siteIndex: siteIndex));
@@ -361,7 +362,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
       _rt.accusationTerritoryBonus += 1;
     });
     _refreshAccusationSitesAfterTerritoryChange();
-    _pushHudRevealAlert('残響体が告発施設を陣取った');
+    _pushHudRevealAlert(MatchHudCopy.spectralTerritoryFeed);
   }
 
   void _evaluateFacilitySabotage() {
@@ -425,7 +426,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
         _syncSetState(() {
           _rt.revenantSabotageSiteIndex = i;
           _rt.revenantSabotageStartedAt = now;
-          _statusMessage = '告発施設で妨害チャージ中…';
+          _statusMessage = MatchHudCopy.facilitySabotageCharging;
         });
         return;
       }
@@ -440,7 +441,9 @@ extension _GameMapSecondGame on _GameMapScreenState {
       _rt.lastRevenantSabotageAt = now;
       _rt.revenantSabotageMatchUses += 1;
       _rt.accusationTerritoryBonus -= 1;
-      _statusMessage = '告発妨害 — 有効告発施設が減る方向へ';
+      _statusMessage =
+          '${MatchHudCopy.facilitySabotageSuccess} — '
+          '${MatchHudCopy.facilitySabotageSuccessDetail}';
     });
     _refreshAccusationSitesAfterTerritoryChange();
     unawaited(_publishFacilitySabotage(siteIndex: siteIndex));
@@ -470,7 +473,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
       _rt.accusationTerritoryBonus -= 1;
     });
     _refreshAccusationSitesAfterTerritoryChange();
-    _pushHudRevealAlert('復讐の鬼影が告発施設を妨害した');
+    _pushHudRevealAlert(MatchHudCopy.facilitySabotageFeed);
   }
 
   void _evaluateCameraShutdown() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/location_reveal_event.dart';
+import '../../../game/match_ui_terms.dart';
 import '../../../game/match_event.dart';
 
 /// 暴露・試合イベントを時系列で並べた簡易タイムライン。
@@ -25,7 +26,9 @@ class MatchFlowTimeline extends StatelessWidget {
         _FlowItem(
           at: r.timestamp,
           icon: Icons.location_on_outlined,
-          title: r.playerLabel.isNotEmpty ? r.playerLabel : '位置暴露',
+          title: r.playerLabel.isNotEmpty
+              ? r.playerLabel
+              : MatchUiTerms.namedReveal,
           subtitle: r.reasonSummary ?? '',
         ),
       );

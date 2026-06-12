@@ -40,7 +40,7 @@ void main() {
         remainingSeconds: 900,
         matchDurationSeconds: 2700,
       ),
-      '告発解禁',
+      '告発可',
     );
     expect(
       MatchPhase.label(

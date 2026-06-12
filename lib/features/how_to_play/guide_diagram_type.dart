@@ -1,15 +1,19 @@
 /// 作戦マニュアル図解の種類（Phase B で各タイプの Widget を実装）。
 enum GuideDiagramType {
   informationTypes,
+  infoStrength,
+  infoTraceChain,
   combatDanger,
   outsideAreaFlow,
   accusationFlow,
   secondGameBranch,
   facilityRoles,
+  mapConcept,
   werewolfNotOni,
   skillPlacement,
   factionWin,
   introClues,
   roleOverview,
   skillOverview,
+  onlineMatch,
 }

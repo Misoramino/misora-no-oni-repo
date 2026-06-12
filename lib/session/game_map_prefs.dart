@@ -30,4 +30,6 @@ abstract final class GameMapPrefs {
   static const skipLobbyNavHint = 'skip_lobby_nav_hint_v1';
   /// オフライン準備の試合時間（秒）。オンライン試合中はホスト設定が優先。
   static const matchDurationSeconds = 'match_duration_seconds_v1';
+  /// 低スペック端末向け：地図アニメ・更新頻度を抑える。
+  static const mapLowSpecMode = 'map_low_spec_mode_v1';
 }

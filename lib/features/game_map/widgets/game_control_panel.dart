@@ -369,7 +369,7 @@ class GameControlPanel extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onOpenHelp,
                     icon: const Icon(Icons.help_outline, size: 18),
-                    label: const Text('遊び方'),
+                    label: const Text('作戦マニュアル'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -436,7 +436,7 @@ class GameControlPanel extends StatelessWidget {
                     onPressed: onOpenHelp,
                     icon: Icon(Icons.help_outline, size: 18, color: fgMuted),
                     label: Text(
-                      '遊び方',
+                      '作戦マニュアル',
                       style: TextStyle(color: fgMuted, fontSize: 12),
                     ),
                   ),

@@ -139,7 +139,8 @@ class PrepMapToolsPanel extends StatelessWidget {
               TextButton.icon(
                 onPressed: onOpenHelp,
                 icon: Icon(Icons.help_outline, size: 18, color: fg),
-                label: Text('遊び方', style: TextStyle(color: fg, fontSize: 12)),
+                label: Text('作戦マニュアル',
+                    style: TextStyle(color: fg, fontSize: 12)),
               ),
             ],
           ),

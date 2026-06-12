@@ -8,6 +8,8 @@ import '../guide_terms.dart';
 Widget buildGuideDiagram(BuildContext context, GuideDiagramType type) {
   return switch (type) {
     GuideDiagramType.informationTypes => const InformationTypesDiagram(),
+    GuideDiagramType.infoStrength => const InformationStrengthDiagram(),
+    GuideDiagramType.infoTraceChain => const TraceChainDiagram(),
     GuideDiagramType.combatDanger => const CombatDangerDiagram(),
     GuideDiagramType.outsideAreaFlow => const OutsideAreaFlowDiagram(),
     GuideDiagramType.accusationFlow => const AccusationFlowDiagram(),
@@ -15,10 +17,12 @@ Widget buildGuideDiagram(BuildContext context, GuideDiagramType type) {
     GuideDiagramType.factionWin => const FactionWinDiagram(),
     GuideDiagramType.introClues => const IntroCluesDiagram(),
     GuideDiagramType.facilityRoles => const FacilityRolesDiagram(),
+    GuideDiagramType.mapConcept => const HelpMapConceptDiagram(),
     GuideDiagramType.werewolfNotOni => const WerewolfNotOniDiagram(),
     GuideDiagramType.skillPlacement => const SkillPlacementDiagram(),
     GuideDiagramType.roleOverview => const RoleOverviewDiagram(),
     GuideDiagramType.skillOverview => const SkillOverviewDiagram(),
+    GuideDiagramType.onlineMatch => const OnlineMatchDiagram(),
   };
 }
 
@@ -181,6 +185,143 @@ class _DangerBand extends StatelessWidget {
 
 // --- priority 5 diagrams ---
 
+/// DIA-INFO-003: 情報の強さ
+class InformationStrengthDiagram extends StatelessWidget {
+  const InformationStrengthDiagram({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    const rows = [
+      (Icons.person_pin_circle_outlined, '名前付き暴露', 1.0),
+      (Icons.storefront_outlined, '情報屋ヒント', 0.82),
+      (Icons.videocam_outlined, '監視カメラ', 0.64),
+      (Icons.help_outline, GuideTerms.anonTrace, 0.46),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '強い情報',
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: scheme.primary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        for (final row in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Icon(row.$1, size: 18, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(row.$2, style: theme.textTheme.bodySmall),
+                ),
+                SizedBox(
+                  width: 72,
+                  child: LinearProgressIndicator(
+                    value: row.$3,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Text(
+          '弱い情報',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${GuideTerms.anonTrace}は1つだけでは弱いですが、'
+          '複数つなぐと移動方向が見えます。',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// DIA-INFO-004: 痕跡をつなぐ
+class TraceChainDiagram extends StatelessWidget {
+  const TraceChainDiagram({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < 3; i++) ...[
+          Column(
+            children: [
+              Icon(Icons.help_outline, color: scheme.tertiary, size: 22),
+              const SizedBox(height: 2),
+              Text('？', style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ),
+          if (i < 2)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: scheme.outline,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// DIA-ONLINE-001: 試合中止と記録
+class OnlineMatchDiagram extends StatelessWidget {
+  const OnlineMatchDiagram({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        const HelpFlowDiagram(
+          steps: [
+            (icon: Icons.how_to_vote_outlined, label: '過半数で中止', color: null),
+            (
+              icon: Icons.block_outlined,
+              label: '勝敗・戦績なし',
+              color: Color(0xFFE88B2E),
+            ),
+            (
+              icon: Icons.photo_library_outlined,
+              label: '同意時はギャラリー',
+              color: null,
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '再接続時は経過時間や脱落後の状態が復元されます。',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.35,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
 /// DIA-INFO-002: 名前付き暴露と匿名痕跡
 class InformationTypesDiagram extends StatelessWidget {
   const InformationTypesDiagram({super.key});
@@ -269,7 +410,7 @@ class CombatDangerDiagram extends StatelessWidget {
         const _DangerBand(
           color: _restraint,
           label: '🟠 拘束',
-          note: '接触が続くと拘束。逃げ切ればセーフ',
+          note: '円の外へ出て逃げ切ればセーフ（戻る必要はない）',
         ),
         const _DangerBand(
           color: _panic,

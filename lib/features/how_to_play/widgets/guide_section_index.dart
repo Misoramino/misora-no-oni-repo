@@ -8,11 +8,13 @@ class GuideSectionIndex extends StatelessWidget {
     required this.sections,
     required this.prompt,
     required this.onSectionTap,
+    this.footer,
     super.key,
   });
 
   final List<GuideSectionData> sections;
   final String prompt;
+  final String? footer;
   final ValueChanged<String> onSectionTap;
 
   @override
@@ -27,6 +29,15 @@ class GuideSectionIndex extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
+        if (footer != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            footer!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Wrap(
           spacing: 6,

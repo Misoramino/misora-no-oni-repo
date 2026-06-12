@@ -47,9 +47,19 @@ Future<void> showGuideHubSheet(
                 subtitle: const Text('勝ち方・情報戦・告発・詳細ルール'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  showHowToPlaySheet(
+                  openHowToPlayManual(context, yourRole: yourRole);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.view_agenda_outlined),
+                title: const Text('作戦マニュアル（シート）'),
+                subtitle: const Text('試合中と同じボトムシート表示'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  openHowToPlayManual(
                     context,
                     yourRole: yourRole,
+                    fullScreen: false,
                   );
                 },
               ),

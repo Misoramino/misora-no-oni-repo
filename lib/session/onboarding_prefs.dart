@@ -7,6 +7,10 @@ abstract final class OnboardingPrefs {
   static const _coachKey = 'onboarding_coach_marks_seen_v1';
   static const _matchCoachKey = 'onboarding_match_coach_marks_seen_v1';
   static const _accusationIntroKey = 'onboarding_accusation_intro_seen_v1';
+  static const _echoTutorialOfferKey =
+      'onboarding_echo_tutorial_offer_seen_v1';
+  static const _shadowTutorialOfferKey =
+      'onboarding_shadow_tutorial_offer_seen_v1';
 
   static Future<bool> welcomeSeen() => _get(_welcomeKey);
   static Future<void> markWelcomeSeen() => _set(_welcomeKey, true);
@@ -24,6 +28,13 @@ abstract final class OnboardingPrefs {
   static Future<bool> accusationIntroSeen() => _get(_accusationIntroKey);
   static Future<void> markAccusationIntroSeen() =>
       _set(_accusationIntroKey, true);
+
+  /// 初回脱落時の第二ゲームチュートリアル案内を表示済みか。
+  static Future<bool> secondGameTutorialOfferSeen(String prefsKey) =>
+      _get(prefsKey);
+
+  static Future<void> markSecondGameTutorialOfferSeen(String prefsKey) =>
+      _set(prefsKey, true);
 
   static Future<void> resetPrepCoachMarks() async {
     final prefs = await SharedPreferences.getInstance();
@@ -44,7 +55,16 @@ abstract final class OnboardingPrefs {
     await prefs.remove(_coachKey);
     await prefs.remove(_matchCoachKey);
     await prefs.remove(_accusationIntroKey);
+    await prefs.remove(_echoTutorialOfferKey);
+    await prefs.remove(_shadowTutorialOfferKey);
   }
+
+  static String secondGameTutorialOfferKeyFor(String kindName) =>
+      switch (kindName) {
+        'echoForm' => _echoTutorialOfferKey,
+        'vengefulShadow' => _shadowTutorialOfferKey,
+        _ => _echoTutorialOfferKey,
+      };
 
   static Future<bool> _get(String key) async {
     final prefs = await SharedPreferences.getInstance();

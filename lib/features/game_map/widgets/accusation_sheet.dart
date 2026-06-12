@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../audio/sfx_id.dart';
+import '../../../features/how_to_play/guide_terms.dart';
 import '../../../game/accusation_weight.dart';
 import '../../../theme/accusation_facility_copy.dart';
 import '../../../widgets/app_dialog.dart';
@@ -42,6 +43,13 @@ Future<String?> showAccusationPlayerSheet({
                 Text(
                   copy.accuseActionLabel,
                   style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  AccusationFacilityCopy.accuseTargetLine,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -109,7 +117,7 @@ Future<bool> showAccusationConfirmDialog({
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '「$targetLabel」を鬼として告発します。',
+              '「$targetLabel」を${GuideTerms.trueOni}として告発します。',
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w600,
               ),

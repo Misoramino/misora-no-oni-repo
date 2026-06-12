@@ -133,16 +133,16 @@ extension _GameMapPresentation on _GameMapScreenState {
     }
 
     if (!rejoin) {
+      await showMatchStartCountdown(
+        context: context,
+        profile: _activeProfile,
+        pack: _mapVisual.pack,
+      );
+      if (!mounted) return;
       await _maybeShowPreMatchRoleBriefing(rejoin: rejoin);
       if (!mounted) return;
     }
 
-    await showMatchStartCountdown(
-      context: context,
-      profile: _activeProfile,
-      pack: _mapVisual.pack,
-    );
-    if (!mounted) return;
     await WorldPhaseFlash.pulse(context, profile: _activeProfile);
     } finally {
       _matchPresentationActive = false;

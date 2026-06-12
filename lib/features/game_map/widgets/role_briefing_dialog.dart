@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
@@ -33,16 +31,8 @@ Future<void> showRoleBriefingDialog(
         accent: accent,
         actions: [
           AppDialogAction(
-            label: 'チュートリアル',
-            filled: false,
-            icon: Icons.school_rounded,
-            onPressed: () {
-              Navigator.pop(ctx);
-              unawaited(openTutorialPicker(context));
-            },
-          ),
-          AppDialogAction(
-            label: '了解',
+            label: '了解して開始',
+            filled: true,
             icon: Icons.play_arrow_rounded,
             onPressed: () => Navigator.pop(ctx),
           ),
@@ -117,7 +107,23 @@ Future<void> showRoleBriefingDialog(
                 ],
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () async {
+                  await openTutorialPicker(context);
+                },
+                icon: const Icon(Icons.school_rounded),
+                label: const Text('1分チュートリアルで練習する'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               start.learnMoreHint,
               style: theme.textTheme.bodySmall?.copyWith(

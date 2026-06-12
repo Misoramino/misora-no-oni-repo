@@ -2,6 +2,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../game/game_config.dart';
 import '../../../game/game_state.dart';
+import '../../../game/match_hud_copy.dart';
 import '../../../game/play_area.dart';
 import '../../../proximity/proximity_signal.dart';
 import 'camera_trigger_evaluator.dart';
@@ -77,7 +78,10 @@ class GameMapMatchController {
             runtime.lastOutsideRevealAt = null;
             effects.add(const MatchConsumeSafeChargeEffect());
             effects.add(
-              const MatchStatusMessageEffect('安全地帯チャージを消費して位置暴露を回避しました'),
+              const MatchStatusMessageEffect(
+                '${MatchHudCopy.safeChargeConsumed} — '
+                '${MatchHudCopy.safeChargeConsumedDetail}',
+              ),
             );
           }
         case MatchTickAction.triggerLocationReveal:
@@ -154,7 +158,7 @@ class GameMapMatchController {
         MatchCameraSpottedEffect(
           index: i,
           position: p,
-          message: '監視カメラ: プレイヤーが監視地点${i + 1}に現れた',
+          message: MatchHudCopy.cameraSpottedMessage(i),
         ),
       );
     }
@@ -187,18 +191,25 @@ class GameMapMatchController {
       effects.add(
         MatchEmitEventEffect(
           type: 'touch_lock_start',
-          message:
-              '接触圏 ${touchOutcome.radiusMeters.toStringAsFixed(0)}m → 拘束 ${touchOutcome.restraintRadiusMeters.toStringAsFixed(0)}m（${touchOutcome.bindDurationSeconds}秒）',
+          message: MatchHudCopy.touchLockEvent(
+            touchRadiusMeters: touchOutcome.radiusMeters,
+            restraintRadiusMeters: touchOutcome.restraintRadiusMeters,
+            bindDurationSeconds: touchOutcome.bindDurationSeconds,
+          ),
           position: playerPosition,
         ),
       );
       effects.add(
         const MatchStatusMessageEffect(
-          '鬼に拘束されました。至近距離または BLE 接触で捕獲。スキルの捕獲結界とは別です。',
+          '${MatchHudCopy.restraintStarted} — ${MatchHudCopy.restraintStartedDetail}',
         ),
       );
     } else if (touchOutcome is SkillTickTouchLockNotice) {
-      effects.add(const MatchStatusMessageEffect('鬼の接触圏に入りました。離脱してください。'));
+      effects.add(
+        const MatchStatusMessageEffect(
+          '${MatchHudCopy.contactRingEntered} — ${MatchHudCopy.contactRingEnteredDetail}',
+        ),
+      );
     }
 
     final gpsToOni = MatchGeoHelpers.distanceToOni(
@@ -262,7 +273,7 @@ class GameMapMatchController {
     )) {
       runtime.safeZoneAvailable = true;
       runtime.safeZoneRespawnAt = null;
-      effects.add(const MatchStatusMessageEffect('安全地帯が再出現しました'));
+      effects.add(const MatchStatusMessageEffect(MatchHudCopy.safeZoneRespawned));
     }
     if (GimmickPickupEvaluator.shouldRespawn(
       available: runtime.infoBrokerAvailable,
@@ -271,7 +282,7 @@ class GameMapMatchController {
     )) {
       runtime.infoBrokerAvailable = true;
       runtime.infoBrokerRespawnAt = null;
-      effects.add(const MatchStatusMessageEffect('情報屋が再出現しました'));
+      effects.add(const MatchStatusMessageEffect(MatchHudCopy.infoBrokerRespawned));
     }
   }
 
@@ -284,17 +295,19 @@ class GameMapMatchController {
       SkillTickFakeEnded() => [
         MatchEmitEventEffect(
           type: 'fake_end',
-          message: '偽位置スキルが終了',
+          message: MatchHudCopy.fakePositionEndedEvent,
           position: playerPosition,
         ),
-        const MatchStatusMessageEffect('偽位置スキル終了'),
+        const MatchStatusMessageEffect(MatchHudCopy.fakePositionEnded),
       ],
       SkillTickWerewolfEnded() => const [],
       SkillTickCaptureZoneEnded(:final placedBySkill) => [
         MatchEmitEventEffect(
           type: 'capture_zone_end',
           message:
-              placedBySkill ? '捕獲結界が終了' : '接触拘束が解除',
+              placedBySkill
+                  ? MatchHudCopy.captureZoneEnded
+                  : MatchHudCopy.touchRestraintReleased,
           position: playerPosition,
         ),
       ],
@@ -302,30 +315,30 @@ class GameMapMatchController {
         MatchLocationRevealEmitEffect(
           type: 'capture_zone_escape',
           message: placedBySkill
-              ? '捕獲結界から離脱して位置暴露'
-              : '接触拘束から離脱して位置暴露',
+              ? MatchHudCopy.captureZoneEscapeReveal
+              : MatchHudCopy.touchRestraintEscapeReveal,
         ),
       ],
       SkillTickCaptureZoneGameOver(:final placedBySkill) => [
         MatchEndEffect(
           state: GameState.caughtByOni,
           message: placedBySkill
-              ? '捕獲結界から長時間離脱しました。'
-              : '接触拘束から長時間離脱しました。',
+              ? MatchHudCopy.captureZoneLongEscape
+              : MatchHudCopy.touchRestraintLongEscape,
           heavyHaptic: false,
         ),
       ],
       SkillTickBodyThrowMiss(:final puppetPosition) => [
         MatchLocationRevealEmitEffect(
           type: 'body_throw_miss',
-          message: '体投げ未回収で位置暴露（人形側）',
+          message: MatchHudCopy.bodyThrowMissReveal,
           position: puppetPosition,
         ),
       ],
       SkillTickBodyThrowPlacementTimeout(:final playerPositionAtCast) => [
         MatchLocationRevealEmitEffect(
           type: 'body_throw_placement_timeout',
-          message: '体投げ: 配置の時間切れで位置が露見（発動地点）',
+          message: MatchHudCopy.bodyThrowTimeoutReveal,
           position: playerPositionAtCast,
         ),
       ],
@@ -338,10 +351,10 @@ class GameMapMatchController {
       SkillTickInfectionStarted() => [
         MatchEmitEventEffect(
           type: 'panic_start',
-          message: 'パニック状態に入った',
+          message: MatchHudCopy.panicStartedEvent,
           position: playerPosition,
         ),
-        const MatchStatusMessageEffect('パニック: 名前のない位置痕跡が出やすくなります'),
+        const MatchStatusMessageEffect(MatchHudCopy.panicStartedStatus),
       ],
     };
   }

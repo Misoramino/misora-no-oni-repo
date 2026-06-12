@@ -106,7 +106,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     }
     HapticFeedback.mediumImpact();
     GameAudio.instance.playSfx(SfxId.unlock);
-    _recordMatchFeed('告発解禁 — ${copy.facilityName}');
+    _recordMatchFeed(MatchHudCopy.accusationUnlockFeed(copy.facilityName));
   }
 
   Future<void> _promptAccusationAtSite(int siteIndex) async {
@@ -122,7 +122,9 @@ extension _GameMapAccusation on _GameMapScreenState {
     }
     if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
       _syncSetState(
-        () => _statusMessage = '生存中の鬼が施設付近にいるため、ここでは告発できません',
+        () => _statusMessage =
+            '${MatchHudCopy.accusationFacilityBlocked} — '
+            '${MatchHudCopy.accusationFacilityBlockedDetail}',
       );
       return;
     }
@@ -188,7 +190,11 @@ extension _GameMapAccusation on _GameMapScreenState {
       return;
     }
     if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
-      _syncSetState(() => _statusMessage = '生存中の鬼が施設付近にいるため、ここでは告発できません');
+      _syncSetState(
+        () => _statusMessage =
+            '${MatchHudCopy.accusationFacilityBlocked} — '
+            '${MatchHudCopy.accusationFacilityBlockedDetail}',
+      );
       return;
     }
     unawaited(_promptAccusationAtSite(siteIndex));
@@ -211,7 +217,7 @@ extension _GameMapAccusation on _GameMapScreenState {
           uid: e.key,
           label: label,
           selectable: false,
-          disabledReason: '人狼は告発不可',
+          disabledReason: MatchHudCopy.accusationWerewolfDisabled,
         ));
       } else {
         candidates.add((uid: e.key, label: label, selectable: true, disabledReason: null));
@@ -252,7 +258,10 @@ extension _GameMapAccusation on _GameMapScreenState {
     required int siteIndex,
   }) async {
     if (_isAccusationSiteBlockedByLiveHunter(siteIndex)) {
-      _toast('生存中の鬼が施設付近にいます。別の施設を使うか、鬼を引き離してください');
+      _toast(
+        '${MatchHudCopy.accusationFacilityBlocked}。'
+        '${MatchHudCopy.accusationFacilityBlockedDetail}',
+      );
       return;
     }
     _syncSetState(() => _rt.accusationSpentByMe = true);
@@ -300,7 +309,7 @@ extension _GameMapAccusation on _GameMapScreenState {
         case AccusationWeight.instantWin:
           _endGame(
             GameState.runnerWin,
-            '${copy.facilityName}: 告発成功',
+            '${MatchHudCopy.accusationSuccess} — ${copy.facilityName}',
             endReason: MatchEndReason.accusationSuccess,
           );
         case AccusationWeight.eliminateOni:
@@ -309,12 +318,12 @@ extension _GameMapAccusation on _GameMapScreenState {
             cause: 'accusation_hunter',
           ));
           _notifyAccusationSuccess(
-            '${copy.facilityName}: 告発成功 — 鬼を脱落（試合継続）',
+            '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
           );
         case AccusationWeight.points:
           _applyAccusationPointDelta(delta: 1);
           _notifyAccusationSuccess(
-            '${copy.facilityName}: 告発成功 — ポイント ${_rt.accusationPointsHuman}',
+            '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
           );
       }
       return;
@@ -337,7 +346,7 @@ extension _GameMapAccusation on _GameMapScreenState {
         case AccusationWeight.instantWin:
           _endGame(
             GameState.runnerWin,
-            '告発成功（ローカル）',
+            '${MatchHudCopy.accusationSuccess}（ローカル）',
             endReason: MatchEndReason.accusationSuccess,
             skipFirestoreSync: true,
           );
@@ -352,11 +361,13 @@ extension _GameMapAccusation on _GameMapScreenState {
             _eliminatedUids.add(accusedUid);
             _rt.syncedEliminationCount += 1;
           }
-          _notifyAccusationSuccess('告発成功 — 鬼を脱落（試合継続）');
+          _notifyAccusationSuccess(
+            '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
+          );
         case AccusationWeight.points:
           _applyAccusationPointDelta(delta: 1);
           _notifyAccusationSuccess(
-            '告発成功 — ポイント ${_rt.accusationPointsHuman}',
+            '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
           );
       }
       return;
@@ -411,17 +422,17 @@ extension _GameMapAccusation on _GameMapScreenState {
     if (accuserUid != myUid && accuserUid != 'local') return;
     if (_accusationWeight.eliminatesAccuserOnFailure) {
       _eliminateLocalParticipant(
-        '告発失敗 — 残響体として戦線に残る',
+        '${MatchHudCopy.accusationFailed} — ${GuideTerms.echoForm}として戦線に残る',
         cause: 'accusation_failed',
       );
-      _recordMatchFeed('告発失敗 — 告発者が脱落');
+      _recordMatchFeed(MatchHudCopy.accusationFailedFeed);
       return;
     }
     if (!mounted) return;
     _syncSetState(() {
-      _statusMessage = '告発失敗 — この試合では告発済み';
+      _statusMessage = '${MatchHudCopy.accusationFailed} — ${MatchHudCopy.accusationSpent}';
     });
-    _recordMatchFeed('告発失敗 — 告発権を使い切りました');
+    _recordMatchFeed('${MatchHudCopy.accusationFailed} — ${MatchHudCopy.accusationSpent}');
   }
 
   Future<void> _publishAccusationFailed({required String accuserUid}) async {

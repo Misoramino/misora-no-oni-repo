@@ -5,6 +5,17 @@ import '../guide_sections.dart';
 import 'guide_header_card.dart';
 import 'guide_section_index.dart';
 import 'guide_section_widget.dart';
+import 'guide_your_role_card.dart';
+
+/// 章インデックスに出す優先6項目（全12章は下の一覧）。
+const guideIndexSectionIds = [
+  'win',
+  'info',
+  'combat',
+  'accusation',
+  'roles',
+  'spec',
+];
 
 /// 作戦マニュアルの本文（ボトムシート・将来の専用画面で共用）。
 class HowToPlayGuideBody extends StatefulWidget {
@@ -28,6 +39,10 @@ class HowToPlayGuideBody extends StatefulWidget {
 class _HowToPlayGuideBodyState extends State<HowToPlayGuideBody> {
   late final Map<String, bool> _expanded;
 
+  final _sectionKeys = <String, GlobalKey>{
+    for (final s in howToPlaySections) s.id: GlobalKey(),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -37,56 +52,85 @@ class _HowToPlayGuideBodyState extends State<HowToPlayGuideBody> {
     final jump = widget.initialSectionId;
     if (jump != null && howToPlaySections.any((s) => s.id == jump)) {
       _expanded[jump] = true;
-      // ボトムシート初回レイアウト後にスクロールするため2フレーム待つ。
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _openSection(jump));
+        _openSection(jump, scrollOnly: false);
       });
     }
   }
 
-  void _openSection(String id) {
-    setState(() => _expanded[id] = true);
+  void _openSection(String id, {bool scrollOnly = false}) {
+    if (!scrollOnly) {
+      setState(() => _expanded[id] = true);
+    }
+    _scrollToSection(id, attempt: 0);
+  }
+
+  void _scrollToSection(String id, {required int attempt}) {
+    if (attempt > 8 || !mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final ctx = _sectionKeys[id]?.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          alignment: 0.05,
-        );
+      if (ctx == null) {
+        _scrollToSection(id, attempt: attempt + 1);
+        return;
       }
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.02,
+      );
     });
   }
 
-  final _sectionKeys = <String, GlobalKey>{
-    for (final s in howToPlaySections) s.id: GlobalKey(),
-  };
-
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    final indexSections = [
+      for (final id in guideIndexSectionIds)
+        if (guideSectionById(id) != null) guideSectionById(id)!,
+    ];
+
+    return CustomScrollView(
       controller: widget.scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-      children: [
-        GuideHeaderCard(data: guideHeader),
-        GuideSectionIndex(
-          sections: howToPlaySections,
-          prompt: guideHeader.indexPrompt,
-          onSectionTap: _openSection,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              GuideHeaderCard(data: guideHeader),
+              if (widget.yourRole != null)
+                GuideYourRoleCard(role: widget.yourRole!),
+              GuideSectionIndex(
+                sections: indexSections,
+                prompt: guideHeader.indexPrompt,
+                footer: '下に全12章の一覧があります。',
+                onSectionTap: _openSection,
+              ),
+            ]),
+          ),
         ),
-        for (final section in howToPlaySections)
-          KeyedSubtree(
-            key: _sectionKeys[section.id],
-            child: GuideSectionWidget(
-              section: section,
-              expanded: _expanded[section.id] ?? false,
-              onExpansionChanged: (v) =>
-                  setState(() => _expanded[section.id] = v),
-              onRelatedSectionTap: _openSection,
-              yourRole: widget.yourRole,
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final section = howToPlaySections[index];
+                return KeyedSubtree(
+                  key: _sectionKeys[section.id],
+                  child: GuideSectionWidget(
+                    section: section,
+                    expanded: _expanded[section.id] ?? false,
+                    onExpansionChanged: (v) =>
+                        setState(() => _expanded[section.id] = v),
+                    onRelatedSectionTap: _openSection,
+                    yourRole: widget.yourRole,
+                  ),
+                );
+              },
+              childCount: howToPlaySections.length,
             ),
           ),
+        ),
       ],
     );
   }

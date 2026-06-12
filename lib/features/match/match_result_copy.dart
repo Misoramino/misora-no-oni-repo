@@ -1,5 +1,7 @@
+import '../../features/how_to_play/guide_terms.dart';
 import '../../game/elimination_aftermath_rule.dart';
 import '../../game/game_state.dart';
+import '../../game/match_hud_copy.dart';
 import '../../game/werewolf_faction_logic.dart';
 import '../../sync/firestore_room_blueprint.dart';
 
@@ -14,46 +16,56 @@ abstract final class MatchResultCopy {
     EliminationAftermathRule? afterCatchRule,
   }) {
     if (endReason == MatchEndReason.hostAbort) {
-      return (title: '試合中止', subtitle: null);
+      return (
+        title: MatchHudCopy.matchAborted,
+        subtitle: MatchHudCopy.matchAbortedDetail,
+      );
     }
     final personalFaction = factionAtDeath ?? playerFactionAtEnd;
     if (winningFaction == FactionSide.oniTeam) {
       return (
-        title: '鬼陣営の勝利',
-        subtitle: personalFaction == FactionSide.humanTeam ? '逃走者陣営の敗北' : null,
+        title: MatchHudCopy.oniFactionWin,
+        subtitle: personalFaction == FactionSide.humanTeam
+            ? '${GuideTerms.humanFaction}の敗北'
+            : null,
       );
     }
     if (winningFaction == FactionSide.humanTeam) {
       final subtitle = personalFaction == FactionSide.oniTeam
-          ? '鬼陣営の敗北'
+          ? '${GuideTerms.oniFaction}の敗北'
           : null;
       return switch (endReason) {
         MatchEndReason.accusationSuccess => (
-            title: '逃走者陣営の勝利',
+            title: MatchHudCopy.humanFactionWin,
             subtitle: personalFaction == FactionSide.oniTeam
-                ? '鬼陣営の敗北'
-                : '告発成功',
+                ? '${GuideTerms.oniFaction}の敗北'
+                : MatchHudCopy.humanWinAccusationDetail,
           ),
         MatchEndReason.oniEliminated => (
-            title: '逃走者陣営の勝利',
-            subtitle: subtitle,
+            title: MatchHudCopy.humanFactionWin,
+            subtitle: subtitle ?? MatchHudCopy.humanWinOniEliminatedDetail,
           ),
         MatchEndReason.allHumansEliminated => (
-            title: '鬼陣営の勝利',
-            subtitle: subtitle,
+            title: MatchHudCopy.oniFactionWin,
+            subtitle: subtitle ?? MatchHudCopy.oniWinDetail,
           ),
-        _ => (title: '逃走成功', subtitle: subtitle),
+        _ => (
+            title: MatchHudCopy.humanFactionWin,
+            subtitle: subtitle ?? MatchHudCopy.humanWinTimeUpDetail,
+          ),
       };
     }
     return switch (outcome) {
       GameState.runnerWin => (
-          title: '逃走成功',
+          title: MatchHudCopy.humanFactionWin,
           subtitle: personalFaction == FactionSide.oniTeam
-              ? '鬼陣営の敗北'
-              : null,
+              ? '${GuideTerms.oniFaction}の敗北'
+              : MatchHudCopy.humanWinTimeUpDetail,
         ),
       GameState.caughtByOni => (
-          title: personalFaction == FactionSide.oniTeam ? '鬼陣営の勝利' : '脱落（捕獲）',
+          title: personalFaction == FactionSide.oniTeam
+              ? MatchHudCopy.oniFactionWin
+              : MatchHudCopy.resultCapturedTitle,
           subtitle: _afterCatchSubtitle(afterCatchRule),
         ),
       _ => (title: '試合終了', subtitle: null),
@@ -61,12 +73,18 @@ abstract final class MatchResultCopy {
   }
 
   static String? _afterCatchSubtitle(EliminationAftermathRule? rule) {
-    if (rule == null) return '第二ゲームに移行できます';
+    if (rule == null) return MatchHudCopy.secondGameTransition;
     return switch (rule) {
-      EliminationAftermathRule.spectralOperative => '残響体として戦線に残ります',
-      EliminationAftermathRule.revenantOni => '復讐の鬼影として戦線に残ります',
-      EliminationAftermathRule.ghostSpectator => '幽霊として観戦を続けます',
-      EliminationAftermathRule.joinOni => '鬼側合流として戦線に残ります',
+      EliminationAftermathRule.spectralOperative =>
+        MatchHudCopy.resultAfterCatchSubtitle('${GuideTerms.echoForm}として戦線に残ります'),
+      EliminationAftermathRule.revenantOni =>
+        MatchHudCopy.resultAfterCatchSubtitle(
+          '${GuideTerms.vengefulShadow}として戦線に残ります',
+        ),
+      EliminationAftermathRule.ghostSpectator =>
+        MatchHudCopy.eliminationSpectator('幽霊'),
+      EliminationAftermathRule.joinOni =>
+        MatchHudCopy.eliminationJoinOni('鬼側合流'),
     };
   }
 }

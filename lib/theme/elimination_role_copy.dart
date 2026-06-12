@@ -1,3 +1,4 @@
+import '../features/how_to_play/guide_terms.dart';
 import '../game/elimination_aftermath_rule.dart';
 import 'world_profile.dart';
 
@@ -48,8 +49,8 @@ class EliminationRoleCopy {
 
     final (title, subtitle) = switch (rule) {
       EliminationAftermathRule.spectralOperative => (
-          '残響体',
-          '監視端子で鬼位置暴露 / 告発施設で陣取り（有効数+1）',
+          GuideTerms.echoForm,
+          '監視端子ジャック / 告発施設陣取り（有効数+1）',
         ),
       EliminationAftermathRule.ghostSpectator => (
           '幽霊',
@@ -60,8 +61,8 @@ class EliminationRoleCopy {
           '索敵支援（ざっくり位置を共有）',
         ),
       EliminationAftermathRule.revenantOni => (
-          '復讐の鬼影',
-          '告発妨害（3回）/ 監視カメラを停止してジャックを封じる',
+          GuideTerms.vengefulShadow,
+          '告発施設妨害 / カメラ停止',
         ),
     };
 

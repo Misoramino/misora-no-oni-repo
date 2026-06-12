@@ -16,7 +16,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('パニック: 名前のない位置痕跡が残りました'),
+        content: Text(MatchHudCopy.panicTraceSnack),
       ),
     );
   }
@@ -73,10 +73,12 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     _syncSetState(() {
       _rt.revealLog.insert(0, ev);
       if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
-      _statusMessage = '$playerLabel の位置が露見（${pick.summary}）';
+      _statusMessage = MatchHudCopy.namedRevealStatus(playerLabel, pick.summary);
     });
     if (pushHud) {
-      _pushHudRevealAlert('$playerLabel の位置が露見しました（${pick.summary}）');
+      _pushHudRevealAlert(
+        MatchHudCopy.namedRevealAlert(playerLabel, pick.summary),
+      );
     }
     _emitMatchEvent(
       type: syncLocalEventType ?? revealKind,

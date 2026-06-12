@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oni_game/features/how_to_play/guide_terms.dart';
 import 'package:oni_game/features/match/match_result_copy.dart';
 import 'package:oni_game/game/elimination_aftermath_rule.dart';
 import 'package:oni_game/game/game_state.dart';
+import 'package:oni_game/game/match_hud_copy.dart';
 import 'package:oni_game/game/werewolf_faction_logic.dart';
 import 'package:oni_game/sync/firestore_room_blueprint.dart';
 
@@ -12,8 +14,8 @@ void main() {
         outcome: GameState.runnerWin,
         winningFaction: FactionSide.humanTeam,
       );
-      expect(h.title, '逃走成功');
-      expect(h.subtitle, isNull);
+      expect(h.title, MatchHudCopy.humanFactionWin);
+      expect(h.subtitle, MatchHudCopy.humanWinTimeUpDetail);
     });
 
     test('oni defeat on human time-up shows subtitle', () {
@@ -22,7 +24,7 @@ void main() {
         winningFaction: FactionSide.humanTeam,
         playerFactionAtEnd: FactionSide.oniTeam,
       );
-      expect(h.title, '逃走成功');
+      expect(h.title, MatchHudCopy.humanFactionWin);
       expect(h.subtitle, contains('敗北'));
     });
 
@@ -31,7 +33,8 @@ void main() {
         outcome: GameState.runnerWin,
         endReason: MatchEndReason.hostAbort,
       );
-      expect(h.title, '試合中止');
+      expect(h.title, MatchHudCopy.matchAborted);
+      expect(h.subtitle, MatchHudCopy.matchAbortedDetail);
     });
 
     test('caught human becomes elimination headline', () {
@@ -40,8 +43,8 @@ void main() {
         playerFactionAtEnd: FactionSide.humanTeam,
         afterCatchRule: EliminationAftermathRule.spectralOperative,
       );
-      expect(h.title, '脱落（捕獲）');
-      expect(h.subtitle, contains('残響体'));
+      expect(h.title, MatchHudCopy.resultCapturedTitle);
+      expect(h.subtitle, contains(GuideTerms.echoForm));
     });
 
     test('caught oni team shows oni victory', () {
@@ -49,7 +52,7 @@ void main() {
         outcome: GameState.caughtByOni,
         factionAtDeath: FactionSide.oniTeam,
       );
-      expect(h.title, '鬼陣営の勝利');
+      expect(h.title, MatchHudCopy.oniFactionWin);
     });
 
     test('accusation success headline', () {
@@ -58,8 +61,8 @@ void main() {
         winningFaction: FactionSide.humanTeam,
         endReason: MatchEndReason.accusationSuccess,
       );
-      expect(h.title, '逃走者陣営の勝利');
-      expect(h.subtitle, '告発成功');
+      expect(h.title, MatchHudCopy.humanFactionWin);
+      expect(h.subtitle, MatchHudCopy.humanWinAccusationDetail);
     });
 
     test('accusation success oni team shows defeat subtitle', () {
@@ -69,8 +72,8 @@ void main() {
         endReason: MatchEndReason.accusationSuccess,
         playerFactionAtEnd: FactionSide.oniTeam,
       );
-      expect(h.title, '逃走者陣営の勝利');
-      expect(h.subtitle, '鬼陣営の敗北');
+      expect(h.title, MatchHudCopy.humanFactionWin);
+      expect(h.subtitle, '${GuideTerms.oniFaction}の敗北');
     });
 
     test('revenant oni aftermath subtitle', () {
@@ -78,7 +81,7 @@ void main() {
         outcome: GameState.caughtByOni,
         afterCatchRule: EliminationAftermathRule.revenantOni,
       );
-      expect(h.subtitle, contains('復讐の鬼影'));
+      expect(h.subtitle, contains(GuideTerms.vengefulShadow));
     });
   });
 }

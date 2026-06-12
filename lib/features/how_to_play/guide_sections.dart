@@ -9,12 +9,10 @@ const guideHeader = GuideHeaderData(
   title: 'ONI PIN 作戦マニュアル',
   subtitle: '位置は見えない。痕跡を読み、鬼を出し抜け。',
   body:
-      'ONI PINは、屋外GPSタッグに人狼と情報戦を組み合わせた対戦ゲームです。\n\n'
-      '相手のライブ位置は基本見えません。\n\n'
-      '名前付き暴露、匿名痕跡、監視カメラ、情報屋などの断片情報を読みながら、'
-      '逃げる・追う・告発する判断を行います。',
-  hint: '全部を最初から読む必要はありません。\n試合中に困ったら、必要な章だけ開いてください。',
-  indexPrompt: '知りたい項目を選んでください。',
+      '屋外GPSタッグに推理と情報戦を組み合わせた対戦ゲームです。\n'
+      '困ったときは、下の項目から必要な章だけ開いてください。',
+  hint: '全部を最初から読む必要はありません。',
+  indexPrompt: 'よく見る章',
 );
 
 /// 12章の作戦マニュアル本文。
@@ -97,10 +95,8 @@ final _introSection = GuideSectionData(
       icon: Icons.sports_esports_outlined,
       oneLine: '鬼ごっこに、推理と情報戦を組み合わせたゲームです。',
       body:
-          '人側は、鬼から逃げながら情報を集めます。\n\n'
-          '鬼側は、痕跡や暴露を読んで逃走者を追い詰めます。\n\n'
-          '相手の位置は常に見えるわけではありません。\n\n'
-          '断片的な情報をどう読むかが、勝敗を左右します。',
+          '人側は逃げながら情報を集め、鬼側は痕跡や暴露から追い詰めます。\n\n'
+          '相手の現在地が常に見えるわけではないので、断片情報の読み方が勝敗を左右します。',
     ),
     _card(
       id: 'first_things',
@@ -199,10 +195,9 @@ final _infoSection = GuideSectionData(
       id: 'no_live',
       title: 'ライブ位置は基本見えません',
       icon: Icons.visibility_off_outlined,
-      oneLine: '地図に出るのは、現在地ではなく手がかりです。',
+      oneLine: '地図の点は「今ここ」ではなく、手がかりです。',
       body:
-          'ONI PINでは、仲間や敵のライブ位置が常に表示されるわけではありません。\n\n'
-          '地図に出るのは、監視カメラ、${GuideTerms.panic}、情報屋、エリア外などで発生した手がかりです。\n\n'
+          '監視カメラ、${GuideTerms.panic}、情報屋、エリア外などで手がかりが出ます。\n\n'
           '「今ここにいる」と決めつけず、「少し前にここにいたかもしれない」と読んでください。',
     ),
     _card(
@@ -229,10 +224,31 @@ final _infoSection = GuideSectionData(
       ],
     ),
     _card(
+      id: 'info_strength',
+      title: '情報の強さ',
+      icon: Icons.signal_cellular_alt_rounded,
+      oneLine: '名前付き暴露が強く、匿名痕跡は複数で強くなります。',
+      body:
+          '情報には強弱があります。\n\n'
+          '${GuideTerms.namedReveal}や情報屋は強い手がかりです。\n\n'
+          '${GuideTerms.anonTrace}は1つだけでは弱いですが、'
+          '複数をつなぐと移動方向が読めます。',
+      diagram: const GuideDiagramData(
+        type: GuideDiagramType.infoStrength,
+        title: '情報の強さ',
+        caption: '匿名痕跡は量で補える',
+      ),
+    ),
+    _card(
       id: 'anon_trace',
       title: GuideTerms.anonTrace,
       icon: Icons.help_outline,
       oneLine: '「誰かがここにいた」とだけ分かる情報です。',
+      diagram: const GuideDiagramData(
+        type: GuideDiagramType.infoTraceChain,
+        title: '痕跡をつなぐ',
+        caption: '？＋？＋？で移動が見える',
+      ),
       body:
           '${GuideTerms.anonTrace}は、名前が出ない位置情報です。\n\n'
           '誰の痕跡かは分かりません。\n\n'
@@ -266,16 +282,6 @@ final _infoSection = GuideSectionData(
               '対象者はランダムです。発生するのは名前なしの${GuideTerms.anonTrace}です。',
         ),
       ],
-    ),
-    _card(
-      id: 'read_flow',
-      title: '情報は点ではなく流れで読む',
-      icon: Icons.timeline_outlined,
-      oneLine: '痕跡をつなぐと、相手の動きが見えてきます。',
-      body:
-          '${GuideTerms.anonTrace}が1つ出ただけでは、誰の情報か分かりません。\n\n'
-          'しかし、複数の痕跡、監視カメラ、${GuideTerms.namedReveal}を組み合わせると、相手の移動方向が見えてきます。\n\n'
-          '鬼は痕跡を追い、人側は痕跡を残しすぎないように動くことが大切です。',
     ),
   ],
   details: [
@@ -339,19 +345,24 @@ final _combatSection = GuideSectionData(
       id: 'restraint',
       title: '接触・拘束',
       icon: Icons.lock_outline,
-      oneLine: '鬼に近づかれ続けると、拘束されます。',
+      oneLine: '鬼の接触圏に留まると拘束。円の外へ逃げ切れば助かります。',
       body:
           '鬼の接触圏に留まり続けると、接触拘束が始まります。\n\n'
           '拘束されても、すぐに脱落するわけではありません。\n\n'
-          '拘束円の外へ逃げ、一定時間逃げ切れれば助かります。\n\n'
-          'ただし、逃げ切れない場合は位置が暴露され、捕獲されます。',
+          'ポイントは「拘束円の外へ出る」ことです。外に出て一定時間逃げ切れればセーフです。\n\n'
+          '円の外に出ても、約10秒以内に戻ってしまうと猶予はリセットされません。\n'
+          '10秒以上外にいられれば、位置暴露後の捕獲を避けられます。\n\n'
+          '戻らなければいけない、という意味ではありません。',
       details: [
         _detail(
           title: '拘束の目安',
           body:
-              '拘束円の外に出ても、約10秒以内に戻れば即捕獲にはなりません。\n\n'
-              '約10秒を超えると、位置暴露後に捕獲されます。\n\n'
-              '拘束時間はエリア規模に応じて変わります。',
+              '接触圏: 約35〜95m（エリア規模に連動）\n'
+              '拘束円: 約45〜110m（接触圏より広め）\n'
+              '接触が約4秒続くと拘束開始\n\n'
+              '拘束円の外に出ても、約10秒以内に戻ると猶予はリセットされません。\n\n'
+              '約10秒以上外にいられれば、位置暴露後の捕獲を避けられます。\n\n'
+              '拘束の持続時間はエリア規模に応じて変わります。',
         ),
       ],
     ),
@@ -374,38 +385,21 @@ final _combatSection = GuideSectionData(
         ),
       ],
     ),
-    _card(
-      id: 'capture_zone',
-      title: '捕獲結界',
-      icon: Icons.trip_origin,
-      oneLine: '地図上に置かれる危険エリアです。',
-      body:
-          '捕獲結界は、スキルで地図上に置く拘束エリアです。\n\n'
-          '範囲に入ると拘束され、逃げ切れなければ捕獲につながります。\n\n'
-          '逃走者も鬼も、装備によって使うことがあります。',
-      details: [
-        _detail(
-          title: '捕獲結界の目安',
-          body:
-              '捕獲結界の半径は約55mです。\n\n'
-              '持続時間は約24秒です。\n\n'
-              'クールダウンは約80秒です。\n\n'
-              '拘束円の外へ出た場合、約10秒の猶予があります。',
-        ),
-      ],
-    ),
   ],
   details: [
     _detail(
       title: '距離の目安',
       body:
           '鬼との危険範囲は、プレイエリアの広さに応じて変わります。\n\n'
-          '接触圏、拘束円、${GuideTerms.panic}圏は、広いエリアほど大きくなります。\n\n'
-          '直接捕獲のGPS距離は約12mが目安です。\n\n'
+          '${GuideTerms.panic}圏: 約58〜115m（接触圏より外側）\n'
+          '接触圏: 約35〜95m\n'
+          '拘束円: 約45〜110m\n'
+          '直接捕獲GPS: 約12m\n\n'
+          '捕獲結界はスキルで地図に置く拘束エリアです。くわしくは「スキル」章と「詳細ルール」を参照してください。\n\n'
           '正確な範囲は試合設定やエリア規模によって変わるため、画面上の警告を優先してください。',
     ),
   ],
-  relatedSectionIds: ['info', 'skills', 'second_game'],
+  relatedSectionIds: ['info', 'skills', 'spec'],
 );
 
 final _outsideSection = GuideSectionData(
@@ -415,13 +409,13 @@ final _outsideSection = GuideSectionData(
   oneLine: '外に出ても即脱落ではありませんが、長くいるほど危険です。',
   sectionDiagram: GuideDiagramData(
     type: GuideDiagramType.outsideAreaFlow,
-    title: 'エリア外は段階的に危険',
+    title: 'エリア外は徐々に危険が高まる',
     caption: '猶予 → 暴露 → 再暴露 → 脱落',
   ),
   cards: [
     _card(
       id: 'outside_basic',
-      title: 'エリア外は段階的に危険になります',
+      title: 'エリア外は徐々に危険が高まります',
       icon: Icons.map_outlined,
       oneLine: '外に出た瞬間ではなく、外に居続けることが危険です。',
       body:
@@ -452,11 +446,11 @@ final _outsideSection = GuideSectionData(
     ),
     _card(
       id: 'safe_zone_charge',
-      title: '安全地帯チャージで暴露を防ぐ',
+      title: 'ステルスチャージで暴露を防ぐ',
       icon: Icons.shield_outlined,
-      oneLine: 'チャージがあれば、エリア外暴露を1回防げることがあります。',
+      oneLine: '安全地帯のステルスチャージで、エリア外暴露を1回防げます。',
       body:
-          '安全地帯でチャージを得ていると、エリア外による${GuideTerms.namedReveal}を1回防げる場合があります。\n\n'
+          '安全地帯でステルスチャージを得ていると、エリア外による${GuideTerms.namedReveal}を1回防げます。\n\n'
           'エリア端を使って逃げるときの保険になります。\n\n'
           'ただし、エリア外脱落そのものを無限に防げるわけではありません。',
     ),
@@ -482,21 +476,26 @@ final _facilitiesSection = GuideSectionData(
   title: 'マップ施設',
   icon: Icons.place_outlined,
   oneLine: '施設は、逃走・索敵・告発を大きく動かします。',
-  sectionDiagram: GuideDiagramData(
-    type: GuideDiagramType.facilityRoles,
-    title: '施設の役割',
-    caption: '安全地帯・情報屋・監視カメラ・告発施設など',
+  sectionDiagram: const GuideDiagramData(
+    type: GuideDiagramType.mapConcept,
+    title: 'マップの見方',
+    caption: 'プレイエリア・鬼の手がかり・施設の位置関係',
   ),
   cards: [
     _card(
       id: 'safe_zone',
       title: '安全地帯',
       icon: Icons.shield_outlined,
-      oneLine: 'エリア外暴露を防ぐチャージを得られます。',
+      oneLine: 'ステルスチャージで、エリア外暴露を1回防げます。',
+      diagram: const GuideDiagramData(
+        type: GuideDiagramType.facilityRoles,
+        title: '施設の役割',
+        caption: '安全地帯・情報屋・監視カメラ・告発施設など',
+      ),
       body:
-          '安全地帯では、エリア外暴露を防ぐためのチャージを得られます。\n\n'
-          'エリア端を使って逃げたいときや、危険な境界付近を通るときの保険になります。\n\n'
-          'ただし、チャージには上限があります。',
+          '安全地帯では、ステルスチャージ（エリア外暴露を1回防ぐ）を得られます。\n\n'
+          '装備スキルの再使用待ち短縮もあります。使用後は施設が別の場所へ移動します。\n\n'
+          'エリア端を使って逃げたいときの保険になりますが、チャージには上限があります。',
       details: [
         _detail(
           title: '安全地帯の目安',
@@ -704,10 +703,10 @@ final _rolesSection = GuideSectionData(
       icon: Icons.psychology_alt_rounded,
       oneLine: '鬼のように動けますが、${GuideTerms.trueOni}ではありません。',
       body:
-          '${GuideTerms.werewolf}は、状況によって鬼のようにふるまえる特殊な役職です。\n\n'
-          '鬼化すると、相手を追ったり、拘束したりできます。\n\n'
-          'ただし、${GuideTerms.werewolf}は${GuideTerms.trueOni}ではありません。\n\n'
-          '${GuideTerms.humanFaction}が告発で当てるべきなのは${GuideTerms.trueOni}です。\n\n'
+          '${GuideTerms.werewolf}は、${GuideTerms.trueOni}でも${GuideTerms.runner}でもない特殊役職です。\n\n'
+          '通常は単独行動ですが、「鬼化」スキル中だけ、鬼のように追跡・拘束ができます。\n\n'
+          '鬼化していないときや、${GuideTerms.trueOni}の通常スキルとは別物です。\n\n'
+          '${GuideTerms.humanFaction}が告発で当てるべきなのは${GuideTerms.trueOni}だけです。\n\n'
           '${GuideTerms.trueOni}が全員いなくなった場合、${GuideTerms.werewolf}が残っていても${GuideTerms.humanFaction}の勝ちになります。',
       details: [
         _detail(
@@ -774,12 +773,13 @@ final _skillsSection = GuideSectionData(
       id: 'skill_basic',
       title: 'スキルの基本',
       icon: Icons.info_outline,
-      oneLine: '役職ごとに使えるスキルが違います。',
+      oneLine: '役職ごとに装備できるスキルが違います。',
       body:
-          'スキルは、役職ごとに装備されます。\n\n'
-          '逃走者は逃げる・惑わせるためのスキルを持ちます。\n\n'
-          '${GuideTerms.trueOni}は追跡・拘束・偽情報のためのスキルを持ちます。\n\n'
-          '${GuideTerms.werewolf}は鬼化を使います。',
+          'スキルは試合前に装備します。ボタンを押すと発動し、クールダウン後に再使用できます。\n\n'
+          '・${GuideTerms.runner}: 逃げる・惑わせる（候補から1つ装備）\n'
+          '・${GuideTerms.trueOni}: 追跡・拘束・偽情報（候補から2つ装備）\n'
+          '・${GuideTerms.werewolf}: 鬼化（専用スキル）\n\n'
+          '地図に置くスキル（捕獲結界・体投げなど）は、ボタン → 長押し → 離して設置です。',
       details: [
         _detail(
           title: '装備数',
@@ -830,11 +830,21 @@ final _skillsSection = GuideSectionData(
       id: 'capture_zone_skill',
       title: '捕獲結界',
       icon: Icons.trip_origin,
-      oneLine: '地図上に拘束エリアを置きます。',
+      oneLine: 'スキルで地図上に拘束エリアを置きます。',
       body:
-          '捕獲結界は、地図上に置く危険エリアです。\n\n'
-          '範囲内に入った相手を拘束し、逃げ切れなければ捕獲につながります。\n\n'
-          '逃走者も${GuideTerms.trueOni}も、装備によって使うことがあります。',
+          '捕獲結界は装備ではなく、スキルです。\n\n'
+          '地図上に危険エリアを置き、範囲内に入った相手を拘束します。逃げ切れなければ捕獲につながります。\n\n'
+          '${GuideTerms.runner}と${GuideTerms.trueOni}のどちらも、候補スキルとして装備できます。',
+      details: [
+        _detail(
+          title: '捕獲結界の目安',
+          body:
+              '半径: 約55m\n'
+              '持続: 約24秒\n'
+              'クールダウン: 約80秒\n'
+              '拘束円外猶予: 約10秒',
+        ),
+      ],
     ),
     _card(
       id: 'fake_intel',
@@ -873,12 +883,11 @@ final _skillsSection = GuideSectionData(
       id: 'werewolf_transform',
       title: '鬼化',
       icon: Icons.auto_fix_high_outlined,
-      oneLine: '${GuideTerms.werewolf}が一時的に鬼のように動けるスキルです。',
+      oneLine: '${GuideTerms.werewolf}だけが使える、一時的な鬼モードです。',
       body:
-          '鬼化は、${GuideTerms.werewolf}のスキルです。\n\n'
-          '鬼化中は、鬼のように相手を追ったり、拘束したりできます。\n\n'
-          'ただし、${GuideTerms.werewolf}は${GuideTerms.trueOni}ではありません。\n\n'
-          '勝敗や告発では、${GuideTerms.trueOni}とは別に扱われます。',
+          '鬼化は、${GuideTerms.werewolf}専用のスキルです。\n\n'
+          'ONの間だけ追跡・拘束ができますが、${GuideTerms.trueOni}そのものではありません。\n\n'
+          '告発の対象にもならず、勝敗の扱いも${GuideTerms.trueOni}とは別です。',
       details: [
         _detail(
           title: '鬼化の目安',
@@ -979,6 +988,11 @@ final _onlineSection = GuideSectionData(
   title: 'オンライン・記録',
   icon: Icons.cloud_sync_outlined,
   oneLine: '試合開始・中止・再接続・ギャラリー保存に関するルールです。',
+  sectionDiagram: const GuideDiagramData(
+    type: GuideDiagramType.onlineMatch,
+    title: '試合中止と記録',
+    caption: '勝敗なし・同意時はギャラリー保存',
+  ),
   cards: [
     _card(
       id: 'sync',
@@ -1064,10 +1078,13 @@ final _specSection = GuideSectionData(
       id: 'spec_capture',
       title: '接触・拘束・捕獲',
       icon: Icons.front_hand_outlined,
-      oneLine: '至近・拘束の目安',
+      oneLine: '距離・秒数の一覧',
       body:
-          '・接触圏: エリア規模に連動\n'
-          '・接触拘束: 鬼の近くに留まると発生\n'
+          '・${GuideTerms.panic}圏: 約58〜115m（エリア規模に連動）\n'
+          '・${GuideTerms.panic}発動: 圏内に約6秒\n'
+          '・接触圏: 約35〜95m\n'
+          '・接触拘束開始: 接触圏内に約4秒\n'
+          '・拘束円: 約45〜110m\n'
           '・拘束円外猶予: 約10秒\n'
           '・直接捕獲GPS: 約12m\n'
           '・BLE接触: 強い接近情報として扱われる',

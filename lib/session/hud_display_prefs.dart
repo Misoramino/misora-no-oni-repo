@@ -11,6 +11,7 @@ class HudDisplaySettings {
     this.showStatusLine = true,
     this.showConditionLine = true,
     this.markerIconScale = 1.0,
+    this.mapLowSpecMode = false,
   });
 
   final HudCompactLineSlot compactLineSlot;
@@ -20,6 +21,9 @@ class HudDisplaySettings {
 
   /// 地図ピンの基準サイズ倍率（ズーム時の出し分けはそのまま）。
   final double markerIconScale;
+
+  /// 監視カメラのパルス演出などを抑え、GPS 更新の再描画を減らす。
+  final bool mapLowSpecMode;
 
   static const double markerIconScaleMin = 0.65;
   static const double markerIconScaleMax = 1.5;
@@ -43,6 +47,7 @@ abstract final class HudDisplayPrefs {
       markerIconScale: HudDisplaySettings.clampMarkerIconScale(
         prefs.getDouble(GameMapPrefs.mapMarkerIconScale) ?? 1.0,
       ),
+      mapLowSpecMode: prefs.getBool(GameMapPrefs.mapLowSpecMode) ?? false,
     );
   }
 
@@ -65,6 +70,7 @@ abstract final class HudDisplayPrefs {
       GameMapPrefs.mapMarkerIconScale,
       HudDisplaySettings.clampMarkerIconScale(settings.markerIconScale),
     );
+    await prefs.setBool(GameMapPrefs.mapLowSpecMode, settings.mapLowSpecMode);
   }
 
   static Future<HudCompactLineSlot> loadCompactLineSlot() async {

@@ -148,42 +148,53 @@ extension _GameMapOverlay on _GameMapScreenState {
     }
   }
 
+  void _scheduleMapOverlayPublish() {
+    if (_mapOverlayPublishScheduled) return;
+    _mapOverlayPublishScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mapOverlayPublishScheduled = false;
+      if (mounted) _publishMapOverlay();
+    });
+  }
+
+  void _publishMapOverlay({bool force = false}) {
+    if (!mounted) return;
+    final tokens = _mapVisual.pack.tokens;
+    final snapshot = _overlaySnapshot(tokens);
+    final fp = GameMapOverlayVisual.fingerprint(snapshot);
+    if (!force && fp == _lastMapOverlayFingerprint) return;
+    _lastMapOverlayFingerprint = fp;
+    _mapOverlayNotifier.value = snapshot;
+    final pulse = _cameraPulsePhase;
+    if (_cameraPulseNotifier.value != pulse) {
+      _cameraPulseNotifier.value = pulse;
+    }
+  }
+
+  void _onSkillPlacementPreview(LatLng? latLng) {
+    if (_skillPlacementPreviewLatLng == latLng) return;
+    _skillPlacementPreviewLatLng = latLng;
+    _publishMapOverlay(force: true);
+  }
+
   Widget _buildInteractiveGoogleMap(WorldProfileTokens tokens) {
-    final overlay = _overlaySnapshot(tokens);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        GoogleMap(
-          style: _mapVisual.mapStyleJson,
-          initialCameraPosition: CameraPosition(
-            target: _currentPosition,
-            zoom: 16,
-          ),
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
-          markers: GameMapOverlayBuilder.buildMarkers(overlay),
-          polylines: GameMapOverlayBuilder.buildPolylines(overlay),
-          circles: GameMapOverlayBuilder.buildCircles(overlay),
-          polygons: GameMapOverlayBuilder.buildPolygons(overlay),
-          onTap: _onMapTap,
-          onMapCreated: _onMapCreated,
-          onCameraIdle: _onCameraIdle,
-        ),
-        SkillMapPlacementLayer(
-          mapController: _mapController,
-          active: _skillMapPlacementActive,
-          isBodyThrow: _rt.bodyThrowAwaitingMapTap,
-          hint: _rt.bodyThrowAwaitingMapTap
-              ? '指を離して人形を設置。下の×へドラッグでキャンセル'
-              : '指を離して結界を設置。下の×へドラッグでキャンセル',
-          onPreview: (latLng) {
-            if (_skillPlacementPreviewLatLng == latLng) return;
-            _syncSetState(() => _skillPlacementPreviewLatLng = latLng);
-          },
-          onConfirm: _confirmSkillMapPlacementAt,
-          onCancel: _cancelSkillMapPlacement,
-        ),
-      ],
+    return GameMapInteractiveLayer(
+      key: const ValueKey('game_map_interactive_layer'),
+      overlayListenable: _mapOverlayNotifier,
+      mapStyleJson: _mapVisual.mapStyleJson,
+      initialCameraTarget: _currentPosition,
+      onMapCreated: _onMapCreated,
+      onTap: _onMapTap,
+      onCameraIdle: _onCameraIdle,
+      mapController: _mapController,
+      skillPlacementActive: _skillMapPlacementActive,
+      bodyThrowAwaitingMapTap: _rt.bodyThrowAwaitingMapTap,
+      skillPlacementHint: _rt.bodyThrowAwaitingMapTap
+          ? '指を離して人形を設置。下の×へドラッグでキャンセル'
+          : '指を離して結界を設置。下の×へドラッグでキャンセル',
+      onSkillPlacementPreview: _onSkillPlacementPreview,
+      onSkillPlacementConfirm: _confirmSkillMapPlacementAt,
+      onSkillPlacementCancel: _cancelSkillMapPlacement,
     );
   }
 }

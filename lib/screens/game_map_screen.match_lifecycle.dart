@@ -629,7 +629,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (counts.humanAlive == 0 && counts.oniAlive > 0) {
       _endGame(
         GameState.caughtByOni,
-        '全逃走者捕獲 — 鬼陣営の勝利',
+        MatchHudCopy.matchEndAllHumansEliminated(),
         endReason: MatchEndReason.allHumansEliminated,
       );
       return;
@@ -654,8 +654,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _endGame(
         GameState.caughtByOni,
         counts.oniAlive > 0
-            ? '全逃走者捕獲 — 鬼陣営の勝利'
-            : '全員脱落 — 鬼陣営の勝利',
+            ? MatchHudCopy.matchEndAllHumansEliminated()
+            : MatchHudCopy.matchEndAllHumansEliminated(),
         endReason: MatchEndReason.allHumansEliminated,
       );
       return;
@@ -663,7 +663,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (counts.oniAlive == 0 && counts.humanAlive > 0) {
       _endGame(
         GameState.runnerWin,
-        '鬼陣営全滅 — 逃走者陣営の勝利',
+        MatchHudCopy.matchEndOniEliminated(),
         endReason: MatchEndReason.oniEliminated,
       );
     }
@@ -694,7 +694,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _syncSetState(() {
       _gameState = GameState.waiting;
       _statusMessage = message;
-      _prepControlSheetOpen = true;
+      _prepControlSheetOpen = false;
       _prepMapMode = PrepMapMode.hidden;
     });
     _retuneGpsIfNeeded();
@@ -923,8 +923,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         case MatchInfectionExposureWarnEffect(:final level):
           if (_localRole == PlayerRole.hunter) break;
           final msg = level == 'imminent'
-              ? 'まもなくパニック… このままだと名前のない痕跡が残ります'
-              : '鬼が至近… 長くいるとパニックし、位置痕跡が出やすくなります';
+              ? '${MatchHudCopy.panicExposureImminent} — '
+                  '${MatchHudCopy.panicExposureImminentDetail}'
+              : '${MatchHudCopy.panicExposureStart} — '
+                  '${MatchHudCopy.panicExposureStartDetail}';
           if (!mounted) break;
           _syncSetState(() => _statusMessage = msg);
           ScaffoldMessenger.of(context).showSnackBar(

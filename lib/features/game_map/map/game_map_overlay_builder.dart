@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../game/analyst_trace_format.dart';
 import '../../../game/elimination_aftermath_rule.dart';
 import '../../../game/game_config.dart';
+import '../../../game/match_ui_terms.dart';
 import '../../../game/player_role.dart';
 import '../../../game/play_area.dart';
 import '../../../game/play_area_preview_entry.dart';
@@ -346,7 +347,8 @@ abstract final class GameMapOverlayBuilder {
               markerId: MarkerId('reveal_trace_$i'),
               position: trace.position,
               infoWindow: InfoWindow(
-                title: '${trace.playerLabel} の位置暴露 #${trace.sequence}',
+                title:
+                    '${trace.playerLabel} の${MatchUiTerms.namedReveal} #${trace.sequence}',
                 snippet:
                     '${MapGeoFormat.traceAge(trace.timestamp, s.now)} / ${MapGeoFormat.latLng(trace.position)}',
               ),

@@ -93,6 +93,16 @@ extension _GameMapHudExperience on _GameMapScreenState {
       rule: rule,
       worldProfile: _mapVisual.pack.profile,
     );
+    if (!mounted) return;
+    await offerSecondGameTutorialIfNeeded(context, rule: rule);
+  }
+
+  void _openSecondGameTutorialFromMatch() {
+    final rule = _afterCatchRule;
+    if (rule == null || !mounted) return;
+    final kind = secondGameTutorialKindForRule(rule);
+    if (kind == null) return;
+    unawaited(openSecondGameTutorial(context, kind));
   }
 
   /// 初回で告発施設に入ったときのみ、使い方を1回だけ案内する。
