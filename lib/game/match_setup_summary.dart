@@ -21,7 +21,7 @@ abstract final class MatchSetupSummary {
     final playerHint = participantCount >= 3
         ? '現在 $participantCount 人'
         : '現在 $participantCount 人（告発は3人以上）';
-    return '$recommendedPlayers · ${durationMinutes.round()}分 · $densityLabel · $playerHint';
+    return '${durationMinutes.round()}分 · $densityLabel · $playerHint';
   }
 
   /// 非ホスト向け：告発重み・時間・人数感の一行。

@@ -5,7 +5,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'game_state.dart';
 import 'location_reveal_event.dart';
 import 'match_event.dart';
+import 'match_gimmick_layout.dart';
 import 'play_area.dart';
+import 'werewolf_faction_logic.dart';
+import '../features/match/match_result_copy.dart';
+import '../sync/firestore_room_blueprint.dart';
 
 /// 1地点・1時刻の軌跡サンプル。
 class TrajectorySample {
@@ -48,6 +52,9 @@ class SavedMatchRecord {
     this.trackLabels = const {},
     this.reveals = const [],
     this.events = const [],
+    this.endReason,
+    this.winningFaction,
+    this.gimmickLayout,
   });
 
   static const int currentVersion = 1;
@@ -67,6 +74,24 @@ class SavedMatchRecord {
   final Map<String, String> trackLabels;
   final List<LocationRevealEvent> reveals;
   final List<MatchEvent> events;
+  final String? endReason;
+  final FactionSide? winningFaction;
+  final MatchGimmickLayout? gimmickLayout;
+
+  /// ギャラリー一覧など向けの短い見出し。
+  String get galleryTitle {
+    if (endReason == MatchEndReason.hostAbort) return '試合中止';
+    final headline = MatchResultCopy.outcomeHeadline(
+      outcome: outcome,
+      winningFaction: winningFaction,
+      endReason: endReason,
+    );
+    return headline.subtitle != null &&
+            headline.title != headline.subtitle &&
+            headline.subtitle!.length <= 12
+        ? '${headline.title}（${headline.subtitle}）'
+        : headline.title;
+  }
 
   Map<String, dynamic> toJson() => {
         'version': version,
@@ -82,6 +107,9 @@ class SavedMatchRecord {
         if (trackLabels.isNotEmpty) 'trackLabels': trackLabels,
         'reveals': reveals.map((e) => e.toJson()).toList(),
         'events': events.map((e) => e.toJson()).toList(),
+        if (endReason != null) 'endReason': endReason,
+        if (winningFaction != null) 'winningFaction': winningFaction!.name,
+        if (gimmickLayout != null) 'gimmickLayout': gimmickLayout!.toJson(),
       };
 
   factory SavedMatchRecord.fromJson(Map<String, dynamic> json) {
@@ -109,7 +137,22 @@ class SavedMatchRecord {
       events: (json['events'] as List<dynamic>? ?? [])
           .map((e) => MatchEvent.fromJson(e as Map<String, dynamic>))
           .toList(),
+      endReason: json['endReason'] as String?,
+      winningFaction: _parseFaction(json['winningFaction'] as String?),
+      gimmickLayout: json['gimmickLayout'] == null
+          ? null
+          : MatchGimmickLayout.fromJson(
+              json['gimmickLayout'] as Map<String, dynamic>,
+            ),
     );
+  }
+
+  static FactionSide? _parseFaction(String? name) {
+    if (name == null) return null;
+    for (final f in FactionSide.values) {
+      if (f.name == name) return f;
+    }
+    return null;
   }
 
   static SavedMatchRecord decode(String raw) =>

@@ -141,9 +141,11 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                               leading: CircleAvatar(
                                 child: Text(m.outcome.galleryEmoji),
                               ),
-                              title: Text(_outcomeJa(m.outcome)),
+                              title: Text(m.galleryTitle),
                               subtitle: Text(
-                                '${m.startedAtUtc.toLocal()} 開始\n点数 逃:$rn 鬼:$on',
+                                '${m.startedAtUtc.toLocal()} 開始\n'
+                                '軌跡 逃:$rn${on > 0 ? ' 鬼:$on' : ''}'
+                                '${m.gimmickLayout != null ? ' · ギミックあり' : ''}',
                               ),
                               isThreeLine: true,
                               onTap: () async {
@@ -162,7 +164,7 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
                                     context,
                                     title: '軌跡を削除',
                                     message:
-                                        '「${_outcomeJa(m.outcome)}」の記録（${m.startedAtUtc.toLocal()}）を削除しますか？',
+                                        '「${m.galleryTitle}」の記録（${m.startedAtUtc.toLocal()}）を削除しますか？',
                                   );
                                   if (!ok) return;
                                   await _store.delete(m.id);

@@ -9,7 +9,9 @@ import '../game/game_state.dart';
 import '../game/match_event.dart';
 import '../game/match_record.dart';
 import '../game/play_area.dart';
+import '../features/game_map/map/map_marker_kind.dart';
 import '../features/game_map/map/map_replay_marker_helper.dart';
+import '../sync/firestore_room_blueprint.dart';
 import '../features/game_map/visual/map_visual_controller.dart';
 import '../features/game_map/visual/reveal_flash_controller.dart';
 import '../features/game_map/widgets/world_map_atmosphere.dart';
@@ -38,6 +40,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   /// トラックIDごとの線・マーカー表示（参加者が増えても対応）。
   late Map<String, bool> _trackVisible;
   bool _showEventMarkers = true;
+  bool _showGimmickMarkers = true;
   bool _showPlayArea = true;
   bool _panelExpanded = false;
   late MapVisualController _mapVisual;
@@ -234,7 +237,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
 
     final playArea = widget.record.playArea;
     final lines = _buildTrailPolylines();
-    final markers = _buildMarkersAt(tNow)..addAll(_buildEventMarkers(tNow));
+    final markers = _buildMarkersAt(tNow)
+      ..addAll(_buildEventMarkers(tNow))
+      ..addAll(_buildGimmickMarkers());
     final fallbackTarget =
         _firstVisiblePositionAt(tNow) ??
             widget.record.playArea.centerOrFirstPoint;
@@ -246,7 +251,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.record.outcome.label),
+            Text(widget.record.galleryTitle),
             if (_visualReady)
               Text(
                 _mapVisual.pack.profile.label,
@@ -268,6 +273,17 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
               _showEventMarkers ? Icons.flag : Icons.flag_outlined,
             ),
           ),
+          if (widget.record.gimmickLayout != null)
+            IconButton(
+              tooltip: _showGimmickMarkers ? 'ギミックを隠す' : 'ギミックを表示',
+              onPressed: () =>
+                  setState(() => _showGimmickMarkers = !_showGimmickMarkers),
+              icon: Icon(
+                _showGimmickMarkers
+                    ? Icons.scatter_plot
+                    : Icons.scatter_plot_outlined,
+              ),
+            ),
           IconButton(
             tooltip: _showPlayArea ? 'エリアを隠す' : 'エリアを表示',
             onPressed: () => setState(() => _showPlayArea = !_showPlayArea),
@@ -346,7 +362,9 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                   }
                 : {},
           ),
-          if (widget.record.outcome == GameState.runnerWin && _progress >= 0.9)
+          if (widget.record.endReason != MatchEndReason.hostAbort &&
+              widget.record.outcome == GameState.runnerWin &&
+              _progress >= 0.9)
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -550,6 +568,42 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
         .where((e) => now.difference(e.atUtc) <= window)
         .toList()
       ..sort((a, b) => b.atUtc.compareTo(a.atUtc));
+  }
+
+  Set<Marker> _buildGimmickMarkers() {
+    final layout = widget.record.gimmickLayout;
+    if (!_showGimmickMarkers || layout == null) return {};
+    if (!(_mapVisual.markerRegistry?.isReady ?? false)) return {};
+    final reg = _mapVisual.markerRegistry!;
+    final out = <Marker>{};
+    void addAll(
+      List<LatLng> points,
+      MapMarkerKind kind,
+      String label,
+    ) {
+      for (var i = 0; i < points.length; i++) {
+        out.add(
+          Marker(
+            markerId: MarkerId('gimmick_${kind.name}_$i'),
+            position: points[i],
+            icon: reg.iconOrHue(kind, BitmapDescriptor.hueAzure),
+            infoWindow: InfoWindow(title: label),
+          ),
+        );
+      }
+    }
+
+    addAll(layout.safeZones, MapMarkerKind.safeZone, '安全地帯');
+    addAll(layout.infoBrokers, MapMarkerKind.infoBroker, '情報屋');
+    addAll(layout.cameras, MapMarkerKind.trace, '監視カメラ');
+    addAll(layout.cameraJacks, MapMarkerKind.trace, '監視端子');
+    addAll(
+      layout.accusationFacilities,
+      MapMarkerKind.infoBroker,
+      '告発施設',
+    );
+    addAll(layout.commJammingZones, MapMarkerKind.fakePosition, '通信妨害');
+    return out;
   }
 
   Set<Marker> _buildEventMarkers(DateTime now) {

@@ -886,7 +886,9 @@ extension _GameMapSkills on _GameMapScreenState {
 
   void _maybePeriodicAnonymousReveal() {
     if (_gameState != GameState.running) return;
-    final interval = GameConfig.periodicRevealIntervalSeconds;
+    final interval = MatchDurationScaling.periodicRevealIntervalSeconds(
+      _matchDurationSeconds,
+    );
     if (interval <= 0) return;
     final bucket = _rt.elapsedSeconds ~/ interval;
     if (bucket <= 0 || bucket <= _rt.lastPeriodicAnonymousBucket) return;

@@ -110,8 +110,8 @@ abstract final class MapHudContrast {
         return scheme.surface.withValues(alpha: 0.93);
       case WorldProfile.sport:
         return Color.alphaBlend(
-          const Color(0xFF1A1C1E).withValues(alpha: 0.06),
-          scheme.surface.withValues(alpha: 0.94),
+          const Color(0xFF1A1C1E).withValues(alpha: 0.22),
+          scheme.surface.withValues(alpha: 0.97),
         );
     }
   }

@@ -7,7 +7,9 @@ import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../game/player_role.dart';
 import '../../widgets/juicy_tap.dart';
+import '../game_map/widgets/how_to_play_sheet.dart';
 import '../game_map/widgets/role_briefing_dialog.dart';
+import 'tutorial_copy.dart';
 
 /// GPS・通信に依存しない、役職別のスクリプト型チュートリアル。
 ///
@@ -30,12 +32,16 @@ class _Step {
     required this.act,
     this.showOni = false,
     this.showRunner = false,
+    this.showAnonMarker = false,
+    this.showAccusationMarker = false,
   });
 
   final String text;
   final _Act act;
   final bool showOni;
   final bool showRunner;
+  final bool showAnonMarker;
+  final bool showAccusationMarker;
 }
 
 class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
@@ -76,97 +82,44 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   }
 
   static List<_Step> _buildSteps(PlayerRole role) {
+    final copies = TutorialCopyCatalog.stepsFor(role);
+    return [
+      for (var i = 0; i < copies.length; i++)
+        _Step(
+          text: copies[i].text,
+          act: _actFor(role, i),
+          showOni: copies[i].showOni,
+          showRunner: copies[i].showRunner,
+          showAnonMarker: copies[i].showAnonMarker,
+          showAccusationMarker: copies[i].showAccusationMarker,
+        ),
+    ];
+  }
+
+  static _Act _actFor(PlayerRole role, int index) {
     switch (role) {
       case PlayerRole.runner:
-        return const [
-          _Step(
-            text: 'あなたは逃走者。制限時間まで逃げ切れば勝ち！',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: 'マップをタップして動いてみよう。',
-            act: _Act.move,
-          ),
-          _Step(
-            text: '黄色い円の中にいよう。外に出ると位置がバレやすい。',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: '赤い鬼が来た！タップで動いて距離をとろう。',
-            act: _Act.flee,
-            showOni: true,
-          ),
-          _Step(
-            text: 'ピンチのときはスキルで揺さぶる。偽位置は地図に置いて鬼を惑わせる。',
-            act: _Act.pressSkill,
-            showOni: true,
-          ),
-          _Step(
-            text: 'これで基本はOK！あとは実戦で逃げ切ろう。',
-            act: _Act.tapNext,
-            showOni: true,
-          ),
-        ];
+        return switch (index) {
+          0 => _Act.move,
+          2 => _Act.flee,
+          3 => _Act.move,
+          _ => _Act.tapNext,
+        };
       case PlayerRole.hunter:
-        return const [
-          _Step(
-            text: 'あなたは鬼。逃走者に近づいて捕まえれば勝ち！',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: 'マップをタップして動いてみよう。',
-            act: _Act.move,
-          ),
-          _Step(
-            text: '青い逃走者を追いかけて、ぐっと近づこう。',
-            act: _Act.chase,
-            showRunner: true,
-          ),
-          _Step(
-            text: 'スキルで逃げ場を奪える。押してから地図を押し続けて範囲を確認しよう。',
-            act: _Act.pressSkill,
-            showRunner: true,
-          ),
-          _Step(
-            text: '捕獲成功！この調子で逃走者を狩ろう。',
-            act: _Act.tapNext,
-            showRunner: true,
-          ),
-        ];
+        return index == 4 ? _Act.chase : _Act.tapNext;
       case PlayerRole.werewolf:
-        return const [
-          _Step(
-            text: 'あなたは人狼。人数の少ない陣営に自動で乗り換える特殊役だ。',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: '人陣営のときは鬼化して追える。鬼陣営のときは拘束はするが捕獲はできない。',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: '正体を隠して立ち回るのが鍵。まずは動いてみよう。',
-            act: _Act.move,
-          ),
-          _Step(
-            text: '変身スキルで鬼の力を使える。押してみよう。',
-            act: _Act.pressSkill,
-          ),
-          _Step(
-            text: '人数差を見て、人のふり・鬼のふりを使い分けよう。',
-            act: _Act.tapNext,
-          ),
-          _Step(
-            text: '準備OK！実戦では陣営の人数を見ながら立ち回ろう。',
-            act: _Act.tapNext,
-          ),
-        ];
+        return switch (index) {
+          1 => _Act.move,
+          2 => _Act.pressSkill,
+          _ => _Act.tapNext,
+        };
     }
   }
 
   String get _skillLabel => switch (widget.role) {
         PlayerRole.runner => '偽位置',
         PlayerRole.hunter => '捕獲結界',
-        PlayerRole.werewolf => '変身',
+        PlayerRole.werewolf => '鬼化',
       };
 
   void _onTick(Duration elapsed) {
@@ -259,6 +212,29 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     GameAudio.instance.playSfx(SfxId.matchWin);
   }
 
+  void _restart() {
+    setState(() {
+      _index = 0;
+      _stepDone = false;
+      _stepElapsed = 0;
+      _travel = 0;
+      _skillPressed = false;
+      _moveTarget = null;
+      _finished = false;
+      _player = const Offset(0.5, 0.62);
+      _oni = const Offset(0.5, 0.15);
+      _runner = const Offset(0.78, 0.3);
+    });
+  }
+
+  void _openGuideSection(String sectionId) {
+    showHowToPlaySheet(
+      context,
+      yourRole: widget.role,
+      initialSectionId: sectionId,
+    );
+  }
+
   Offset _moveToward(Offset from, Offset to, double maxStep) {
     final delta = to - from;
     final dist = delta.distance;
@@ -293,96 +269,94 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     final theme = Theme.of(context);
     final skillActive = _step.act == _Act.pressSkill && !_stepDone;
 
+    final finishCopy = TutorialCopyCatalog.finishFor(widget.role);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('チュートリアル — ${widget.role.displayName}'),
+        title: Text(
+          'チュートリアル — ${TutorialCopyCatalog.roleTutorialTitle(widget.role)}',
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('終了'),
-          ),
+          if (!_finished)
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('終了'),
+            ),
         ],
       ),
-      body: Column(
-        children: [
-          _InstructionBanner(
-            text: _step.text,
-            accent: _accent,
-            step: _index + 1,
-            total: _steps.length,
-            done: _stepDone,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final side = math.min(
-                    constraints.maxWidth,
-                    constraints.maxHeight,
-                  );
-                  return Center(
-                    child: SizedBox(
-                      width: side,
-                      height: side,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapDown: (d) => _onArenaTap(
-                          Offset(
-                            d.localPosition.dx / side,
-                            d.localPosition.dy / side,
+      body: _finished
+          ? _TutorialFinishPanel(
+              copy: finishCopy,
+              accent: _accent,
+              onClose: () => Navigator.of(context).pop(),
+              onRetry: _restart,
+              onOpenGuide: _openGuideSection,
+            )
+          : Column(
+              children: [
+                _InstructionBanner(
+                  text: _step.text,
+                  accent: _accent,
+                  step: _index + 1,
+                  total: _steps.length,
+                  done: _stepDone,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final side = math.min(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
+                        return Center(
+                          child: SizedBox(
+                            width: side,
+                            height: side,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTapDown: (d) => _onArenaTap(
+                                Offset(
+                                  d.localPosition.dx / side,
+                                  d.localPosition.dy / side,
+                                ),
+                              ),
+                              child: CustomPaint(
+                                painter: _ArenaPainter(
+                                  player: _player,
+                                  oni: _step.showOni ? _oni : null,
+                                  runner: _step.showRunner ? _runner : null,
+                                  moveTarget: _moveTarget,
+                                  showAnonMarker: _step.showAnonMarker,
+                                  showAccusationMarker:
+                                      _step.showAccusationMarker,
+                                  areaCenter: _areaCenter,
+                                  areaRadius: _areaRadius,
+                                  accent: _accent,
+                                  skillPulse: skillActive,
+                                  scheme: theme.colorScheme,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: CustomPaint(
-                          painter: _ArenaPainter(
-                            player: _player,
-                            oni: _step.showOni ? _oni : null,
-                            runner: _step.showRunner ? _runner : null,
-                            moveTarget: _moveTarget,
-                            areaCenter: _areaCenter,
-                            areaRadius: _areaRadius,
-                            accent: _accent,
-                            skillPulse: skillActive,
-                            scheme: theme.colorScheme,
-                          ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
-          _ControlBar(
-            role: widget.role,
-            skillLabel: _skillLabel,
-            skillActive: skillActive,
-            showNext: _step.act == _Act.tapNext && !_finished,
-            onSkill: _onSkill,
-            onNext: _advance,
-            accent: _accent,
-          ),
-          if (_finished)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              child: JuicyTap(
-                onTap: () => Navigator.of(context).pop(),
-                sfx: SfxId.uiConfirm,
-                child: IgnorePointer(
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _accent,
-                      minimumSize: const Size.fromHeight(50),
-                    ),
-                    onPressed: () {},
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('クリア！とじる'),
                   ),
                 ),
-              ),
+                _ControlBar(
+                  role: widget.role,
+                  skillLabel: _skillLabel,
+                  skillActive: skillActive,
+                  showNext: _step.act == _Act.tapNext,
+                  onSkill: _onSkill,
+                  onNext: _advance,
+                  accent: _accent,
+                ),
+                const SizedBox(height: 12),
+              ],
             ),
-        ],
-      ),
     );
   }
 }
@@ -427,7 +401,7 @@ class _InstructionBanner extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '$step/$total',
+            'ミッション $step/$total',
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -550,12 +524,96 @@ class _PulsingWrapState extends State<_PulsingWrap>
   }
 }
 
+class _TutorialFinishPanel extends StatelessWidget {
+  const _TutorialFinishPanel({
+    required this.copy,
+    required this.accent,
+    required this.onClose,
+    required this.onRetry,
+    required this.onOpenGuide,
+  });
+
+  final TutorialFinishCopy copy;
+  final Color accent;
+  final VoidCallback onClose;
+  final VoidCallback onRetry;
+  final void Function(String sectionId) onOpenGuide;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(Icons.check_circle_rounded, size: 48, color: accent),
+            const SizedBox(height: 12),
+            Text(
+              copy.title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              copy.body,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+            ),
+            const SizedBox(height: 20),
+            Text('もっと詳しく見る', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final g in copy.relatedGuides)
+                  ActionChip(
+                    avatar: const Icon(Icons.menu_book_outlined, size: 16),
+                    label: Text(g.title),
+                    onPressed: () => onOpenGuide(g.sectionId),
+                  ),
+              ],
+            ),
+            const Spacer(),
+            JuicyTap(
+              onTap: onClose,
+              sfx: SfxId.uiConfirm,
+              child: IgnorePointer(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  onPressed: () {},
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('とじる'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.replay_rounded),
+              label: const Text('もう一度'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ArenaPainter extends CustomPainter {
   _ArenaPainter({
     required this.player,
     required this.oni,
     required this.runner,
     required this.moveTarget,
+    required this.showAnonMarker,
+    required this.showAccusationMarker,
     required this.areaCenter,
     required this.areaRadius,
     required this.accent,
@@ -567,11 +625,16 @@ class _ArenaPainter extends CustomPainter {
   final Offset? oni;
   final Offset? runner;
   final Offset? moveTarget;
+  final bool showAnonMarker;
+  final bool showAccusationMarker;
   final Offset areaCenter;
   final double areaRadius;
   final Color accent;
   final bool skillPulse;
   final ColorScheme scheme;
+
+  static const _anonMarkerPos = Offset(0.36, 0.38);
+  static const _accusationMarkerPos = Offset(0.68, 0.52);
 
   Offset _px(Offset n, Size s) => Offset(n.dx * s.width, n.dy * s.height);
 
@@ -616,6 +679,20 @@ class _ArenaPainter extends CustomPainter {
       );
     }
 
+    if (showAnonMarker) {
+      _marker(
+        canvas,
+        _px(_anonMarkerPos, size),
+        scheme.tertiary,
+        '?',
+        label: '匿名',
+      );
+    }
+
+    if (showAccusationMarker) {
+      _facilityMarker(canvas, _px(_accusationMarkerPos, size), scheme.primary);
+    }
+
     // 鬼。
     final o = oni;
     if (o != null) _dot(canvas, _px(o, size), const Color(0xFFD64545), '鬼');
@@ -634,6 +711,84 @@ class _ArenaPainter extends CustomPainter {
       );
     }
     _dot(canvas, pp, accent, 'You', big: true);
+  }
+
+  void _marker(
+    Canvas canvas,
+    Offset c,
+    Color color,
+    String glyph, {
+    String? label,
+  }) {
+    canvas.drawCircle(c, 14, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawCircle(
+      c,
+      14,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    final tp = TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          color: color,
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    if (label != null) {
+      final lp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w600),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      lp.paint(canvas, Offset(c.dx - lp.width / 2, c.dy + 16));
+    }
+  }
+
+  void _facilityMarker(Canvas canvas, Offset c, Color color) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: c, width: 28, height: 28),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()..color = color.withValues(alpha: 0.15),
+    );
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '告',
+        style: TextStyle(
+          color: color,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    final lp = TextPainter(
+      text: const TextSpan(
+        text: '告発施設',
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    lp.paint(canvas, Offset(c.dx - lp.width / 2, c.dy + 18));
   }
 
   void _dot(Canvas canvas, Offset c, Color color, String label,
@@ -661,5 +816,7 @@ class _ArenaPainter extends CustomPainter {
       old.oni != oni ||
       old.runner != runner ||
       old.moveTarget != moveTarget ||
+      old.showAnonMarker != showAnonMarker ||
+      old.showAccusationMarker != showAccusationMarker ||
       old.skillPulse != skillPulse;
 }

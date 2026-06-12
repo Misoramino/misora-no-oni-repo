@@ -28,6 +28,7 @@ import '../features/game_map/logic/map_geo_utils.dart';
 import '../features/game_map/logic/oni_intel_text_builder.dart';
 import '../features/game_map/logic/reveal_reason_pool.dart';
 import '../game/anonymous_reveal_trace.dart';
+import '../game/match_gimmick_layout.dart';
 import '../game/match_record.dart';
 import '../features/game_map/match/game_map_match_controller.dart';
 import '../features/game_map/match/gimmick_pickup_evaluator.dart';
@@ -907,7 +908,13 @@ class _GameMapScreenState extends State<GameMapScreen>
           if (end.endReason == MatchEndReason.hostAbort) {
             _matchTimer?.cancel();
             _afterCatchRule = null;
-            unawaited(_finalizeMatchRecording(end.outcome));
+            _finalizeRecordingFuture = Future<void>.microtask(
+              () => _finalizeMatchRecording(
+                GameState.waiting,
+                endReason: MatchEndReason.hostAbort,
+                winningFaction: null,
+              ),
+            );
             _syncSetState(() {
               _gameState = GameState.waiting;
               _statusMessage = end.message.isNotEmpty
@@ -1581,19 +1588,47 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (_matchRecorder != null && !discardExisting) return;
     _matchRecorder?.discard();
+    final recordOniTrack =
+        _localRole == PlayerRole.hunter || _remoteOniKnown;
     _matchRecorder = MatchRecorder(
       playAreaSnapshot: _playArea,
       consentedToTrajectory: true,
       initialRunner: _currentPosition,
-      initialOni: _oniPosition,
+      initialOni: recordOniTrack
+          ? (_localRole == PlayerRole.hunter
+              ? _currentPosition
+              : _oniPosition)
+          : (_playArea.type == PlayAreaType.circle
+              ? _playArea.center
+              : (_playArea.points.isNotEmpty
+                  ? _playArea.points.first
+                  : _currentPosition)),
+      recordOniTrack: recordOniTrack,
     );
   }
 
-  Future<void> _finalizeMatchRecording(GameState outcome) async {
+  MatchGimmickLayout _currentGimmickLayout() => MatchGimmickLayout(
+        safeZones: List<LatLng>.from(_rt.safeZonePositions),
+        infoBrokers: List<LatLng>.from(_rt.infoBrokerPositions),
+        cameras: List<LatLng>.from(_rt.cameraPositions),
+        cameraJacks: List<LatLng>.from(_rt.cameraJackPositions),
+        accusationFacilities:
+            List<LatLng>.from(_rt.accusationFacilityPositions),
+        commJammingZones: List<LatLng>.from(_rt.commJammingZonePositions),
+      );
+
+  Future<void> _finalizeMatchRecording(
+    GameState outcome, {
+    String? endReason,
+    FactionSide? winningFaction,
+  }) async {
     final rec = _matchRecorder?.finalize(
       outcome: outcome,
       reveals: List<LocationRevealEvent>.from(_rt.revealLog),
       events: List<MatchEvent>.from(_rt.matchEvents),
+      endReason: endReason,
+      winningFaction: winningFaction,
+      gimmickLayout: _currentGimmickLayout(),
     );
     _matchRecorder = null;
     if (rec == null) return;
@@ -2869,9 +2904,10 @@ class _GameMapScreenState extends State<GameMapScreen>
         ),
         body: Stack(
           children: [
-            if (_gameState != GameState.waiting && showGameMap)
+            if ((_gameState != GameState.waiting || _matchPresentationActive) &&
+                showGameMap)
               Positioned.fill(child: _buildInteractiveGoogleMap(tokens))
-            else if (_gameState == GameState.waiting)
+            else if (_gameState == GameState.waiting && !_matchPresentationActive)
               Positioned.fill(
                 child: PrepMapPhaseShell(
                   showMap: showGameMap,
@@ -3507,6 +3543,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                     message: _inlineStatusMessage!,
                   ),
                 ),
+              ),
+            if (_matchPresentationActive)
+              const Positioned.fill(
+                child: AbsorbPointer(child: SizedBox.expand()),
               ),
           ],
         ),

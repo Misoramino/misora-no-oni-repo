@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// 遊び方シート用の簡易図解（アイコン＋矢印のイラスト風レイアウト）。
+/// 作戦マニュアル／旧遊び方シート用の簡易図解。
+///
+/// - [HelpFlowDiagram]: `guide_diagram_views.dart`（告発・エリア外・スキル設置）で使用中。
+/// - [HelpFactionDiagram] / [HelpMapConceptDiagram]: 現行ガイドでは
+///   [FactionWinDiagram] 等に置き換え済み。互換・将来再利用のため残置。
 class HelpFlowDiagram extends StatelessWidget {
   const HelpFlowDiagram({
     required this.steps,

@@ -96,7 +96,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                         ),
                       _SettingsSection(
                         title: '役職・スキル',
-                        initiallyExpanded: true,
+                        initiallyExpanded: false,
                         children: [
                       DropdownButtonFormField<OniIntelMode>(
                         initialValue: selectedIntel,
@@ -254,7 +254,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                       ),
                       _SettingsSection(
                         title: '試合設定',
-                        initiallyExpanded: true,
+                        initiallyExpanded: false,
                         children: [
                       Text(
                         '制限時間: ${selectedDurationMinutes.round()} 分',

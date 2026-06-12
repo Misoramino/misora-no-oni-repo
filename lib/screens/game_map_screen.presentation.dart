@@ -80,7 +80,7 @@ extension _GameMapPresentation on _GameMapScreenState {
 
     _matchPresentationActive = true;
     _syncSetState(() {
-      _prepMapMode = PrepMapMode.hidden;
+      _prepMapMode = PrepMapMode.browse;
       _prepControlSheetOpen = false;
     });
 
@@ -146,9 +146,6 @@ extension _GameMapPresentation on _GameMapScreenState {
     await WorldPhaseFlash.pulse(context, profile: _activeProfile);
     } finally {
       _matchPresentationActive = false;
-      if (mounted && _gameState == GameState.waiting) {
-        _syncSetState(() => _prepMapMode = PrepMapMode.browse);
-      }
     }
   }
 

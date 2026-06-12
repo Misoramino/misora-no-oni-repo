@@ -88,9 +88,7 @@ class GameMapMatchController {
         case MatchTickAction.outsideElimination:
           effects.add(
             MatchEndEffect(
-              state: oniOutsideEndsMatch
-                  ? GameState.runnerWin
-                  : GameState.caughtByOni,
+              state: GameState.caughtByOni,
               message: MatchTickEvaluator.endMessageFor(
                 MatchTickAction.outsideElimination,
               ),

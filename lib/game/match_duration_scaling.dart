@@ -38,6 +38,12 @@ abstract final class MatchDurationScaling {
   }
 
   /// 試合開始付近の鬼位置ピン（短い試合・序盤の手がかり）。長い試合では10分まで。
+  /// 定期匿名痕跡の間隔（試合時間に比例・75〜180秒）。
+  static int periodicRevealIntervalSeconds(int matchDurationSeconds) {
+    final d = clampDuration(matchDurationSeconds);
+    return (d * 0.04).round().clamp(75, 180);
+  }
+
   static int oniStartAnchorMaxElapsedSeconds(int matchDurationSeconds) {
     final d = clampDuration(matchDurationSeconds);
     return math.min(600, (d * 0.15).round()).clamp(180, 600);

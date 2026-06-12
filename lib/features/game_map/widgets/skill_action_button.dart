@@ -40,6 +40,10 @@ class _SkillActionButtonState extends State<SkillActionButton> {
     );
     final compactFg = scheme.onSurface;
     final compactBg = scheme.surfaceContainerHighest.withValues(alpha: 0.98);
+    final compactLabelFg = ThemeData.estimateBrightnessForColor(compactBg) ==
+            Brightness.dark
+        ? scheme.onSurface
+        : const Color(0xFF1A1C1E);
     final btn = Material(
       color: widget.compact ? compactBg : null,
       borderRadius: BorderRadius.circular(8),
@@ -81,8 +85,8 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                  color: compactLabelFg.withValues(alpha: 0.92),
                 ),
               ),
             ),

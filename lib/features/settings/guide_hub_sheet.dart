@@ -43,8 +43,8 @@ Future<void> showGuideHubSheet(
               ),
               ListTile(
                 leading: const Icon(Icons.menu_book_outlined),
-                title: const Text('遊び方'),
-                subtitle: const Text('勝ち方・役職・第二ゲーム・ギミック'),
+                title: const Text('作戦マニュアル'),
+                subtitle: const Text('勝ち方・情報戦・告発・詳細ルール'),
                 onTap: () {
                   Navigator.pop(ctx);
                   showHowToPlaySheet(

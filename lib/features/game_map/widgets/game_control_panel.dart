@@ -219,8 +219,14 @@ class GameControlPanel extends StatelessWidget {
     final panelBg = onDark
         ? MapHudContrast.runningControlPanelBg(scheme, mapWorldProfile)
         : scheme.surfaceContainerHigh.withValues(alpha: 0.97);
-    final fg = onDark ? scheme.onSurface : scheme.onSurface;
-    final fgMuted = scheme.onSurfaceVariant;
+    final fg = onDark
+        ? (mapWorldProfile == WorldProfile.sport
+            ? const Color(0xFF1A1C1E)
+            : scheme.onSurface)
+        : scheme.onSurface;
+    final fgMuted = onDark && mapWorldProfile == WorldProfile.sport
+        ? const Color(0xFF3D4048)
+        : scheme.onSurfaceVariant;
     final outlineAlpha = onDark
         ? (mapWorldProfile == WorldProfile.horror ||
                 mapWorldProfile == WorldProfile.astronomy)

@@ -3,8 +3,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../game/game_state.dart';
 import '../game/location_reveal_event.dart';
 import '../game/match_event.dart';
+import '../game/match_gimmick_layout.dart';
 import '../game/match_record.dart';
 import '../game/play_area.dart';
+import '../game/werewolf_faction_logic.dart';
 import '../game/trajectory_simplify.dart';
 
 /// ローカル1端末での記録用トラックID（同期時はユーザーIDに差し替え）。
@@ -20,14 +22,20 @@ class MatchRecorder {
     required this.consentedToTrajectory,
     required LatLng initialRunner,
     required LatLng initialOni,
+    this.recordOniTrack = true,
   })  : playAreaSnapshot = _copyArea(playAreaSnapshot),
         startedAtUtc = DateTime.now().toUtc() {
     final t = startedAtUtc;
     _runner.add(TrajectorySample(atUtc: t, position: initialRunner));
-    _oni.add(TrajectorySample(atUtc: t, position: initialOni));
+    if (recordOniTrack) {
+      _oni.add(TrajectorySample(atUtc: t, position: initialOni));
+      _lastOniUtc = t;
+    }
     _lastRunnerUtc = t;
-    _lastOniUtc = t;
   }
+
+  /// 鬼軌跡を記録するか（単独逃走など、鬼位置が不明なときは false）。
+  final bool recordOniTrack;
 
   final DateTime startedAtUtc;
   final PlayArea playAreaSnapshot;
@@ -55,6 +63,7 @@ class MatchRecorder {
   }
 
   void tryAppendOni(LatLng position) {
+    if (!recordOniTrack) return;
     _appendThrottled(
       list: _oni,
       position: position,
@@ -84,6 +93,9 @@ class MatchRecorder {
     required GameState outcome,
     required List<LocationRevealEvent> reveals,
     required List<MatchEvent> events,
+    String? endReason,
+    FactionSide? winningFaction,
+    MatchGimmickLayout? gimmickLayout,
   }) {
     if (_discarded || !consentedToTrajectory) return null;
 
@@ -107,6 +119,13 @@ class MatchRecorder {
       maxPoints: 220,
     );
 
+    final tracks = <String, List<TrajectorySample>>{
+      MatchTrackIds.runnerLocal: simplifiedRunner,
+    };
+    if (recordOniTrack && simplifiedOni.isNotEmpty) {
+      tracks[MatchTrackIds.oniLocal] = simplifiedOni;
+    }
+
     return SavedMatchRecord(
       version: SavedMatchRecord.currentVersion,
       id: id,
@@ -115,12 +134,12 @@ class MatchRecorder {
       outcome: outcome,
       consentedToTrajectory: consentedToTrajectory,
       playArea: PlayArea.fromJson(playAreaSnapshot.toJson()),
-      tracks: {
-        MatchTrackIds.runnerLocal: simplifiedRunner,
-        MatchTrackIds.oniLocal: simplifiedOni,
-      },
+      tracks: tracks,
       reveals: revealsCopy,
       events: eventsCopy,
+      endReason: endReason,
+      winningFaction: winningFaction,
+      gimmickLayout: gimmickLayout,
     );
   }
 }

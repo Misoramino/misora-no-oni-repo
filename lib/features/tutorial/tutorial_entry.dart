@@ -22,9 +22,11 @@ Future<void> openTutorialPicker(BuildContext context) async {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'どの役職を体験しますか？（GPS不要・1〜2分）',
+              'どの役職を体験しますか？\n'
+              'GPS不要・約1分。終了後は作戦マニュアルへ進めます。',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+                height: 1.45,
               ),
             ),
             const SizedBox(height: 12),

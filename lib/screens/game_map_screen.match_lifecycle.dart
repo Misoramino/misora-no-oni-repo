@@ -682,7 +682,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _matchTimer?.cancel();
     _cancelCaptureBoundTimers();
     _afterCatchRule = null;
-    unawaited(_finalizeMatchRecording(GameState.runnerWin));
+    _finalizeRecordingFuture = Future<void>.microtask(
+      () => _finalizeMatchRecording(
+        GameState.waiting,
+        endReason: MatchEndReason.hostAbort,
+        winningFaction: null,
+      ),
+    );
+    _matchPresentationActive = false;
+    _matchRoleBriefingShown = false;
     _syncSetState(() {
       _gameState = GameState.waiting;
       _statusMessage = message;
@@ -768,7 +776,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       return;
     }
     _finalizeRecordingFuture = Future<void>.microtask(
-      () => _finalizeMatchRecording(outcome),
+      () => _finalizeMatchRecording(
+        outcome,
+        endReason: endReason,
+        winningFaction: _winningFactionForEnd(outcome, endReason),
+      ),
     );
     if (!skipFirestoreSync && _isOnlineFirestore && _isHost) {
       unawaited(
@@ -790,6 +802,17 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
       if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
     }());
+  }
+
+  FactionSide? _winningFactionForEnd(GameState outcome, String? endReason) {
+    return switch (endReason) {
+      MatchEndReason.allHumansEliminated => FactionSide.oniTeam,
+      MatchEndReason.oniEliminated ||
+      MatchEndReason.accusationSuccess ||
+      MatchEndReason.timeUp =>
+        FactionSide.humanTeam,
+      _ => outcome == GameState.runnerWin ? FactionSide.humanTeam : null,
+    };
   }
 
   String _inferEndReason(GameState result, String message) {
@@ -857,18 +880,12 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           } else {
             HapticFeedback.mediumImpact();
           }
-          if (state == GameState.runnerWin &&
-              message.contains(MatchTickEvaluator.outsideEliminationMarker)) {
-            _endGame(
-              GameState.runnerWin,
-              '鬼がプレイエリア外に長時間 — 逃走者陣営の勝利',
-              endReason: MatchEndReason.oniEliminated,
-            );
-            return;
-          }
           if (state == GameState.caughtByOni) {
             GameAudio.instance.playSfx(SfxId.capture);
-            _eliminateLocalParticipant(message, cause: 'caught');
+            final cause = message.contains(MatchTickEvaluator.outsideEliminationMarker)
+                ? 'outside'
+                : 'caught';
+            _eliminateLocalParticipant(message, cause: cause);
             _maybeEndMatchForFactionElimination();
             return;
           }
