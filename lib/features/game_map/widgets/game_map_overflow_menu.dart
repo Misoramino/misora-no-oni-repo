@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../../game/game_state.dart';
 import '../../../game/match_hud_copy.dart';
-import '../../../game/match_ui_terms.dart';
 
 /// ゲーム画面 AppBar の「More」メニュー。
 class GameMapOverflowMenu extends StatelessWidget {

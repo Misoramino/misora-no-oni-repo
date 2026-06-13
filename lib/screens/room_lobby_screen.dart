@@ -15,11 +15,11 @@ import '../sync/room_phase.dart';
 import '../sync/shared_match_snapshot.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
-import '../widgets/scene_transitions.dart';
 import '../features/game_map/prep/lobby_rules_summary_card.dart';
 import '../features/settings/guide_hub_sheet.dart';
 import '../features/settings/settings_hub_sheet.dart';
 import 'game_map_screen.dart';
+import '../widgets/scene_transitions.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
 class RoomLobbyScreen extends StatefulWidget {
