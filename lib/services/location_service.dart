@@ -28,6 +28,14 @@ class LocationService {
     return LocationAccessCheck(_statusFromPermission(permission));
   }
 
+  Future<LocationPermission> rawPermission() => Geolocator.checkPermission();
+
+  /// iOS で画面ロック中も GPS を継続するには [LocationPermission.always] が望ましい。
+  Future<bool> hasBackgroundLocationPermission() async {
+    final permission = await Geolocator.checkPermission();
+    return permission == LocationPermission.always;
+  }
+
   Future<bool> ensurePermission() async {
     var check = await checkLocationAccess();
     if (check.status == LocationAccessStatus.denied) {

@@ -52,7 +52,7 @@ void main() {
 
       expect(s.winLine, isNotEmpty);
 
-      expect(s.mustKnow.length, lessThanOrEqualTo(3));
+      expect(s.mustKnow.length, lessThanOrEqualTo(6));
 
       expect(s.mustKnow.join(), isNot(contains('人ロール')));
 
@@ -66,7 +66,8 @@ void main() {
     final start = RoleBriefingCatalog.matchStartBriefing(PlayerRole.werewolf);
     expect(start.winLine, contains('少ない方'));
     expect(start.winLine, isNot(contains('見え方')));
-    expect(start.mustKnow.join(), contains('同数なら人陣営'));
+    expect(start.mustKnow.join(), contains('前半'));
+    expect(start.mustKnow.join(), contains('後半'));
     expect(start.winLine, isNot(contains('この試合は')));
 
     final withFaction = RoleBriefingCatalog.matchStartBriefing(

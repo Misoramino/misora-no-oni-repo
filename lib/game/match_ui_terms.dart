@@ -22,7 +22,9 @@ abstract final class MatchUiTerms {
 
   static const capture = '捕獲';
 
-  static const anonTrace = '匿名痕跡';
+  static const anonTrace = '不明な痕跡';
+
+  static const anonPositionReveal = '匿名位置暴露';
 
   static const namedReveal = '名前付き暴露';
 

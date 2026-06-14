@@ -33,6 +33,7 @@ abstract final class GameMapOverlayVisual {
       _coordKey(s.bodyThrowPosition),
       s.bodyThrowAwaitingMapTap,
       s.waitingSkillLockMapTap,
+      s.fakeIntelAwaitingMapTap,
       _coordKey(s.skillPlacementPreviewLatLng),
       (s.skillPlacementPreviewRadiusMeters * 10).round(),
       _coordKey(s.lockZoneCenter),

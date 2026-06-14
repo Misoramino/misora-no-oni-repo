@@ -275,6 +275,7 @@ class FirestoreRoomSession implements RoomSessionPort {
     if (h == null) return true;
     final member = hostMember;
     if (member == null) return true;
+    if (member.isInBackgroundGrace(nowUtc)) return false;
     return member.isStale(nowUtc);
   }
 
@@ -999,6 +1000,8 @@ class FirestoreRoomSession implements RoomSessionPort {
       MemberPresenceFields.role: _role,
       MemberPresenceFields.nickname: _nickname,
       MemberPresenceFields.locationVisibility: 'hidden',
+      MemberPresenceFields.appLifecycle: 'foreground',
+      MemberPresenceFields.backgroundSinceUtc: FieldValue.delete(),
     };
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
@@ -1007,6 +1010,51 @@ class FirestoreRoomSession implements RoomSessionPort {
       payload[MemberPresenceFields.werewolfOniForm] = werewolfOniForm;
     }
     await ref.set(payload, SetOptions(merge: true));
+  }
+
+  /// 試合中のバックグラウンド／復帰を通知（ハートビート停止時の脱落猶予用）。
+  Future<void> publishAppLifecycle({required bool background}) async {
+    if (_roomId == null || _uid == null) return;
+    final now = DateTime.now().toUtc().toIso8601String();
+    final ref = _db
+        .collection('rooms')
+        .doc(_roomId)
+        .collection('members')
+        .doc(_uid!);
+    final payload = <String, dynamic>{
+      MemberPresenceFields.reportedAtUtc: now,
+      MemberPresenceFields.role: _role,
+      MemberPresenceFields.nickname: _nickname,
+      MemberPresenceFields.locationVisibility: 'hidden',
+      MemberPresenceFields.appLifecycle:
+          background ? 'background' : 'foreground',
+    };
+    if (background) {
+      payload[MemberPresenceFields.backgroundSinceUtc] = now;
+    } else {
+      payload[MemberPresenceFields.backgroundSinceUtc] = FieldValue.delete();
+    }
+    try {
+      await ref.set(payload, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  /// 準備フェーズの「準備完了」状態（非ホスト）。
+  Future<void> publishPrepReady(bool ready) async {
+    if (_roomId == null || _uid == null) return;
+    final ref = _db
+        .collection('rooms')
+        .doc(_roomId)
+        .collection('members')
+        .doc(_uid!);
+    try {
+      await ref.set({
+        MemberPresenceFields.prepReady: ready,
+        MemberPresenceFields.reportedAtUtc: DateTime.now()
+            .toUtc()
+            .toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   /// 試合参加者が観戦者向けにライブ GPS を送信（スロットルあり）。
@@ -1077,7 +1125,10 @@ class FirestoreRoomSession implements RoomSessionPort {
 
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+    final interval = _phase == RoomPhase.running
+        ? const Duration(seconds: 45)
+        : const Duration(seconds: 60);
+    _heartbeatTimer = Timer.periodic(interval, (_) {
       unawaited(publishPresence(tension: false));
     });
   }

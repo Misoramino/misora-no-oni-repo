@@ -40,7 +40,7 @@ class GeneratedGimmicks {
         cameraJackSites: cameraJackSites ?? this.cameraJackSites,
       );
 
-  /// 試合開始用。イベントエリアだけ道路に寄せる（API キー未設定時は従来のランダム）。
+  /// 試合開始用。道路上へ寄せ、寄せられない点は既存ギミックから離れた位置へ再配置。
   static Future<GeneratedGimmicks> createForMatchStart({
     required PlayArea area,
     required int seed,
@@ -53,26 +53,37 @@ class GeneratedGimmicks {
       density: density,
     );
     if (googleMapsApiKey.isEmpty) return base;
-    final safeZones = await RoadsSnapService.snapToNearestRoads(
-      candidates: base.safeZones,
-      apiKey: googleMapsApiKey,
-    );
-    final infoBrokers = await RoadsSnapService.snapToNearestRoads(
-      candidates: base.infoBrokers,
-      apiKey: googleMapsApiKey,
-    );
-    final eventAreas = await RoadsSnapService.snapToNearestRoads(
-      candidates: base.eventAreas,
-      apiKey: googleMapsApiKey,
-    );
-    final accusationFacilities = await RoadsSnapService.snapToNearestRoads(
-      candidates: base.accusationFacilities,
-      apiKey: googleMapsApiKey,
-    );
-    final cameras = await RoadsSnapService.snapToNearestRoads(
-      candidates: base.cameras,
-      apiKey: googleMapsApiKey,
-    );
+
+    final placed = <LatLng>[];
+
+    Future<List<LatLng>> placeGroup(List<LatLng> candidates, int groupSeed) async {
+      final snaps = await RoadsSnapService.snapWithStatus(
+        candidates: candidates,
+        apiKey: googleMapsApiKey,
+      );
+      final out = <LatLng>[];
+      for (var i = 0; i < snaps.length; i++) {
+        final LatLng p;
+        if (snaps[i].onRoad) {
+          p = snaps[i].position;
+        } else {
+          p = relocateFarFromOthers(
+            area: area,
+            placed: [...placed, ...out],
+            seed: seed + groupSeed + i * 37,
+          );
+        }
+        out.add(p);
+      }
+      placed.addAll(out);
+      return out;
+    }
+
+    final safeZones = await placeGroup(base.safeZones, 11);
+    final infoBrokers = await placeGroup(base.infoBrokers, 22);
+    final eventAreas = await placeGroup(base.eventAreas, 33);
+    final accusationFacilities = await placeGroup(base.accusationFacilities, 44);
+    final cameras = await placeGroup(base.cameras, 55);
     final cameraJackSites = <LatLng>[];
     for (var i = 0; i < cameras.length; i += 2) {
       cameraJackSites.add(cameras[i]);
@@ -157,19 +168,24 @@ class GeneratedGimmicks {
       required double angleSeed,
       required double radiusFactor,
       double? minGapOverride,
+      int sectorOffset = 0,
     }) {
       final out = <LatLng>[];
       final gap = minGapOverride ?? minGap;
-      // 中心に固まらないよう、角度と距離をばらつかせる（外側・中間・内側の帯）。
+      final sector = 360.0 / math.max(1, count);
       final bands = <double>[
-        (radiusFactor + 0.22).clamp(0.38, 0.92),
-        (radiusFactor + 0.08).clamp(0.32, 0.82),
-        (radiusFactor - 0.06).clamp(0.28, 0.72),
+        (radiusFactor + 0.28).clamp(0.42, 0.94),
+        (radiusFactor + 0.10).clamp(0.34, 0.78),
+        (radiusFactor - 0.08).clamp(0.28, 0.62),
+        (radiusFactor - 0.20).clamp(0.22, 0.52),
       ];
       for (var i = 0; i < count; i++) {
-        final angle =
-            angleSeed + i * (137.5 + 360.0 / math.max(1, count)) + (s % 11);
-        final dist = radius * bands[i % bands.length];
+        final jitter = ((s + i * 17 + sectorOffset * 7) % 37) - 18;
+        final angle = angleSeed + sectorOffset * 41 + i * sector + jitter * 0.35;
+        final dist = math.max(
+          radius * bands[i % bands.length],
+          radius * 0.25,
+        );
         final p = pointInArea(
           area: area,
           center: center,
@@ -177,7 +193,7 @@ class GeneratedGimmicks {
           distanceMeters: dist,
           avoid: used,
           minGapMeters: gap,
-          seed: s + i * 31,
+          seed: s + i * 31 + sectorOffset * 13,
         );
         out.add(p);
         used.add(p);
@@ -189,18 +205,21 @@ class GeneratedGimmicks {
       count: eventCount,
       angleSeed: 315 + ((s ~/ 19) % 360),
       radiusFactor: 0.50,
+      sectorOffset: 0,
     );
     final accusationFacilities = group(
       count: accusationCount,
       angleSeed: 90 + ((s ~/ 23) % 360),
       radiusFactor: 0.30,
       minGapOverride: minGap * 1.1,
+      sectorOffset: 2,
     );
     final cameras = group(
       count: cameraCount,
       angleSeed: 245 + ((s ~/ 13) % 360),
       radiusFactor: 0.48,
-      minGapOverride: (radius * 0.08).clamp(30.0, 90.0),
+      minGapOverride: (radius * 0.10).clamp(40.0, 110.0),
+      sectorOffset: 4,
     );
     final cameraJackSites = <LatLng>[];
     for (var i = 0; i < cameras.length; i += 2) {
@@ -215,11 +234,13 @@ class GeneratedGimmicks {
         count: safeCount,
         angleSeed: 35 + (s % 360),
         radiusFactor: 0.42,
+        sectorOffset: 1,
       ),
       infoBrokers: group(
         count: brokerCount,
         angleSeed: 150 + ((s ~/ 7) % 360),
         radiusFactor: 0.58,
+        sectorOffset: 3,
       ),
       cameras: cameras,
       eventAreas: eventAreas,
@@ -302,6 +323,61 @@ class GeneratedGimmicks {
       }
     }
     return _offset(center, angleDegrees, math.min(distanceMeters * 0.3, 120));
+  }
+
+  /// 道路スナップ失敗時 — 既存ギミックからできるだけ離れたエリア内地点。
+  static LatLng relocateFarFromOthers({
+    required PlayArea area,
+    required List<LatLng> placed,
+    required int seed,
+  }) {
+    final center = centerOf(area);
+    final radius = effectiveRadiusMeters(area, center);
+    final minGap = (radius * 0.12).clamp(40.0, 120.0);
+    var best = pointInArea(
+      area: area,
+      center: center,
+      angleDegrees: (seed % 360).toDouble(),
+      distanceMeters: radius * 0.55,
+      avoid: placed,
+      minGapMeters: minGap,
+      seed: seed,
+    );
+    var bestMinDist = _minDistanceMeters(best, placed);
+    for (var attempt = 1; attempt < 24; attempt++) {
+      final angle = (seed + attempt * 73) % 360.0;
+      final dist = radius * (0.30 + (attempt % 7) * 0.08).clamp(0.30, 0.90);
+      final candidate = pointInArea(
+        area: area,
+        center: center,
+        angleDegrees: angle,
+        distanceMeters: dist,
+        avoid: placed,
+        minGapMeters: minGap,
+        seed: seed + attempt * 19,
+      );
+      final minD = _minDistanceMeters(candidate, placed);
+      if (minD > bestMinDist) {
+        bestMinDist = minD;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  static double _minDistanceMeters(LatLng p, List<LatLng> others) {
+    if (others.isEmpty) return double.infinity;
+    var min = double.infinity;
+    for (final o in others) {
+      final d = Geolocator.distanceBetween(
+        p.latitude,
+        p.longitude,
+        o.latitude,
+        o.longitude,
+      );
+      if (d < min) min = d;
+    }
+    return min;
   }
 
   static bool _farEnough(LatLng p, List<LatLng> avoid, double minGapMeters) {

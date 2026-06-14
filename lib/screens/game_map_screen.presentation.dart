@@ -68,6 +68,9 @@ extension _GameMapPresentation on _GameMapScreenState {
       werewolfCurrentFaction: _localRole == PlayerRole.werewolf
           ? _localFactionNow()
           : null,
+      runnerModifier: _localRole == PlayerRole.runner
+          ? _localRunnerModifier
+          : RunnerModifier.none,
     );
   }
 
@@ -75,10 +78,12 @@ extension _GameMapPresentation on _GameMapScreenState {
     required bool rejoin,
     required bool inspector,
     int elapsedSeconds = 0,
+    bool remoteSyncJoin = false,
   }) async {
     if (!mounted) return;
 
     _matchPresentationActive = true;
+    _dismissBlockingOverlaysForMatchJoin();
     _syncSetState(() {
       _prepMapMode = PrepMapMode.browse;
       _prepControlSheetOpen = false;
@@ -87,6 +92,52 @@ extension _GameMapPresentation on _GameMapScreenState {
     try {
       if (inspector) {
         await WorldPhaseFlash.pulse(context, profile: _activeProfile);
+        return;
+      }
+
+      if (remoteSyncJoin) {
+        if (elapsedSeconds > GameConfig.syncJoinRoleBriefingMaxSeconds) {
+          if (mounted) {
+            await showMatchRejoinNotice(
+              context: context,
+              remainingSeconds: _rt.remainingSeconds,
+              roleLabel: _localRole.displayName,
+            );
+          }
+        } else if (elapsedSeconds >
+            GameConfig.syncJoinFullPresentationMaxSeconds) {
+          if (mounted) {
+            await showMatchRejoinNotice(
+              context: context,
+              remainingSeconds: _rt.remainingSeconds,
+              roleLabel: _localRole.displayName,
+            );
+          }
+          if (mounted) {
+            await _maybeShowPreMatchRoleBriefing(rejoin: false);
+          }
+        } else {
+          final shortCeremony =
+              await MatchPresentationPrefs.shortMatchStartCeremony();
+          if (_shouldShowMatchStartRoster(
+            rejoin: false,
+            shortCeremony: shortCeremony,
+            elapsedSeconds: elapsedSeconds,
+          )) {
+            await showMatchStartRoster(
+              context: context,
+              profile: _activeProfile,
+              entries: _matchStartRosterEntries(),
+            );
+            if (!mounted) return;
+          }
+          if (mounted) {
+            await _maybeShowPreMatchRoleBriefing(rejoin: false);
+          }
+        }
+        if (mounted) {
+          await WorldPhaseFlash.pulse(context, profile: _activeProfile);
+        }
         return;
       }
 

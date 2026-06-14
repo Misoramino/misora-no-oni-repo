@@ -20,7 +20,13 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     if (sk == null || ev.sessionKey != sk) return;
     // 捕獲後も残響体/鬼影として戦線に残るため、試合継続中はイベントを受け取る
     // （マップの暴露・鬼位置・他ゴーストの行動を反映し続ける）。
-    if (!_isMatchStillActiveForLocalPlayer) return;
+    final roomRunning =
+        _firestoreSession?.currentPhase == RoomPhase.running;
+    final acceptWhilePresenting =
+        _matchPresentationActive && roomRunning;
+    if (!_isMatchStillActiveForLocalPlayer && !acceptWhilePresenting) {
+      return;
+    }
     final running = _gameState == GameState.running;
     final fs = _firestoreSession;
     if (fs == null) return;
@@ -95,6 +101,15 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       case RoomMatchEventTypes.abortVote:
         _handleAbortVoteEvent(ev);
         return;
+      case RoomMatchEventTypes.abortMajority:
+        if (ev.actorUid == fs.myUid) return;
+        unawaited(
+          _applyAbortMajority(
+            ev.payload['message'] as String? ?? '試合を中止しました',
+            fromSelf: false,
+          ),
+        );
+        return;
       case RoomMatchEventTypes.playerEliminated:
         _applyRemotePlayerEliminated(ev);
         return;
@@ -142,9 +157,17 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final myUid = _firestoreSession?.myUid;
     final cause = ev.payload['cause'] as String? ?? 'eliminated';
     if (uid == myUid && _gameState == GameState.running) {
-      final msg = cause == 'accusation_hunter'
-          ? '${MatchHudCopy.accusationSuccess} — ${GuideTerms.vengefulShadow}として戦線に残る'
-          : '${MatchHudCopy.captureSucceeded} — ${GuideTerms.secondGame}へ';
+      final msg = switch (cause) {
+        'accusation_hunter' =>
+          '${MatchHudCopy.accusationSuccess} — ${GuideTerms.vengefulShadow}として戦線に残る',
+        'disconnect' => MatchHudCopy.eliminatedByDisconnect,
+        _ => '${MatchHudCopy.captureSucceeded} — ${GuideTerms.secondGame}へ',
+      };
+      _maybeBackgroundCrisisAlert(
+        kind: BackgroundCrisisKind.eliminated,
+        title: '脱落',
+        body: msg,
+      );
       _eliminateLocalParticipant(msg, cause: cause, publishOnline: false);
       return;
     }
@@ -206,8 +229,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     });
     unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
     _pushHudRevealAlert(MatchHudCopy.namedRevealAlert(label, reasonSummary));
-    HapticFeedback.mediumImpact();
-    GameAudio.instance.playSfx(SfxId.reveal);
+    _remoteRevealFeedback();
   }
 
   void _applyRemoteFakeIntelReveal(RoomMatchEvent ev) {
@@ -225,7 +247,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       }
     }
     final narrative = ev.payload['message'] as String? ?? '';
-    final summary = ev.payload['reasonSummary'] as String? ?? '通信混線';
+    final summary = ev.payload['reasonSummary'] as String? ?? '';
     final subjectUid = (targetUid != null && targetUid.isNotEmpty)
         ? targetUid
         : ev.actorUid;
@@ -249,51 +271,32 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
           narrative.isNotEmpty ? narrative : MatchHudCopy.anonTraceFallback;
     });
     unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
+    if (targetUid == myUid) {
+      _maybeBackgroundCrisisAlert(
+        kind: BackgroundCrisisKind.selfNamedReveal,
+        title: MatchUiTerms.namedReveal,
+        body: MatchHudCopy.namedRevealAlert(label, summary),
+      );
+    }
     _pushHudRevealAlert(MatchHudCopy.namedRevealAlert(label, summary));
-    HapticFeedback.mediumImpact();
-    GameAudio.instance.playSfx(SfxId.reveal);
+    _remoteRevealFeedback();
   }
 
   void _applyRemoteInfoBroker(RoomMatchEvent ev) {
-    final intel = ev.payload['intel'] as String?;
     final hitIndex = (ev.payload['hitIndex'] as num?)?.toInt();
     final nextLat = (ev.payload['nextLat'] as num?)?.toDouble();
     final nextLng = (ev.payload['nextLng'] as num?)?.toDouble();
-    final pickupLat = (ev.payload['pickupLat'] as num?)?.toDouble();
-    final pickupLng = (ev.payload['pickupLng'] as num?)?.toDouble();
-    if (intel == null ||
-        hitIndex == null ||
-        nextLat == null ||
-        nextLng == null ||
-        pickupLat == null ||
-        pickupLng == null) {
+    if (hitIndex == null || nextLat == null || nextLng == null) {
       return;
     }
-    final tracePos = LatLng(pickupLat, pickupLng);
     if (hitIndex < 0 || hitIndex >= _rt.infoBrokerPositions.length) return;
-    final now = DateTime.now();
     if (!mounted) return;
-    _syncSetState(() {
-      _rt.lastInfoBrokerAt = now;
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.lastOniIntelText = intel;
-      _rt.lastOniIntelAt = now;
-      _rt.showOniIntelCard = true;
-      _rt.oniIntelTraces.insert(
-        0,
-        OniIntelTrace(timestamp: now, position: tracePos, text: intel),
-      );
-      if (_rt.oniIntelTraces.length > 20) {
-        _rt.oniIntelTraces.removeLast();
-      }
-      _rt.infoBrokerPositions[hitIndex] = LatLng(nextLat, nextLng);
-      _statusMessage = '情報屋: $intel';
-    });
-    HapticFeedback.lightImpact();
-    GameAudio.instance.playSfx(SfxId.anonReveal);
+    // 他プレイヤーの鬼情報は共有しない。地点移動だけ同期する。
+    _applyRemoteGimmickRelocate(
+      kind: 'info_broker',
+      hitIndex: hitIndex,
+      nextPosition: LatLng(nextLat, nextLng),
+    );
   }
 
   void _applyRemoteOniInfoBroker(RoomMatchEvent ev) {
@@ -309,22 +312,24 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       return;
     }
     if (hitIndex < 0 || hitIndex >= _rt.infoBrokerPositions.length) return;
-    final now = DateTime.now();
-    final myUid = _firestoreSession?.myUid;
     if (!mounted) return;
+    final myUid = _firestoreSession?.myUid;
 
-    _syncSetState(() {
-      _rt.infoBrokerAvailable = false;
-      _rt.infoBrokerRespawnAt = now.add(
-        const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
-      );
-      _rt.infoBrokerPositions[hitIndex] = LatLng(nextLat, nextLng);
-    });
+    _applyRemoteGimmickRelocate(
+      kind: 'info_broker',
+      hitIndex: hitIndex,
+      nextPosition: LatLng(nextLat, nextLng),
+    );
 
     if (myUid != targetUid) return;
 
+    const pick = RevealReasonPick.exactLocation;
+    _maybeBackgroundCrisisAlert(
+      kind: BackgroundCrisisKind.selfNamedReveal,
+      title: '情報屋 — 位置暴露',
+      body: MatchHudCopy.namedRevealAlert(_localPlayerLabel, pick.summary),
+    );
     final raw = _positionForReveal;
-    final pick = _reasonPickAt(raw);
     _emitIdentifiedReveal(
       revealKind: 'oni_info_broker',
       position: raw,
@@ -332,8 +337,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       pick: pick,
       syncLocalEventType: 'oni_info_broker',
     );
-    HapticFeedback.heavyImpact();
-    GameAudio.instance.playSfx(SfxId.reveal);
+    _remoteRevealFeedback(heavy: true);
   }
 
   void _applyRemoteMatchEventLog(RoomMatchEvent ev) {

@@ -263,7 +263,7 @@ final _infoSection = GuideSectionData(
       title: 'よくある誤解',
       body:
           '・地図の点＝現在地？ → 多くは違います\n'
-          '・匿名痕跡の本人は？ → 基本わかりません\n'
+          '・${GuideTerms.anonTrace}の本人は？ → 基本わかりません\n'
           '・名前付き＝今もそこ？ → 必ずしもそうではありません',
     ),
   ],
@@ -578,7 +578,7 @@ final _rolesSection = GuideSectionData(
       id: 'analyst',
       title: 'アナリスト',
       icon: Icons.analytics_outlined,
-      oneLine: '逃走者特化。匿名痕跡を読みやすい。',
+      oneLine: '逃走者特化。${GuideTerms.anonTrace}を読みやすい。',
       body: '名前は直接は出ません。痕跡の補助情報が得られます。',
     ),
     _card(

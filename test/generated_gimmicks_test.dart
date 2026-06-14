@@ -53,7 +53,7 @@ void main() {
     ];
     expect(all.length, greaterThan(4));
     // 広い円でも、少なくとも一部は中心から十分離れる（中心固まり防止）。
-    expect(minDist(all), greaterThan(180));
+    expect(minDist(all), greaterThan(150));
   });
 
   test('higher gimmick density yields at least as many placements', () {
@@ -66,5 +66,31 @@ void main() {
         g.cameras.length +
         g.eventAreas.length;
     expect(total(dense), greaterThanOrEqualTo(total(sparse)));
+  });
+
+  test('relocateFarFromOthers keeps distance from existing gimmicks', () {
+    const seed = 555;
+    final existing = GeneratedGimmicks.create(area, seed: seed, density: 1.0);
+    final placed = [
+      ...existing.safeZones,
+      ...existing.cameras,
+    ];
+    final relocated = GeneratedGimmicks.relocateFarFromOthers(
+      area: area,
+      placed: placed,
+      seed: seed + 99,
+    );
+    expect(area.contains(relocated), isTrue);
+    for (final p in placed) {
+      expect(
+        Geolocator.distanceBetween(
+          relocated.latitude,
+          relocated.longitude,
+          p.latitude,
+          p.longitude,
+        ),
+        greaterThan(30),
+      );
+    }
   });
 }

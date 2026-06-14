@@ -47,6 +47,11 @@ class PrepLobbyPanel extends StatefulWidget {
     this.rulesOverviewLine,
     this.startButtonKey,
     this.customRulesKey,
+    this.playAreaKey,
+    this.prepReadyKey,
+    this.prepReady = false,
+    this.onTogglePrepReady,
+    this.prepReadySummaryLine,
     this.hostAbsent = false,
     this.hostLabel,
     this.onClaimHost,
@@ -84,6 +89,11 @@ class PrepLobbyPanel extends StatefulWidget {
   final String? rulesOverviewLine;
   final GlobalKey? startButtonKey;
   final GlobalKey? customRulesKey;
+  final GlobalKey? playAreaKey;
+  final GlobalKey? prepReadyKey;
+  final bool prepReady;
+  final VoidCallback? onTogglePrepReady;
+  final String? prepReadySummaryLine;
   final bool hostAbsent;
   final String? hostLabel;
   final VoidCallback? onClaimHost;
@@ -318,8 +328,19 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                         ),
                       ),
                   ],
+                  if (widget.isHost && widget.prepReadySummaryLine != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        widget.prepReadySummaryLine!,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: leg.muted,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   PrepSummaryTile(
+                    key: widget.playAreaKey,
                     prepLegibility: leg,
                     icon: Icons.crop_free,
                     title: 'プレイエリア',
@@ -395,6 +416,36 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                         widget.participantRulesOpen
                             ? 'ルール編集: 開放中'
                             : 'ルール編集: ホスト待ち',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: leg.muted,
+                        ),
+                      ),
+                    ),
+                  if (!widget.isHost && widget.onTogglePrepReady != null) ...[
+                    SizedBox(
+                      key: widget.prepReadyKey,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: widget.onTogglePrepReady,
+                        icon: Icon(
+                          widget.prepReady
+                              ? Icons.check_circle_rounded
+                              : Icons.check_circle_outline_rounded,
+                        ),
+                        label: Text(
+                          widget.prepReady ? '準備完了（タップで解除）' : '準備完了',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (!widget.isHost)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        widget.prepReady
+                            ? 'ホストの開始を待っています。ルール確認以外の操作は制限されます。'
+                            : '設定が済んだら「準備完了」を押してください。',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: leg.muted,
                         ),

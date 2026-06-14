@@ -32,10 +32,11 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
   bool _useBle = false;
   String? _avatarPath;
 
-  bool _oniRoleEnabled = false;
-  bool _oniVib = true;
-  bool _oniSound = true;
-  bool _oniAggressive = false;
+  bool _oniNotifyVibration = true;
+  bool _oniNotifySound = true;
+  bool _oniNotifyAggressive = false;
+  bool _crisisNotifyVibration = true;
+  bool _crisisNotifyLocal = true;
   bool _shortMatchStartCeremony = false;
 
   LocationPermission? _locationPermission;
@@ -67,10 +68,11 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
       _profile = profile;
       _useBle = prefs.getBool(GameMapPrefs.useBleScanProximity) ?? false;
       _avatarPath = prefs.getString(GameMapPrefs.avatarImagePath);
-      _oniRoleEnabled = oni.roleEnabled;
-      _oniVib = oni.notifyVibration;
-      _oniSound = oni.notifySound;
-      _oniAggressive = oni.notifyAggressive;
+      _oniNotifyVibration = oni.notifyVibration;
+      _oniNotifySound = oni.notifySound;
+      _oniNotifyAggressive = oni.notifyAggressive;
+      _crisisNotifyVibration = oni.crisisVibration;
+      _crisisNotifyLocal = oni.crisisNotification;
       _shortMatchStartCeremony = shortCeremony;
       _locationPermission = permission;
       _locationServiceEnabled = serviceEnabled;
@@ -121,10 +123,12 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
     await OniOperatorPrefs.save(
       prefs,
       OniOperatorSnapshot(
-        roleEnabled: _oniRoleEnabled,
-        notifyVibration: _oniVib,
-        notifySound: _oniSound,
-        notifyAggressive: _oniAggressive,
+        roleEnabled: true,
+        notifyVibration: _oniNotifyVibration,
+        notifySound: _oniNotifySound,
+        notifyAggressive: _oniNotifyAggressive,
+        crisisVibration: _crisisNotifyVibration,
+        crisisNotification: _crisisNotifyLocal,
       ),
     );
     if (!mounted) return;
@@ -238,42 +242,57 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                   onChanged: (v) => setState(() => _shortMatchStartCeremony = v),
                 ),
                 const SizedBox(height: 20),
-                _sectionTitle(context, '鬼設定'),
+                _sectionTitle(context, '試合通知'),
                 const SizedBox(height: 4),
                 Text(
-                  '鬼役として操作するときの通知。逃走者向け HUD とは別です。',
+                  'パニック・結界拘束・バックグラウンド復帰時の危機など。端末ローカルに保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
+                Text(
+                  '危機アラート（アプリが背面のとき）',
+                  style: theme.textTheme.titleSmall,
+                ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('鬼ロール設定を有効化'),
-                  value: _oniRoleEnabled,
-                  onChanged: (v) => setState(() => _oniRoleEnabled = v),
+                  title: const Text('危機時の振動'),
+                  subtitle: const Text('パニック・結界拘束・自分への暴露など'),
+                  value: _crisisNotifyVibration,
+                  onChanged: (v) => setState(() => _crisisNotifyVibration = v),
                 ),
-                if (_oniRoleEnabled) ...[
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('鬼向けバイブ通知'),
-                    value: _oniVib,
-                    onChanged: (v) => setState(() => _oniVib = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('鬼向けサウンド通知'),
-                    value: _oniSound,
-                    onChanged: (v) => setState(() => _oniSound = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('接近時に通知を高頻度化'),
-                    subtitle: const Text('バッテリー消費が増えます'),
-                    value: _oniAggressive,
-                    onChanged: (v) => setState(() => _oniAggressive = v),
-                  ),
-                ],
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('危機時のローカル通知'),
+                  subtitle: const Text('画面ロック中も通知トレイに表示'),
+                  value: _crisisNotifyLocal,
+                  onChanged: (v) => setState(() => _crisisNotifyLocal = v),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '接近・拘束中（アプリ前面のとき）',
+                  style: theme.textTheme.titleSmall,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('振動'),
+                  value: _oniNotifyVibration,
+                  onChanged: (v) => setState(() => _oniNotifyVibration = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('サウンド'),
+                  value: _oniNotifySound,
+                  onChanged: (v) => setState(() => _oniNotifySound = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('接近時に通知を高頻度化'),
+                  subtitle: const Text('バッテリー消費が増えます'),
+                  value: _oniNotifyAggressive,
+                  onChanged: (v) => setState(() => _oniNotifyAggressive = v),
+                ),
                 const SizedBox(height: 20),
                 _sectionTitle(context, 'プライバシー'),
                 const SizedBox(height: 8),

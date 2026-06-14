@@ -17,8 +17,6 @@ extension _GameMapOverlay on _GameMapScreenState {
   GameMapOverlaySnapshot _overlaySnapshot(WorldProfileTokens tokens) {
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
-    final showSpectatorOverlays = _isRoomInspector;
-    final hideMapIntel = false;
     return GameMapOverlaySnapshot(
       now: DateTime.now(),
       playerMarkerPosition: _playerMarkerPosition,
@@ -39,16 +37,10 @@ extension _GameMapOverlay on _GameMapScreenState {
       commJammingZonePositions: _rt.commJammingZonePositions,
       cameraPositions: _rt.cameraPositions,
       disabledCameraIndices: _rt.disabledCameraIndices,
-      tracePoints: hideMapIntel ? const [] : _tracePoints,
-      revealTraces: hideMapIntel
-          ? const []
-          : _recentRevealTraces().toList(growable: false),
-      anonymousRevealTraces: hideMapIntel
-          ? const []
-          : _recentAnonymousTraces().toList(growable: false),
-      oniIntelTraces: hideMapIntel
-          ? const []
-          : _recentOniIntelTraces().toList(growable: false),
+      tracePoints: _tracePoints,
+      revealTraces: _recentRevealTraces().toList(growable: false),
+      anonymousRevealTraces: _recentAnonymousTraces().toList(growable: false),
+      oniIntelTraces: _recentOniIntelTraces().toList(growable: false),
       safeZoneAvailable: _rt.safeZoneAvailable,
       infoBrokerAvailable: _rt.infoBrokerAvailable,
       safeZoneRespawnAt: _rt.safeZoneRespawnAt,
@@ -58,6 +50,7 @@ extension _GameMapOverlay on _GameMapScreenState {
       bodyThrowPosition: _rt.bodyThrowPosition,
       bodyThrowAwaitingMapTap: _rt.bodyThrowAwaitingMapTap,
       waitingSkillLockMapTap: _rt.waitingSkillLockMapTap,
+      fakeIntelAwaitingMapTap: _rt.fakeIntelAwaitingMapTap,
       skillPlacementPreviewLatLng: _skillPlacementPreviewLatLng,
       skillPlacementPreviewRadiusMeters:
           _skillPlacementPreviewRadiusMeters(),
@@ -84,7 +77,7 @@ extension _GameMapOverlay on _GameMapScreenState {
               placedBySkill: _rt.lockZoneFromSkill,
               playArea: _playArea,
             ),
-      oniTrailPoints: hideMapIntel ? const [] : _oniTrailPointsForMap(),
+      oniTrailPoints: _oniTrailPointsForMap(),
       oniMatchStartAnchor: _showOniMatchStartAnchor ? _oniMatchStartAnchor : null,
       tokens: tokens,
       layerToggles: _mapLayerToggles,
@@ -130,6 +123,7 @@ extension _GameMapOverlay on _GameMapScreenState {
     if (_rt.waitingSkillLockMapTap) {
       return GameConfig.captureZoneSkillRadiusMeters;
     }
+    if (_rt.fakeIntelAwaitingMapTap) return 16;
     return 12;
   }
 
@@ -138,6 +132,16 @@ extension _GameMapOverlay on _GameMapScreenState {
       return GameConfig.bodyThrowDistanceMeters;
     }
     return 0;
+  }
+
+  String _skillMapPlacementHint() {
+    if (_rt.fakeIntelAwaitingMapTap) {
+      return '長押しで暴露位置を決める（プレイエリア内）';
+    }
+    if (_rt.bodyThrowAwaitingMapTap) {
+      return '長押しで人形の位置を決める';
+    }
+    return '長押しで結界の位置を決める';
   }
 
   void _logDebug(String line) {
@@ -189,9 +193,7 @@ extension _GameMapOverlay on _GameMapScreenState {
       mapController: _mapController,
       skillPlacementActive: _skillMapPlacementActive,
       bodyThrowAwaitingMapTap: _rt.bodyThrowAwaitingMapTap,
-      skillPlacementHint: _rt.bodyThrowAwaitingMapTap
-          ? '長押しで人形の位置を決める'
-          : '長押しで結界の位置を決める',
+      skillPlacementHint: _skillMapPlacementHint(),
       onSkillPlacementPreview: _onSkillPlacementPreview,
       onSkillPlacementConfirm: _confirmSkillMapPlacementAt,
       onSkillPlacementCancel: _cancelSkillMapPlacement,

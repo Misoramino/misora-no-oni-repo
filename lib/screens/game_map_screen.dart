@@ -15,7 +15,7 @@ import '../progression/player_title.dart';
 import '../progression/progress_store.dart';
 import '../session/onboarding_prefs.dart';
 import '../features/onboarding/coach_marks.dart';
-import '../features/onboarding/welcome_flow.dart';
+import '../features/onboarding/match_structure_guide.dart';
 import '../features/tutorial/second_game_tutorial_kind.dart';
 import '../features/tutorial/tutorial_entry.dart';
 import '../widgets/app_dialog.dart';
@@ -37,6 +37,7 @@ import '../features/game_map/match/game_map_match_controller.dart';
 import '../features/game_map/match/gimmick_pickup_evaluator.dart';
 import '../features/game_map/match/match_geo_helpers.dart';
 import '../features/game_map/match/match_runtime_state.dart';
+import '../features/game_map/match/pending_gimmick_relocate.dart';
 import '../features/game_map/match/match_tick_effects.dart';
 import '../features/game_map/match/match_tick_evaluator.dart';
 import '../features/game_map/prep/area_gallery_pick.dart';
@@ -53,6 +54,7 @@ import '../features/game_map/presentation/world_phase_flash.dart';
 import '../session/match_presentation_prefs.dart';
 import '../features/game_map/widgets/game_inline_status_badge.dart';
 import '../features/game_map/widgets/location_permission_prompt.dart';
+import '../features/game_map/widgets/match_playability_hints.dart';
 import '../game/role_briefing.dart';
 import '../features/game_map/widgets/role_briefing_dialog.dart';
 import '../features/game_map/settings/game_custom_settings_models.dart';
@@ -138,6 +140,8 @@ import '../sync/room_match_event.dart';
 import '../sync/remote_member_snapshot.dart';
 import '../sync/room_member_view.dart';
 import '../services/location_service.dart';
+import '../services/background_crisis_alert.dart';
+import '../services/battery_power_mode.dart';
 import '../services/match_archive_store.dart';
 import '../services/match_recorder.dart';
 import '../services/spectator_match_recorder.dart';
@@ -194,9 +198,12 @@ part 'game_map_screen.skills.dart';
 part 'game_map_screen.overlay.dart';
 part 'game_map_screen.rejoin.dart';
 part 'game_map_screen.presentation.dart';
+part 'game_map_screen.prep_sync.dart';
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({required this.profile, this.onlineSession, super.key});
+
+  static const routeName = '/game-map';
 
   final WorldProfile profile;
 
@@ -340,6 +347,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   String? _abortProposalInitiatorUid;
   DateTime? _abortProposalExpiresAt;
   Timer? _abortProposalTimer;
+  bool _hostAbsentClaimInFlight = false;
   final Map<String, Set<String>> _captureAcksByPlace = {};
   DateTime? _lastBodyThrowAreaToastAt;
   DateTime? _lastHunterPositionPublishAt;
@@ -367,10 +375,11 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   /// オンラインで鬼役の位置が members に載っている。
   bool _remoteOniKnown = false;
-  bool _oniRoleEnabled = false;
   bool _oniNotifyVibration = true;
   bool _oniNotifySound = true;
   bool _oniNotifyAggressive = false;
+  bool _crisisNotifyVibration = true;
+  bool _crisisNotifyLocal = true;
 
   // --- Elimination & second game (logic: second_game, accusation parts) ---
   EliminationAftermathRule _eliminationAftermathRule =
@@ -379,6 +388,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   EliminationAftermathRule? _afterCatchRule;
   FactionSide? _factionAtDeath;
   final Set<String> _eliminatedUids = {};
+  final Map<String, DateTime> _absentSinceByUid = {};
+  bool _abortMajorityFinalizeInFlight = false;
 
   bool _progressRecordedForMatch = false;
   PlayerProgress? _lastProgress;
@@ -387,16 +398,27 @@ class _GameMapScreenState extends State<GameMapScreen>
   // --- Onboarding & HUD experience (logic: hud_experience.dart) ---
   final GlobalKey _prepStartKey = GlobalKey();
   final GlobalKey _prepCustomRulesKey = GlobalKey();
+  final GlobalKey _prepPlayAreaKey = GlobalKey();
+  final GlobalKey _prepReadyKey = GlobalKey();
   final GlobalKey _prepMapFabKey = GlobalKey();
   final GlobalKey _matchHudKey = GlobalKey();
   final GlobalKey _matchHudTuneKey = GlobalKey();
   final GlobalKey _matchSkillPanelKey = GlobalKey();
   final GlobalKey _matchOverflowKey = GlobalKey();
   bool _prepOnboardingChecked = false;
+  bool _localPrepReady = false;
+  RoomMatchState? _pendingRunningMatch;
+  bool _matchStartWhileEditingPromptOpen = false;
+  DateTime? _localGimmickRelocateHintUntil;
+  int? _lastGimmickRelocateHintSecondShown;
+  bool _suppressMatchFeedback = false;
   bool _matchRoleBriefingShown = false;
   bool _rejoinRestoringEvents = false;
   bool _matchPresentationActive = false;
   bool _matchStartInFlight = false;
+  bool _wasActiveInCurrentOnlineMatch = false;
+  AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
+  DateTime? _backgroundPausedAtUtc;
   String? _matchEventFeedLine;
   String? _inlineStatusMessage;
   Timer? _inlineStatusTimer;
@@ -460,6 +482,17 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (_prepOnboardingChecked) return;
     _prepOnboardingChecked = true;
     if (!mounted || _gameState != GameState.waiting) return;
+
+    if (!await OnboardingPrefs.structureGuideSeen()) {
+      if (!mounted || _gameState != GameState.waiting) return;
+      await showMatchStructureGuide(context);
+      await OnboardingPrefs.markStructureGuideSeen();
+      if (!mounted || _gameState != GameState.waiting) return;
+    }
+
+    await _maybeSuggestPlayAreaAtCurrentLocation();
+    if (!mounted || _gameState != GameState.waiting) return;
+
     if (await OnboardingPrefs.prepGuideSeen()) return;
     if (!mounted || _gameState != GameState.waiting) return;
 
@@ -468,8 +501,8 @@ class _GameMapScreenState extends State<GameMapScreen>
       builder: (ctx) {
         final theme = Theme.of(ctx);
         return AppDialog(
-          title: 'はじめての準備画面',
-          icon: Icons.waving_hand_rounded,
+          title: '操作ガイド',
+          icon: Icons.touch_app_rounded,
           actions: [
             AppDialogAction(
               label: 'スキップ',
@@ -478,14 +511,14 @@ class _GameMapScreenState extends State<GameMapScreen>
               onPressed: () => Navigator.pop(ctx, false),
             ),
             AppDialogAction(
-              label: 'ガイドを見る',
+              label: 'ボタン案内を見る',
               icon: Icons.auto_awesome_rounded,
               onPressed: () => Navigator.pop(ctx, true),
             ),
           ],
           child: Text(
-            '30秒でわかる、かんたんガイドを見てみませんか？\n'
-            'あとからタイトルの「${MatchUiTerms.guideHub}」やメニューからも見られます。',
+            '準備画面のボタンと、試合用の操作を短く案内します。\n'
+            '試合の流れは先ほどの「試合の構造」で確認できます。',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -493,11 +526,29 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     if (!mounted) return;
     if (seeGuide == true) {
-      final result = await showWelcomeFlow(context, offerTutorial: true);
+      await _showPrepCoachMarks(markSeen: false);
       if (!mounted) return;
-      if (result == WelcomeResult.tutorial) {
+      final runTutorial = await showAppDialog<bool>(
+        context: context,
+        builder: (ctx) => AppDialog(
+          title: 'チュートリアル',
+          icon: Icons.school_outlined,
+          actions: [
+            AppDialogAction(
+              label: 'あとで',
+              filled: false,
+              onPressed: () => Navigator.pop(ctx, false),
+            ),
+            AppDialogAction(
+              label: 'やってみる',
+              onPressed: () => Navigator.pop(ctx, true),
+            ),
+          ],
+          child: const Text('役職別の操作練習（サンドボックス）も利用できます。'),
+        ),
+      );
+      if (runTutorial == true && mounted) {
         await openTutorialPicker(context);
-        if (!mounted) return;
       }
     } else {
       await _showPrepCoachMarks(markSeen: true);
@@ -507,27 +558,48 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _showPrepCoachMarks({bool markSeen = false}) async {
     if (!mounted || _gameState != GameState.waiting) return;
-    await showCoachMarks(context, [
-      CoachStep(
-        targetKey: _prepStartKey,
-        icon: Icons.play_circle_fill_rounded,
-        title: 'ここで試合開始',
-        body: '準備ができたら「試合を開始」。まずは1戦やってみよう！',
-      ),
-      CoachStep(
-        targetKey: _prepCustomRulesKey,
-        icon: Icons.tune_rounded,
-        title: 'ルールを調整',
-        body: '役職・制限時間・ギミックは「ルール・役職」タイルから変えられます。',
-      ),
-      CoachStep(
-        targetKey: _prepMapFabKey,
-        icon: Icons.map_rounded,
-        title: 'プレイエリアを編集',
-        body: '「プレイエリア」タブから地図プレビュー・編集・ギャラリーに進めます。'
-            '枠の外に出すぎると位置がバレやすくなります。',
-      ),
-    ]);
+    final steps = _isHost
+        ? [
+            CoachStep(
+              targetKey: _prepCustomRulesKey,
+              icon: Icons.tune_rounded,
+              title: 'ルールを調整',
+              body: '役職・制限時間・ギミックは「ルール・役職」タイルから変えられます。',
+            ),
+            CoachStep(
+              targetKey: _prepPlayAreaKey,
+              icon: Icons.crop_free_rounded,
+              title: 'プレイエリアを決める',
+              body: '「プレイエリア」で地図を編集・保存し「選択エリアを適用」で試合に反映します。',
+            ),
+            CoachStep(
+              targetKey: _prepStartKey,
+              icon: Icons.play_circle_fill_rounded,
+              title: 'ここで試合開始',
+              body: '準備ができたら「試合を開始」。まずは1戦やってみよう！',
+            ),
+          ]
+        : [
+            CoachStep(
+              targetKey: _prepCustomRulesKey,
+              icon: Icons.tune_rounded,
+              title: 'ルールを確認',
+              body: '「ルール・役職」で内容を確認できます。ホストが編集を開放していれば調整も可能です。',
+            ),
+            CoachStep(
+              targetKey: _prepPlayAreaKey,
+              icon: Icons.crop_free_rounded,
+              title: 'プレイエリアを提案',
+              body: '「プレイエリア」で編集・保存し「ホストに提案」できます。適用はホストが決めます。',
+            ),
+            CoachStep(
+              targetKey: _prepReadyKey,
+              icon: Icons.check_circle_outline_rounded,
+              title: '準備完了を押して待つ',
+              body: '設定が済んだら「準備完了」。ホストが開始するまでここで待ちましょう。',
+            ),
+          ];
+    await showCoachMarks(context, steps);
     if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
   }
 
@@ -582,14 +654,31 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
     if (state == AppLifecycleState.resumed) {
       _logDebug('lifecycle:resumed');
+      _publishResumePresence();
+      _catchUpGameStateOnResume();
       _setupLocation();
+      if (_gameState == GameState.waiting) {
+        _maybeCatchUpRunningMatch();
+      }
       if (_testMode) {
         _simulateOfflineFlush();
       }
-    } else if (state == AppLifecycleState.paused) {
-      _logDebug('lifecycle:paused');
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _logDebug('lifecycle:$state');
+      if (_gameState == GameState.running ||
+          _gameState == GameState.caughtByOni) {
+        _backgroundPausedAtUtc ??= DateTime.now().toUtc();
+      }
+      if (state != AppLifecycleState.inactive ||
+          _gameState == GameState.running ||
+          _gameState == GameState.caughtByOni) {
+        _publishBackgroundIfMatchRunning();
+      }
     }
   }
 
@@ -866,6 +955,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         _applyRemoteOniPosition(map);
       });
       unawaited(_ingestRemoteAvatarThumbs(map));
+      unawaited(_maybeAutoClaimHostIfAbsent());
     });
     _roomMatchSub?.cancel();
     _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
@@ -893,6 +983,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (!_isHost) {
       _onRemoteRoomMatchState(rm);
+      unawaited(_maybeAutoClaimHostIfAbsent());
     }
   }
 
@@ -912,43 +1003,22 @@ class _GameMapScreenState extends State<GameMapScreen>
             state.matchStart!.gimmickSeed,
           );
         }
-        if (!_editingArea && state.matchStart != null) {
-          _tryEnterRunningMatch(
-            state,
-            playerToast: 'ホストが試合を開始しました',
-          );
+        if (state.matchStart != null) {
+          if (_editingArea) {
+            _pendingRunningMatch = state;
+            unawaited(_promptJoinMatchAfterAreaEdit());
+          } else {
+            _pendingRunningMatch = null;
+            _tryEnterRunningMatch(
+              state,
+              playerToast: 'ホストが試合を開始しました',
+            );
+          }
         }
         break;
       case RoomPhase.ended:
-        if (state.matchEnd != null && _isMatchStillActiveForLocalPlayer) {
-          final end = state.matchEnd!;
-          if (end.endReason == MatchEndReason.hostAbort) {
-            _matchTimer?.cancel();
-            _afterCatchRule = null;
-            _finalizeRecordingFuture = Future<void>.microtask(
-              () => _finalizeMatchRecording(
-                GameState.waiting,
-                endReason: MatchEndReason.hostAbort,
-                winningFaction: null,
-              ),
-            );
-            _syncSetState(() {
-              _gameState = GameState.waiting;
-              _statusMessage = end.message.isNotEmpty
-                  ? end.message
-                  : _messageForMatchEnd(end);
-              _prepControlSheetOpen = true;
-              _prepMapMode = PrepMapMode.hidden;
-            });
-            GameAudio.instance.playMenuBgm(_activeProfile);
-          } else {
-            _endGame(
-              end.outcome,
-              end.message.isNotEmpty ? end.message : _messageForMatchEnd(end),
-              endReason: end.endReason,
-              skipFirestoreSync: true,
-            );
-          }
+        if (state.matchEnd != null) {
+          if (_tryApplyRemoteRoomEnded()) break;
         }
         break;
     }
@@ -1076,14 +1146,33 @@ class _GameMapScreenState extends State<GameMapScreen>
     _hudRevealAlertTimer?.cancel();
     setState(() {
       _hudRevealAlert = message;
-      _hudExpanded = true;
+      if (!_suppressMatchFeedback) {
+        _hudExpanded = true;
+      }
     });
+    if (_suppressMatchFeedback) return;
     _revealFlash.trigger(_mapVisual.pack);
     unawaited(_refreshPlayerAvatarIcon());
     _hudRevealAlertTimer = Timer(const Duration(seconds: 14), () {
       if (!mounted) return;
       setState(() => _hudRevealAlert = null);
     });
+  }
+
+  void _remoteRevealFeedback({SfxId sfx = SfxId.reveal, bool heavy = false}) {
+    if (_suppressMatchFeedback) return;
+    if (heavy) {
+      HapticFeedback.heavyImpact();
+    } else {
+      HapticFeedback.mediumImpact();
+    }
+    GameAudio.instance.playSfx(sfx);
+  }
+
+  void _remoteLightFeedback({SfxId sfx = SfxId.anonReveal}) {
+    if (_suppressMatchFeedback) return;
+    HapticFeedback.lightImpact();
+    GameAudio.instance.playSfx(sfx);
   }
 
   Future<void> _initWorldVisual() async {
@@ -1199,6 +1288,11 @@ class _GameMapScreenState extends State<GameMapScreen>
         viewerPosition: _currentPosition,
         jammingZoneCenters: _rt.commJammingZonePositions,
       );
+
+  int _positionSeedForReveal(LatLng raw) =>
+      (raw.latitude * 100000).round() ^
+      (raw.longitude * 100000).round() ^
+      (_matchEventSessionKey ?? 0);
 
   bool _isPointInCommJammingZone(LatLng point) => MapGeoUtils.isPointInZone(
     point,
@@ -1432,6 +1526,24 @@ class _GameMapScreenState extends State<GameMapScreen>
       return '体を回収するまで';
     }
     return null;
+  }
+
+  int? _gimmickRelocateHintSeconds() {
+    final until = _localGimmickRelocateHintUntil;
+    if (until == null) return null;
+    final left = until.difference(DateTime.now()).inSeconds;
+    if (left <= 0) {
+      _localGimmickRelocateHintUntil = null;
+      return null;
+    }
+    return left;
+  }
+
+  void _tickGimmickRelocateHintUi() {
+    final sec = _gimmickRelocateHintSeconds();
+    if (sec == _lastGimmickRelocateHintSecondShown) return;
+    _lastGimmickRelocateHintSecondShown = sec;
+    if (mounted) setState(() {});
   }
 
   bool get _isPerceivedOniNow =>
@@ -1753,7 +1865,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _onMapTap(LatLng pos) {
-    if (_rt.bodyThrowAwaitingMapTap || _rt.waitingSkillLockMapTap) {
+    if (_rt.bodyThrowAwaitingMapTap ||
+        _rt.waitingSkillLockMapTap ||
+        _rt.fakeIntelAwaitingMapTap) {
       return;
     }
     if (!_editingArea) return;
@@ -1924,7 +2038,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                                   RunnerModifier.analyst) ...[
                                 const SizedBox(height: 16),
                                 Text(
-                                  '匿名痕跡（アナリスト）',
+                                  '不明な痕跡（アナリスト）',
                                   style: theme.textTheme.titleSmall,
                                 ),
                                 if (_rt.anonymousRevealTraces.isEmpty)
@@ -1986,7 +2100,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ListTile(
       dense: true,
       title: Text(
-        '${e.playerLabel} #${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m',
+        e.reasonSummary != null && e.reasonSummary!.isNotEmpty
+            ? '${e.playerLabel} #${e.sequence}  +${e.overflowMeters.toStringAsFixed(0)}m'
+            : '${e.playerLabel} #${e.sequence}',
       ),
       subtitle: Text(
         [
@@ -2375,6 +2491,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _backToTitle() async {
+    if (_blockIfNonHostPrepLocked('タイトルへ戻る')) return;
     if (!await _confirmLeaveActiveMatch('タイトルへ戻りますか？')) return;
     _matchTimer?.cancel();
     _matchRecorder?.discard();
@@ -2397,6 +2514,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _openRoomLobby() async {
+    if (_gameState == GameState.waiting && _blockIfNonHostPrepLocked('ロビーを開く')) {
+      return;
+    }
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
     if (_gameState == GameState.running || locallyEliminated) {
@@ -2817,6 +2937,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Future<void> _openAreaGallery() async {
+    if (_blockIfNonHostPrepLocked('ギャラリーを開く')) return;
     final running = _gameState == GameState.running;
     final picked = await AppNav.push<AreaGalleryPick?>(
       context,
@@ -3035,6 +3156,13 @@ class _GameMapScreenState extends State<GameMapScreen>
                   worldVisualProfile: _mapVisual.pack.profile,
                   startButtonKey: _prepStartKey,
                   customRulesKey: _prepCustomRulesKey,
+                  playAreaKey: _prepPlayAreaKey,
+                  prepReadyKey: _prepReadyKey,
+                  prepReady: _localPrepReady,
+                  onTogglePrepReady: !_isHost && _isOnlineFirestore
+                      ? () => unawaited(_toggleLocalPrepReady())
+                      : null,
+                  prepReadySummaryLine: _prepReadySummaryLine(),
                   hostAbsent: _isOnlineFirestore &&
                       !_isHost &&
                       (_firestoreSession?.isHostAbsent(
@@ -3365,6 +3493,26 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                 ),
               ),
+            if (running && _gimmickRelocateHintSeconds() != null)
+              Positioned(
+                left: 14,
+                bottom: showBottomControlSheet ? 108 : 20,
+                child: IgnorePointer(
+                  child: Text(
+                    '地点移動まで ${_gimmickRelocateHintSeconds()}秒',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             if (showBottomControlSheet)
               Positioned(
                 bottom: 16,
@@ -3613,7 +3761,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                       key: _prepMapFabKey,
                       onPressed: running
                           ? _showControlPanel
-                          : () => _enterPrepMapMode(PrepMapMode.browse),
+                          : () {
+                              if (_blockIfNonHostPrepLocked('地図を開く')) return;
+                              _enterPrepMapMode(PrepMapMode.browse);
+                            },
                       icon: Icon(running ? Icons.expand_less : Icons.map_outlined),
                       label: Text(running ? '展開' : '地図へ'),
                     ),

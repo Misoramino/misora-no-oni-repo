@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../session/onboarding_prefs.dart';
 import '../../widgets/app_dialog.dart';
+import 'match_structure_guide.dart';
 import 'welcome_flow.dart';
 
 /// かんたんガイド（スライド・コーチマーク・リセット）。
@@ -38,6 +39,16 @@ Future<void> showOnboardingReplaySheet(
                   ),
                 ),
                 const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.account_tree_outlined),
+                  title: const Text('試合の構造'),
+                  subtitle: const Text('初回準備と同じ4ページ（役職の狙い含む）'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showMatchStructureGuide(context);
+                  },
+                ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.auto_awesome_rounded),

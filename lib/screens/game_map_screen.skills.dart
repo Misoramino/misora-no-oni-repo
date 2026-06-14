@@ -23,6 +23,7 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     final targetLabel = _displayNameForUid(targetUid);
     final nextInfoBroker = _relocateInfoBroker(hitIndex);
+    final intelLine = '標的: $targetLabel — ${MatchUiTerms.namedReveal}を発動';
     _markInfoBrokerUsed(
       hitIndex: hitIndex,
       hit: hit,
@@ -31,6 +32,18 @@ extension _GameMapSkills on _GameMapScreenState {
       hunterLastAt: now,
       statusMessage: '情報屋: $targetLabel を標的に',
     );
+    _syncSetState(() {
+      _rt.lastOniIntelText = intelLine;
+      _rt.lastOniIntelAt = now;
+      _rt.showOniIntelCard = true;
+      _rt.oniIntelTraces.insert(
+        0,
+        OniIntelTrace(timestamp: now, position: hit, text: intelLine),
+      );
+      if (_rt.oniIntelTraces.length > 20) {
+        _rt.oniIntelTraces.removeLast();
+      }
+    });
     _emitMatchEvent(
       type: RoomMatchEventTypes.oniInfoBroker,
       message: '鬼が情報屋を利用: $targetLabel',
@@ -327,9 +340,8 @@ extension _GameMapSkills on _GameMapScreenState {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-            'どちらも${MatchUiTerms.namedReveal}として地図に出ます。\n'
-            '・自分（鬼）… 別地点に自分の名前で露出\n'
-            '・逃走者ランダム… 誰か1人の名前で別地点に露出\n'
+                'どちらも${MatchUiTerms.namedReveal}として地図に出ます。\n'
+                '次の画面で地図を長押しし、指を離して位置を確定します。\n'
                 '相手からは偽情報とは分かりません。',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -353,14 +365,9 @@ extension _GameMapSkills on _GameMapScreenState {
       },
     );
     if (self == null) return;
-    late final LatLng raw;
     late final String label;
     String? targetUid;
     if (self) {
-      raw = LatLng(
-        _currentPosition.latitude + 0.0007,
-        _currentPosition.longitude - 0.0005,
-      );
       label = _localPlayerLabel;
     } else {
       final victim = _pickRandomOtherMatchMember();
@@ -370,11 +377,40 @@ extension _GameMapSkills on _GameMapScreenState {
       }
       targetUid = victim.uid;
       label = victim.label;
-      raw = _randomFakeRevealPointInPlayArea();
     }
-    final p = _displayRevealPosition(raw);
-    final pick = _reasonPickAt(p);
+    _syncSetState(() {
+      _rt.fakeIntelAwaitingMapTap = true;
+      _rt.fakeIntelTapDeadline = now.add(
+        const Duration(seconds: GameConfig.fakeIntelMapTapWindowSeconds),
+      );
+      _rt.fakeIntelPickedSelf = self;
+      _rt.fakeIntelTargetLabel = label;
+      _rt.fakeIntelTargetUid = targetUid;
+      _statusMessage =
+          '地図を長押しして暴露位置を決め、指を離して確定（プレイエリア内）';
+    });
+  }
+
+  void _placeFakeIntelAt(LatLng pos) {
+    if (!_playArea.contains(pos)) {
+      _toast('プレイエリア内を選んでください');
+      return;
+    }
+    final now = DateTime.now();
+    final self = _rt.fakeIntelPickedSelf;
+    final label = _rt.fakeIntelTargetLabel;
+    final targetUid = _rt.fakeIntelTargetUid;
+    final p = _displayRevealPosition(pos);
+    const pick = RevealReasonPick.exactLocation;
     _rt.lastFakeIntelRevealAt = now;
+    _syncSetState(() {
+      _rt.fakeIntelAwaitingMapTap = false;
+      _rt.fakeIntelTapDeadline = null;
+      _rt.fakeIntelTargetLabel = '';
+      _rt.fakeIntelTargetUid = null;
+      _skillPlacementPreviewLatLng = null;
+      _statusMessage = MatchHudCopy.namedRevealStatus(label, pick.summary);
+    });
     _emitIdentifiedReveal(
       revealKind: 'fake_intel_reveal',
       position: p,
@@ -497,21 +533,6 @@ extension _GameMapSkills on _GameMapScreenState {
     } else {
       _rt.fakePositionLatLng = next;
     }
-  }
-
-  LatLng _randomFakeRevealPointInPlayArea() {
-    final center = GeneratedGimmicks.centerOf(_playArea);
-    final radius =
-        GeneratedGimmicks.effectiveRadiusMeters(_playArea, center) * 0.45;
-    final angle = math.Random().nextDouble() * 360;
-    return GeneratedGimmicks.pointInArea(
-      area: _playArea,
-      center: center,
-      angleDegrees: angle,
-      distanceMeters: radius,
-      avoid: const [],
-      minGapMeters: 30,
-    );
   }
 
   /// 体投げ作動中は「鬼として配信する座標」を人形位置にずらす。
@@ -637,7 +658,9 @@ extension _GameMapSkills on _GameMapScreenState {
   }
 
   bool get _skillMapPlacementActive =>
-      _rt.waitingSkillLockMapTap || _rt.bodyThrowAwaitingMapTap;
+      _rt.waitingSkillLockMapTap ||
+      _rt.bodyThrowAwaitingMapTap ||
+      _rt.fakeIntelAwaitingMapTap;
 
   void _cancelSkillMapPlacement() {
     if (!_skillMapPlacementActive) return;
@@ -646,12 +669,20 @@ extension _GameMapSkills on _GameMapScreenState {
       _rt.bodyThrowAwaitingMapTap = false;
       _rt.bodyThrowTapDeadline = null;
       _rt.bodyThrowSkillOriginLatLng = null;
+      _rt.fakeIntelAwaitingMapTap = false;
+      _rt.fakeIntelTapDeadline = null;
+      _rt.fakeIntelTargetLabel = '';
+      _rt.fakeIntelTargetUid = null;
       _skillPlacementPreviewLatLng = null;
       _statusMessage = 'スキル設置をキャンセルしました';
     });
   }
 
   void _confirmSkillMapPlacementAt(LatLng pos) {
+    if (_rt.fakeIntelAwaitingMapTap) {
+      _placeFakeIntelAt(pos);
+      return;
+    }
     if (_rt.bodyThrowAwaitingMapTap) {
       _placeBodyThrowAt(pos);
       return;
@@ -898,7 +929,7 @@ extension _GameMapSkills on _GameMapScreenState {
     if (target != myUid) return;
     _emitAnonymousReveal(
       position: _currentPosition,
-      pick: _reasonPickAt(_currentPosition),
+      pick: _reasonPickAt(_currentPosition, periodic: true),
       source: 'periodic',
     );
   }
@@ -908,7 +939,18 @@ extension _GameMapSkills on _GameMapScreenState {
     required RevealReasonPick pick,
     required String source,
   }) {
-    final shown = _displayRevealPosition(position);
+    final shown = source == 'periodic'
+        ? MapGeoUtils.jitterRevealPosition(
+            raw: position,
+            seed: _positionSeedForReveal(position),
+          )
+        : _displayRevealPosition(position);
+    final errorMeters = Geolocator.distanceBetween(
+      position.latitude,
+      position.longitude,
+      shown.latitude,
+      shown.longitude,
+    );
     if (!mounted) return;
     _syncSetState(() {
       _rt.anonymousRevealTraces.insert(
@@ -919,13 +961,21 @@ extension _GameMapSkills on _GameMapScreenState {
           reasonSummary: pick.summary,
           narrative: pick.narrative,
           source: _traceSourceFromKey(source),
+          errorMeters: errorMeters,
         ),
       );
       if (_rt.anonymousRevealTraces.length > 24) {
         _rt.anonymousRevealTraces.removeLast();
       }
-      _statusMessage = '不明な痕跡（${pick.summary}）';
+      _statusMessage = MatchHudCopy.anonTraceFallback;
     });
+    if (source == 'panic' || source == 'periodic' || source == 'camera') {
+      _maybeBackgroundCrisisAlert(
+        kind: BackgroundCrisisKind.panicTrace,
+        title: GuideTerms.anonTrace,
+        body: pick.summary,
+      );
+    }
     _emitMatchEvent(
       type: 'anonymous_$source',
       message: pick.narrative,
@@ -937,6 +987,7 @@ extension _GameMapSkills on _GameMapScreenState {
         position: shown,
         pick: pick,
         source: source,
+        errorMeters: errorMeters,
       ),
     );
   }
@@ -945,6 +996,7 @@ extension _GameMapSkills on _GameMapScreenState {
     required LatLng position,
     required RevealReasonPick pick,
     required String source,
+    required double errorMeters,
   }) async {
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
@@ -962,6 +1014,7 @@ extension _GameMapSkills on _GameMapScreenState {
         'reasonSummary': pick.summary,
         'lat': position.latitude,
         'lng': position.longitude,
+        'errorMeters': errorMeters,
       },
       sessionKey: sk,
     );
@@ -974,6 +1027,8 @@ extension _GameMapSkills on _GameMapScreenState {
     final summary = ev.payload['reasonSummary'] as String? ?? '通信混線';
     final narrative = ev.payload['message'] as String? ?? '';
     final sourceKey = ev.payload['source'] as String? ?? 'other';
+    final errorRaw = ev.payload['errorMeters'];
+    final errorMeters = errorRaw is num ? errorRaw.toDouble() : 0.0;
     if (!mounted) return;
     _syncSetState(() {
       _rt.anonymousRevealTraces.insert(
@@ -984,14 +1039,14 @@ extension _GameMapSkills on _GameMapScreenState {
           reasonSummary: summary,
           narrative: narrative,
           source: _traceSourceFromKey(sourceKey),
+          errorMeters: errorMeters,
         ),
       );
       if (_rt.anonymousRevealTraces.length > 24) {
         _rt.anonymousRevealTraces.removeLast();
       }
     });
-    HapticFeedback.lightImpact();
-    GameAudio.instance.playSfx(SfxId.anonReveal);
+    _remoteLightFeedback();
   }
 
   Iterable<AnonymousRevealTrace> _recentAnonymousTraces() {
@@ -1059,7 +1114,7 @@ extension _GameMapSkills on _GameMapScreenState {
         'lng': position.longitude,
         'playerLabel': playerLabel,
         'pickedSelf': pickedSelf,
-        'reasonSummary': reasonSummary,
+        'reasonSummary': '',
         'targetUid': ?targetUid,
       },
       sessionKey: sk,
@@ -1116,14 +1171,10 @@ extension _GameMapSkills on _GameMapScreenState {
         _gameState != GameState.running) {
       return;
     }
-    final label = targetLabel.length > 80
-        ? targetLabel.substring(0, 80)
-        : targetLabel;
     final err = await fs.publishRoomEvent(
       type: RoomMatchEventTypes.oniInfoBroker,
       payload: {
         'targetUid': targetUid,
-        'targetLabel': label,
         'hitIndex': hitIndex,
         'pickupLat': pickupLat,
         'pickupLng': pickupLng,
@@ -1206,6 +1257,13 @@ extension _GameMapSkills on _GameMapScreenState {
         _rt.lockZoneBoundIds = const {'self'};
       }
     });
+    if (myUid != null && targets.contains(myUid)) {
+      _maybeBackgroundCrisisAlert(
+        kind: BackgroundCrisisKind.captureZoneBound,
+        title: '捕獲結界',
+        body: '結界内に拘束されました — アプリを開いて離脱してください',
+      );
+    }
   }
 
   void _emitMatchEvent({
@@ -1263,7 +1321,7 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     final ok = await _confirmDialog(
       title: '痕跡をクリア',
-      message: '地図上の痕跡・暴露ログ・匿名痕跡・鬼情報トレースを消しますか？',
+      message: '地図上の痕跡・暴露ログ・不明な痕跡・鬼情報トレースを消しますか？',
       confirmLabel: 'クリア',
     );
     if (!ok) return;
@@ -1420,28 +1478,16 @@ extension _GameMapSkills on _GameMapScreenState {
     final s = OniOperatorPrefs.fromPrefs(prefs);
     if (!mounted) return;
     _syncSetState(() {
-      _oniRoleEnabled = s.roleEnabled;
       _oniNotifyVibration = s.notifyVibration;
       _oniNotifySound = s.notifySound;
       _oniNotifyAggressive = s.notifyAggressive;
+      _crisisNotifyVibration = s.crisisVibration;
+      _crisisNotifyLocal = s.crisisNotification;
     });
   }
 
   void _emitOniCue({required String level}) {
-    final useAdvanced =
-        _oniRoleEnabled || _afterCatchRule == EliminationAftermathRule.joinOni;
-    if (!useAdvanced) {
-      if (level == 'danger') {
-        HapticFeedback.mediumImpact();
-        SystemSound.play(SystemSoundType.alert);
-        GameAudio.instance.playSfx(SfxId.proximityDanger);
-      } else {
-        HapticFeedback.selectionClick();
-        SystemSound.play(SystemSoundType.click);
-        GameAudio.instance.playSfx(SfxId.proximityWarning);
-      }
-      return;
-    }
+    if (!_oniNotifyVibration && !_oniNotifySound) return;
     final aggressive = _oniNotifyAggressive;
     if (_oniNotifyVibration) {
       if (level == 'danger' || aggressive) {

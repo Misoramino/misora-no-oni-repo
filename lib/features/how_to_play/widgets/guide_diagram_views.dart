@@ -658,7 +658,7 @@ class IntroCluesDiagram extends StatelessWidget {
           runSpacing: 6,
           children: const [
             _ClueChip(icon: Icons.person_pin_circle_outlined, label: '名前付き暴露'),
-            _ClueChip(icon: Icons.help_outline, label: '匿名痕跡'),
+            _ClueChip(icon: Icons.help_outline, label: GuideTerms.anonTrace),
             _ClueChip(icon: Icons.videocam_outlined, label: '監視カメラ'),
             _ClueChip(icon: Icons.storefront_outlined, label: '情報屋'),
           ],

@@ -29,7 +29,10 @@ service cloud.firestore {
         'preferredRole',
         'preferredSkills',
         'werewolfOniForm',
-        'avatarThumbB64'
+        'avatarThumbB64',
+        'prepReady',
+        'appLifecycle',
+        'backgroundSinceUtc',
       ]);
     }
 
@@ -61,10 +64,18 @@ service cloud.firestore {
         && onlyKeysChanged(['hostUid']);
     }
 
+    // ホストが応答なしのとき、参加メンバーが hostUid を引き継ぐ（クライアント側で stale 判定）。
+    function claimAbsentHost() {
+      return signedIn()
+        && resource.data.hostUid != request.auth.uid
+        && request.resource.data.hostUid == request.auth.uid
+        && onlyKeysChanged(['hostUid']);
+    }
+
     match /rooms/{roomId} {
       allow read: if signedIn();
       allow create: if signedIn() && validRoomCreate();
-      allow update: if validHostRoomUpdate() || claimEmptyHost();
+      allow update: if validHostRoomUpdate() || claimEmptyHost() || claimAbsentHost();
     }
 
     match /rooms/{roomId}/members/{memberId} {
@@ -104,7 +115,8 @@ service cloud.firestore {
         || t == 'capture_zone_placed'
         || t == 'capture_zone_ack'
         || t == 'abort_vote'
-        || t == 'abort_proposal';
+        || t == 'abort_proposal'
+        || t == 'abort_majority';
     }
 
     function hostOnlyRoomEventType(t) {

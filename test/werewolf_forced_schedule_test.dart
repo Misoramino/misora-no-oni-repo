@@ -2,18 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oni_game/game/werewolf_forced_schedule.dart';
 
 void main() {
-  test('interval is min of ten minutes and match third', () {
-    expect(WerewolfForcedSchedule.intervalSeconds(600), 200);
-    expect(WerewolfForcedSchedule.intervalSeconds(180), 60);
-    expect(WerewolfForcedSchedule.intervalSeconds(900), 300);
+  test('interval is min of fifteen minutes and match half', () {
+    expect(WerewolfForcedSchedule.intervalSeconds(600), 300);
+    expect(WerewolfForcedSchedule.intervalSeconds(180), 90);
+    expect(WerewolfForcedSchedule.intervalSeconds(900), 450);
   });
 
-  test('voluntary cooldown is 0.75 times interval', () {
+  test('voluntary cooldown is one third of interval', () {
     for (final d in [180, 600, 900]) {
       final interval = WerewolfForcedSchedule.intervalSeconds(d);
       expect(
         WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(d),
-        (interval * 3) ~/ 4,
+        interval ~/ 3,
       );
     }
   });
@@ -23,7 +23,7 @@ void main() {
     expect(
       WerewolfForcedSchedule.shouldForceToggle(
         lastTransformAt: t0,
-        now: t0.add(const Duration(seconds: 199)),
+        now: t0.add(const Duration(seconds: 299)),
         matchDurationSeconds: 600,
       ),
       isFalse,
@@ -31,7 +31,7 @@ void main() {
     expect(
       WerewolfForcedSchedule.shouldForceToggle(
         lastTransformAt: t0,
-        now: t0.add(const Duration(seconds: 200)),
+        now: t0.add(const Duration(seconds: 300)),
         matchDurationSeconds: 600,
       ),
       isTrue,

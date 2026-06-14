@@ -1,18 +1,22 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 鬼オペレーター向け設定（鬼コンソールと逃走側ロジックで共有）。
+/// 試合中の通知設定（旧鬼設定を含む。端末ローカル保存）。
 abstract final class OniOperatorPrefs {
   static const roleEnabledKey = 'oni_role_enabled_v1';
   static const notifyVibrationKey = 'oni_notify_vibration_v1';
   static const notifySoundKey = 'oni_notify_sound_v1';
   static const notifyAggressiveKey = 'oni_notify_aggressive_v1';
+  static const crisisVibrationKey = 'match_crisis_vibration_v1';
+  static const crisisNotificationKey = 'match_crisis_notification_v1';
 
   static OniOperatorSnapshot fromPrefs(SharedPreferences prefs) {
     return OniOperatorSnapshot(
-      roleEnabled: prefs.getBool(roleEnabledKey) ?? false,
+      roleEnabled: prefs.getBool(roleEnabledKey) ?? true,
       notifyVibration: prefs.getBool(notifyVibrationKey) ?? true,
       notifySound: prefs.getBool(notifySoundKey) ?? true,
       notifyAggressive: prefs.getBool(notifyAggressiveKey) ?? false,
+      crisisVibration: prefs.getBool(crisisVibrationKey) ?? true,
+      crisisNotification: prefs.getBool(crisisNotificationKey) ?? true,
     );
   }
 
@@ -24,6 +28,8 @@ abstract final class OniOperatorPrefs {
     await prefs.setBool(notifyVibrationKey, s.notifyVibration);
     await prefs.setBool(notifySoundKey, s.notifySound);
     await prefs.setBool(notifyAggressiveKey, s.notifyAggressive);
+    await prefs.setBool(crisisVibrationKey, s.crisisVibration);
+    await prefs.setBool(crisisNotificationKey, s.crisisNotification);
   }
 }
 
@@ -33,10 +39,17 @@ class OniOperatorSnapshot {
     required this.notifyVibration,
     required this.notifySound,
     required this.notifyAggressive,
+    required this.crisisVibration,
+    required this.crisisNotification,
   });
 
+  /// 接近・拘束中の詳細フィードバック（振動／音の個別制御）。
   final bool roleEnabled;
   final bool notifyVibration;
   final bool notifySound;
   final bool notifyAggressive;
+  /// バックグラウンド含む危機アラートの振動。
+  final bool crisisVibration;
+  /// バックグラウンド危機のローカル通知。
+  final bool crisisNotification;
 }

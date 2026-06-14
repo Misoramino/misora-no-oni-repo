@@ -104,8 +104,8 @@ abstract final class SkillCatalog {
           '【いつ使う】陣営（${GuideTerms.humanFaction}/${GuideTerms.oniFaction}）に応じて立ち回るとき。'
           '人数比で陣営が決まり、見た目とは別です（同数なら${GuideTerms.humanFaction}）。'
           '人陣営＋鬼化は捕獲可、鬼陣営＋鬼化は${GuideTerms.panic}・拘束のみ。\n'
-          '【リスク】min(10分, 試合時間÷3)ごとに強制切替（通知なし）。'
-          '自発切替CD=0.75×interval、強制切替CD=0.9×interval。告発不可。脱落時の陣営は固定。',
+          '【リスク】最長15分ごとに強制切替（通知なし）。'
+          '自発切替CD=間隔÷3（初回も同じ）。HUDで「切替CD」と「強制まで」を別表示。告発不可。脱落時の陣営は固定。',
     ),
   ];
 
@@ -150,11 +150,11 @@ abstract final class SkillCatalog {
     ),
     SkillHelpEntry(
       id: 'periodic_anon',
-      title: '定期匿名痕跡',
+      title: '定期の${GuideTerms.anonPositionReveal}',
       iconName: 'schedule',
       body:
           '【できること】試合時間に連動した間隔（おおよそ75〜180秒）で参加者から1人が選ばれ、'
-          '${GuideTerms.anonTrace}が出ます（${MatchUiTerms.namedReveal}ではありません）。\n'
+          '${GuideTerms.anonPositionReveal}され${GuideTerms.anonTrace}が出ます（${MatchUiTerms.namedReveal}ではありません）。\n'
           '【いつ使う】情報の床として、偽情報と区別しにくい手がかりになります。\n'
           '【リスク】理由は通信混線・傍受・監視カメラなど共通プールから。',
     ),
@@ -213,7 +213,7 @@ abstract final class SkillCatalog {
       title: 'アナリスト（逃走者特化）',
       iconName: 'analytics',
       body:
-          '【できること】${GuideTerms.anonTrace}に時間帯・観測源・信頼度の読み取り補助。\n'
+          '【できること】${GuideTerms.anonTrace}に時間帯・観測源・位置誤差（信頼度）の読み取り補助。\n'
           '【いつ使う】痕跡をつなげて${GuideTerms.trueOni}の動きを推理するとき。\n'
           '【リスク】対象者の名前は出しません。',
     ),

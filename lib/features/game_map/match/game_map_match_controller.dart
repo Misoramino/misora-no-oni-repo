@@ -342,6 +342,9 @@ class GameMapMatchController {
           position: playerPositionAtCast,
         ),
       ],
+      SkillTickFakeIntelPlacementCancelled() => const [
+        MatchStatusMessageEffect('偽情報暴露の配置をキャンセルしました'),
+      ],
       SkillTickTouchLockNotice() => const [],
       SkillTickTouchLockStart() => const [],
       SkillTickInfectionPulse() => [const MatchInfectionPulseRevealEffect()],

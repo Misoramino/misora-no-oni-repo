@@ -12,8 +12,21 @@ abstract final class OnboardingPrefs {
   static const _shadowTutorialOfferKey =
       'onboarding_shadow_tutorial_offer_seen_v1';
 
+  static const _structureGuideKey = 'onboarding_structure_guide_seen_v1';
+  static const _matchPlayabilityKey =
+      'onboarding_match_playability_hints_seen_v1';
+
   static Future<bool> welcomeSeen() => _get(_welcomeKey);
   static Future<void> markWelcomeSeen() => _set(_welcomeKey, true);
+
+  static Future<bool> structureGuideSeen() => _get(_structureGuideKey);
+  static Future<void> markStructureGuideSeen() =>
+      _set(_structureGuideKey, true);
+
+  static Future<bool> matchPlayabilityHintsSeen() =>
+      _get(_matchPlayabilityKey);
+  static Future<void> markMatchPlayabilityHintsSeen() =>
+      _set(_matchPlayabilityKey, true);
 
   static Future<bool> prepGuideSeen() => _get(_prepGuideKey);
   static Future<void> markPrepGuideSeen() => _set(_prepGuideKey, true);
@@ -47,10 +60,17 @@ abstract final class OnboardingPrefs {
     await prefs.remove(_matchCoachKey);
   }
 
+  static Future<void> resetStructureGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_structureGuideKey);
+  }
+
   /// すべての初回フラグを消し、導入を最初から見られるようにする。
   static Future<void> resetAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_welcomeKey);
+    await prefs.remove(_structureGuideKey);
+    await prefs.remove(_matchPlayabilityKey);
     await prefs.remove(_prepGuideKey);
     await prefs.remove(_coachKey);
     await prefs.remove(_matchCoachKey);

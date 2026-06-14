@@ -41,8 +41,7 @@ abstract final class MatchSetupSummary {
         : gimmickDensity > 1.12
             ? 'ギミック多め'
             : 'バランス';
-    return '${durationMinutes.round()}分 · 告発:${accusationWeight.label} · '
-        '$playerHint · $densityShort';
+    return '告発:${accusationWeight.label} · $playerHint · $densityShort';
   }
 
   /// プリセット適用後のトースト用。

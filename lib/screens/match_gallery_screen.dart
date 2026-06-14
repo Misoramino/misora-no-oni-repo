@@ -57,8 +57,6 @@ class _MatchGalleryScreenState extends State<MatchGalleryScreen> {
     });
   }
 
-  String _outcomeJa(GameState s) => s.label;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

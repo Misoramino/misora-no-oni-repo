@@ -325,7 +325,7 @@ abstract final class GameMapOverlayBuilder {
                 title: '不明な痕跡',
                 snippet: s.analystTraceDetail
                     ? AnalystTraceFormat.summaryLine(t, s.now)
-                    : '${MapGeoFormat.traceAge(t.timestamp, s.now)} / ${t.reasonSummary}',
+                    : MapGeoFormat.traceAge(t.timestamp, s.now),
               ),
               icon: _icon(
                 s,

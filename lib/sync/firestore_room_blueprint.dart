@@ -124,6 +124,15 @@ abstract final class MemberPresenceFields {
 
   /// ピン用サムネ（PNG Base64・64px 程度）。暴露マーカー表示専用。
   static const avatarThumbB64 = 'avatarThumbB64';
+
+  /// 準備フェーズで非ホストが「準備完了」を押したか。
+  static const prepReady = 'prepReady';
+
+  /// 'foreground' | 'background' — 試合中のバックグラウンド猶予判定用。
+  static const appLifecycle = 'appLifecycle';
+
+  /// バックグラウンドに入った時刻（ISO UTC）。復帰時にクリア。
+  static const backgroundSinceUtc = 'backgroundSinceUtc';
 }
 
 /// 観戦者向けライブ GPS（`inspectorFeed/{uid}`）。

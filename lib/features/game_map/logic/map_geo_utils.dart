@@ -98,7 +98,26 @@ abstract final class MapGeoUtils {
       return raw;
     }
     final r = random ?? math.Random();
-    final meters = 25 + r.nextDouble() * 55;
+    final meters = 45 + r.nextDouble() * 70;
+    final bearing = r.nextDouble() * 360;
+    final latOffset = meters / 111111 * math.cos(bearing * math.pi / 180);
+    final lngOffset =
+        meters /
+        (111111 * math.cos(raw.latitude * math.pi / 180)) *
+        math.sin(bearing * math.pi / 180);
+    return LatLng(raw.latitude + latOffset, raw.longitude + lngOffset);
+  }
+
+  /// 定期暴露など — 実位置から少しずらして表示する（全員同一座標を Firestore で共有）。
+  static LatLng jitterRevealPosition({
+    required LatLng raw,
+    required int seed,
+    double minMeters = 16,
+    double maxMeters = 24,
+  }) {
+    final r = math.Random(seed);
+    final span = (maxMeters - minMeters).clamp(1.0, 200.0);
+    final meters = minMeters + r.nextDouble() * span;
     final bearing = r.nextDouble() * 360;
     final latOffset = meters / 111111 * math.cos(bearing * math.pi / 180);
     final lngOffset =

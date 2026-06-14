@@ -333,6 +333,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
       _prepControlSheetOpen = false;
       _statusMessage = '準備画面に戻りました';
     });
+    _maybeCatchUpRunningMatch();
   }
 
   /// エリア編集だけ終了し、地図表示＋マップパネルは維持する。
@@ -347,6 +348,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
       _statusMessage = 'エリア編集を終了しました（地図のまま）';
     });
     _retuneRenderPump();
+    _maybeCatchUpRunningMatch();
   }
 
   /// 保存済みエリアを読み込まず、白紙の円から新規作成する。
@@ -374,6 +376,8 @@ extension _GameMapPlayArea on _GameMapScreenState {
   void _enterPrepMapMode(PrepMapMode mode, {String? previewSlotId}) {
     if (_gameState != GameState.waiting) return;
     if (mode == PrepMapMode.edit) {
+      if (_blockIfNonHostPrepLocked('地図編集を開始')) return;
+      _clearLocalPrepReady();
       if (!_editingArea) _toggleAreaEditor();
       _syncSetState(() {
         _prepMapMode = PrepMapMode.edit;
@@ -383,6 +387,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
       });
       return;
     }
+    if (_blockIfNonHostPrepLocked('地図を開く')) return;
     if (_editingArea) {
       _syncSetState(() {
         _editingArea = false;
@@ -405,6 +410,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
     if (mode == PrepMapMode.preview) {
       unawaited(_fitMapToPreviewFocus());
     }
+    _maybeCatchUpRunningMatch();
   }
 
   void _leavePrepMapToPanel() {
@@ -424,6 +430,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
       _prepControlSheetOpen = false;
       _statusMessage = '準備画面に戻りました';
     });
+    _maybeCatchUpRunningMatch();
   }
 
   void _setPrepMapModeFromFab(PrepMapMode mode) {
@@ -492,4 +499,54 @@ extension _GameMapPlayArea on _GameMapScreenState {
         PrepMapMode.browse => 'マップ',
         PrepMapMode.hidden => '準備',
       };
+
+  static const _defaultTokyoCenter = LatLng(35.681236, 139.767125);
+
+  bool _usesDefaultTokyoPlayArea() {
+    if (_playArea.type != PlayAreaType.circle) return false;
+    final d = Geolocator.distanceBetween(
+      _playArea.center.latitude,
+      _playArea.center.longitude,
+      _defaultTokyoCenter.latitude,
+      _defaultTokyoCenter.longitude,
+    );
+    return d < 150;
+  }
+
+  Future<void> _maybeSuggestPlayAreaAtCurrentLocation() async {
+    if (!_isHost || !_usesDefaultTokyoPlayArea()) return;
+    if (!mounted) return;
+    final ok = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) => AppDialog(
+        title: 'プレイエリアを現在地に',
+        icon: Icons.my_location_rounded,
+        actions: [
+          AppDialogAction(
+            label: 'あとで',
+            filled: false,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          AppDialogAction(
+            label: '現在地を中心に',
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+        child: const Text(
+          '初期エリアは東京付近です。埼玉など遠方だと開始直後からエリア外になります。\n'
+          '現在地を中心に円エリアを作りますか？',
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    _syncSetState(() {
+      _playArea = PlayArea.circle(
+        center: _currentPosition,
+        radiusMeters: _playArea.radiusMeters,
+      );
+      _circleDraftCenter = _currentPosition;
+      _circleDraftRadiusMeters = _playArea.radiusMeters;
+      _statusMessage = 'プレイエリアを現在地中心に変更しました';
+    });
+  }
 }

@@ -4,31 +4,16 @@ import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../widgets/juicy_tap.dart';
 
-/// ウェルカム終了後にユーザーが選んだ次の行動。
-enum WelcomeResult {
-  /// 「やってみる」でそのまま閉じる。
-  play,
-
-  /// 「チュートリアル」を希望（B 段階で利用）。
-  tutorial,
-
-  /// スキップ／戻る。
-  skipped,
-}
-
-/// 初回起動・「遊び方」から開く、スワイプ式のかんたん紹介。
-Future<WelcomeResult?> showWelcomeFlow(
-  BuildContext context, {
-  bool offerTutorial = false,
-}) {
+/// 第2段階：試合の構造と駆け引き（初回準備画面など）。
+Future<bool?> showMatchStructureGuide(BuildContext context) {
   GameAudio.instance.playSfx(SfxId.uiConfirm);
-  return Navigator.of(context).push<WelcomeResult>(
-    PageRouteBuilder<WelcomeResult>(
+  return Navigator.of(context).push<bool>(
+    PageRouteBuilder<bool>(
       opaque: false,
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 360),
       pageBuilder: (context, animation, secondary) =>
-          _WelcomeFlow(offerTutorial: offerTutorial),
+          const _MatchStructureGuide(),
       transitionsBuilder: (context, animation, secondary, child) {
         return FadeTransition(
           opacity: animation,
@@ -44,8 +29,8 @@ Future<WelcomeResult?> showWelcomeFlow(
   );
 }
 
-class _WelcomePage {
-  const _WelcomePage({
+class _GuidePage {
+  const _GuidePage({
     required this.icon,
     required this.color,
     required this.title,
@@ -58,39 +43,68 @@ class _WelcomePage {
   final List<String> lines;
 }
 
-const _pages = <_WelcomePage>[
-  _WelcomePage(
-    icon: Icons.my_location_rounded,
+const _pages = <_GuidePage>[
+  _GuidePage(
+    icon: Icons.timeline_rounded,
     color: Color(0xFF2E86DE),
-    title: '街がフィールドの鬼ごっこ',
+    title: '1試合の流れ',
     lines: [
-      'スマホのGPSで、実際の街を歩きながら遊びます。',
-      '友達と同じルームに入り、ホストが決めたエリアの中が舞台。',
-      '位置は基本見えない — 手がかりと距離感で追いかけっこ。',
+      '準備 → 追跡フェーズ → （脱落しても続行）→ 終了。',
+      '鬼は人を捕まえ、逃走者は時間まで生き残る。',
+      'これが本体。スキルやギミックはその上に載る道具です。',
     ],
   ),
-  _WelcomePage(
-    icon: Icons.emoji_events_outlined,
+  _GuidePage(
+    icon: Icons.hub_outlined,
     color: Color(0xFF8E5BD8),
-    title: 'シンプルな勝ち負け',
+    title: '3役の関係',
     lines: [
-      '🏃 逃走者：時間まで生き残れば勝ち。',
-      '👹 鬼：人を捕まえて0人にすれば勝ち。',
-      'くわしい構造は、準備画面で「試合の構造」として案内します。',
+      '👹 鬼：追う側。人を0人にすれば勝ち。',
+      '🏃 逃走者：逃げる側。時間切れか告発成功で勝ち。',
+      '🌙 人狼：常に「少ない方の陣営」の味方（人数で変わる）。',
+    ],
+  ),
+  _GuidePage(
+    icon: Icons.nightlight_round,
+    color: Color(0xFF6C5CE7),
+    title: '人狼の駆け引き',
+    lines: [
+      '前半：人が多い → 鬼側の味方。鬼化しても人は襲えない。撹乱・誘導が主役。',
+      '後半：人が多い → 人側の味方。鬼化すると捕獲できる → 距離を取る。',
+      '見た目と陣営は別。ボタン「人化」「鬼化」で姿を切り替えます。',
+    ],
+  ),
+  _GuidePage(
+    icon: Icons.layers_outlined,
+    color: Color(0xFFF39C12),
+    title: '逃走者の3つの選択',
+    lines: [
+      '情報屋 … 鬼の方角・距離を探る（今の座標そのものではない）。',
+      '通信障害地帯 … 今の安全度を上げる（暴露がノイズになりやすい）。',
+      '安全地帯 … 未来の安全を買う（一定時間、追われにくくなる）。',
+    ],
+  ),
+  _GuidePage(
+    icon: Icons.groups_outlined,
+    color: Color(0xFF1FA98A),
+    title: 'みんなが狙うもの',
+    lines: [
+      '鬼 … 痕跡・暴露・スキルで追い、要所へ移動して作戦を立てる。',
+      '逃走者 … 上の3ギミック＋告発で生き延びる。',
+      '人狼 … 前半は鬼と協力、後半は人と協力（人数で味方が変わる）。',
+      '脱落後 … 残響体・鬼影として第二ゲーム。3人以上なら告発も。',
     ],
   ),
 ];
 
-class _WelcomeFlow extends StatefulWidget {
-  const _WelcomeFlow({required this.offerTutorial});
-
-  final bool offerTutorial;
+class _MatchStructureGuide extends StatefulWidget {
+  const _MatchStructureGuide();
 
   @override
-  State<_WelcomeFlow> createState() => _WelcomeFlowState();
+  State<_MatchStructureGuide> createState() => _MatchStructureGuideState();
 }
 
-class _WelcomeFlowState extends State<_WelcomeFlow> {
+class _MatchStructureGuideState extends State<_MatchStructureGuide> {
   final _controller = PageController();
   int _index = 0;
 
@@ -104,20 +118,14 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
 
   void _next() {
     if (_isLast) {
-      _finish(WelcomeResult.play);
+      GameAudio.instance.playSfx(SfxId.uiConfirm);
+      Navigator.of(context).pop(true);
       return;
     }
     _controller.nextPage(
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
-  }
-
-  void _finish(WelcomeResult result) {
-    GameAudio.instance.playSfx(
-      result == WelcomeResult.skipped ? SfxId.uiBack : SfxId.uiConfirm,
-    );
-    Navigator.of(context).pop(result);
   }
 
   @override
@@ -133,8 +141,21 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => _finish(WelcomeResult.skipped),
+                onPressed: () {
+                  GameAudio.instance.playSfx(SfxId.uiBack);
+                  Navigator.of(context).pop(false);
+                },
                 child: const Text('スキップ'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                '試合の構造',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
             Expanded(
@@ -142,47 +163,32 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
                 controller: _controller,
                 itemCount: _pages.length,
                 onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (context, i) => _WelcomeCard(page: _pages[i]),
+                itemBuilder: (context, i) => _GuideCard(page: _pages[i]),
               ),
             ),
             _Dots(count: _pages.length, index: _index, color: page.color),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              child: Row(
-                children: [
-                  if (widget.offerTutorial && _isLast) ...[
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _finish(WelcomeResult.tutorial),
-                        icon: const Icon(Icons.school_rounded),
-                        label: const Text('チュートリアル'),
-                      ),
+              child: JuicyTap(
+                onTap: _next,
+                sfx: _isLast ? SfxId.uiConfirm : SfxId.uiTap,
+                child: IgnorePointer(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: page.color,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      minimumSize: const Size.fromHeight(48),
                     ),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(
-                    child: JuicyTap(
-                      onTap: _next,
-                      sfx: _isLast ? SfxId.uiConfirm : SfxId.uiTap,
-                      child: IgnorePointer(
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: page.color,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onPressed: _next,
-                          icon: Icon(
-                            _isLast
-                                ? Icons.play_arrow_rounded
-                                : Icons.arrow_forward_rounded,
-                          ),
-                          label: Text(_isLast ? 'やってみる' : '次へ'),
-                        ),
-                      ),
+                    onPressed: _next,
+                    icon: Icon(
+                      _isLast
+                          ? Icons.check_rounded
+                          : Icons.arrow_forward_rounded,
                     ),
+                    label: Text(_isLast ? '了解' : '次へ'),
                   ),
-                ],
+                ),
               ),
             ),
           ],
@@ -192,10 +198,10 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
   }
 }
 
-class _WelcomeCard extends StatelessWidget {
-  const _WelcomeCard({required this.page});
+class _GuideCard extends StatelessWidget {
+  const _GuideCard({required this.page});
 
-  final _WelcomePage page;
+  final _GuidePage page;
 
   @override
   Widget build(BuildContext context) {
@@ -205,28 +211,8 @@ class _WelcomeCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 132,
-            height: 132,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  page.color.withValues(alpha: 0.32),
-                  page.color.withValues(alpha: 0.05),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: page.color.withValues(alpha: 0.35),
-                  blurRadius: 32,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(page.icon, size: 68, color: page.color),
-          ),
-          const SizedBox(height: 28),
+          Icon(page.icon, size: 72, color: page.color),
+          const SizedBox(height: 24),
           Text(
             page.title,
             textAlign: TextAlign.center,
@@ -243,7 +229,7 @@ class _WelcomeCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.4,
+                  height: 1.45,
                 ),
               ),
             ),

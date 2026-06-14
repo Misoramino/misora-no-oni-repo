@@ -22,7 +22,8 @@ void main() {
       gimmickDensity: 0.72,
     );
     expect(line, contains('ポイント加算'));
-    expect(line, contains('30分'));
+    expect(line, contains('やや少なめ'));
+    expect(line, isNot(contains('30分')));
   });
 
   test('match phase labels', () {

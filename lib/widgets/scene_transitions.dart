@@ -44,6 +44,7 @@ abstract final class AppNav {
     WidgetBuilder builder, {
     SceneTransitionDirection direction = SceneTransitionDirection.forward,
     WorldProfile? worldProfile,
+    String? routeName,
   }) async {
     final profile = worldProfile ?? await WorldProfilePrefs.load();
     if (!context.mounted) return null;
@@ -52,6 +53,7 @@ abstract final class AppNav {
         builder: builder,
         direction: direction,
         worldProfile: profile,
+        settings: routeName != null ? RouteSettings(name: routeName) : null,
       ),
     );
   }

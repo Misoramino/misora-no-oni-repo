@@ -5,6 +5,82 @@ part of 'game_map_screen.dart';
 /// `game_map_screen.dart` 本体（`_GameMapScreenState`）から物理的に切り出したもの。
 /// 挙動は本体にあった頃と完全に同一（同一ライブラリの extension）。
 extension _GameMapRevealsGimmicks on _GameMapScreenState {
+  void _scheduleGimmickRelocate({
+    required String kind,
+    required int index,
+    required LatLng position,
+    required DateTime from,
+    bool localHint = false,
+  }) {
+    final applyAt = from.add(
+      const Duration(seconds: GameConfig.gimmickRelocateDelaySeconds),
+    );
+    final pending = PendingGimmickRelocate(
+      kind: kind,
+      index: index,
+      position: position,
+      applyAt: applyAt,
+    );
+    final existing = _rt.pendingGimmickRelocates.indexWhere(
+      (p) => p.kind == kind && p.index == index,
+    );
+    if (existing >= 0) {
+      _rt.pendingGimmickRelocates[existing] = pending;
+    } else {
+      _rt.pendingGimmickRelocates.add(pending);
+    }
+    if (localHint) {
+      _localGimmickRelocateHintUntil = applyAt;
+    }
+  }
+
+  void _applyDueGimmickRelocates(DateTime now) {
+    final due = _rt.pendingGimmickRelocates
+        .where((p) => !now.isBefore(p.applyAt))
+        .toList(growable: false);
+    if (due.isEmpty) return;
+    for (final p in due) {
+      switch (p.kind) {
+        case 'safe_zone':
+          if (p.index >= 0 && p.index < _rt.safeZonePositions.length) {
+            _rt.safeZonePositions[p.index] = p.position;
+          }
+        case 'info_broker':
+          if (p.index >= 0 && p.index < _rt.infoBrokerPositions.length) {
+            _rt.infoBrokerPositions[p.index] = p.position;
+          }
+      }
+      _rt.pendingGimmickRelocates.remove(p);
+    }
+  }
+
+  void _applyRemoteGimmickRelocate({
+    required String kind,
+    required int hitIndex,
+    required LatLng nextPosition,
+  }) {
+    final now = DateTime.now();
+    _syncSetState(() {
+      if (kind == 'info_broker') {
+        _rt.infoBrokerAvailable = false;
+        _rt.infoBrokerRespawnAt = now.add(
+          const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
+        );
+      } else if (kind == 'safe_zone') {
+        _rt.safeZoneAvailable = false;
+        _rt.safeZoneRespawnAt = now.add(
+          const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
+        );
+      }
+      _scheduleGimmickRelocate(
+        kind: kind,
+        index: hitIndex,
+        position: nextPosition,
+        from: now,
+      );
+    });
+  }
+
   void _appendInfectionPulseReveal() {
     final pos = _positionForReveal;
     final pick = _reasonPickAt(pos);
@@ -35,8 +111,20 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     }
   }
 
-  RevealReasonPick _reasonPickAt(LatLng pos, {bool forceCamera = false}) {
+  RevealReasonPick _reasonPickAt(
+    LatLng pos, {
+    bool forceCamera = false,
+    bool periodic = false,
+  }) {
     if (forceCamera) return RevealReasonPool.cameraPick();
+    if (periodic) {
+      return RevealReasonPool.periodicPick(
+        revealPosition: pos,
+        cameraPositions: _rt.cameraPositions,
+        safeZonePositions: _rt.safeZonePositions,
+        actorOutsidePlayArea: !_playArea.contains(_currentPosition),
+      );
+    }
     return RevealReasonPool.pick(
       revealPosition: pos,
       cameraPositions: _rt.cameraPositions,
@@ -164,10 +252,16 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       _rt.lastSafeChargeAt = now;
       _rt.safeZoneCharges += 1;
       _refreshSkillCooldownsFromSafeZone();
-      _rt.safeZonePositions[hitIndex] = nextSafeZone;
       _rt.safeZoneAvailable = false;
       _rt.safeZoneRespawnAt = now.add(
         const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
+      );
+      _scheduleGimmickRelocate(
+        kind: 'safe_zone',
+        index: hitIndex,
+        position: nextSafeZone,
+        from: now,
+        localHint: true,
       );
       _statusMessage = '安全地帯: ステルス獲得 + スキル再使用可能（移動中）';
     });
@@ -236,7 +330,13 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       _rt.infoBrokerRespawnAt = now.add(
         const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
       );
-      _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
+      _scheduleGimmickRelocate(
+        kind: 'info_broker',
+        index: hitIndex,
+        position: nextInfoBroker,
+        from: now,
+        localHint: true,
+      );
       _statusMessage = statusMessage;
     });
   }
@@ -295,7 +395,13 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       if (_rt.oniIntelTraces.length > 20) {
         _rt.oniIntelTraces.removeLast();
       }
-      _rt.infoBrokerPositions[hitIndex] = nextInfoBroker;
+      _scheduleGimmickRelocate(
+        kind: 'info_broker',
+        index: hitIndex,
+        position: nextInfoBroker,
+        from: now,
+        localHint: true,
+      );
       final trailHint = _oniTrailPointsForMap().length >= 2
           ? ' · 地図に鬼の遅延軌跡を表示'
           : '';

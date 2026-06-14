@@ -436,6 +436,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                 profile: _profile,
                                               ),
                                               worldProfile: _profile,
+                                              routeName: GameMapScreen.routeName,
                                             );
                                           },
                                           icon: const Icon(Icons.map_outlined),

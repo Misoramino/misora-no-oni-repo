@@ -39,7 +39,7 @@ abstract final class WorldVisualPackFactory {
           mapStyleAssetPath: 'assets/map_styles/urban_horror.json',
           tokens: tokens,
           layerDefaults: const GameMapLayerToggles(
-            commJamming: false,
+            commJamming: true,
             ghostRough: false,
             traces: true,
             reveals: true,
@@ -60,7 +60,7 @@ abstract final class WorldVisualPackFactory {
           layerDefaults: const GameMapLayerToggles(
             safeZones: true,
             infoBrokers: true,
-            commJamming: false,
+            commJamming: true,
             traces: false,
             reveals: false,
             oniIntel: true,

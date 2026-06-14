@@ -89,6 +89,9 @@ abstract final class RoomMatchEventTypes {
 
   /// 試合中止投票の開始（payload: `{ expiresAtMs: int }`）。
   static const abortProposal = 'abort_proposal';
+
+  /// 過半数で試合中止が確定（payload: `{ message: string }`）。
+  static const abortMajority = 'abort_majority';
   static const playerEliminated = 'player_eliminated';
   static const accusationUnlocked = 'accusation_unlocked';
   static const accusationAttempt = 'accusation_attempt';

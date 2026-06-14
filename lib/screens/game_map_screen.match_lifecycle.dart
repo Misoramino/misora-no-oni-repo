@@ -46,6 +46,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           );
           if (proceed != true || !mounted) return;
         }
+        if (count > 1) {
+          final notReady = _notReadyNonHostNicknames();
+          if (notReady.isNotEmpty) {
+            final proceed = await _confirmHostStartWithNotReadyPlayers(
+              notReady,
+            );
+            if (!proceed || !mounted) return;
+          }
+        }
       }
 
       game_feedback.Feedback.confirm();
@@ -92,6 +101,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (!rejoin) {
       _processedRoomEventDocIds.clear();
       _eliminatedUids.clear();
+    _absentSinceByUid.clear();
       _factionAtDeath = null;
     }
     _syncSetState(() {
@@ -115,6 +125,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     });
     _abortProposalTimer?.cancel();
     _abortProposalTimer = null;
+    if (!inspector) {
+      _wasActiveInCurrentOnlineMatch = true;
+    }
     if (!rejoin) {
       _captureAcksByPlace.clear();
       _lastKnownHunterPositions.clear();
@@ -127,6 +140,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (!inspector && _localRole == PlayerRole.werewolf) {
         _rt.lastWerewolfTransformAt = DateTime.now();
       }
+      unawaited(_maybeShowMatchPlayabilityHints());
     }
     if (_isOnlineFirestore) {
       final sk = _matchEventSessionKey;
@@ -178,7 +192,73 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _maybeHostPublishAccusationUnlock();
       }
       _retuneGpsIfNeeded();
+      unawaited(_maybeAutoClaimHostIfAbsent());
+      if (_isHost) {
+        _maybeEliminateDisconnectedParticipants();
+      }
     });
+  }
+
+  /// 2分間応答なしの参加者をホストが脱落扱いにする（復帰前なら猶予）。
+  void _maybeEliminateDisconnectedParticipants() {
+    if (!_isHost || !_isOnlineFirestore || _gameState != GameState.running) {
+      return;
+    }
+    final fs = _firestoreSession;
+    final snap = fs?.currentMatchStart;
+    if (fs == null || snap == null) return;
+    final now = DateTime.now().toUtc();
+    final lobbyByUid = {
+      for (final m in fs.currentLobbyMembers) m.uid: m,
+    };
+    for (final uid in snap.assignments.keys) {
+      if (_eliminatedUids.contains(uid)) {
+        _absentSinceByUid.remove(uid);
+        continue;
+      }
+      final member = lobbyByUid[uid];
+      final absent = member == null || member.isStale(now);
+      if (!absent) {
+        _absentSinceByUid.remove(uid);
+        continue;
+      }
+      if (member != null && member.isInBackgroundGrace(now)) {
+        _absentSinceByUid.remove(uid);
+        continue;
+      }
+      final since = _absentSinceByUid.putIfAbsent(uid, () => now);
+      if (now.difference(since).inSeconds <
+          GameConfig.memberPresenceStaleSeconds) {
+        continue;
+      }
+      _absentSinceByUid.remove(uid);
+      unawaited(
+        _publishParticipantEliminatedByHost(
+          uid: uid,
+          cause: 'disconnect',
+        ),
+      );
+    }
+  }
+
+  /// ホストが一定時間オフラインのとき、参加メンバーが即座にホストを引き継ぐ。
+  Future<void> _maybeAutoClaimHostIfAbsent() async {
+    if (!_isOnlineFirestore || _isHost) return;
+    final fs = _firestoreSession;
+    if (fs == null) return;
+    if (!fs.isHostAbsent(DateTime.now().toUtc())) return;
+    if (_hostAbsentClaimInFlight) return;
+    _hostAbsentClaimInFlight = true;
+    try {
+      final err = await fs.claimHostIfAbsent();
+      if (!mounted) return;
+      if (err == null) {
+        _toast('ホストが不在のため、あなたがホストを引き継ぎました');
+        _syncSetState(() {});
+      }
+    } finally {
+      _hostAbsentClaimInFlight = false;
+    }
   }
 
   Future<GeneratedGimmicks> _gimmicksFromSnapshot(
@@ -342,6 +422,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _rt.resetToLobby(matchDurationSeconds: _matchDurationSeconds);
     _matchPresentationActive = false;
     _matchStartInFlight = false;
+    _wasActiveInCurrentOnlineMatch = false;
     _syncSetState(() {
       _gameState = GameState.waiting;
       _prepMapMode = PrepMapMode.hidden;
@@ -357,11 +438,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _abortProposalTimer = null;
     _captureAcksByPlace.clear();
     _eliminatedUids.clear();
+    _absentSinceByUid.clear();
     _factionAtDeath = null;
     _unbindInspectorFeed();
     _lobbyAreaProposals.clear();
     _inlineStatusTimer?.cancel();
     _inlineStatusMessage = null;
+    _pendingRunningMatch = null;
+    _matchStartWhileEditingPromptOpen = false;
+    _clearLocalPrepReady();
     unawaited(_firestoreSession?.clearInspectorFeedPosition());
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
@@ -401,7 +486,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   Future<void> _requestAbortByVote() async {
-    if (_gameState != GameState.running) {
+    if (_gameState != GameState.running && !_matchPresentationActive) {
       _toast('ゲーム中のみ中止提案できます');
       return;
     }
@@ -610,13 +695,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _abortVoteYesUids.remove(ev.actorUid);
       }
     });
-    if (_isHost) {
-      _maybeFinalizeAbortVoteByMajority();
-    }
+    _maybeFinalizeAbortVoteByMajority();
   }
 
   void _maybeFinalizeAbortVoteByMajority() {
-    if (!_isHost || !_isOnlineFirestore || _gameState != GameState.running) {
+    final roomRunning =
+        _isOnlineFirestore &&
+        _firestoreSession?.currentPhase == RoomPhase.running;
+    if (!_isOnlineFirestore ||
+        (_gameState != GameState.running && !roomRunning)) {
       return;
     }
     if (_abortProposalInitiatorUid == null) return;
@@ -628,8 +715,77 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _abortProposalInitiatorUid = null;
       _abortProposalExpiresAt = null;
       _abortVoteYesUids.clear();
-      _abortMatch('参加者の過半数が賛成し、試合を中止しました');
+      unawaited(
+        _finalizeAbortByMajority('参加者の過半数が賛成し、試合を中止しました'),
+      );
     }
+  }
+
+  Future<void> _finalizeAbortByMajority(String message) async {
+    if (_abortMajorityFinalizeInFlight) return;
+    _abortMajorityFinalizeInFlight = true;
+    try {
+      final fs = _firestoreSession;
+      final sk = _matchEventSessionKey;
+      if (_isOnlineFirestore && fs != null && sk != null) {
+        await fs.publishRoomEvent(
+          type: RoomMatchEventTypes.abortMajority,
+          payload: {'message': message},
+          sessionKey: sk,
+        );
+      }
+      await _applyAbortMajority(message, fromSelf: true);
+    } finally {
+      _abortMajorityFinalizeInFlight = false;
+    }
+  }
+
+  Future<void> _applyAbortMajority(
+    String message, {
+    required bool fromSelf,
+  }) async {
+    if (!fromSelf) {
+      if (!_isHost) {
+        await _claimHostIfAbsent();
+      }
+      if (_isHost) {
+        _abortMatch(message);
+      } else {
+        _abortMatchLocalReset(message);
+      }
+      return;
+    }
+    if (!_isHost) {
+      await _claimHostIfAbsent();
+    }
+    if (_isHost) {
+      _abortMatch(message);
+    } else {
+      _abortMatchLocalReset(message);
+    }
+  }
+
+  void _abortMatchLocalReset(String message) {
+    _matchTimer?.cancel();
+    _cancelCaptureBoundTimers();
+    _afterCatchRule = null;
+    _finalizeRecordingFuture = Future<void>.microtask(
+      () => _finalizeMatchRecording(
+        GameState.waiting,
+        endReason: MatchEndReason.hostAbort,
+        winningFaction: null,
+      ),
+    );
+    _matchPresentationActive = false;
+    _matchRoleBriefingShown = false;
+    _syncSetState(() {
+      _gameState = GameState.waiting;
+      _statusMessage = message;
+      _prepControlSheetOpen = false;
+      _prepMapMode = PrepMapMode.hidden;
+    });
+    _retuneGpsIfNeeded();
+    GameAudio.instance.playMenuBgm(_activeProfile);
   }
 
   void _endGameForTimeUp() {
@@ -689,26 +845,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         ),
       );
     }
-    _matchTimer?.cancel();
-    _cancelCaptureBoundTimers();
-    _afterCatchRule = null;
-    _finalizeRecordingFuture = Future<void>.microtask(
-      () => _finalizeMatchRecording(
-        GameState.waiting,
-        endReason: MatchEndReason.hostAbort,
-        winningFaction: null,
-      ),
-    );
-    _matchPresentationActive = false;
-    _matchRoleBriefingShown = false;
-    _syncSetState(() {
-      _gameState = GameState.waiting;
-      _statusMessage = message;
-      _prepControlSheetOpen = false;
-      _prepMapMode = PrepMapMode.hidden;
-    });
-    _retuneGpsIfNeeded();
-    GameAudio.instance.playMenuBgm(_activeProfile);
+    _abortMatchLocalReset(message);
   }
 
   Future<bool?> _showAbortVoteDialog() async {
@@ -862,6 +999,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _evaluateAccusationFacility();
     _maybeWerewolfForcedTransform();
 
+    final now = DateTime.now();
+    _applyDueGimmickRelocates(now);
+    _tickGimmickRelocateHintUi();
+
     final effects = _matchCtrl.evaluateRunningTick(
       playArea: _playArea,
       playerPosition: _currentPosition,
@@ -897,17 +1038,40 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             final cause = message.contains(MatchTickEvaluator.outsideEliminationMarker)
                 ? 'outside'
                 : 'caught';
+            _maybeBackgroundCrisisAlert(
+              kind: BackgroundCrisisKind.eliminated,
+              title: '捕獲されました',
+              body: message,
+            );
             _eliminateLocalParticipant(message, cause: cause);
             _maybeEndMatchForFactionElimination();
             return;
           }
+          _maybeBackgroundCrisisAlert(
+            kind: BackgroundCrisisKind.matchEnded,
+            title: '試合終了',
+            body: message,
+          );
           _endGame(state, message);
           return;
         case MatchStatusMessageEffect(:final message):
-          _syncSetState(() => _statusMessage = message);
+          _syncSetState(() {
+            _statusMessage = message;
+            if (message.contains('偽情報暴露の配置をキャンセル')) {
+              _skillPlacementPreviewLatLng = null;
+            }
+          });
         case MatchConsumeSafeChargeEffect():
           break;
         case MatchAreaRevealEffect(:final overflowMeters):
+          _maybeBackgroundCrisisAlert(
+            kind: BackgroundCrisisKind.outsideAreaReveal,
+            title: MatchUiTerms.namedReveal,
+            body: MatchHudCopy.namedRevealStatus(
+              _localPlayerLabel,
+              'エリア外',
+            ),
+          );
           _triggerLocationReveal(overflowMeters);
         case MatchResetOutsideTrackingEffect():
           break;
@@ -915,22 +1079,48 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           _emitOniCue(level: level);
           if (level == 'warning') {
             _logDebug('danger_warning_enter');
+            _maybeBackgroundCrisisAlert(
+              kind: BackgroundCrisisKind.proximityWarning,
+              title: '鬼が近い',
+              body: MatchHudCopy.panicExposureStart,
+            );
           } else if (level == 'danger') {
             _logDebug('danger_close_enter');
+            _maybeBackgroundCrisisAlert(
+              kind: BackgroundCrisisKind.proximityDanger,
+              title: '至近距離',
+              body: MatchHudCopy.panicExposureImminent,
+            );
           }
         case MatchEmitEventEffect(:final type, :final message, :final position):
+          if (type == 'panic_start') {
+            _maybeBackgroundCrisisAlert(
+              kind: BackgroundCrisisKind.panicStarted,
+              title: 'パニック発生',
+              body: message,
+            );
+          }
           _emitMatchEvent(type: type, message: message, position: position);
         case MatchLocationRevealEmitEffect(
           :final type,
           :final message,
           :final position,
         ):
+          final escapeReason = message.contains(' — ')
+              ? message.split(' — ').first
+              : null;
           _emitLocationReveal(
             type: type,
             message: message,
             overridePosition: position,
+            reasonSummary: escapeReason,
           );
         case MatchInfectionPulseRevealEffect():
+          _maybeBackgroundCrisisAlert(
+            kind: BackgroundCrisisKind.panicTrace,
+            title: GuideTerms.anonTrace,
+            body: MatchHudCopy.panicTraceSnack,
+          );
           _appendInfectionPulseReveal();
         case MatchInfectionExposureWarnEffect(:final level):
           if (_localRole == PlayerRole.hunter) break;
@@ -939,16 +1129,34 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
                   '${MatchHudCopy.panicExposureImminentDetail}'
               : '${MatchHudCopy.panicExposureStart} — '
                   '${MatchHudCopy.panicExposureStartDetail}';
+          _maybeBackgroundCrisisAlert(
+            kind: level == 'imminent'
+                ? BackgroundCrisisKind.panicImminent
+                : BackgroundCrisisKind.panicWarning,
+            title: level == 'imminent' ? 'パニック間近' : '鬼が近くにいます',
+            body: msg,
+          );
           if (!mounted) break;
           _syncSetState(() => _statusMessage = msg);
+          if (_suppressMatchFeedback) break;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
           );
         case MatchTouchLockStartEffect():
+          _maybeBackgroundCrisisAlert(
+            kind: BackgroundCrisisKind.touchLock,
+            title: '止められ圏',
+            body: 'このまま離れると位置が暴露されます',
+          );
           HapticFeedback.mediumImpact();
           GameAudio.instance.playSfx(SfxId.skillCast);
         case MatchCameraSpottedEffect(:final message):
           if (!mounted) return;
+          _maybeBackgroundCrisisAlert(
+            kind: BackgroundCrisisKind.panicTrace,
+            title: '監視カメラ',
+            body: message,
+          );
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(message)));

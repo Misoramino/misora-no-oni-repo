@@ -244,6 +244,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       context,
       (_) => GameMapScreen(profile: profile, onlineSession: fs),
       worldProfile: profile,
+      routeName: GameMapScreen.routeName,
     );
     if (!mounted) return;
     GameAudio.instance.playMenuBgm(_worldProfile);

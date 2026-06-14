@@ -9,7 +9,11 @@ abstract final class GuideTerms {
   static const humanFaction = '人陣営';
   static const oniFaction = '鬼陣営';
   static const namedReveal = '名前付き暴露';
-  static const anonTrace = '匿名痕跡';
+  /// 地図上のマーカー・痕跡そのもの。
+  static const anonTrace = '不明な痕跡';
+
+  /// 位置がばれる行為（する／される）。
+  static const anonPositionReveal = '匿名位置暴露';
   static const panic = 'パニック';
   static const panicTrace = 'パニック痕跡';
   static const secondGame = '第二ゲーム';

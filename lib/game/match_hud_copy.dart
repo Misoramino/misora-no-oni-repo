@@ -10,7 +10,8 @@ abstract final class MatchHudCopy {
   static const panicExposureImminentDetail = 'このままだと足が止まりやすくなります';
   static const panicStartedEvent = '近づきすぎ';
   static const panicStartedStatus = '落ち着かない状態です。離れると落ち着きます';
-  static const panicTraceSnack = '${GuideTerms.anonTrace}が残りました';
+  static const panicTraceSnack =
+      '${GuideTerms.anonPositionReveal}され、${GuideTerms.anonTrace}が残りました';
   static String panicActiveCountdown(int secondsLeft) =>
       '落ち着くまであと$secondsLeft秒';
   static String panicDangerCountdown(int secondsLeft) =>
@@ -42,13 +43,18 @@ abstract final class MatchHudCopy {
       '近づき圏 ${touchRadiusMeters.toStringAsFixed(0)}m → 止められ圏 '
       '${restraintRadiusMeters.toStringAsFixed(0)}m（$bindDurationSeconds秒）';
 
-  // --- 名前付き暴露・匿名痕跡 ---
+  // --- 名前付き暴露・不明な痕跡 ---
   static String namedRevealStatus(String playerLabel, String reason) =>
-      '$playerLabel がここで${MatchUiTerms.namedReveal}されました（$reason）';
+      reason.isEmpty
+          ? '$playerLabel の${MatchUiTerms.namedReveal}'
+          : '$playerLabel がここで${MatchUiTerms.namedReveal}されました（$reason）';
 
   static String namedRevealAlert(String playerLabel, String reason) =>
-      '$playerLabel がこの付近で暴露されました（$reason）';
+      reason.isEmpty
+          ? '$playerLabel がこの付近で${MatchUiTerms.namedReveal}されました'
+          : '$playerLabel がこの付近で暴露されました（$reason）';
 
+  static const anonRevealAction = '${GuideTerms.anonPositionReveal}が行われた';
   static const anonTraceFallback = '${GuideTerms.anonTrace}が出ました';
   static const revealLogTitle = '暴露ログ';
   static const namedRevealLogTitle = MatchUiTerms.namedReveal;
@@ -107,6 +113,8 @@ abstract final class MatchHudCopy {
 
   // --- 第二ゲーム ---
   static const secondGameTransition = '${GuideTerms.secondGame}に移行します。';
+  static const eliminatedByDisconnect =
+      '通信が途絶えたため脱落 — ${GuideTerms.secondGame}へ';
   static const eliminatedFeed = '誰かが脱落しました';
   static const accusationFailedFeed = '告発失敗 — 告発者が脱落';
 

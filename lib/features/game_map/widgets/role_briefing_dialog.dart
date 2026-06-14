@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
 import '../../../game/role_briefing.dart';
+import '../../../game/runner_modifier.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 import '../../../widgets/app_dialog.dart';
@@ -14,10 +15,12 @@ Future<void> showRoleBriefingDialog(
   required PlayerRole role,
   required List<String> skillLabels,
   FactionSide? werewolfCurrentFaction,
+  RunnerModifier runnerModifier = RunnerModifier.none,
 }) {
   final start = RoleBriefingCatalog.matchStartBriefing(
     role,
     werewolfFaction: werewolfCurrentFaction,
+    runnerModifier: runnerModifier,
   );
   final accent = roleAccentColor(role);
   return showAppDialog<void>(

@@ -3,6 +3,13 @@ part of 'game_map_screen.dart';
 /// 進行中試合への再参加・インスペクター（観戦）モード。
 extension _GameMapRejoin on _GameMapScreenState {
   void _maybeSyncRunningMatchOnAttach(RoomMatchState rm) {
+    if (!_isHost &&
+        _editingArea &&
+        rm.phase == RoomPhase.running &&
+        rm.matchStart != null) {
+      _pendingRunningMatch = rm;
+      return;
+    }
     _tryEnterRunningMatch(rm);
   }
 
@@ -11,6 +18,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     String? toastMessage,
   }) async {
     if (!mounted || _gameState != GameState.waiting) return;
+    _dismissBlockingOverlaysForMatchJoin();
     _isRoomInspector = false;
     await _applySharedMatchStart(snap);
     if (!mounted || _gameState != GameState.waiting) return;
@@ -18,13 +26,18 @@ extension _GameMapRejoin on _GameMapScreenState {
     _processedRoomEventDocIds.clear();
     if (!mounted) return;
     _ensureMatchRecorder(discardExisting: true);
+    final elapsed = _rt.elapsedSeconds;
     await _runMatchStartPresentation(
-      rejoin: true,
+      rejoin: elapsed > GameConfig.syncJoinFullPresentationMaxSeconds,
       inspector: false,
-      elapsedSeconds: _rt.elapsedSeconds,
+      elapsedSeconds: elapsed,
+      remoteSyncJoin: true,
     );
     if (!mounted) return;
     _startGameCore(rejoin: true);
+    if (elapsed <= GameConfig.syncJoinFullPresentationMaxSeconds) {
+      unawaited(_maybeShowMatchCoachMarks());
+    }
     _rejoinRestoringEvents = true;
     await _replayHistoricalMatchEvents(snap.gimmickSeed);
     _rejoinRestoringEvents = false;
@@ -126,5 +139,16 @@ extension _GameMapRejoin on _GameMapScreenState {
       }
       _onRemoteRoomMatchEvent(ev);
     }
+  }
+
+  /// 終了済み試合に後から入った人向け — リザルトを出さずロビーへ。
+  Future<void> _dismissStaleEndedRoom(SharedMatchEnd end) async {
+    if (!mounted) return;
+    _resetGame(skipFirestoreSync: true);
+    if (_isHost) {
+      await _firestoreSession?.updateRoomPhase(RoomPhase.lobby);
+    }
+    if (!mounted) return;
+    _toast('前の試合は終了しています。新しい試合の準備ができます。');
   }
 }

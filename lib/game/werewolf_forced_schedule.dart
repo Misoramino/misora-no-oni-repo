@@ -6,16 +6,16 @@ import 'dart:math' as math;
 /// 任意切替は [voluntaryTransformCooldownSeconds] の CD 後に可能で、
 /// 発動すると強制タイマーも CD もその時点から再カウントする。
 abstract final class WerewolfForcedSchedule {
-  /// 10分（600秒）と試合時間の1/3の**短い方**を、前回切替からの強制間隔に使う。
+  /// 強制切替までの目安（秒）: `min(15分, 試合時間÷2)` — 自発切替の猶予を長めに。
   static int intervalSeconds(int matchDurationSeconds) {
     final d = matchDurationSeconds.clamp(60, 90 * 60);
-    return math.min(600, d ~/ 3).clamp(30, 600);
+    return math.min(900, d ~/ 2).clamp(60, 900);
   }
 
-  /// 任意の鬼化⇄人化の再切替まで（秒）: `0.75 × interval`。
+  /// 任意の鬼化⇄人化の再切替まで（秒）: `interval ÷ 3`（初回CDも同じ）。
   static int voluntaryTransformCooldownSeconds(int matchDurationSeconds) {
     final interval = intervalSeconds(matchDurationSeconds);
-    return (interval * 3) ~/ 4;
+    return interval ~/ 3;
   }
 
   static int secondsSinceLastTransform(

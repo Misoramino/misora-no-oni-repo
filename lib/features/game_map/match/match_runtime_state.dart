@@ -6,6 +6,7 @@ import '../../../game/anonymous_reveal_trace.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/match_event.dart';
 import '../../../game/oni_intel_trace.dart';
+import 'pending_gimmick_relocate.dart';
 
 /// 1 試合分のランタイム状態（ギミック・スキル・暴露ログ等）。
 class MatchRuntimeState {
@@ -98,11 +99,19 @@ class MatchRuntimeState {
   /// 体投げ発動時のプレイヤー位置（配置猶予切れの暴露座標）。
   LatLng? bodyThrowSkillOriginLatLng;
 
+  bool fakeIntelAwaitingMapTap;
+  DateTime? fakeIntelTapDeadline;
+  bool fakeIntelPickedSelf;
+  String fakeIntelTargetLabel;
+  String? fakeIntelTargetUid;
+
   int infectionExposureSeconds;
   DateTime? infectionEndsAt;
   DateTime? lastInfectionRevealAt;
 
   double? lastDangerDistance;
+
+  final List<PendingGimmickRelocate> pendingGimmickRelocates;
 
   /// [GameConfig.periodicRevealIntervalSeconds] バケットの最終処理済み index。
   int lastPeriodicAnonymousBucket = -1;
@@ -183,10 +192,16 @@ class MatchRuntimeState {
     this.bodyThrowAwaitingMapTap = false,
     this.bodyThrowTapDeadline,
     this.bodyThrowSkillOriginLatLng,
+    this.fakeIntelAwaitingMapTap = false,
+    this.fakeIntelTapDeadline,
+    this.fakeIntelPickedSelf = false,
+    this.fakeIntelTargetLabel = '',
+    this.fakeIntelTargetUid,
     this.infectionExposureSeconds = 0,
     this.infectionEndsAt,
     this.lastInfectionRevealAt,
     this.lastDangerDistance,
+    List<PendingGimmickRelocate>? pendingGimmickRelocates,
   })  : remainingSeconds =
             remainingSeconds ?? GameConfig.matchDurationSeconds,
         revealLog = revealLog ?? [],
@@ -210,7 +225,8 @@ class MatchRuntimeState {
             ],
         cameraLastTriggeredAt = cameraLastTriggeredAt ?? <int, DateTime>{},
         lockZoneBoundIds = lockZoneBoundIds ?? const {},
-        disabledCameraIndices = disabledCameraIndices ?? <int>{};
+        disabledCameraIndices = disabledCameraIndices ?? <int>{},
+        pendingGimmickRelocates = pendingGimmickRelocates ?? [];
 
   bool get isInfectedNow =>
       infectionEndsAt != null && DateTime.now().isBefore(infectionEndsAt!);
@@ -236,6 +252,10 @@ class MatchRuntimeState {
     fakePositionLatLng = null;
     bodyThrowAwaitingMapTap = false;
     bodyThrowTapDeadline = null;
+    fakeIntelAwaitingMapTap = false;
+    fakeIntelTapDeadline = null;
+    fakeIntelTargetLabel = '';
+    fakeIntelTargetUid = null;
   }
 
   bool get dangerPulseActive =>
@@ -253,6 +273,7 @@ class MatchRuntimeState {
     revealLog.clear();
     anonymousRevealTraces.clear();
     matchEvents.clear();
+    pendingGimmickRelocates.clear();
     lastPeriodicAnonymousBucket = -1;
     safeZoneCharges = 0;
     lastSafeChargeAt = null;
@@ -293,6 +314,10 @@ class MatchRuntimeState {
     bodyThrowAwaitingMapTap = false;
     bodyThrowTapDeadline = null;
     bodyThrowSkillOriginLatLng = null;
+    fakeIntelAwaitingMapTap = false;
+    fakeIntelTapDeadline = null;
+    fakeIntelTargetLabel = '';
+    fakeIntelTargetUid = null;
     infectionExposureSeconds = 0;
     infectionEndsAt = null;
     lastInfectionRevealAt = null;

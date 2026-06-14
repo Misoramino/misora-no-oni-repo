@@ -52,6 +52,9 @@ class GameConfig {
   static const int infoBrokerCooldownSeconds = 120;
   static const int infoBrokerRespawnSeconds = 45;
 
+  /// ギミック使用後、地点が移動するまでの猶予（この間は旧地点のまま）。
+  static const int gimmickRelocateDelaySeconds = 12;
+
   /// 鬼が情報屋を使ったあと、再使用まで（逃走者用より長め）。
   static const int oniInfoBrokerCooldownSeconds = 90;
 
@@ -77,6 +80,7 @@ class GameConfig {
   /// 偽位置が進行方向へ流れる速さ（m/s）。
   static const double fakePositionDriftSpeedMps = 3.4;
   static const int fakeIntelRevealCooldownSeconds = 75;
+  static const int fakeIntelMapTapWindowSeconds = 25;
 
   /// 人狼の任意鬼化CDは [WerewolfForcedSchedule.voluntaryTransformCooldownSeconds] を参照。
   // --- スキル「捕獲結界」（逃走者・鬼共通・地図配置）---
@@ -148,4 +152,17 @@ class GameConfig {
 
   /// ハッカー: 鬼の向き表示に使う最低移動量（m）。
   static const double hackerHeadingMinMoveMeters = 8;
+
+  /// ハートビート途絶・切断とみなす時間（秒）。ホスト譲渡・切断脱落で共通。
+  static const int memberPresenceStaleSeconds = 120;
+
+  /// 試合中バックグラウンド（他アプリ・画面ロック）の最大猶予（秒）。
+  /// この間はハートビート停止でも切断脱落しない。
+  static const int matchBackgroundMaxSeconds = 15 * 60;
+
+  /// ホスト開始後、この秒数以内の同期参加はカウントダウン＋役職案内を表示。
+  static const int syncJoinFullPresentationMaxSeconds = 45;
+
+  /// この秒数以内なら再参加通知のあと役職案内を必ず表示。
+  static const int syncJoinRoleBriefingMaxSeconds = 90;
 }

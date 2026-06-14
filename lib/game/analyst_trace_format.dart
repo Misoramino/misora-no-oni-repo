@@ -1,6 +1,6 @@
 import 'anonymous_reveal_trace.dart';
 
-/// アナリスト向けの匿名痕跡読み取り（名前は出さない）。
+/// アナリスト向けの不明な痕跡読み取り（名前は出さない）。
 abstract final class AnalystTraceFormat {
   static String timeBand(DateTime timestamp, DateTime now) {
     final age = now.difference(timestamp);
@@ -18,16 +18,20 @@ abstract final class AnalystTraceFormat {
         AnonymousTraceSource.other => '不明源',
       };
 
-  static String confidenceLabel(AnonymousTraceSource source) => switch (source) {
-        AnonymousTraceSource.camera => '信頼: 中',
-        AnonymousTraceSource.panic => '信頼: 中',
-        AnonymousTraceSource.periodic => '信頼: 低〜中',
-        AnonymousTraceSource.other => '信頼: 低',
-      };
+  /// 実位置との差（m）から信頼度を導く。
+  static String errorLabel(double errorMeters) {
+    if (errorMeters < 1) {
+      return '誤差: ほぼなし（信頼: 高）';
+    }
+    final m = errorMeters.round();
+    if (m <= 25) return '誤差: 約${m}m（信頼: 高）';
+    if (m <= 70) return '誤差: 約${m}m（信頼: 中）';
+    return '誤差: 約${m}m（信頼: 低）';
+  }
 
   static String summaryLine(AnonymousRevealTrace trace, DateTime now) {
     return '${timeBand(trace.timestamp, now)} / '
         '${sourceLabel(trace.source)} / '
-        '${confidenceLabel(trace.source)} — ${trace.reasonSummary}';
+        '${errorLabel(trace.errorMeters)} — ${trace.reasonSummary}';
   }
 }

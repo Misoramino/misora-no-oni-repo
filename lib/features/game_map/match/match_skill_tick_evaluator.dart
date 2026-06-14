@@ -41,6 +41,11 @@ final class SkillTickCaptureZoneGameOver extends SkillTickOutcome {
   final bool placedBySkill;
 }
 
+/// 偽情報暴露の配置時間切れ — キャンセル（CD 消費なし）。
+final class SkillTickFakeIntelPlacementCancelled extends SkillTickOutcome {
+  const SkillTickFakeIntelPlacementCancelled();
+}
+
 final class SkillTickBodyThrowMiss extends SkillTickOutcome {
   const SkillTickBodyThrowMiss(this.puppetPosition);
 
@@ -163,6 +168,16 @@ abstract final class MatchSkillTickEvaluator {
       if (puppet != null) {
         out.add(SkillTickBodyThrowMiss(puppet));
       }
+    }
+
+    if (runtime.fakeIntelAwaitingMapTap &&
+        runtime.fakeIntelTapDeadline != null &&
+        now.isAfter(runtime.fakeIntelTapDeadline!)) {
+      runtime.fakeIntelAwaitingMapTap = false;
+      runtime.fakeIntelTapDeadline = null;
+      runtime.fakeIntelTargetLabel = '';
+      runtime.fakeIntelTargetUid = null;
+      out.add(const SkillTickFakeIntelPlacementCancelled());
     }
 
     if (runtime.bodyThrowAwaitingMapTap &&

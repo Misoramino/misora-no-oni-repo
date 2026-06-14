@@ -47,6 +47,7 @@ class GameMapOverlaySnapshot {
     required this.bodyThrowPosition,
     this.bodyThrowAwaitingMapTap = false,
     this.waitingSkillLockMapTap = false,
+    this.fakeIntelAwaitingMapTap = false,
     this.skillPlacementPreviewLatLng,
     this.skillPlacementPreviewRadiusMeters = 0,
     this.skillMapPlacementMaxRangeMeters = 0,
@@ -115,6 +116,7 @@ class GameMapOverlaySnapshot {
   final LatLng? bodyThrowPosition;
   final bool bodyThrowAwaitingMapTap;
   final bool waitingSkillLockMapTap;
+  final bool fakeIntelAwaitingMapTap;
   final LatLng? skillPlacementPreviewLatLng;
   final double skillPlacementPreviewRadiusMeters;
   /// スキル押下〜地図タップ確定まで、現在地中心の設置可能距離（m）。

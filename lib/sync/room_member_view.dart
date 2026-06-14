@@ -1,3 +1,4 @@
+import '../game/game_config.dart';
 import '../game/player_role.dart';
 import '../game/skill_ids.dart';
 import 'firestore_room_blueprint.dart';
@@ -15,6 +16,9 @@ class RoomMemberView {
     this.proximityBand,
     this.preferredRole,
     this.preferredSkills = const [],
+    this.prepReady = false,
+    this.appLifecycle,
+    this.backgroundSinceUtc,
   });
 
   final String uid;
@@ -26,6 +30,9 @@ class RoomMemberView {
   final String? proximityBand;
   final PlayerRole? preferredRole;
   final List<String> preferredSkills;
+  final bool prepReady;
+  final String? appLifecycle;
+  final DateTime? backgroundSinceUtc;
 
   bool get hasHeartbeat => reportedAtUtc != null;
 
@@ -51,7 +58,17 @@ class RoomMemberView {
   bool isStale(DateTime nowUtc) {
     final at = reportedAtUtc;
     if (at == null) return false;
-    return nowUtc.difference(at.toUtc()) > const Duration(minutes: 3);
+    return nowUtc.difference(at.toUtc()).inSeconds >
+        GameConfig.memberPresenceStaleSeconds;
+  }
+
+  /// 試合中に他アプリへ切り替え／画面ロック中の猶予（ハートビート停止を許容）。
+  bool isInBackgroundGrace(DateTime nowUtc) {
+    if (appLifecycle != 'background') return false;
+    final since = backgroundSinceUtc;
+    if (since == null) return true;
+    return nowUtc.difference(since.toUtc()).inSeconds <=
+        GameConfig.matchBackgroundMaxSeconds;
   }
 
   static RoomMemberView parse({
@@ -79,7 +96,17 @@ class RoomMemberView {
       preferredSkills: _parsePreferredSkills(
         data[MemberPresenceFields.preferredSkills],
       ),
+      prepReady: data[MemberPresenceFields.prepReady] == true,
+      appLifecycle: data[MemberPresenceFields.appLifecycle] as String?,
+      backgroundSinceUtc: _parseUtc(
+        data[MemberPresenceFields.backgroundSinceUtc],
+      ),
     );
+  }
+
+  static DateTime? _parseUtc(Object? raw) {
+    if (raw is! String) return null;
+    return DateTime.tryParse(raw);
   }
 
   static PlayerRole? _parsePreferredRole(String? raw) {
