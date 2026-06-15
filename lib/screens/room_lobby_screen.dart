@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../audio/game_audio.dart';
+import '../audio/world_audio_director.dart';
+import '../audio/world_audio_state.dart';
 import '../session/session_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../sync/firestore_room_session.dart';
@@ -50,7 +51,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
   void initState() {
     super.initState();
     _session = widget.existingSession;
-    GameAudio.instance.playMenuBgm(_worldProfile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.lobby,
+        profile: _worldProfile,
+      ),
+    );
     Future<void>.microtask(_init);
   }
 
@@ -60,7 +66,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     final form = await SessionPrefs.loadForm();
     if (!mounted) return;
     setState(() => _worldProfile = profile);
-    GameAudio.instance.playMenuBgm(profile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.lobby,
+        profile: profile,
+      ),
+    );
     _nickController.text = form.nickname;
     _roomController.text = form.roomId;
     if (_session != null && _session!.roomId != null) {
@@ -97,7 +108,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     await WorldProfilePrefs.save(next);
     if (!mounted) return;
     setState(() => _worldProfile = next);
-    GameAudio.instance.playMenuBgm(next);
+    unawaited(WorldAudioDirector.instance.onProfileChanged(next));
   }
 
   Future<void> _join() async {
@@ -247,7 +258,12 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
       routeName: GameMapScreen.routeName,
     );
     if (!mounted) return;
-    GameAudio.instance.playMenuBgm(_worldProfile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.lobby,
+        profile: _worldProfile,
+      ),
+    );
     if (!mounted) return;
     setState(() {});
   }

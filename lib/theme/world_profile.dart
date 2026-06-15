@@ -18,10 +18,10 @@ enum WorldProfile {
   /// Astronomy — 宇宙・星座・観測
   astronomy,
 
-  /// 和風（高級）— 墨・金・静謐
+  /// Zen Kyoto — 墨・金・静謐
   japaneseLuxury,
 
-  /// 洋風（高級）— 宮廷・大理石・格式
+  /// Royal Classic — 宮廷・大理石・格式
   westernLuxury;
 
   static WorldProfile fromStorageName(String? raw) {
@@ -41,8 +41,8 @@ extension WorldProfileLabel on WorldProfile {
         WorldProfile.arg => 'Stealth Tactical',
         WorldProfile.magical => 'Magical World',
         WorldProfile.astronomy => 'Astronomy',
-        WorldProfile.japaneseLuxury => '和風（高級）',
-        WorldProfile.westernLuxury => '洋風（高級）',
+        WorldProfile.japaneseLuxury => 'Zen Kyoto',
+        WorldProfile.westernLuxury => 'Royal Classic',
       };
 
   /// SharedPreferences / assets フォルダ名

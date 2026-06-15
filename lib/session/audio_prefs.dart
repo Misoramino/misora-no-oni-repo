@@ -9,6 +9,8 @@ class AudioSettings {
     this.bgmVolume = 0.38,
     this.ambientVolume = 0.26,
     this.bgmChoice = bgmWorldDefault,
+    this.crossFadeEnabled = true,
+    this.worldBgmEnabled = true,
   });
 
   /// [bgmChoice] の特別値: 世界観ごとの既定BGMに従う。
@@ -28,8 +30,17 @@ class AudioSettings {
   /// `'world'`（世界観既定）/ `'off'`（OFF）/ `BgmId.name`（楽曲指定）。
   final String bgmChoice;
 
+  /// 世界観レイヤー BGM のクロスフェード。
+  final bool crossFadeEnabled;
+
+  /// 世界観別レイヤー BGM（Director）を有効にする。
+  final bool worldBgmEnabled;
+
   /// タイトル/ロビー/リザルトでBGMを鳴らすか。
   bool get bgmEnabled => bgmChoice != bgmOff;
+
+  /// レイヤー BGM ディレクターが動作するか。
+  bool get layeredBgmEnabled => bgmEnabled && worldBgmEnabled;
 
   /// 実際に効果音へ適用する音量（0..1）。
   double get effectiveSfx => muted ? 0 : (masterVolume * sfxVolume).clamp(0, 1);
@@ -48,6 +59,8 @@ class AudioSettings {
     double? bgmVolume,
     double? ambientVolume,
     String? bgmChoice,
+    bool? crossFadeEnabled,
+    bool? worldBgmEnabled,
   }) {
     return AudioSettings(
       muted: muted ?? this.muted,
@@ -56,6 +69,8 @@ class AudioSettings {
       bgmVolume: bgmVolume ?? this.bgmVolume,
       ambientVolume: ambientVolume ?? this.ambientVolume,
       bgmChoice: bgmChoice ?? this.bgmChoice,
+      crossFadeEnabled: crossFadeEnabled ?? this.crossFadeEnabled,
+      worldBgmEnabled: worldBgmEnabled ?? this.worldBgmEnabled,
     );
   }
 }
@@ -67,6 +82,8 @@ abstract final class AudioPrefs {
   static const _bgmKey = 'audio_bgm_v1';
   static const _ambientKey = 'audio_ambient_v1';
   static const _bgmChoiceKey = 'audio_bgm_choice_v1';
+  static const _crossFadeKey = 'audio_crossfade_v1';
+  static const _worldBgmKey = 'audio_world_bgm_v1';
 
   static Future<AudioSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -78,6 +95,8 @@ abstract final class AudioPrefs {
       bgmVolume: prefs.getDouble(_bgmKey) ?? d.bgmVolume,
       ambientVolume: prefs.getDouble(_ambientKey) ?? d.ambientVolume,
       bgmChoice: prefs.getString(_bgmChoiceKey) ?? d.bgmChoice,
+      crossFadeEnabled: prefs.getBool(_crossFadeKey) ?? d.crossFadeEnabled,
+      worldBgmEnabled: prefs.getBool(_worldBgmKey) ?? d.worldBgmEnabled,
     );
   }
 
@@ -89,5 +108,7 @@ abstract final class AudioPrefs {
     await prefs.setDouble(_bgmKey, s.bgmVolume);
     await prefs.setDouble(_ambientKey, s.ambientVolume);
     await prefs.setString(_bgmChoiceKey, s.bgmChoice);
+    await prefs.setBool(_crossFadeKey, s.crossFadeEnabled);
+    await prefs.setBool(_worldBgmKey, s.worldBgmEnabled);
   }
 }

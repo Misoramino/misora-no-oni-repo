@@ -58,7 +58,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
 
       game_feedback.Feedback.confirm();
-      unawaited(GameAudio.instance.stopMusic());
+      unawaited(WorldAudioDirector.instance.beginMatchCountdown());
       _progressRecordedForMatch = false;
       _lastNewlyUnlockedTitles = const [];
       _matchRoleBriefingShown = false;
@@ -140,7 +140,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (!inspector && _localRole == PlayerRole.werewolf) {
         _rt.lastWerewolfTransformAt = DateTime.now();
       }
-      unawaited(_maybeShowMatchPlayabilityHints());
+      unawaited(_runPostMatchStartOnboarding());
     }
     if (_isOnlineFirestore) {
       final sk = _matchEventSessionKey;
@@ -157,14 +157,18 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             'ギミック生成: 安全地帯${_rt.safeZonePositions.length} / 情報屋${_rt.infoBrokerPositions.length} / 監視カメラ${_rt.cameraPositions.length} / 通信障害${_rt.commJammingZonePositions.length}',
         position: _playAreaAnchor,
       );
-      unawaited(_maybeShowMatchCoachMarks());
       _logDebug('match_start scale=${_timeScale}x online=$_isOnlineFirestore');
     } else {
       _logDebug(
         'match_rejoin scale=${_timeScale}x inspector=$inspector online=$_isOnlineFirestore',
       );
     }
-    GameAudio.instance.playMatchAmbient(_activeProfile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.match,
+        profile: _activeProfile,
+      ),
+    );
 
     _matchTimer?.cancel();
     _matchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -179,6 +183,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
           _estimatedBatteryScore += _batteryCostPerSecond() * _timeScale;
         }
       });
+      if (_gameState == GameState.running) {
+        WorldAudioDirector.instance.onMatchTick(_rt.remainingSeconds);
+      }
       if (_rt.remainingSeconds <= 0) {
         if (_isHost) {
           _endGameForTimeUp();
@@ -785,7 +792,12 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _prepMapMode = PrepMapMode.hidden;
     });
     _retuneGpsIfNeeded();
-    GameAudio.instance.playMenuBgm(_activeProfile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.returnTitle,
+        profile: _activeProfile,
+      ),
+    );
   }
 
   void _endGameForTimeUp() {
@@ -920,7 +932,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       unawaited(() async {
         await _finalizeSpectatorRecording(outcome);
         if (mounted) await _openMatchResultScreen(spectator: true);
-        if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
+        if (mounted) {
+          unawaited(
+            WorldAudioDirector.instance.enter(
+              WorldAudioState.resultSpectator,
+              profile: _activeProfile,
+            ),
+          );
+        }
       }());
       return;
     }
@@ -941,7 +960,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       );
     }
   if (skipResultScreen) {
-      if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
+      if (mounted) {
+        unawaited(
+          WorldAudioDirector.instance.enter(
+            WorldAudioState.returnTitle,
+            profile: _activeProfile,
+          ),
+        );
+      }
       return;
     }
     unawaited(() async {
@@ -949,7 +975,6 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (mounted) {
         await _openMatchResultScreen(endReason: endReason);
       }
-      if (mounted) GameAudio.instance.playMenuBgm(_activeProfile);
     }());
   }
 
@@ -1034,7 +1059,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             HapticFeedback.mediumImpact();
           }
           if (state == GameState.caughtByOni) {
-            GameAudio.instance.playSfx(SfxId.capture, profile: _activeProfile);
+            GameAudio.instance.playWorldSfx(
+              SfxId.capture,
+              profile: _activeProfile,
+            );
             _triggerCaptureMoment();
             final cause = message.contains(MatchTickEvaluator.outsideEliminationMarker)
                 ? 'outside'

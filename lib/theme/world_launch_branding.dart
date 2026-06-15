@@ -23,8 +23,8 @@ extension LaunchEffectKindLabel on LaunchEffectKind {
         LaunchEffectKind.tactical => 'Stealth Tactical',
         LaunchEffectKind.magical => 'Magical World',
         LaunchEffectKind.astronomy => 'Astronomy',
-        LaunchEffectKind.japaneseLuxury => '和風（高級）',
-        LaunchEffectKind.westernLuxury => '洋風（高級）',
+        LaunchEffectKind.japaneseLuxury => 'Zen Kyoto',
+        LaunchEffectKind.westernLuxury => 'Royal Classic',
       };
 }
 
@@ -260,7 +260,7 @@ class WorldLaunchBranding {
       glow: const Color(0x44C9A227),
       scanLineColor: const Color(0x22E8D5A3),
       pulseColor: const Color(0xFFE8D5A3),
-      particleColor: const Color(0xFFFFD54F),
+      particleColor: const Color(0xFFC9A227),
       subtitleColor: const Color(0x99E8D5A3),
       pinStroke: const Color(0xFFFFF8E1),
       hornFill: const Color(0xFF2C2416),

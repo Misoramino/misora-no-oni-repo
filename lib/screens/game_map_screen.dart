@@ -9,6 +9,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/game_audio.dart';
+import '../audio/world_audio_director.dart';
+import '../audio/world_audio_state.dart';
 import '../audio/sfx_id.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
@@ -600,7 +602,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               body: '設定が済んだら「準備完了」。ホストが開始するまでここで待ちましょう。',
             ),
           ];
-    await showCoachMarks(context, steps);
+    await showCoachMarks(context, steps, profile: _activeProfile);
     if (markSeen) await OnboardingPrefs.markCoachMarksSeen();
   }
 
@@ -649,7 +651,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         body: 'サウンド設定・${MatchUiTerms.guideHub}・保存エリア一覧はここから。'
             '試合を抜けるときは「試合中止の投票」を使ってください。',
       ),
-    ]);
+    ], profile: _mapVisual.pack.profile);
     if (markSeen) await OnboardingPrefs.markMatchCoachMarksSeen();
   }
 
@@ -1170,6 +1172,7 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _triggerCaptureMoment() {
     if (_suppressMatchFeedback) return;
+    unawaited(WorldAudioDirector.instance.onCaptureMoment());
     final fx = WorldFxCatalog.forProfile(_activeProfile);
     _momentFlash.trigger(
       pack: _mapVisual.pack,
@@ -1185,13 +1188,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     } else {
       HapticFeedback.mediumImpact();
     }
-    GameAudio.instance.playSfx(sfx, profile: _activeProfile);
+    GameAudio.instance.playWorldSfx(sfx, profile: _activeProfile);
   }
 
   void _remoteLightFeedback({SfxId sfx = SfxId.anonReveal}) {
     if (_suppressMatchFeedback) return;
     HapticFeedback.lightImpact();
-    GameAudio.instance.playSfx(sfx, profile: _activeProfile);
+    GameAudio.instance.playWorldSfx(sfx, profile: _activeProfile);
     _momentFlash.trigger(
       pack: _mapVisual.pack,
       fx: WorldFxCatalog.forProfile(_activeProfile),
@@ -2243,6 +2246,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           accusationPointsHuman: _rt.accusationPointsHuman,
           afterCatchRule: _afterCatchRule,
           contextualHint: contextualHint,
+          worldProfile: _activeProfile,
           onPrepareNext: () {
             Navigator.of(context).pop();
             _resetGame();
@@ -2276,6 +2280,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           accusationPointsHuman: _rt.accusationPointsHuman,
           afterCatchRule: null,
           contextualHint: null,
+          worldProfile: _activeProfile,
           spectatorRecord: spectatorRecord,
           onOpenReplay: spectatorRecord == null
               ? null
@@ -2535,7 +2540,12 @@ class _GameMapScreenState extends State<GameMapScreen>
       _ownsRoomSession = false;
     });
     Navigator.of(context).popUntil((route) => route.isFirst);
-    GameAudio.instance.playMenuBgm(_activeProfile);
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.returnTitle,
+        profile: _activeProfile,
+      ),
+    );
   }
 
   Future<void> _openRoomLobby() async {
@@ -2597,7 +2607,12 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted) return;
     if (_gameState == GameState.running) {
       _discardActiveMatchForNavigation();
-      GameAudio.instance.playMenuBgm(_activeProfile);
+      unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.returnTitle,
+        profile: _activeProfile,
+      ),
+    );
     }
     final fs = _roomSession is FirestoreRoomSession
         ? _roomSession as FirestoreRoomSession
@@ -3418,8 +3433,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                           '+${overflowMeters.toStringAsFixed(0)}m'
                       : 'エリア内',
                   areaColor: isOutBeyondGrace
-                      ? Colors.red.shade700
-                      : Colors.green.shade700,
+                      ? WorldProfileTokenFactory.of(_mapVisual.pack.profile)
+                          .alertColor
+                      : WorldProfileTokenFactory.of(_mapVisual.pack.profile)
+                          .safeColor,
                   revealCount: _rt.revealCount,
                   editing: _editingArea,
                   safeZoneCharges: _rt.safeZoneCharges,

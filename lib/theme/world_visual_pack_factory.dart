@@ -95,7 +95,6 @@ abstract final class WorldVisualPackFactory {
           lodPolicy: MapZoomLodPolicy.standard,
           vignetteColor: const Color(0x70000818),
           revealFlashColor: const Color(0x66FFD54F),
-          useScanOverlay: true,
         ),
       WorldProfile.japaneseLuxury => WorldVisualPack(
           profile: profile,

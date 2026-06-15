@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../audio/world_audio_director.dart';
+import '../audio/world_audio_state.dart';
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
 import '../game/elimination_aftermath_rule.dart';
@@ -11,6 +15,12 @@ import '../features/game_map/widgets/match_flow_timeline.dart';
 import '../features/match/match_result_copy.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
+import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_studio_identity.dart';
+import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/widgets/world_particle_burst.dart';
+import '../presentation/world/widgets/world_scaffold.dart';
+import '../theme/world_profile.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/motion_helpers.dart';
 import '../widgets/responsive_page.dart';
@@ -34,6 +44,7 @@ class MatchResultScreen extends StatefulWidget {
     this.accusationPointsHuman = 0,
     this.contextualHint,
     this.spectatorMode = false,
+    this.worldProfile = WorldProfile.horror,
     this.spectatorRecord,
     this.onOpenReplay,
     super.key,
@@ -57,6 +68,7 @@ class MatchResultScreen extends StatefulWidget {
   final bool spectatorMode;
   /// 観戦中に組み立てた試合記録（全員軌跡・イベント）。
   final SavedMatchRecord? spectatorRecord;
+  final WorldProfile worldProfile;
   final VoidCallback? onOpenReplay;
   final String? endReason;
   final VoidCallback onPrepareNext;
@@ -68,12 +80,10 @@ class MatchResultScreen extends StatefulWidget {
 
 class _MatchResultScreenState extends State<MatchResultScreen>
     with TickerProviderStateMixin {
-  late final AnimationController _intro = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  );
+  late final AnimationController _intro;
   bool _showConfetti = false;
   bool _motionReduced = false;
+  int _particleTrigger = 0;
 
   bool get _personalWon =>
       !widget.spectatorMode &&
@@ -92,21 +102,78 @@ class _MatchResultScreenState extends State<MatchResultScreen>
     }
   }
 
+  void _enterResultAudio() {
+    if (widget.spectatorMode) {
+      unawaited(
+        WorldAudioDirector.instance.enter(
+          WorldAudioState.resultSpectator,
+          profile: widget.worldProfile,
+        ),
+      );
+      return;
+    }
+    if (widget.endReason == MatchEndReason.hostAbort) {
+      unawaited(
+        WorldAudioDirector.instance.enter(
+          WorldAudioState.returnTitle,
+          profile: widget.worldProfile,
+        ),
+      );
+      return;
+    }
+    final isDraw = !_personalWon &&
+        widget.winningFaction == null &&
+        widget.endReason != MatchEndReason.hostAbort;
+    if (isDraw) {
+      unawaited(
+        WorldAudioDirector.instance.enter(
+          WorldAudioState.resultDraw,
+          profile: widget.worldProfile,
+        ),
+      );
+      return;
+    }
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        _personalWon ? WorldAudioState.resultVictory : WorldAudioState.resultLose,
+        profile: widget.worldProfile,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    final motion = WorldStudioIdentityCatalog.of(widget.worldProfile).motion;
+    _intro = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: motion.transitionMs + 280),
+    );
+    _enterResultAudio();
     _intro.forward();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final reduced = MotionHelpers.reduceMotionOf(context);
+      final studio = WorldStudioIdentityCatalog.of(widget.worldProfile);
+      final pause = studio.silence.resultPauseMs;
+      if (pause > 0 && !reduced) {
+        await Future<void>.delayed(Duration(milliseconds: pause));
+      }
+      if (!mounted) return;
+      WorldHaptics.emphasis(widget.worldProfile);
       GameAudio.instance.playSfx(
         widget.spectatorMode
             ? SfxId.uiConfirm
             : (_personalWon ? SfxId.matchWin : SfxId.matchLose),
       );
       if (_personalWon && !reduced) {
-        setState(() => _showConfetti = true);
+        setState(() {
+          _showConfetti = true;
+          _particleTrigger++;
+        });
         GameAudio.instance.playSfx(SfxId.confetti);
+      } else if (!widget.spectatorMode && !reduced) {
+        setState(() => _particleTrigger++);
       }
     });
   }
@@ -129,45 +196,68 @@ class _MatchResultScreenState extends State<MatchResultScreen>
       playerFactionAtEnd: widget.playerFactionAtEnd,
       afterCatchRule: widget.afterCatchRule,
     );
+    final pack = WorldPresentationCatalog.of(widget.worldProfile);
+    final studio = WorldStudioIdentityCatalog.of(widget.worldProfile);
     final personalWon = _personalWon;
-    final (IconData icon, Color accent) = widget.endReason ==
-            MatchEndReason.hostAbort
-        ? (Icons.pause_circle_outline, theme.colorScheme.outline)
+    final isAbort = widget.endReason == MatchEndReason.hostAbort;
+    final isDraw = !widget.spectatorMode &&
+        !isAbort &&
+        !personalWon &&
+        headline.title == '試合終了';
+    final (IconData icon, Color accent) = isAbort
+        ? (Icons.pause_circle_outline, pack.accentMuted)
+        : widget.spectatorMode
+        ? (Icons.visibility_outlined, pack.accent)
         : personalWon
-        ? (Icons.emoji_events_outlined, Colors.green.shade700)
+        ? (Icons.emoji_events_outlined, pack.winAccent)
         : widget.winningFaction == FactionSide.oniTeam
-        ? (Icons.front_hand_outlined, Colors.red.shade700)
+        ? (Icons.front_hand_outlined, pack.loseAccent)
         : switch (outcome) {
             GameState.runnerWin => (
               Icons.flag_outlined,
-              theme.colorScheme.primary,
+              pack.winAccent,
             ),
             GameState.caughtByOni => (
               Icons.front_hand_outlined,
-              Colors.red.shade700,
+              pack.loseAccent,
             ),
-            _ => (Icons.flag_outlined, theme.colorScheme.primary),
+            _ => (Icons.flag_outlined, pack.accent),
           };
-    final title = headline.title;
+    final title = widget.spectatorMode
+        ? studio.resultCopy.spectator
+        : isAbort
+            ? studio.resultCopy.abort
+            : isDraw
+                ? studio.resultCopy.draw
+                : personalWon
+                    ? studio.resultCopy.win
+                    : studio.resultCopy.lose;
 
     final effectivePersonalFaction =
         widget.factionAtDeath ?? widget.playerFactionAtEnd;
     final personalFactionLabel = effectivePersonalFaction?.label;
+    final motion = studio.motion;
     final iconPop = CurvedAnimation(
       parent: _intro,
-      curve: const Interval(0, 0.6, curve: Curves.elasticOut),
+      curve: Interval(0, 0.6, curve: motion.emphasisCurve),
     );
     final bodyFade = CurvedAnimation(
       parent: _intro,
-      curve: const Interval(0.35, 1, curve: Curves.easeOut),
+      curve: Interval(0.35, 1, curve: motion.enterCurve),
     );
 
-    return Scaffold(
+    return WorldScaffold(
+      profile: widget.worldProfile,
       appBar: AppBar(
         title: Text(widget.spectatorMode ? '観戦リザルト' : 'リザルト'),
+        backgroundColor: Colors.transparent,
       ),
       body: Stack(
         children: [
+          WorldParticleBurst(
+            pack: pack,
+            trigger: _particleTrigger,
+          ),
           ResponsivePage(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),

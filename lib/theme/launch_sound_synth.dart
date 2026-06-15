@@ -120,16 +120,15 @@ abstract final class LaunchSoundSynth {
     ]);
   }
 
-  /// 和風（高級）: 静かな鈴 → 金の余韻。
+  /// 和風（高級）: 木・和紙の静かな打音。
   static List<int> _japaneseLuxuryBell() {
-    final bell = _tone(freq: 784, ms: 280, gain: 0.16, envelope: _Env.bell);
     return _mix([
-      bell,
-      _tone(freq: 988, ms: 320, gain: 0.14, delayMs: 120, envelope: _Env.sustain),
-      _tone(freq: 1174.7, ms: 320, gain: 0.1, delayMs: 280, envelope: _Env.sustain),
-      _tone(freq: 880, ms: 220, gain: 0.07, delayMs: 520, envelope: _Env.sustain),
-      _noise(ms: 80, gain: 0.03, delayMs: 60, envelope: _Env.pluck),
-      _echo(bell, 160, 0.32),
+      _tone(freq: 196, ms: 90, gain: 0.09, envelope: _Env.pluck),
+      _noise(ms: 70, gain: 0.035, envelope: _Env.pluck),
+      _tone(freq: 147, ms: 140, gain: 0.07, delayMs: 50, envelope: _Env.swell),
+      _tone(freq: 110, ms: 300, gain: 0.05, delayMs: 120, envelope: _Env.sustain),
+      _noise(ms: 200, gain: 0.02, delayMs: 80, envelope: _Env.sustain),
+      _tone(freq: 98, ms: 320, gain: 0.04, delayMs: 280, envelope: _Env.sustain),
     ]);
   }
 

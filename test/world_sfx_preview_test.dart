@@ -19,11 +19,23 @@ void main() {
   test('profile-specific volume overrides', () {
     expect(
       WorldFxCatalog.forProfile(WorldProfile.horror).revealVolume,
-      0.70,
+      0.58,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.horror).anonRevealVolume,
+      0.46,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.horror).captureVolume,
+      0.78,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.horror).uiTapVolume,
+      0.48,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.sciFi).revealVolume,
-      0.72,
+      0.70,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.magical).uiTapVolume,
@@ -35,26 +47,34 @@ void main() {
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).uiTapVolume,
-      0.55,
+      0.45,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).revealVolume,
-      0.68,
+      0.63,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.westernLuxury).uiTapVolume,
-      0.58,
+      0.56,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.westernLuxury).revealVolume,
-      0.72,
+      0.70,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.arg).uiTapVolume,
-      0.60,
+      0.48,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.arg).transitionVolume,
+      0.68,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.astronomy).uiTapVolume,
+      0.52,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.astronomy).revealVolume,
       0.68,
     );
   });
@@ -74,7 +94,7 @@ void main() {
     );
     expect(
       WorldSfxPreview.volumeFor(WorldProfile.horror, WorldSfxPreviewKind.reveal),
-      0.70,
+      0.58,
     );
     expect(
       WorldSfxPreview.volumeFor(
@@ -82,6 +102,13 @@ void main() {
         WorldSfxPreviewKind.transition,
       ),
       0.68,
+    );
+    expect(
+      WorldSfxPreview.volumeFor(
+        WorldProfile.japaneseLuxury,
+        WorldSfxPreviewKind.reveal,
+      ),
+      0.63,
     );
   });
 

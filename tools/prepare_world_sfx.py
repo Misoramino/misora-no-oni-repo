@@ -21,44 +21,92 @@ FFMPEG_CANDIDATES = [
 
 # (world, slot, mixkit_id, trim_start, trim_duration, target_lufs)
 P0_JOBS = [
-    ("sciFi", "ui_tap", 2521, 0.0, 0.35, -22),
-    ("sciFi", "reveal", 1022, 0.0, 0.55, -20),
-    ("sciFi", "transition", 1093, 0.0, 0.75, -19),
+    # sciFi / Cyber Night — Phase B: low data tick, intrusion hint, UI sweep
+    ("sciFi", "ui_tap", 900, 0.0, 0.32, -23),          # Sci fi click
+    ("sciFi", "reveal", 911, 0.0, 0.52, -21),          # Interface hint notification
+    ("sciFi", "transition", 3114, 0.0, 0.72, -19),     # Fast sci fi transition sweep
     ("magical", "ui_tap", 3108, 0.0, 0.45, -23),
     ("magical", "reveal", 871, 0.0, 0.50, -21),
     ("magical", "transition", 2350, 0.0, 0.80, -19),
-    ("horror", "ui_tap", 2585, 0.0, 0.30, -22),
-    ("horror", "reveal", 1457, 0.0, 0.45, -20),
-    ("horror", "transition", 1495, 0.0, 0.70, -19),
+    # horror / Urban Horror — Phase B: cassette, VHS static, creepy radio
+    ("horror", "ui_tap", 2556, 0.0, 0.28, -24),        # Cassette player
+    ("horror", "reveal", 2561, 0.0, 0.38, -22),        # Radio static fx
+    ("horror", "transition", 2558, 0.0, 0.68, -21),   # Creepy radio frequency
 ]
 
 P1_JOBS = [
-    # sport / Pop City
-    ("sport", "ui_tap", 2568, 0.0, 0.35, -22),       # Cool interface click tone
-    ("sport", "reveal", 2867, 0.0, 0.45, -21),       # Confirmation tone
-    ("sport", "transition", 1489, 0.0, 0.72, -19),   # Air woosh
-    # arg / Stealth Tactical
-    ("arg", "ui_tap", 2544, 0.0, 0.35, -22),         # Metal button radio ping
-    ("arg", "reveal", 895, 0.0, 0.52, -21),          # Sci-Fi radio waves
-    ("arg", "transition", 2557, 0.0, 0.72, -19),     # Cassette player working
-    # astronomy
-    ("astronomy", "ui_tap", 902, 0.0, 0.38, -23),    # Water sci fi bleep
-    ("astronomy", "reveal", 1583, 0.0, 0.58, -21),   # Futuristic radar ping
-    ("astronomy", "transition", 3003, 0.0, 0.85, -19),  # Space deploy whizz
+    # sport / Pop City — unchanged Phase B
+    ("sport", "ui_tap", 2568, 0.0, 0.35, -22),
+    ("sport", "reveal", 2867, 0.0, 0.45, -21),
+    ("sport", "transition", 1489, 0.0, 0.72, -19),
+    # arg / Stealth Tactical — Phase B: low terminal click, scan ping, radio swell
+    ("arg", "ui_tap", 2577, 0.0, 0.30, -24),           # Interface device click
+    ("arg", "reveal", 905, 0.0, 0.50, -22),            # Scanning sci fi alarm
+    ("arg", "transition", 2554, 0.0, 0.72, -20),       # Radio frequency signal swell
+    # astronomy — Phase B: space comm, deep signal, quiet whoosh
+    ("astronomy", "ui_tap", 2549, 0.0, 0.32, -24),     # Astronaut radio communication
+    ("astronomy", "reveal", 2555, 0.0, 0.48, -22),      # Alien radio frequency call
+    ("astronomy", "transition", 3001, 0.0, 0.80, -20), # Space shot whoosh
 ]
 
 P2_JOBS = [
-    # japaneseLuxury / 和風（高級）
-    ("japaneseLuxury", "ui_tap", 3109, 0.0, 0.38, -23),   # Relaxing bell chime
-    ("japaneseLuxury", "reveal", 930, 0.0, 0.50, -21),    # Bell of promise
-    ("japaneseLuxury", "transition", 1474, 0.0, 0.75, -19),  # Transition windy swoosh
-    # westernLuxury / 洋風（高級）
-    ("westernLuxury", "ui_tap", 1061, 0.0, 0.35, -22),     # Clock ticker single
-    ("westernLuxury", "reveal", 677, 0.0, 0.50, -21),     # Cinematic glass hit suspense
-    ("westernLuxury", "transition", 1486, 0.0, 0.78, -19),  # Cinematic tunnel reverb woosh
+    # japaneseLuxury — Phase B: wood drop, paper chime, shoji slide
+    ("japaneseLuxury", "ui_tap", 3141, 0.0, 0.28, -23),   # Small wood plank pile drop
+    ("japaneseLuxury", "reveal", 1107, 0.0, 0.40, -22),    # Page forward single chime
+    ("japaneseLuxury", "transition", 191, 0.0, 0.68, -20), # Wooden long sliding door
+    # westernLuxury — light volume tweak only (assets unchanged)
+    ("westernLuxury", "ui_tap", 1061, 0.0, 0.35, -22),
+    ("westernLuxury", "reveal", 677, 0.0, 0.50, -21),
+    ("westernLuxury", "transition", 1486, 0.0, 0.78, -19),
 ]
 
 JOBS = P0_JOBS + P1_JOBS + P2_JOBS
+
+# Phase C — 場面別世界観 SE（anon_reveal / capture / accusation_unlock / countdown）
+P3_MOMENT_JOBS = [
+    # sciFi / Cyber Night
+    ("sciFi", "anon_reveal", 2548, 0.0, 0.22, -26),       # Digital signal interference
+    ("sciFi", "capture", 1022, 0.0, 0.55, -19),            # Cinematic sci fi glitch
+    ("sciFi", "accusation_unlock", 266, 0.0, 0.48, -21),   # Sci-Fi positive notification
+    ("sciFi", "countdown", 903, 0.0, 0.22, -24),           # Fast sci fi bleep
+    # magical
+    ("magical", "anon_reveal", 871, 0.0, 0.28, -25),       # Fairy magic sparkle
+    ("magical", "capture", 3203, 0.0, 0.52, -20),          # Electro hit
+    ("magical", "accusation_unlock", 2350, 0.0, 0.55, -20), # Magic sparkle whoosh
+    ("magical", "countdown", 3108, 0.0, 0.22, -25),        # Crystal chime
+    # horror / Urban Horror
+    ("horror", "anon_reveal", 2559, 0.0, 0.22, -26),       # Static radio noise sound
+    ("horror", "capture", 757, 0.0, 0.50, -20),             # Falling hit
+    ("horror", "accusation_unlock", 2557, 0.0, 0.65, -22),  # Cassette player working
+    ("horror", "countdown", 2561, 0.0, 0.18, -25),          # Radio static fx
+    # sport / Pop City
+    ("sport", "anon_reveal", 265, 0.0, 0.22, -24),          # Quick positive notification
+    ("sport", "capture", 1512, 0.0, 0.40, -20),             # Game whip shot
+    ("sport", "accusation_unlock", 2867, 0.0, 0.42, -21),    # Confirmation tone
+    ("sport", "countdown", 2568, 0.0, 0.20, -24),           # Cool interface click tone
+    # arg / Stealth Tactical
+    ("arg", "anon_reveal", 2545, 0.0, 0.20, -26),           # Distorted radio signal
+    ("arg", "capture", 3203, 0.0, 0.50, -20),               # Electro hit
+    ("arg", "accusation_unlock", 914, 0.0, 0.48, -21),      # Sci Fi confirmation
+    ("arg", "countdown", 2577, 0.0, 0.18, -25),              # Interface device click
+    # astronomy
+    ("astronomy", "anon_reveal", 2545, 0.0, 0.22, -26),      # Distorted radio signal
+    ("astronomy", "capture", 774, 0.0, 0.55, -20),           # Space impact
+    ("astronomy", "accusation_unlock", 914, 0.0, 0.50, -21), # Sci Fi confirmation
+    ("astronomy", "countdown", 2549, 0.0, 0.20, -25),        # Astronaut radio communication
+    # japaneseLuxury
+    ("japaneseLuxury", "anon_reveal", 1530, 0.0, 0.20, -26),  # Paper slide
+    ("japaneseLuxury", "capture", 2182, 0.0, 0.48, -20),     # Wood hard hit
+    ("japaneseLuxury", "accusation_unlock", 187, 0.0, 0.55, -21),  # Old medieval door lock
+    ("japaneseLuxury", "countdown", 176, 0.0, 0.22, -24),    # Short creaking floorboard
+    # westernLuxury
+    ("westernLuxury", "anon_reveal", 1061, 0.0, 0.18, -26),  # Clock ticker single
+    ("westernLuxury", "capture", 2858, 0.0, 0.52, -20),      # Gear metallic lock sound
+    ("westernLuxury", "accusation_unlock", 187, 0.0, 0.60, -21),  # Old medieval door lock
+    ("westernLuxury", "countdown", 1061, 0.0, 0.20, -25),     # Clock ticker single
+]
+
+JOBS = P0_JOBS + P1_JOBS + P2_JOBS + P3_MOMENT_JOBS
 
 SFX_FILTER = "loudnorm=I={lufs}:TP=-2.0:LRA=7,alimiter=limit=0.92"
 

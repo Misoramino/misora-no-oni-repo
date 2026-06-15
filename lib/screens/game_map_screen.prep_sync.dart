@@ -67,7 +67,12 @@ extension _GameMapPrepSync on _GameMapScreenState {
         _prepMapMode = PrepMapMode.hidden;
       });
       _wasActiveInCurrentOnlineMatch = false;
-      GameAudio.instance.playMenuBgm(_activeProfile);
+      unawaited(
+        WorldAudioDirector.instance.enter(
+          WorldAudioState.returnTitle,
+          profile: _activeProfile,
+        ),
+      );
       return true;
     }
 
@@ -383,5 +388,12 @@ extension _GameMapPrepSync on _GameMapScreenState {
       context,
       locationService: _locationService,
     );
+  }
+
+  /// 快適プレイ案内 → HUDコーチマークを順番に表示（重なり防止）。
+  Future<void> _runPostMatchStartOnboarding() async {
+    await _maybeShowMatchPlayabilityHints();
+    if (!mounted || _gameState != GameState.running) return;
+    await _maybeShowMatchCoachMarks();
   }
 }

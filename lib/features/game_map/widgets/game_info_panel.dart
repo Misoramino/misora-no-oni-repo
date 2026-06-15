@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/widgets/world_chip.dart';
+import '../../../presentation/world/world_studio_identity_catalog.dart';
 import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/world_profile.dart';
+import '../../../theme/world_profile_tokens.dart';
 import 'cooldown_chip.dart';
 import 'hud_marquee_text.dart';
 
@@ -78,8 +81,13 @@ class GameInfoPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final hudInset = WorldStudioIdentityCatalog.of(mapWorldProfile)
+        .layout
+        .hudEdgeInset;
     if (revealAlert != null && revealAlert!.isNotEmpty) {
-      return Material(
+      return Padding(
+        padding: EdgeInsets.all(hudInset),
+        child: Material(
         color: scheme.errorContainer.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(10),
         elevation: 2,
@@ -111,11 +119,17 @@ class GameInfoPanel extends StatelessWidget {
             ],
           ),
         ),
+      ),
       );
     }
 
+    final tokens = WorldProfileTokenFactory.of(mapWorldProfile);
+    final inArea = areaColor == tokens.safeColor;
+
     if (!expanded) {
-      return Material(
+      return Padding(
+        padding: EdgeInsets.all(hudInset),
+        child: Material(
         color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
         borderRadius: BorderRadius.circular(10),
         elevation: 1,
@@ -123,41 +137,20 @@ class GameInfoPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Row(
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: areaColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  timerText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+              WorldTimerChip(
+                profile: mapWorldProfile,
+                text: timerText,
+                isAlert: !inArea,
               ),
               const SizedBox(width: 6),
               if (phaseLabel != null && phaseLabel!.isNotEmpty)
                 Flexible(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      phaseLabel!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onPrimaryContainer,
-                      ),
-                    ),
+                  child: WorldChip(
+                    profile: mapWorldProfile,
+                    label: phaseLabel!,
+                    dense: true,
+                    backgroundColor: scheme.primaryContainer.withValues(alpha: 0.85),
+                    foregroundColor: scheme.onPrimaryContainer,
                   ),
                 ),
               if (phaseLabel != null && phaseLabel!.isNotEmpty)
@@ -225,10 +218,13 @@ class GameInfoPanel extends StatelessWidget {
             ],
           ),
         ),
+      ),
       );
     }
 
-    return Container(
+    return Padding(
+      padding: EdgeInsets.all(hudInset),
+      child: Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
       decoration: BoxDecoration(
         color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
@@ -418,6 +414,7 @@ class GameInfoPanel extends StatelessWidget {
           ],
         ],
       ),
+    ),
     );
   }
 }

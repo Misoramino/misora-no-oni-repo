@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/game_map/settings/player_personal_settings_models.dart';
+import '../features/world_selection/world_selection_sheet.dart';
+import '../presentation/world/world_presentation_catalog.dart';
 import '../session/avatar_image_store.dart';
 import '../session/game_map_prefs.dart';
 import '../session/session_prefs.dart';
@@ -208,21 +210,20 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<WorldProfile>(
-                  initialValue: _profile,
-                  decoration: const InputDecoration(
-                    labelText: '世界観',
-                    border: OutlineInputBorder(),
-                    helperText: 'マップ・BGM・演出（個人設定。ルーム全員には共有されません）',
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('世界観'),
+                  subtitle: Text(
+                    '${_profile.label} — ${WorldPresentationCatalog.of(_profile).tagline}\n'
+                    '個人設定。ルーム全員には共有されません',
                   ),
-                  items: WorldProfile.values
-                      .map(
-                        (p) => DropdownMenuItem(value: p, child: Text(p.label)),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _profile = v);
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final next = await showWorldSelectionSheet(
+                      context,
+                      current: _profile,
+                    );
+                    if (next != null) setState(() => _profile = next);
                   },
                 ),
                 const SizedBox(height: 12),

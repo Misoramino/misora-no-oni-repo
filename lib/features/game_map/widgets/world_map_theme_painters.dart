@@ -118,6 +118,24 @@ class _MagicSigilPainter extends CustomPainter {
     canvas.drawCircle(Offset.zero, radius, ring);
     canvas.drawCircle(Offset.zero, radius * 0.72, ring..color = accent.withValues(alpha: 0.08));
 
+    // 外周の理論魔法陣（六角 + 接線）
+    final hex = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9
+      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.1);
+    final hexPath = Path();
+    for (var i = 0; i < 6; i++) {
+      final a = rot + i * math.pi / 3;
+      final p = Offset(math.cos(a) * radius * 0.88, math.sin(a) * radius * 0.88);
+      if (i == 0) {
+        hexPath.moveTo(p.dx, p.dy);
+      } else {
+        hexPath.lineTo(p.dx, p.dy);
+      }
+    }
+    hexPath.close();
+    canvas.drawPath(hexPath, hex);
+
     final rune = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
@@ -145,9 +163,25 @@ class _MagicSigilPainter extends CustomPainter {
     }
     path.close();
     canvas.drawPath(path, inner);
+
+    // 古代文字風の短い刻印
+    final glyph = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.08);
+    for (var i = 0; i < 12; i++) {
+      final a = rot * 0.6 + i * math.pi / 6;
+      final r0 = radius * 0.78;
+      final r1 = radius * 0.92;
+      canvas.drawLine(
+        Offset(math.cos(a) * r0, math.sin(a) * r0),
+        Offset(math.cos(a) * r1, math.sin(a) * r1),
+        glyph,
+      );
+    }
     canvas.restore();
 
-    // きらめき粒子
+    // きらめき粒子（魔法のみ — 和風とは別系統）
     final rng = math.Random(7);
     for (var i = 0; i < 14; i++) {
       final x = rng.nextDouble() * size.width;
@@ -289,21 +323,40 @@ class _JapaneseLuxuryPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final line = Paint()
-      ..color = const Color(0xFFE8D5A3).withValues(alpha: 0.04)
-      ..strokeWidth = 0.8;
-    for (var x = 0.0; x < size.width; x += 48) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
-    }
+    final rect = Offset.zero & size;
+
+    final vignette = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.05,
+        colors: [
+          Colors.transparent,
+          const Color(0xFF0A0A08).withValues(alpha: 0.09),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, vignette);
+
+    final wash = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF1A237E).withValues(alpha: 0.025),
+          Colors.transparent,
+          const Color(0xFF263238).withValues(alpha: 0.035),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, wash);
+
     final rng = math.Random(17);
     final twinkle = (math.sin(phase * math.pi * 2) + 1) * 0.5;
-    for (var i = 0; i < 24; i++) {
+    for (var i = 0; i < 8; i++) {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
-      final alpha = (0.04 + twinkle * 0.05).clamp(0.03, 0.12);
+      final alpha = (0.012 + twinkle * 0.018).clamp(0.01, 0.03);
       canvas.drawCircle(
         Offset(x, y),
-        0.8 + rng.nextDouble() * 1.2,
+        0.5 + rng.nextDouble() * 0.7,
         Paint()..color = accent.withValues(alpha: alpha),
       );
     }

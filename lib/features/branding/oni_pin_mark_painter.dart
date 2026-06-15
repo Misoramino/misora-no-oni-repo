@@ -73,11 +73,11 @@ class OniPinMarkPainter extends CustomPainter {
       case LaunchEffectKind.magical:
         _sparkleHornTips(canvas, layers, beat, gold: true);
       case LaunchEffectKind.japaneseLuxury:
-        _sparkleHornTips(canvas, layers, beat, gold: true);
+        _inkHornAccent(canvas, layers, beat);
       case LaunchEffectKind.tactical:
       case LaunchEffectKind.astronomy:
       case LaunchEffectKind.westernLuxury:
-        break;
+        _crestHornAccent(canvas, layers, beat);
     }
   }
 
@@ -357,17 +357,10 @@ class OniPinMarkPainter extends CustomPainter {
             ..strokeWidth = 0.9,
         );
       case LaunchEffectKind.japaneseLuxury:
-        _orbitParticles(
-          canvas,
+        canvas.drawCircle(
           core,
-          w,
-          w * 0.4,
-          w * 0.38,
-          5,
-          0.85,
-          2.0,
-          [branding.particleColor, branding.accent],
-          0.45 + beat * 0.3,
+          w * 0.36,
+          Paint()..color = branding.glow.withValues(alpha: 0.08 + beat * 0.04),
         );
       case LaunchEffectKind.westernLuxury:
         _strokeCircle(
@@ -463,6 +456,30 @@ class OniPinMarkPainter extends CustomPainter {
           ..color = colors[i % colors.length].withValues(alpha: alpha),
       );
     }
+  }
+
+  void _inkHornAccent(Canvas canvas, OniPinMarkLayers layers, double beat) {
+    final w = layers.size.width;
+    final stroke = Paint()
+      ..color = branding.accent.withValues(alpha: 0.35 + beat * 0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawLine(
+      Offset(w * 0.2, layers.size.height * 0.55),
+      Offset(w * 0.8, layers.size.height * 0.52),
+      stroke,
+    );
+  }
+
+  void _crestHornAccent(Canvas canvas, OniPinMarkLayers layers, double beat) {
+    final w = layers.size.width;
+    _strokeCircle(
+      canvas,
+      Offset(w * 0.5, layers.size.height * 0.42),
+      w * 0.22,
+      branding.accent.withValues(alpha: 0.2 + beat * 0.08),
+      1,
+    );
   }
 
   @override

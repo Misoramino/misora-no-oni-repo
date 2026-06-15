@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../audio/game_audio.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
+import '../presentation/world/world_studio_identity_catalog.dart';
 import 'motion_helpers.dart';
 import 'profile_scene_transition.dart';
 import 'world_transition_fx.dart';
@@ -20,9 +21,12 @@ class ScenePageRoute<T> extends PageRouteBuilder<T> {
     this.worldProfile,
     super.settings,
     Duration? duration,
+    Duration? reverseDuration,
   }) : super(
-          transitionDuration: duration ?? const Duration(milliseconds: 420),
-          reverseTransitionDuration: const Duration(milliseconds: 320),
+          transitionDuration:
+              duration ?? _durationFor(worldProfile, reverse: false),
+          reverseTransitionDuration:
+              reverseDuration ?? _durationFor(worldProfile, reverse: true),
           pageBuilder: (context, animation, secondaryAnimation) =>
               builder(context),
           transitionsBuilder:
@@ -56,6 +60,16 @@ class ScenePageRoute<T> extends PageRouteBuilder<T> {
   final WidgetBuilder builder;
   final SceneTransitionDirection direction;
   final WorldProfile? worldProfile;
+
+  static Duration _durationFor(WorldProfile? profile, {required bool reverse}) {
+    if (profile == null) {
+      return Duration(milliseconds: reverse ? 320 : 420);
+    }
+    final m = WorldStudioIdentityCatalog.of(profile).motion;
+    return Duration(
+      milliseconds: reverse ? m.reverseTransitionMs : m.transitionMs,
+    );
+  }
 }
 
 /// アプリ標準のナビゲーション。演出付きで画面を切り替える。
@@ -68,6 +82,12 @@ abstract final class AppNav {
     String? routeName,
   }) async {
     final profile = worldProfile ?? await WorldProfilePrefs.load();
+    if (!context.mounted) return null;
+    final studio = WorldStudioIdentityCatalog.of(profile);
+    final breath = studio.silence.transitionBreathMs;
+    if (breath > 0) {
+      await Future<void>.delayed(Duration(milliseconds: breath));
+    }
     if (!context.mounted) return null;
     unawaited(GameAudio.instance.playTransitionSfx(profile));
     return Navigator.of(context).push<T>(
@@ -87,6 +107,12 @@ abstract final class AppNav {
     WorldProfile? worldProfile,
   }) async {
     final profile = worldProfile ?? await WorldProfilePrefs.load();
+    if (!context.mounted) return null;
+    final studio = WorldStudioIdentityCatalog.of(profile);
+    final breath = studio.silence.transitionBreathMs;
+    if (breath > 0) {
+      await Future<void>.delayed(Duration(milliseconds: breath));
+    }
     if (!context.mounted) return null;
     unawaited(GameAudio.instance.playTransitionSfx(profile));
     return Navigator.of(context).pushReplacement<T, TO>(

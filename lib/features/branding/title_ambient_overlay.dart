@@ -288,60 +288,55 @@ class _TitleAmbientPainter extends CustomPainter {
 
   void _astronomy(Canvas canvas, Size size) {
     final rng = math.Random(42);
-    for (var i = 0; i < 48; i++) {
-      final x = rng.nextDouble() * size.width;
+    final drift = progress * 6;
+    for (var i = 0; i < 56; i++) {
+      final x = (rng.nextDouble() * size.width + drift * (i % 5 - 2)) %
+          size.width;
       final y = rng.nextDouble() * size.height;
-      final tw = 0.3 +
-          0.7 * (0.5 + 0.5 * math.sin(progress * 3.5 + i * 0.45));
+      final tw = 0.2 +
+          0.5 * (0.5 + 0.5 * math.sin(progress * 2.8 + i * 0.38));
       canvas.drawCircle(
         Offset(x, y),
-        0.6 + (i % 3) * 0.35,
-        Paint()..color = _a(branding.particleColor, 0.32 * tw),
-      );
-    }
-    for (var i = 0; i < 10; i++) {
-      final origin = _n(
-        size,
-        i.isEven ? 0.07 + (i % 4) * 0.02 : 0.93 - (i % 4) * 0.02,
-        0.12 + (i % 3) * 0.22,
-      );
-      final ang = math.atan2(
-        size.height * 0.42 - origin.dy,
-        size.width * 0.5 - origin.dx,
-      );
-      final len = 42.0 + (i % 3) * 16;
-      final end = origin + Offset(math.cos(ang) * len, math.sin(ang) * len * 0.5);
-      canvas.drawLine(
-        origin,
-        end,
-        Paint()
-          ..color = _a(branding.accent, 0.18)
-          ..strokeWidth = 0.8
-          ..strokeCap = StrokeCap.round,
+        0.45 + (i % 3) * 0.25,
+        Paint()..color = _a(branding.particleColor, 0.18 * tw),
       );
     }
   }
 
   void _japaneseLuxury(Canvas canvas, Size size) {
-    final line = Paint()
-      ..color = _a(branding.accent, 0.1)
-      ..strokeWidth = 0.6;
-    for (var x = size.width * 0.1; x < size.width * 0.9; x += 40) {
-      canvas.drawLine(
-        Offset(x, size.height * 0.15),
-        Offset(x, size.height * 0.85),
-        line,
-      );
-    }
-    for (var i = 0; i < 6; i++) {
-      final t = (progress + i * 0.13) % 1.0;
+    final rect = Offset.zero & size;
+    final vignette = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.1,
+        colors: [
+          Colors.transparent,
+          _a(const Color(0xFF0A0A08), 0.12),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, vignette);
+
+    final wash = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _a(const Color(0xFF1A237E), 0.04),
+          Colors.transparent,
+          _a(const Color(0xFF263238), 0.05),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, wash);
+
+    for (var i = 0; i < 5; i++) {
+      final t = (progress + i * 0.17) % 1.0;
       canvas.drawCircle(
-        _n(size, 0.18 + i * 0.12, 0.25 + (i % 3) * 0.2),
-        1.0 + t * 1.5,
-        Paint()..color = _a(branding.particleColor, 0.12 + t * 0.08),
+        _n(size, 0.2 + i * 0.14, 0.3 + (i % 2) * 0.25),
+        0.8 + t * 0.6,
+        Paint()..color = _a(branding.particleColor, 0.04 + t * 0.03),
       );
     }
-    _cornerTicks(canvas, size, _a(branding.accent, 0.2), 14);
+    _cornerTicks(canvas, size, _a(branding.accent, 0.14), 14);
   }
 
   void _westernLuxury(Canvas canvas, Size size) {

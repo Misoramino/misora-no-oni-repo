@@ -75,6 +75,10 @@ class WorldFxProfile {
     this.uiTapVolume = 0.60,
     this.revealVolume = 0.78,
     this.transitionVolume = 0.68,
+    this.anonRevealVolume = 0.54,
+    this.captureVolume = 0.86,
+    this.accusationUnlockVolume = 0.70,
+    this.countdownVolume = 0.56,
   });
 
   final WorldProfile profile;
@@ -108,6 +112,10 @@ class WorldFxProfile {
   final double uiTapVolume;
   final double revealVolume;
   final double transitionVolume;
+  final double anonRevealVolume;
+  final double captureVolume;
+  final double accusationUnlockVolume;
+  final double countdownVolume;
 
   int flashDurationMsFor(WorldMomentKind kind) => switch (kind) {
         WorldMomentKind.namedReveal => namedRevealFlashMs,
@@ -133,17 +141,18 @@ class WorldFxProfile {
         WorldMomentKind.countdown => '',
       };
 
-  /// [SfxId] から世界観別アセットベース名へ。未対応は [SfxId.asset]。
-  String assetBaseFor(SfxId id) => switch (id) {
+  /// 汎用 UI 向け（世界観フォルダにはフォールバックしない）。
+  String assetBaseFor(SfxId id) => id.asset;
+
+  /// 世界観モーメント向けアセット。未対応は `null`（汎用 SE へ）。
+  String? worldMomentAssetFor(SfxId id) => switch (id) {
         SfxId.uiTap => uiTapAsset,
-        SfxId.uiBack => uiBackAsset,
         SfxId.reveal => revealAsset,
         SfxId.anonReveal => anonRevealAsset,
         SfxId.capture => captureAsset,
-        SfxId.uiConfirm => countdownAsset,
-        SfxId.matchStart => countdownAsset,
         SfxId.unlock => accusationUnlockAsset,
-        _ => id.asset,
+        SfxId.matchStart => countdownAsset,
+        _ => null,
       };
 
   /// 画面遷移用ワンショット。
@@ -178,7 +187,12 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.52,
       anonRevealFlashOpacity: 0.26,
       captureFlashOpacity: 0.58,
-      revealVolume: 0.72,
+      uiTapVolume: 0.55,
+      revealVolume: 0.70,
+      anonRevealVolume: 0.50,
+      captureVolume: 0.88,
+      accusationUnlockVolume: 0.72,
+      countdownVolume: 0.54,
     ),
     WorldProfile.magical: WorldFxProfile(
       profile: WorldProfile.magical,
@@ -203,6 +217,9 @@ abstract final class WorldFxCatalog {
       anonRevealFlashOpacity: 0.28,
       captureFlashOpacity: 0.55,
       uiTapVolume: 0.55,
+      anonRevealVolume: 0.52,
+      captureVolume: 0.84,
+      accusationUnlockVolume: 0.74,
     ),
     WorldProfile.horror: WorldFxProfile(
       profile: WorldProfile.horror,
@@ -226,7 +243,13 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.58,
       anonRevealFlashOpacity: 0.22,
       captureFlashOpacity: 0.65,
-      revealVolume: 0.70,
+      uiTapVolume: 0.48,
+      revealVolume: 0.58,
+      transitionVolume: 0.55,
+      anonRevealVolume: 0.46,
+      captureVolume: 0.78,
+      accusationUnlockVolume: 0.62,
+      countdownVolume: 0.50,
     ),
     WorldProfile.arg: WorldFxProfile(
       profile: WorldProfile.arg,
@@ -250,6 +273,13 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.40,
       anonRevealFlashOpacity: 0.24,
       captureFlashOpacity: 0.50,
+      uiTapVolume: 0.48,
+      revealVolume: 0.68,
+      transitionVolume: 0.68,
+      anonRevealVolume: 0.48,
+      captureVolume: 0.84,
+      accusationUnlockVolume: 0.68,
+      countdownVolume: 0.52,
     ),
     WorldProfile.astronomy: WorldFxProfile(
       profile: WorldProfile.astronomy,
@@ -273,6 +303,12 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.46,
       anonRevealFlashOpacity: 0.26,
       captureFlashOpacity: 0.54,
+      uiTapVolume: 0.52,
+      revealVolume: 0.68,
+      anonRevealVolume: 0.50,
+      captureVolume: 0.82,
+      accusationUnlockVolume: 0.70,
+      countdownVolume: 0.54,
     ),
     WorldProfile.sport: WorldFxProfile(
       profile: WorldProfile.sport,
@@ -297,6 +333,8 @@ abstract final class WorldFxCatalog {
       anonRevealFlashOpacity: 0.22,
       captureFlashOpacity: 0.48,
       uiTapVolume: 0.55,
+      accusationUnlockVolume: 0.76,
+      captureVolume: 0.82,
     ),
     WorldProfile.japaneseLuxury: WorldFxProfile(
       profile: WorldProfile.japaneseLuxury,
@@ -320,8 +358,12 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.46,
       anonRevealFlashOpacity: 0.24,
       captureFlashOpacity: 0.52,
-      uiTapVolume: 0.55,
-      revealVolume: 0.68,
+      uiTapVolume: 0.45,
+      revealVolume: 0.63,
+      anonRevealVolume: 0.48,
+      captureVolume: 0.80,
+      accusationUnlockVolume: 0.64,
+      countdownVolume: 0.50,
     ),
     WorldProfile.westernLuxury: WorldFxProfile(
       profile: WorldProfile.westernLuxury,
@@ -345,8 +387,12 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.44,
       anonRevealFlashOpacity: 0.23,
       captureFlashOpacity: 0.50,
-      uiTapVolume: 0.58,
-      revealVolume: 0.72,
+      uiTapVolume: 0.56,
+      revealVolume: 0.70,
+      anonRevealVolume: 0.50,
+      captureVolume: 0.82,
+      accusationUnlockVolume: 0.68,
+      countdownVolume: 0.52,
     ),
   };
 

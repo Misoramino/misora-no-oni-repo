@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../config/google_maps_config.dart';
 import '../../../game/play_area.dart';
+import '../../../presentation/world/world_studio_identity.dart';
+import '../../../presentation/world/world_studio_identity_catalog.dart';
 import '../../../theme/world_launch_branding.dart';
 import '../../../theme/world_profile.dart';
 import '../../../theme/world_profile_tokens.dart';
@@ -80,14 +81,17 @@ Future<void> _playOrbitSequence(
   PlayArea area,
   WorldProfile profile,
 ) async {
-  final shots = _buildCameraShots(area);
-  HapticFeedback.mediumImpact();
+  final camera = WorldStudioIdentityCatalog.of(profile).camera;
+  final shots = _buildCameraShots(area, profile);
+  WorldHaptics.emphasis(profile);
 
   try {
     await controller.animateCamera(
       CameraUpdate.newLatLngBounds(area.bounds, 72),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 520));
+    await Future<void>.delayed(
+      Duration(milliseconds: camera.initialDelayMs),
+    );
   } catch (_) {}
 
   for (var i = 0; i < shots.length; i++) {
@@ -97,10 +101,14 @@ Future<void> _playOrbitSequence(
         CameraUpdate.newCameraPosition(shot),
       );
     } catch (_) {}
-    if (i == 0) HapticFeedback.selectionClick();
-    if (i == shots.length - 1) HapticFeedback.lightImpact();
+    if (i == 0) WorldHaptics.selection(profile);
+    if (i == shots.length - 1) WorldHaptics.confirm(profile);
     await Future<void>.delayed(
-      Duration(milliseconds: i == shots.length - 1 ? 680 : 920),
+      Duration(
+        milliseconds: i == shots.length - 1
+            ? (camera.shotDelayMs * 0.75).round()
+            : camera.shotDelayMs,
+      ),
     );
   }
 
@@ -109,26 +117,31 @@ Future<void> _playOrbitSequence(
       CameraUpdate.newLatLngBounds(area.bounds, 56),
     );
   } catch (_) {}
-  await Future<void>.delayed(const Duration(milliseconds: 360));
+  await Future<void>.delayed(
+    Duration(milliseconds: (camera.shotDelayMs * 0.4).round()),
+  );
 }
 
-List<CameraPosition> _buildCameraShots(PlayArea area) {
+List<CameraPosition> _buildCameraShots(PlayArea area, WorldProfile profile) {
+  final camera = WorldStudioIdentityCatalog.of(profile).camera;
   final anchor = area.anchorCenter;
   final bounds = area.bounds;
   final spanLat =
       (bounds.northeast.latitude - bounds.southwest.latitude).abs().clamp(0.0008, 0.08);
   final spanLng =
       (bounds.northeast.longitude - bounds.southwest.longitude).abs().clamp(0.0008, 0.08);
-  final orbitM = math.max(spanLat, spanLng) * 111320 * 0.55;
-  final zoom = _zoomForArea(area);
-  final bearings = <double>[28, 118, 208, 298];
+  final orbitM = math.max(spanLat, spanLng) * 111320 * 0.55 * camera.orbitScale;
+  final zoom = _zoomForArea(area) + camera.zoomOffset;
+  final bearings = <double>[
+    for (var i = 0; i < 4; i++) 28 + i * 90 + camera.bearingSpread * (i - 1.5),
+  ];
 
   return [
     for (final bearing in bearings)
       CameraPosition(
         target: _offsetMeters(anchor, orbitM, bearing),
         zoom: zoom + 0.6,
-        tilt: 42,
+        tilt: camera.tilt,
         bearing: bearing,
       ),
   ];

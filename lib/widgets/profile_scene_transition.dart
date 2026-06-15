@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../presentation/world/world_studio_identity_catalog.dart';
 import '../theme/world_profile.dart';
 
 /// 世界観ごとの画面遷移ビルダー。
@@ -23,8 +24,12 @@ abstract final class ProfileSceneTransition {
 
     final curved = CurvedAnimation(
       parent: animation,
-      curve: _curveFor(profile, direction),
-      reverseCurve: Curves.easeInCubic,
+      curve: profile != null
+          ? WorldStudioIdentityCatalog.of(profile).motion.enterCurve
+          : Curves.easeOutCubic,
+      reverseCurve: profile != null
+          ? WorldStudioIdentityCatalog.of(profile).motion.exitCurve
+          : Curves.easeInCubic,
     );
 
     return switch (profile) {
@@ -40,13 +45,6 @@ abstract final class ProfileSceneTransition {
     };
   }
 
-  static Curve _curveFor(WorldProfile? profile, SceneTransitionDirection dir) {
-    if (profile == WorldProfile.sport) return Curves.elasticOut;
-    if (profile == WorldProfile.arg) return Curves.easeOutQuart;
-    if (profile == WorldProfile.japaneseLuxury) return Curves.easeInOutCubic;
-    if (profile == WorldProfile.westernLuxury) return Curves.easeOutQuart;
-    return Curves.easeOutCubic;
-  }
 
   static Widget _default(
     Animation<double> curved,

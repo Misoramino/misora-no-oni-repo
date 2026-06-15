@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'audio/game_audio.dart';
+import 'audio/world_audio_director.dart';
 import 'navigation/room_lobby_route.dart';
 import 'screens/app_launch_shell.dart';
 import 'screens/room_lobby_screen.dart';
@@ -16,13 +20,35 @@ class OniGameApp extends StatefulWidget {
   State<OniGameApp> createState() => _OniGameAppState();
 }
 
-class _OniGameAppState extends State<OniGameApp> {
+class _OniGameAppState extends State<OniGameApp> with WidgetsBindingObserver {
   WorldProfile _profile = WorldProfile.horror;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future<void>.microtask(_loadProfile);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        unawaited(GameAudio.instance.pauseForBackground());
+        unawaited(WorldAudioDirector.instance.pauseForBackground());
+      case AppLifecycleState.resumed:
+        unawaited(GameAudio.instance.resumeFromBackground());
+        unawaited(WorldAudioDirector.instance.resumeFromBackground());
+    }
   }
 
   Future<void> _loadProfile() async {

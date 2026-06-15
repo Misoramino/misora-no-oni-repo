@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../audio/world_audio_director.dart';
 import '../../../audio/game_audio.dart';
 import '../../../audio/sfx_id.dart';
 import '../../../theme/world_profile.dart';
@@ -20,7 +21,8 @@ Future<void> showMatchStartCountdown({
   if (!context.mounted) return;
   final reduce = MotionHelpers.reduceMotionOf(context);
   if (reduce) {
-    GameAudio.instance.playSfx(SfxId.matchStart, profile: profile);
+    GameAudio.instance.playWorldSfx(SfxId.matchStart, profile: profile);
+    unawaited(WorldAudioDirector.instance.onMatchCountdownGo());
     HapticFeedback.mediumImpact();
     return;
   }
@@ -72,10 +74,14 @@ class _MatchStartCountdownOverlayState extends State<_MatchStartCountdownOverlay
 
   void _playStepFeedback() {
     if (_index < 3) {
-      GameAudio.instance.playSfx(SfxId.uiConfirm, profile: widget.profile);
+      GameAudio.instance.playSfx(SfxId.uiConfirm);
       HapticFeedback.selectionClick();
     } else {
-      GameAudio.instance.playSfx(SfxId.matchStart, profile: widget.profile);
+      GameAudio.instance.playWorldSfx(
+        SfxId.matchStart,
+        profile: widget.profile,
+      );
+      unawaited(WorldAudioDirector.instance.onMatchCountdownGo());
       HapticFeedback.heavyImpact();
     }
     _pulse.forward(from: 0);

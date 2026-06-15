@@ -64,7 +64,7 @@ abstract final class WorldAudio {
         WorldProfile.arg => AmbientId.comms, // 無線・通信
         WorldProfile.magical => AmbientId.forest, // 森・妖精
         WorldProfile.astronomy => AmbientId.beep, // 微かな機械音
-        WorldProfile.japaneseLuxury => AmbientId.forest,
+        WorldProfile.japaneseLuxury => AmbientId.wind,
         WorldProfile.westernLuxury => AmbientId.wind,
       };
 }

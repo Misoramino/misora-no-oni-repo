@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../theme/world_profile.dart';
-import '../../../theme/world_launch_branding.dart';
+import '../../../presentation/world/world_presentation_catalog.dart';
 import '../../../widgets/motion_helpers.dart';
-import '../../branding/launch_effect_overlay.dart';
+import '../../../presentation/world/widgets/world_flash_overlay.dart';
 
 enum WorldPhaseFlashKind { start, end }
 
@@ -73,37 +73,19 @@ class _PhaseFlashDialogState extends State<_PhaseFlashDialog>
 
   @override
   Widget build(BuildContext context) {
-    final branding = WorldLaunchBranding.of(widget.profile);
+    final pack = WorldPresentationCatalog.of(widget.profile);
     final isEnd = widget.kind == WorldPhaseFlashKind.end;
     return Material(
       color: Colors.transparent,
       child: FadeTransition(
         opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(
-              color: branding.backgroundTop.withValues(alpha: isEnd ? 0.85 : 0.78),
-            ),
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (_, __) => LaunchEffectOverlay(
-                branding: branding,
-                progress: _controller.value,
-              ),
-            ),
-            if (isEnd)
-              Center(
-                child: Text(
-                  '試合終了',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                ),
-              ),
-          ],
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (_, __) => WorldFlashOverlay(
+            pack: pack,
+            progress: _controller.value,
+            headline: isEnd ? '試合終了' : null,
+          ),
         ),
       ),
     );

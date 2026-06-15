@@ -108,7 +108,8 @@ extension _GameMapAccusation on _GameMapScreenState {
       );
     }
     HapticFeedback.mediumImpact();
-    GameAudio.instance.playSfx(SfxId.unlock, profile: _activeProfile);
+    GameAudio.instance.playWorldSfx(SfxId.unlock, profile: _activeProfile);
+    unawaited(WorldAudioDirector.instance.onAccusationUnlock());
     _recordMatchFeed(MatchHudCopy.accusationUnlockFeed(copy.facilityName));
   }
 
@@ -310,6 +311,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     if (success) {
       switch (_accusationWeight) {
         case AccusationWeight.instantWin:
+          unawaited(WorldAudioDirector.instance.onAccusationSequence());
           _endGame(
             GameState.runnerWin,
             '${MatchHudCopy.accusationSuccess} — ${copy.facilityName}',
@@ -347,6 +349,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     )) {
       switch (_accusationWeight) {
         case AccusationWeight.instantWin:
+          unawaited(WorldAudioDirector.instance.onAccusationSequence());
           _endGame(
             GameState.runnerWin,
             '${MatchHudCopy.accusationSuccess}（ローカル）',
@@ -384,7 +387,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     _pushHudRevealAlert(message);
     _recordMatchFeed(message);
     HapticFeedback.heavyImpact();
-    GameAudio.instance.playSfx(SfxId.reveal, profile: _activeProfile);
+    GameAudio.instance.playWorldSfx(SfxId.reveal, profile: _activeProfile);
   }
 
   void _applyAccusationPointDelta({required int delta}) {

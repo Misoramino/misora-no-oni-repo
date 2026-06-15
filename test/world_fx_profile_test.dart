@@ -16,11 +16,20 @@ void main() {
     }
   });
 
-  test('assetBaseFor maps SfxId to world asset names', () {
+  test('assetBaseFor uses generic SfxId asset names', () {
     final fx = WorldFxCatalog.forProfile(WorldProfile.sciFi);
     expect(fx.assetBaseFor(SfxId.reveal), 'reveal');
     expect(fx.assetBaseFor(SfxId.uiTap), 'ui_tap');
     expect(fx.transitionAsset, 'transition');
+  });
+
+  test('worldMomentAssetFor maps only world moments', () {
+    final fx = WorldFxCatalog.forProfile(WorldProfile.sciFi);
+    expect(fx.worldMomentAssetFor(SfxId.reveal), 'reveal');
+    expect(fx.worldMomentAssetFor(SfxId.capture), 'capture');
+    expect(fx.worldMomentAssetFor(SfxId.unlock), 'accusation_unlock');
+    expect(fx.worldMomentAssetFor(SfxId.uiConfirm), isNull);
+    expect(fx.worldMomentAssetFor(SfxId.uiBack), isNull);
   });
 
   test('anon reveal is subtler than named reveal', () {
@@ -72,7 +81,35 @@ void main() {
       expect(fx.uiTapVolume, greaterThan(0));
       expect(fx.revealVolume, greaterThan(0));
       expect(fx.transitionVolume, greaterThan(0));
+      expect(fx.anonRevealVolume, greaterThan(0));
+      expect(fx.captureVolume, greaterThan(0));
+      expect(fx.accusationUnlockVolume, greaterThan(0));
+      expect(fx.countdownVolume, greaterThan(0));
     }
+  });
+
+  test('anon reveal volume is subtler than named reveal', () {
+    for (final p in WorldProfile.values) {
+      final fx = WorldFxCatalog.forProfile(p);
+      expect(
+        fx.anonRevealVolume,
+        lessThan(fx.revealVolume),
+        reason: p.name,
+      );
+    }
+  });
+
+  test('Phase C moment SFX wav files are bundled for all worlds', () async {
+    const momentSlots = [
+      'anon_reveal',
+      'capture',
+      'accusation_unlock',
+      'countdown',
+    ];
+    final worlds = <WorldProfile, List<String>>{
+      for (final p in WorldProfile.values) p: momentSlots,
+    };
+    await _expectBundledWorldSfx(worlds);
   });
 }
 

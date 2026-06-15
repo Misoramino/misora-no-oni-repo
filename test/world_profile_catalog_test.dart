@@ -21,9 +21,9 @@ void main() {
       expect(p.storageName, isNotEmpty, reason: '${p.name} storageName');
       expect(p.storageName, p.name);
     }
-    expect(WorldProfile.japaneseLuxury.label, '和風（高級）');
+    expect(WorldProfile.japaneseLuxury.label, 'Zen Kyoto');
     expect(WorldProfile.japaneseLuxury.assetKey, 'japanese_luxury');
-    expect(WorldProfile.westernLuxury.label, '洋風（高級）');
+    expect(WorldProfile.westernLuxury.label, 'Royal Classic');
     expect(WorldProfile.westernLuxury.assetKey, 'western_luxury');
   });
 
@@ -81,7 +81,7 @@ void main() {
   test('luxury profiles use provisional BGM and ambient', () {
     expect(WorldAudio.defaultBgm(WorldProfile.japaneseLuxury), BgmId.magical);
     expect(WorldAudio.defaultBgm(WorldProfile.westernLuxury), BgmId.space);
-    expect(WorldAudio.ambient(WorldProfile.japaneseLuxury), AmbientId.forest);
+    expect(WorldAudio.ambient(WorldProfile.japaneseLuxury), AmbientId.wind);
     expect(WorldAudio.ambient(WorldProfile.westernLuxury), AmbientId.wind);
   });
 }

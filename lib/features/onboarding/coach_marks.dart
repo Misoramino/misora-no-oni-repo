@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_presentation_catalog.dart';
+import '../../presentation/world/world_studio_identity.dart';
+import '../../presentation/world/world_studio_identity_catalog.dart';
+import '../../theme/world_profile.dart';
 
 /// コーチマーク1ステップ。対象が見つからなければ中央にカードを出す。
 class CoachStep {
@@ -20,7 +25,11 @@ class CoachStep {
 
 /// 初回ガイド用の軽量コーチマーク。要素をスポットライトで囲んで説明する。
 /// タップで次へ進み、最後に閉じる。
-Future<void> showCoachMarks(BuildContext context, List<CoachStep> steps) {
+Future<void> showCoachMarks(
+  BuildContext context,
+  List<CoachStep> steps, {
+  WorldProfile? profile,
+}) {
   if (steps.isEmpty) return Future<void>.value();
   GameAudio.instance.playSfx(SfxId.uiConfirm);
   return Navigator.of(context).push<void>(
@@ -29,7 +38,7 @@ Future<void> showCoachMarks(BuildContext context, List<CoachStep> steps) {
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, animation, secondary) =>
-          _CoachMarksOverlay(steps: steps),
+          _CoachMarksOverlay(steps: steps, profile: profile),
       transitionsBuilder: (context, animation, secondary, child) =>
           FadeTransition(opacity: animation, child: child),
     ),
@@ -37,9 +46,10 @@ Future<void> showCoachMarks(BuildContext context, List<CoachStep> steps) {
 }
 
 class _CoachMarksOverlay extends StatefulWidget {
-  const _CoachMarksOverlay({required this.steps});
+  const _CoachMarksOverlay({required this.steps, this.profile});
 
   final List<CoachStep> steps;
+  final WorldProfile? profile;
 
   @override
   State<_CoachMarksOverlay> createState() => _CoachMarksOverlayState();
@@ -58,18 +68,24 @@ class _CoachMarksOverlayState extends State<_CoachMarksOverlay> {
   }
 
   void _advance() {
+    final profile = widget.profile ?? context.worldProfile;
     if (_index >= widget.steps.length - 1) {
       GameAudio.instance.playSfx(SfxId.uiConfirm);
+      WorldHaptics.confirm(profile);
       Navigator.of(context).pop();
       return;
     }
     GameAudio.instance.playSfx(SfxId.uiTap);
+    WorldHaptics.selection(profile);
     setState(() => _index++);
   }
 
   @override
   Widget build(BuildContext context) {
     final step = widget.steps[_index];
+    final pack = widget.profile != null
+        ? WorldPresentationCatalog.of(widget.profile!)
+        : context.worldPresentation;
     final size = MediaQuery.of(context).size;
     final rawRect = _targetRect(step);
     final rect = rawRect == null
@@ -104,7 +120,7 @@ class _CoachMarksOverlayState extends State<_CoachMarksOverlay> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: pack.accent,
                       width: 2.5,
                     ),
                   ),
@@ -130,6 +146,7 @@ class _CoachMarksOverlayState extends State<_CoachMarksOverlay> {
       index: _index,
       total: widget.steps.length,
       isLast: isLast,
+      profile: widget.profile,
     );
     if (rect == null) {
       return Center(child: card);
@@ -181,23 +198,31 @@ class _CoachCard extends StatelessWidget {
     required this.index,
     required this.total,
     required this.isLast,
+    this.profile,
   });
 
   final CoachStep step;
   final int index;
   final int total;
   final bool isLast;
+  final WorldProfile? profile;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final pack = profile != null
+        ? WorldPresentationCatalog.of(profile!)
+        : context.worldPresentation;
+    final studio = profile != null
+        ? WorldStudioIdentityCatalog.of(profile!)
+        : context.studioIdentity;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
       child: Material(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        color: pack.panelSurface,
+        borderRadius: BorderRadius.circular(pack.hudCornerRadius + 8),
         elevation: 8,
+        shadowColor: pack.accent.withValues(alpha: 0.3),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -206,28 +231,33 @@ class _CoachCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(step.icon, color: scheme.primary),
+                  Icon(step.icon, color: pack.accent),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       step.title,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: pack.onAccent,
                       ),
                     ),
                   ),
                   Text(
                     '${index + 1}/$total',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                      color: pack.onAccent.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(step.body, style: theme.textTheme.bodyMedium),
+              Text(
+                step.body,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: pack.onAccent.withValues(alpha: 0.9),
+                ),
+              ),
               const SizedBox(height: 12),
-              // タップ判定は全面の GestureDetector が処理するため見た目専用。
               IgnorePointer(
                 child: Align(
                   alignment: Alignment.centerRight,
@@ -235,8 +265,10 @@ class _CoachCard extends StatelessWidget {
                     onPressed: () {},
                     style: FilledButton.styleFrom(
                       visualDensity: VisualDensity.compact,
+                      backgroundColor: pack.accent,
+                      foregroundColor: pack.onAccent,
                     ),
-                    child: Text(isLast ? 'はじめる' : '次へ'),
+                    child: Text(isLast ? studio.microcopy.coachDone : studio.microcopy.coachNext),
                   ),
                 ),
               ),

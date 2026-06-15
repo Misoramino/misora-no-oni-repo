@@ -1503,6 +1503,7 @@ extension _GameMapSkills on _GameMapScreenState {
       GameAudio.instance.playSfx(
         level == 'danger' ? SfxId.proximityDanger : SfxId.proximityWarning,
       );
+      unawaited(WorldAudioDirector.instance.setDangerActive(level == 'danger'));
     }
   }
 

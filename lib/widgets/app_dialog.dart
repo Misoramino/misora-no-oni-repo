@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
+import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_studio_identity_catalog.dart';
 import 'juicy_tap.dart';
 
 /// スケール＋フェードで登場する、テーマ配色の演出付きダイアログを表示する。
@@ -13,19 +15,20 @@ Future<T?> showAppDialog<T>({
   bool barrierDismissible = true,
   SfxId openSfx = SfxId.uiConfirm,
 }) {
+  final studio = WorldStudioIdentityCatalog.of(context.worldProfile);
   GameAudio.instance.playSfx(openSfx);
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: Colors.black54,
-    transitionDuration: const Duration(milliseconds: 320),
+    transitionDuration: studio.motion.dialog,
     pageBuilder: (ctx, animation, secondary) => builder(ctx),
     transitionBuilder: (ctx, animation, secondary, child) {
       final curved = CurvedAnimation(
         parent: animation,
-        curve: Curves.easeOutBack,
-        reverseCurve: Curves.easeInCubic,
+        curve: studio.motion.emphasisCurve,
+        reverseCurve: studio.motion.exitCurve,
       );
       return FadeTransition(
         opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
@@ -69,9 +72,11 @@ class AppDialog extends StatelessWidget {
     return Dialog(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(
+          context.studioIdentity.layout.symmetric ? 22 : 12,
+        ),
       ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: context.studioIdentity.layout.dialogInsets(context),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: Column(

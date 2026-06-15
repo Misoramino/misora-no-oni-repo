@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_version.dart';
 import '../audio/game_audio.dart';
+import '../audio/world_audio_director.dart';
+import '../audio/world_audio_state.dart';
 import '../audio/sfx_id.dart';
 import '../features/onboarding/offline_practice_intro.dart';
 import '../features/settings/guide_hub_sheet.dart';
@@ -14,6 +18,11 @@ import '../features/branding/launch_intro_timeline.dart';
 import '../session/onboarding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
+import '../features/world_selection/world_selection_sheet.dart';
+import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/widgets/world_button.dart';
+import '../presentation/world/widgets/world_loading.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_launch_branding.dart';
 import '../widgets/scene_transitions.dart';
@@ -121,8 +130,12 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
         _booting = false;
       });
       widget.onProfileChanged?.call(saved);
-      GameAudio.instance.playMenuBgm(saved);
-      GameAudio.instance.setActiveWorldProfile(saved);
+      unawaited(
+        WorldAudioDirector.instance.enter(
+          WorldAudioState.title,
+          profile: saved,
+        ),
+      );
       _maybeShowWelcomeOnFirstLaunch();
     } catch (e, st) {
       debugPrint('TitleScreen._boot failed: $e\n$st');
@@ -154,8 +167,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
     if (!mounted) return;
     setState(() => _profile = next);
     widget.onProfileChanged?.call(next);
-    GameAudio.instance.playMenuBgm(next);
-    GameAudio.instance.setActiveWorldProfile(next);
+    unawaited(WorldAudioDirector.instance.onProfileChanged(next));
   }
 
   @override
@@ -272,17 +284,23 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                     SliverFillRemaining(
                       hasScrollBody: true,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
+                        padding: WorldStudioIdentityCatalog.of(_profile)
+                            .layout
+                            .screenPadding(context),
                         child: Align(
-                          alignment: Alignment.center,
+                          alignment: WorldStudioIdentityCatalog.of(_profile)
+                              .layout
+                              .contentAlign,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 520),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              crossAxisAlignment:
+                                  WorldStudioIdentityCatalog.of(_profile)
+                                          .layout
+                                          .symmetric
+                                      ? CrossAxisAlignment.stretch
+                                      : CrossAxisAlignment.start,
                               children: [
                                 if (handoff == null && bodyOpacity > 0.95)
                                   Opacity(
@@ -373,58 +391,46 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                     children: [
                                       const SizedBox(height: 20),
                                       if (handoff == null && _booting)
-                                        const Center(
-                                          child: CircularProgressIndicator(),
+                                        Center(
+                                          child: WorldLoading(
+                                            profile: _profile,
+                                            label: '準備中…',
+                                          ),
                                         )
                                       else if (handoff == null) ...[
-                                        DropdownButtonFormField<WorldProfile>(
-                                          key: ValueKey(_profile),
-                                          initialValue: _profile,
-                                          decoration: const InputDecoration(
-                                            labelText: '世界観',
-                                            border: OutlineInputBorder(),
-                                            helperText: '地図・ピン・演出のテーマ',
-                                          ),
-                                          items: WorldProfile.values
-                                              .map(
-                                                (p) => DropdownMenuItem(
-                                                  value: p,
-                                                  child: Text(p.label),
-                                                ),
-                                              )
-                                              .toList(),
-                                          onChanged: _onProfileSelected,
+                                        _WorldProfilePickerCard(
+                                          profile: _profile,
+                                          onTap: () async {
+                                            final next =
+                                                await showWorldSelectionSheet(
+                                              context,
+                                              current: _profile,
+                                            );
+                                            if (next != null) {
+                                              await _onProfileSelected(next);
+                                            }
+                                          },
                                         ),
                                         const SizedBox(height: 20),
-                                        Semantics(
-                                          button: true,
-                                          label: 'オンラインルーム。友達とマルチプレイ',
-                                          child: FilledButton.icon(
+                                        WorldButtonIcon(
+                                          profile: _profile,
+                                          icon: Icons.groups_outlined,
+                                          label: 'オンラインルーム',
                                           onPressed: () {
-                                            GameAudio.instance
-                                                .playSfx(SfxId.uiConfirm);
                                             AppNav.push<void>(
                                               context,
                                               (_) => const RoomLobbyScreen(),
                                               worldProfile: _profile,
                                             );
                                           },
-                                          icon: const Icon(
-                                            Icons.groups_outlined,
-                                          ),
-                                          label: const Padding(
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: 12,
-                                            ),
-                                            child: Text('オンラインルーム'),
-                                          ),
-                                        ),
                                         ),
                                         const SizedBox(height: 12),
-                                        OutlinedButton.icon(
+                                        WorldButtonIcon(
+                                          profile: _profile,
+                                          icon: Icons.map_outlined,
+                                          label: 'オフラインで練習（マップのみ）',
+                                          outlined: true,
                                           onPressed: () async {
-                                            GameAudio.instance
-                                                .playSfx(SfxId.uiTap);
                                             final ok =
                                                 await confirmOfflinePracticeIntro(
                                               context,
@@ -441,13 +447,6 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                               routeName: GameMapScreen.routeName,
                                             );
                                           },
-                                          icon: const Icon(Icons.map_outlined),
-                                          label: const Padding(
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: 12,
-                                            ),
-                                            child: Text('オフラインで練習（マップのみ）'),
-                                          ),
                                         ),
                                         const SizedBox(height: 12),
                                         Row(
@@ -468,8 +467,6 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             Expanded(
                                               child: TextButton.icon(
                                                 onPressed: () {
-                                                  GameAudio.instance
-                                                      .playSfx(SfxId.uiTap);
                                                   AppNav.push<void>(
                                                     context,
                                                     (_) =>
@@ -542,6 +539,78 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WorldProfilePickerCard extends StatelessWidget {
+  const _WorldProfilePickerCard({
+    required this.profile,
+    required this.onTap,
+  });
+
+  final WorldProfile profile;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final pack = WorldPresentationCatalog.of(profile);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(pack.hudCornerRadius + 6),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                pack.scaffoldTop.withValues(alpha: 0.85),
+                pack.scaffoldBottom.withValues(alpha: 0.92),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(pack.hudCornerRadius + 6),
+            border: Border.all(color: pack.accent.withValues(alpha: 0.55), width: 1.4),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Icon(pack.profileIcon, color: pack.accent, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '世界観',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: pack.onAccent.withValues(alpha: 0.65),
+                            ),
+                      ),
+                      Text(
+                        profile.label,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: pack.accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Text(
+                        pack.tagline,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: pack.onAccent.withValues(alpha: 0.7),
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: pack.accent),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

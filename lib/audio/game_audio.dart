@@ -3,17 +3,19 @@ import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Curve, Curves;
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import '../session/audio_prefs.dart';
 import '../theme/world_fx_profile.dart';
 import '../theme/world_profile.dart';
 import 'audio_library.dart';
+import 'bgm_layer_engine.dart';
 import 'sfx_id.dart';
 import 'sfx_synth.dart';
+import 'world_music_profile.dart';
 import 'world_sfx_debounce.dart';
 import 'world_sfx_preview.dart';
-
 enum _MusicMode { none, menu, match }
 
 /// アプリ全体の効果音 / 音楽を司るシングルトン。
@@ -58,7 +60,14 @@ class GameAudio {
   AudioPlayer? _ambientPlayer;
   Timer? _ambientTimer;
   Timer? _bgmFadeTimer;
+  Timer? _duckRestoreTimer;
 
+  late final BgmLayerEngine _layerEngine = BgmLayerEngine(
+    resolveAsset: (dir, base) => resolveMusicAsset(_assets, dir, base),
+  );
+
+  bool _layersActive = false;
+  bool _backgroundPaused = false;
   /// マニフェスト上に存在するアセットのパス集合（`assets/...`）。
   Set<String> _assets = <String>{};
   bool _initialized = false;
@@ -70,7 +79,7 @@ class GameAudio {
 
   final WorldSfxDebounce _worldSfxDebounce = WorldSfxDebounce();
 
-  /// 効果音の世界観フォールバック（試合画面などで設定）。
+  /// 試合画面などの現在の世界観（BGM/環境音・試聴用）。
   void setActiveWorldProfile(WorldProfile? profile) {
     _activeWorldProfile = profile;
   }
@@ -103,6 +112,19 @@ class GameAudio {
   Future<void> updateSettings(AudioSettings next) async {
     settings.value = next;
     await AudioPrefs.save(next);
+    _layerEngine.setMasterBgm(next.effectiveBgm);
+
+    if (!next.layeredBgmEnabled && _layersActive) {
+      await stopAllMusicLayers(fadeMs: 280);
+    }
+
+    if (next.layeredBgmEnabled && _layersActive) {
+      return;
+    }
+
+    if (next.layeredBgmEnabled) {
+      return;
+    }
 
     if (_mode == _MusicMode.menu) {
       final profile = _profile;
@@ -155,34 +177,20 @@ class GameAudio {
 
   // ---- 効果音 ----
 
-  /// 効果音を一度だけ鳴らす。失敗しても例外は投げない。
-  ///
-  /// [profile] を渡すと `assets/audio/sfx/worlds/<profile>/` を優先する。
-  Future<void> playSfx(SfxId id, {WorldProfile? profile}) async {
+  /// 汎用 UI 効果音（世界観フォルダは使わない）。
+  Future<void> playSfx(SfxId id) async {
     if (kIsWeb || _sfxPool.isEmpty) return;
-    final baseVol = settings.value.effectiveSfx;
-    if (baseVol <= 0) return;
-
-    final world = profile ?? _activeWorldProfile;
-    final previewKind = _previewKindForSfx(id);
-    if (world != null && previewKind != null) {
-      if (!_worldSfxDebounce.tryAcquire(world, previewKind)) return;
-    }
-
-    final vol = _volumeForSfx(id, world, baseVol);
+    final vol = settings.value.effectiveSfx;
     if (vol <= 0) return;
 
     final player = _sfxPool[_sfxCursor];
     _sfxCursor = (_sfxCursor + 1) % _sfxPool.length;
 
     try {
-      String? assetPath;
-      if (world != null) {
-        final fx = WorldFxCatalog.forProfile(world);
-        final base = fx.assetBaseFor(id);
-        assetPath = _resolveWorldSfxAsset(world, base);
+      if (_layersActive) {
+        _duckForSfx();
       }
-      assetPath ??= _resolveAsset('audio/sfx', id.asset, _sfxExts);
+      final assetPath = _resolveAsset('audio/sfx', id.asset, _sfxExts);
       if (assetPath != null) {
         await player.play(AssetSource(assetPath), volume: vol);
       } else {
@@ -196,6 +204,52 @@ class GameAudio {
     }
   }
 
+  /// 世界観モーメント SE（reveal / capture / unlock / matchStart 等）。
+  Future<void> playWorldSfx(
+    SfxId id, {
+    required WorldProfile profile,
+  }) async {
+    if (kIsWeb || _sfxPool.isEmpty) return;
+    final baseVol = settings.value.effectiveSfx;
+    if (baseVol <= 0) return;
+
+    final fx = WorldFxCatalog.forProfile(profile);
+    final assetBase = fx.worldMomentAssetFor(id);
+    if (assetBase == null) {
+      await playSfx(id);
+      return;
+    }
+
+    final previewKind = _previewKindForSfx(id);
+    if (previewKind != null &&
+        !_worldSfxDebounce.tryAcquire(profile, previewKind)) {
+      return;
+    }
+
+    final vol = _volumeForWorldSfx(id, fx, baseVol);
+    if (vol <= 0) return;
+
+    final player = _sfxPool[_sfxCursor];
+    _sfxCursor = (_sfxCursor + 1) % _sfxPool.length;
+
+    try {
+      if (_layersActive) {
+        _duckForSfx();
+      }
+      final assetPath = _resolveWorldSfxAsset(profile, assetBase);
+      if (assetPath != null) {
+        await player.play(AssetSource(assetPath), volume: vol);
+      } else {
+        await player.play(
+          BytesSource(SfxSynth.wavFor(id), mimeType: 'audio/wav'),
+          volume: vol,
+        );
+      }
+    } catch (e) {
+      debugPrint('GameAudio.playWorldSfx($id, ${profile.name}): $e');
+    }
+  }
+
   /// 設定画面などから世界観 SE を試聴する。
   Future<void> previewWorldSfx(
     WorldProfile profile,
@@ -203,9 +257,9 @@ class GameAudio {
   ) async {
     switch (kind) {
       case WorldSfxPreviewKind.uiTap:
-        await playSfx(SfxId.uiTap, profile: profile);
+        await playWorldSfx(SfxId.uiTap, profile: profile);
       case WorldSfxPreviewKind.reveal:
-        await playSfx(SfxId.reveal, profile: profile);
+        await playWorldSfx(SfxId.reveal, profile: profile);
       case WorldSfxPreviewKind.transition:
         await playTransitionSfx(profile);
     }
@@ -250,16 +304,136 @@ class GameAudio {
         _ => null,
       };
 
-  double _volumeForSfx(SfxId id, WorldProfile? world, double baseVol) {
-    if (world == null) return baseVol;
-    final fx = WorldFxCatalog.forProfile(world);
+  double _volumeForWorldSfx(SfxId id, WorldFxProfile fx, double baseVol) {
     final coeff = switch (id) {
       SfxId.uiTap => fx.uiTapVolume,
       SfxId.reveal => fx.revealVolume,
+      SfxId.anonReveal => fx.anonRevealVolume,
+      SfxId.capture => fx.captureVolume,
+      SfxId.unlock => fx.accusationUnlockVolume,
+      SfxId.matchStart => fx.countdownVolume,
       _ => 1.0,
     };
     return baseVol * coeff;
   }
+
+  /// レイヤー BGM スロットを設定（[WorldAudioDirector] 用）。
+  Future<void> setMusicLayer(
+    WorldMusicLayer slot, {
+    required LayerTrackRef track,
+    required double relativeGain,
+    bool loop = true,
+    required int crossFadeMs,
+    Curve curve = Curves.easeOutCubic,
+  }) async {
+    if (kIsWeb) return;
+    final s = settings.value;
+    if (!s.layeredBgmEnabled || !s.bgmEnabled) return;
+    await _stopLegacyBgm();
+    _layersActive = true;
+    _layerEngine.setMasterBgm(s.effectiveBgm);
+    await _layerEngine.setLayer(
+      slot: slot,
+      track: track,
+      relativeGain: relativeGain,
+      loop: loop,
+      crossFadeMs: crossFadeMs,
+      curve: curve,
+    );
+  }
+
+  Future<void> stopMusicLayer(
+    WorldMusicLayer slot, {
+    int fadeMs = 400,
+  }) =>
+      _layerEngine.stopLayer(slot, fadeMs: fadeMs);
+
+  Future<void> fadeMusicLayer(
+    WorldMusicLayer slot, {
+    required double relativeGain,
+    required int ms,
+  }) =>
+      _layerEngine.fadeLayerGain(slot, relativeGain: relativeGain, ms: ms);
+
+  Future<void> fadeAllMusicLayers({
+    required double relativeGain,
+    required int ms,
+  }) async {
+    for (final slot in WorldMusicLayer.values) {
+      await fadeMusicLayer(slot, relativeGain: relativeGain, ms: ms);
+    }
+  }
+
+  Future<void> stopAllMusicLayers({int fadeMs = 500}) async {
+    _layersActive = false;
+    if (!_layerEngine.isDisposed) {
+      await _layerEngine.stopAll(fadeMs: fadeMs);
+    }
+  }
+
+  /// アプリがバックグラウンドへ入ったときの一時停止。
+  Future<void> pauseForBackground() async {
+    if (_backgroundPaused || kIsWeb) return;
+    _backgroundPaused = true;
+    _duckRestoreTimer?.cancel();
+    _duckRestoreTimer = null;
+    _ambientTimer?.cancel();
+    _ambientTimer = null;
+    try {
+      await _bgmPlayer?.pause();
+      if (!_layerEngine.isDisposed) {
+        await _layerEngine.pauseAll();
+      }
+      await _ambientPlayer?.pause();
+    } catch (_) {}
+  }
+
+  /// フォアグラウンド復帰時の再開。
+  Future<void> resumeFromBackground() async {
+    if (!_backgroundPaused || kIsWeb) return;
+    _backgroundPaused = false;
+    try {
+      if (_layersActive && !_layerEngine.isDisposed) {
+        await _layerEngine.resumeAll();
+      } else {
+        await _bgmPlayer?.resume();
+      }
+      if (_mode == _MusicMode.match) {
+        _startAmbientSchedule();
+      }
+    } catch (_) {}
+  }
+
+  bool get layersActive => _layersActive;
+
+  /// SE 再生時の BGM ダック（2〜4 dB）。
+  Future<void> duckMusic({
+    double db = 3.0,
+    int holdMs = 400,
+  }) async {
+    if (!_layersActive || _layerEngine.isDisposed) return;
+    _layerEngine.setDuckFactor(BgmLayerEngine.dbToFactor(db));
+    _duckRestoreTimer?.cancel();
+    _duckRestoreTimer = Timer(Duration(milliseconds: holdMs), () {
+      _layerEngine.setDuckFactor(1.0);
+    });
+  }
+
+  void _duckForSfx() {
+    final s = settings.value;
+    if (!s.layeredBgmEnabled) return;
+    unawaited(duckMusic(db: 3.0, holdMs: 360));
+  }
+
+  /// 対戦中の環境音ワンショット（レイヤー BGM と併用可）。
+  void startMatchAmbientSchedule(WorldProfile profile) {
+    if (kIsWeb) return;
+    _mode = _MusicMode.match;
+    _profile = profile;
+    _startAmbientSchedule();
+  }
+
+  void stopMatchAmbientSchedule() => _stopAmbientSchedule();
 
   // ---- 音楽（BGM / 環境音）----
 
@@ -268,14 +442,17 @@ class GameAudio {
   /// 設定が「OFF（効果音・環境音のみ）」の場合は何も鳴らさない。
   Future<void> playMenuBgm(WorldProfile profile) async {
     if (kIsWeb) return;
+    final s = settings.value;
+    if (s.layeredBgmEnabled) return;
+
     _mode = _MusicMode.menu;
     _profile = profile;
 
     _stopAmbientSchedule();
+    await stopAllMusicLayers(fadeMs: 0);
 
-    final s = settings.value;
     if (!s.bgmEnabled) {
-      await _stopBgm(fadeOut: true);
+      await _stopLegacyBgm(fadeOut: true);
       return;
     }
 
@@ -317,15 +494,35 @@ class GameAudio {
     _mode = _MusicMode.match;
     _profile = profile;
 
-    await _stopBgm(fadeOut: true);
+    if (!settings.value.layeredBgmEnabled) {
+      await _stopLegacyBgm(fadeOut: true);
+    }
     _startAmbientSchedule();
   }
 
   /// 全ての音楽（BGM・環境音）を停止。
   Future<void> stopMusic() async {
     _mode = _MusicMode.none;
-    await _stopBgm();
+    _duckRestoreTimer?.cancel();
+    _duckRestoreTimer = null;
+    await _stopLegacyBgm();
+    await stopAllMusicLayers(fadeMs: 320);
     _stopAmbientSchedule();
+  }
+
+  Future<void> _stopLegacyBgm({bool fadeOut = false}) async {
+    _playingBgm = null;
+    final p = _bgmPlayer;
+    if (p == null) return;
+    if (fadeOut) {
+      _fadeBgm(from: settings.value.effectiveBgm, to: 0, stopAtEnd: true);
+      return;
+    }
+    _bgmFadeTimer?.cancel();
+    _bgmFadeTimer = null;
+    try {
+      await p.stop();
+    } catch (_) {}
   }
 
   BgmId _resolveBgm(WorldProfile profile, AudioSettings s) {
@@ -422,18 +619,7 @@ class GameAudio {
   }
 
   Future<void> _stopBgm({bool fadeOut = false}) async {
-    _playingBgm = null;
-    final p = _bgmPlayer;
-    if (p == null) return;
-    if (fadeOut) {
-      _fadeBgm(from: settings.value.effectiveBgm, to: 0, stopAtEnd: true);
-      return;
-    }
-    _bgmFadeTimer?.cancel();
-    _bgmFadeTimer = null;
-    try {
-      await p.stop();
-    } catch (_) {}
+    await _stopLegacyBgm(fadeOut: fadeOut);
   }
 
   /// `assets/<dir>/<base>.<ext>` のうち同梱済みの最初の候補を返す。
@@ -459,6 +645,9 @@ class GameAudio {
     _ambientTimer = null;
     _bgmFadeTimer?.cancel();
     _bgmFadeTimer = null;
+    _duckRestoreTimer?.cancel();
+    _duckRestoreTimer = null;
+    await _layerEngine.dispose();
     for (final p in _sfxPool) {
       await p.dispose();
     }

@@ -1,55 +1,97 @@
 import 'package:flutter/material.dart';
 
+import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_typography.dart';
 import 'world_profile.dart';
+import '../presentation/world/world_presentation_catalog.dart';
 
 abstract final class AppThemeFactory {
   static ThemeData create(WorldProfile profile) {
-    final seed = switch (profile) {
-      WorldProfile.horror => Colors.red.shade900,
-      WorldProfile.sport => const Color(0xFFFF4081),
-      WorldProfile.sciFi => const Color(0xFF00BCD4),
-      WorldProfile.arg => const Color(0xFF607D8B),
-      WorldProfile.magical => const Color(0xFF9C27B0),
-      WorldProfile.astronomy => const Color(0xFF1A237E),
-      WorldProfile.japaneseLuxury => const Color(0xFF1A237E),
-      WorldProfile.westernLuxury => const Color(0xFF722F37),
-    };
+    final pack = WorldPresentationCatalog.of(profile);
+    final seed = pack.accent;
 
     final base = ThemeData(
       colorScheme: ColorScheme.fromSeed(
         seedColor: seed,
-        brightness: switch (profile) {
-          WorldProfile.sport => Brightness.light,
-          _ => Brightness.dark,
-        },
+        brightness: profile == WorldProfile.sport
+            ? Brightness.light
+            : Brightness.dark,
+        primary: pack.accent,
+        secondary: pack.accentMuted,
+        surface: pack.panelSurface,
+        error: pack.dangerColor,
       ),
       useMaterial3: true,
+      extensions: [WorldProfileTheme(profile)],
     );
 
-    final dialogTextStyle = TextStyle(
-      color: base.colorScheme.onSurface,
-      fontSize: 15,
-      height: 1.35,
-    );
-    final dialogTitleStyle = TextStyle(
-      color: base.colorScheme.onSurface,
-      fontSize: 20,
-      fontWeight: FontWeight.w600,
+    final textTheme = WorldTypography.apply(base.textTheme, pack);
+
+    final dialogTextStyle = textTheme.bodyMedium!.copyWith(height: pack.bodyLineHeight);
+    final dialogTitleStyle = textTheme.titleLarge!.copyWith(
+      fontWeight: pack.headlineWeight,
+      letterSpacing: pack.headlineLetterSpacing,
     );
 
     return base.copyWith(
-      appBarTheme: base.appBarTheme.copyWith(centerTitle: false),
+      textTheme: textTheme,
+      primaryTextTheme: textTheme,
+      scaffoldBackgroundColor: pack.scaffoldBottom,
+      appBarTheme: base.appBarTheme.copyWith(
+        centerTitle: false,
+        backgroundColor: pack.scaffoldTop.withValues(alpha: 0.92),
+        foregroundColor: pack.accent,
+        elevation: 0,
+      ),
       snackBarTheme: base.snackBarTheme.copyWith(
         behavior: SnackBarBehavior.floating,
+        backgroundColor: pack.panelSurface,
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: pack.onAccent,
+        ),
       ),
       cardTheme: base.cardTheme.copyWith(
         elevation: profile == WorldProfile.sport ? 2 : 0,
+        color: pack.panelSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(pack.hudCornerRadius + 4),
+          side: BorderSide(color: pack.panelBorder),
+        ),
       ),
       dialogTheme: base.dialogTheme.copyWith(
-        backgroundColor: base.colorScheme.surfaceContainerHigh,
+        backgroundColor: pack.panelSurface,
         titleTextStyle: dialogTitleStyle,
         contentTextStyle: dialogTextStyle,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(pack.hudCornerRadius + 8),
+          side: BorderSide(color: pack.panelBorder, width: 1.2),
+        ),
       ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: pack.accent,
+          foregroundColor: pack.onAccent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(pack.buttonShape.borderRadius),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: pack.accent,
+          side: BorderSide(color: pack.accent, width: pack.buttonShape.borderWidth > 0 ? pack.buttonShape.borderWidth : 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(pack.buttonShape.borderRadius),
+          ),
+        ),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(pack.chipBorderRadius),
+          side: BorderSide(color: pack.panelBorder),
+        ),
+      ),
+      dividerColor: pack.panelBorder,
     );
   }
 }

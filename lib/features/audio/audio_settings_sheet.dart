@@ -154,7 +154,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           enabled: !s.muted,
                           onChanged: (v) =>
                               audio.updateSettings(s.copyWith(sfxVolume: v)),
-                          onChangeEnd: (_) => audio.playSfx(SfxId.reward),
+                          onChangeEnd: (_) => audio.playSfx(SfxId.uiTap),
                         ),
                         _VolumeRow(
                           label: 'BGM',
@@ -171,6 +171,34 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           enabled: !s.muted,
                           onChanged: (v) =>
                               audio.updateSettings(s.copyWith(ambientVolume: v)),
+                        ),
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('世界観 BGM'),
+                          subtitle: const Text(
+                            'レイヤー構成の世界観別BGM（OFFで従来の単一曲モード）',
+                          ),
+                          value: s.worldBgmEnabled,
+                          onChanged: s.muted
+                              ? null
+                              : (v) {
+                                  audio.updateSettings(
+                                    s.copyWith(worldBgmEnabled: v),
+                                  );
+                                  audio.playSfx(SfxId.uiTap);
+                                },
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('クロスフェード'),
+                          subtitle: const Text('曲・世界観切替時に滑らかに繋ぐ'),
+                          value: s.crossFadeEnabled,
+                          onChanged: s.muted
+                              ? null
+                              : (v) => audio.updateSettings(
+                                    s.copyWith(crossFadeEnabled: v),
+                                  ),
                         ),
                         const SizedBox(height: 16),
                         _WorldSfxPreviewSection(
@@ -206,6 +234,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                         const SizedBox(height: 8),
                         Text(
                           'タイトル／ロビーでは選んだ曲（おまかせ＝世界観ごとの曲）を流します。\n'
+                          '世界観BGM ON でレイヤー構成（Base+Ambient+Tension）が有効になります。\n'
                           '対戦中は既定で環境音のみ。ここで曲を選ぶと試合中もBGMを流せます。\n'
                           'OFFにすると効果音と環境音だけになり、好きな音楽を裏で流せます。',
                           style: theme.textTheme.bodySmall?.copyWith(
