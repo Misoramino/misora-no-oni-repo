@@ -93,6 +93,15 @@ flutter:
     - assets/map_markers/
     - assets/branding/
     - assets/audio/sfx/
+    - assets/audio/sfx/worlds/
+    - assets/audio/sfx/worlds/sciFi/
+    - assets/audio/sfx/worlds/magical/
+    - assets/audio/sfx/worlds/horror/
+    - assets/audio/sfx/worlds/sport/
+    - assets/audio/sfx/worlds/arg/
+    - assets/audio/sfx/worlds/astronomy/
+    - assets/audio/sfx/worlds/japaneseLuxury/
+    - assets/audio/sfx/worlds/westernLuxury/
     - assets/audio/bgm/
     - assets/audio/ambient/
 

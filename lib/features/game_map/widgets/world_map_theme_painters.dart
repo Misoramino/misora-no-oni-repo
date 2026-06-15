@@ -37,6 +37,14 @@ class WorldMapThemeOverlay extends StatelessWidget {
               accent: accent ?? const Color(0xFFFF8FB3),
             ),
           WorldProfile.arg => _CrosshairPainter(phase: phase),
+          WorldProfile.japaneseLuxury => _JapaneseLuxuryPainter(
+              phase: phase,
+              accent: accent ?? const Color(0xFFC9A227),
+            ),
+          WorldProfile.westernLuxury => _WesternLuxuryPainter(
+              phase: phase,
+              accent: accent ?? const Color(0xFFD4AF37),
+            ),
         },
       ),
     );
@@ -271,4 +279,82 @@ class _CrosshairPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CrosshairPainter oldDelegate) =>
       oldDelegate.phase != phase;
+}
+
+class _JapaneseLuxuryPainter extends CustomPainter {
+  _JapaneseLuxuryPainter({required this.phase, required this.accent});
+
+  final double phase;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final line = Paint()
+      ..color = const Color(0xFFE8D5A3).withValues(alpha: 0.04)
+      ..strokeWidth = 0.8;
+    for (var x = 0.0; x < size.width; x += 48) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), line);
+    }
+    final rng = math.Random(17);
+    final twinkle = (math.sin(phase * math.pi * 2) + 1) * 0.5;
+    for (var i = 0; i < 24; i++) {
+      final x = rng.nextDouble() * size.width;
+      final y = rng.nextDouble() * size.height;
+      final alpha = (0.04 + twinkle * 0.05).clamp(0.03, 0.12);
+      canvas.drawCircle(
+        Offset(x, y),
+        0.8 + rng.nextDouble() * 1.2,
+        Paint()..color = accent.withValues(alpha: alpha),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _JapaneseLuxuryPainter old) =>
+      old.phase != phase || old.accent != accent;
+}
+
+class _WesternLuxuryPainter extends CustomPainter {
+  _WesternLuxuryPainter({required this.phase, required this.accent});
+
+  final double phase;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.38;
+    for (var i = 0; i < 5; i++) {
+      final sweep = Paint()
+        ..color = accent.withValues(alpha: 0.035 + i * 0.008)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      canvas.drawArc(
+        Rect.fromCircle(
+          center: Offset(cx, cy),
+          radius: 40 + i * 28 + phase * 6,
+        ),
+        -math.pi * 0.75,
+        math.pi * 1.5,
+        false,
+        sweep,
+      );
+    }
+    final corner = Paint()..color = const Color(0xFFECEFF1).withValues(alpha: 0.05);
+    const inset = 18.0;
+    const len = 22.0;
+    for (final origin in [
+      Offset(inset, inset),
+      Offset(size.width - inset, inset),
+      Offset(inset, size.height - inset),
+      Offset(size.width - inset, size.height - inset),
+    ]) {
+      canvas.drawLine(origin, origin + const Offset(len, 0), corner);
+      canvas.drawLine(origin, origin + const Offset(0, len), corner);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WesternLuxuryPainter old) =>
+      old.phase != phase || old.accent != accent;
 }

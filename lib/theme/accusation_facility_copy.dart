@@ -86,5 +86,25 @@ class AccusationFacilityCopy {
             accuseActionLabel: '鬼を告発',
             lockedHint: lockedHintBase,
           ),
+        WorldProfile.japaneseLuxury => const AccusationFacilityCopy(
+            facilityName: '陰陽寮',
+            unlockLines: [
+              '気配を感知',
+              '陰陽寮と交信',
+              '本鬼告発の儀 解禁',
+            ],
+            accuseActionLabel: '本鬼を告発',
+            lockedHint: lockedHintBase,
+          ),
+        WorldProfile.westernLuxury => const AccusationFacilityCopy(
+            facilityName: '宮廷調査局',
+            unlockLines: [
+              '異常記録を検知',
+              '宮廷調査局と接続',
+              '本鬼告発権限 解放',
+            ],
+            accuseActionLabel: '本鬼を告発',
+            lockedHint: lockedHintBase,
+          ),
       };
 }

@@ -52,7 +52,14 @@ Future<void> showSettingsHubSheet(
                 leading: const Icon(Icons.graphic_eq_rounded),
                 title: const Text('サウンド'),
                 subtitle: const Text('BGM・効果音の音量'),
-                onTap: () => showAudioSettingsSheet(ctx),
+                onTap: () async {
+                  final profile = await WorldProfilePrefs.load();
+                  if (!ctx.mounted) return;
+                  await showAudioSettingsSheet(
+                    ctx,
+                    worldProfile: profile,
+                  );
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.storage_outlined),

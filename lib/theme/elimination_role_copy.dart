@@ -45,6 +45,14 @@ class EliminationRoleCopy {
           jackSite: '地球支部端子',
           jackAct: '軌道スキャン',
         ),
+      WorldProfile.japaneseLuxury => (
+          jackSite: '監視結界',
+          jackAct: '結界を焼く',
+        ),
+      WorldProfile.westernLuxury => (
+          jackSite: '記録端末',
+          jackAct: '記録を封印',
+        ),
     };
 
     final (title, subtitle) = switch (rule) {

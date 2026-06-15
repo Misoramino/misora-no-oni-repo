@@ -200,7 +200,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       syncLocalEventType: 'area_reveal',
     );
     HapticFeedback.heavyImpact();
-    GameAudio.instance.playSfx(SfxId.reveal);
+    GameAudio.instance.playSfx(SfxId.reveal, profile: _activeProfile);
     _retuneGpsIfNeeded();
   }
 

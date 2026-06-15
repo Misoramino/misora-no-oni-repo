@@ -11,6 +11,8 @@ enum LaunchEffectKind {
   tactical,
   magical,
   astronomy,
+  japaneseLuxury,
+  westernLuxury,
 }
 
 extension LaunchEffectKindLabel on LaunchEffectKind {
@@ -21,6 +23,8 @@ extension LaunchEffectKindLabel on LaunchEffectKind {
         LaunchEffectKind.tactical => 'Stealth Tactical',
         LaunchEffectKind.magical => 'Magical World',
         LaunchEffectKind.astronomy => 'Astronomy',
+        LaunchEffectKind.japaneseLuxury => '和風（高級）',
+        LaunchEffectKind.westernLuxury => '洋風（高級）',
       };
 }
 
@@ -78,6 +82,8 @@ class WorldLaunchBranding {
       LaunchEffectKind.tactical => _tactical(profile),
       LaunchEffectKind.magical => _magical(profile),
       LaunchEffectKind.astronomy => _astronomy(profile),
+      LaunchEffectKind.japaneseLuxury => _japaneseLuxury(profile),
+      LaunchEffectKind.westernLuxury => _westernLuxury(profile),
     };
   }
 
@@ -89,6 +95,8 @@ class WorldLaunchBranding {
       WorldProfile.arg => LaunchEffectKind.tactical,
       WorldProfile.magical => LaunchEffectKind.magical,
       WorldProfile.astronomy => LaunchEffectKind.astronomy,
+      WorldProfile.japaneseLuxury => LaunchEffectKind.japaneseLuxury,
+      WorldProfile.westernLuxury => LaunchEffectKind.westernLuxury,
     };
   }
 
@@ -235,6 +243,54 @@ class WorldLaunchBranding {
       titleHeadlineColor: Color(0xFFE3F2FD),
       coreColor: const Color(0xFFFFFFFF),
       coreGlow: const Color(0xBB64B5F6),
+      isLightBackground: false,
+      showReadyLabel: false,
+    );
+  }
+
+  static WorldLaunchBranding _japaneseLuxury(WorldProfile profile) {
+    return WorldLaunchBranding(
+      profile: profile,
+      effect: LaunchEffectKind.japaneseLuxury,
+      profileLabel: profile.label,
+      backgroundTop: const Color(0xFF0A0A08),
+      backgroundBottom: const Color(0xFF141210),
+      accent: const Color(0xFFC9A227),
+      secondaryAccent: const Color(0xFF1A237E),
+      glow: const Color(0x44C9A227),
+      scanLineColor: const Color(0x22E8D5A3),
+      pulseColor: const Color(0xFFE8D5A3),
+      particleColor: const Color(0xFFFFD54F),
+      subtitleColor: const Color(0x99E8D5A3),
+      pinStroke: const Color(0xFFFFF8E1),
+      hornFill: const Color(0xFF2C2416),
+      titleHeadlineColor: const Color(0xFFE8D5A3),
+      coreColor: const Color(0xFFC9A227),
+      coreGlow: const Color(0x881A237E),
+      isLightBackground: false,
+      showReadyLabel: false,
+    );
+  }
+
+  static WorldLaunchBranding _westernLuxury(WorldProfile profile) {
+    return WorldLaunchBranding(
+      profile: profile,
+      effect: LaunchEffectKind.westernLuxury,
+      profileLabel: profile.label,
+      backgroundTop: const Color(0xFF101418),
+      backgroundBottom: const Color(0xFF080A0C),
+      accent: const Color(0xFFD4AF37),
+      secondaryAccent: const Color(0xFF722F37),
+      glow: const Color(0x44D4AF37),
+      scanLineColor: const Color(0x33ECEFF1),
+      pulseColor: const Color(0xFFECEFF1),
+      particleColor: const Color(0xFFB0BEC5),
+      subtitleColor: Colors.white.withValues(alpha: 0.55),
+      pinStroke: const Color(0xFFECEFF1),
+      hornFill: const Color(0xFF37474F),
+      titleHeadlineColor: const Color(0xFFD4AF37),
+      coreColor: const Color(0xFFD4AF37),
+      coreGlow: const Color(0x88722F37),
       isLightBackground: false,
       showReadyLabel: false,
     );

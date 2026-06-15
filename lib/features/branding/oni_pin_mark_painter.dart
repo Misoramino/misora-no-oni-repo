@@ -72,8 +72,11 @@ class OniPinMarkPainter extends CustomPainter {
         _sparkleHornTips(canvas, layers, beat);
       case LaunchEffectKind.magical:
         _sparkleHornTips(canvas, layers, beat, gold: true);
+      case LaunchEffectKind.japaneseLuxury:
+        _sparkleHornTips(canvas, layers, beat, gold: true);
       case LaunchEffectKind.tactical:
       case LaunchEffectKind.astronomy:
+      case LaunchEffectKind.westernLuxury:
         break;
     }
   }
@@ -193,6 +196,20 @@ class OniPinMarkPainter extends CustomPainter {
           r * 1.25,
           Paint()..color = branding.coreGlow.withValues(alpha: 0.35 + beat * 0.15),
         );
+      case LaunchEffectKind.japaneseLuxury:
+        canvas.drawCircle(
+          core,
+          r * 1.28,
+          Paint()..color = branding.glow.withValues(alpha: 0.26 + beat * 0.1),
+        );
+      case LaunchEffectKind.westernLuxury:
+        _strokeCircle(
+          canvas,
+          core,
+          r * 1.32,
+          branding.accent.withValues(alpha: 0.16 + beat * 0.08),
+          0.6,
+        );
       case LaunchEffectKind.tactical:
         break;
     }
@@ -248,6 +265,22 @@ class OniPinMarkPainter extends CustomPainter {
           core,
           w * 0.32,
           Paint()..color = branding.accent.withValues(alpha: 0.12),
+        );
+      case LaunchEffectKind.japaneseLuxury:
+        _strokeCircle(
+          canvas,
+          core,
+          w * 0.38,
+          branding.accent.withValues(alpha: 0.14),
+          0.65,
+        );
+      case LaunchEffectKind.westernLuxury:
+        _strokeCircle(
+          canvas,
+          core,
+          w * 0.36,
+          branding.accent.withValues(alpha: 0.1),
+          0.55,
         );
       case LaunchEffectKind.tactical:
         break;
@@ -322,6 +355,27 @@ class OniPinMarkPainter extends CustomPainter {
           Paint()
             ..color = branding.accent.withValues(alpha: 0.18)
             ..strokeWidth = 0.9,
+        );
+      case LaunchEffectKind.japaneseLuxury:
+        _orbitParticles(
+          canvas,
+          core,
+          w,
+          w * 0.4,
+          w * 0.38,
+          5,
+          0.85,
+          2.0,
+          [branding.particleColor, branding.accent],
+          0.45 + beat * 0.3,
+        );
+      case LaunchEffectKind.westernLuxury:
+        _strokeCircle(
+          canvas,
+          core,
+          w * 0.3,
+          branding.accent.withValues(alpha: 0.12 + beat * 0.05),
+          0.5,
         );
     }
   }

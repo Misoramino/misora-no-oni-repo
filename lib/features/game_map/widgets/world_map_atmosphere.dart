@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/world_fx_profile.dart';
 import '../../../theme/world_profile.dart';
 import '../../../theme/world_visual_pack.dart';
 import 'reveal_noise_overlay.dart';
 import 'vhs_overlay.dart';
 import 'world_map_theme_painters.dart';
+import 'world_moment_banner.dart';
 
 /// 世界観ごとの地図上ビネット・reveal フラッシュ（軽量 overlay）。
 class WorldMapAtmosphere extends StatelessWidget {
@@ -14,6 +16,8 @@ class WorldMapAtmosphere extends StatelessWidget {
     required this.revealFlashActive,
     this.scanPhase = 0,
     this.revealNoiseSeed = 0,
+    this.momentKind,
+    this.flashOpacityOverride,
     super.key,
   });
 
@@ -22,18 +26,28 @@ class WorldMapAtmosphere extends StatelessWidget {
   final bool revealFlashActive;
   final double scanPhase;
   final double revealNoiseSeed;
+  final WorldMomentKind? momentKind;
+  final double? flashOpacityOverride;
+
+  WorldFxProfile get _fx => WorldFxCatalog.forProfile(pack.profile);
 
   @override
   Widget build(BuildContext context) {
     final vignette = pack.vignetteColor;
-    final flash = pack.revealFlashColor;
-    final flashScale = pack.usePinBounceFlash && revealFlashActive ? 1.08 : 1.0;
     final profile = pack.profile;
+    final flash = _flashColor(pack, momentKind);
+    final flashOpacity = flashOpacityOverride ??
+        (momentKind != null
+            ? _fx.flashOpacityFor(momentKind!)
+            : (profile == WorldProfile.sport ? 0.5 : 0.55));
+    final flashScale = pack.usePinBounceFlash && revealFlashActive ? 1.08 : 1.0;
 
     final vignetteScale = switch (profile) {
       WorldProfile.magical => 0.78,
       WorldProfile.astronomy => 0.82,
       WorldProfile.sport => 0.88,
+      WorldProfile.japaneseLuxury => 0.72,
+      WorldProfile.westernLuxury => 0.75,
       _ => 1.0,
     };
     final pulseBase = profile == WorldProfile.horror ? 0.38 : 0.34;
@@ -46,6 +60,9 @@ class WorldMapAtmosphere extends StatelessWidget {
     };
 
     final vhsIntensity = profile == WorldProfile.horror ? 1.28 : 1.0;
+    final useNoise = pack.useRevealNoise ||
+        momentKind == WorldMomentKind.namedReveal &&
+            _fx.revealFlashStyle == WorldRevealFlashStyle.horrorVhs;
 
     return IgnorePointer(
       child: Stack(
@@ -109,20 +126,20 @@ class WorldMapAtmosphere extends StatelessWidget {
                   ? Curves.elasticOut
                   : Curves.easeOut,
               child: AnimatedOpacity(
-                opacity: revealFlashActive
-                    ? (profile == WorldProfile.sport ? 0.5 : 0.55)
-                    : 0,
+                opacity: revealFlashActive ? flashOpacity : 0,
                 duration: const Duration(milliseconds: 180),
                 child: ColoredBox(color: flash),
               ),
             ),
-          if (revealFlashActive && flash != null && pack.useRevealNoise)
+          if (revealFlashActive && flash != null && useNoise)
             RevealNoiseOverlay(
               active: revealFlashActive,
               tint: flash,
               seed: revealNoiseSeed,
               grainBoost: revealGrain,
             ),
+          if (momentKind != null && revealFlashActive)
+            WorldMomentBanner(fx: _fx, kind: momentKind!),
           if (pack.useScanOverlay)
             CustomPaint(
               painter: _ScanLinePainter(
@@ -149,6 +166,37 @@ class WorldMapAtmosphere extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static Color? _flashColor(WorldVisualPack pack, WorldMomentKind? kind) {
+    final base = pack.revealFlashColor;
+    if (kind == null) return base;
+    final fx = WorldFxCatalog.forProfile(pack.profile);
+    return switch (kind) {
+      WorldMomentKind.capture => switch (fx.captureFlashStyle) {
+          WorldCaptureFlashStyle.cyberGlitch => const Color(0xCC00E5FF),
+          WorldCaptureFlashStyle.horrorHeartbeat => const Color(0xCCB71C1C),
+          WorldCaptureFlashStyle.magicalImpact => const Color(0xCCE040FB),
+          WorldCaptureFlashStyle.astronomyCosmic => const Color(0xCCFFD54F),
+          WorldCaptureFlashStyle.tacticalMuted => const Color(0x9955465A),
+          WorldCaptureFlashStyle.sportWhistle => const Color(0xCCFF4081),
+          WorldCaptureFlashStyle.japaneseInkImpact => const Color(0xCC5D4037),
+          WorldCaptureFlashStyle.westernSealImpact => const Color(0xCC722F37),
+        },
+      WorldMomentKind.namedReveal => switch (fx.revealFlashStyle) {
+          WorldRevealFlashStyle.cyberCyanScan => const Color(0xCC00E5FF),
+          WorldRevealFlashStyle.horrorVhs => const Color(0xDDB71C1C),
+          WorldRevealFlashStyle.magicalSigil => const Color(0xCCE040FB),
+          WorldRevealFlashStyle.astronomyOrbit => const Color(0xCCFFD54F),
+          WorldRevealFlashStyle.tacticalBracket => const Color(0xAA90A4AE),
+          WorldRevealFlashStyle.sportPop => const Color(0xCCFF8FB3),
+          WorldRevealFlashStyle.japaneseGoldMist => const Color(0xCCC9A227),
+          WorldRevealFlashStyle.westernGildedRecord => const Color(0xCCD4AF37),
+        },
+      WorldMomentKind.anonReveal => base?.withValues(alpha: 0.65) ??
+          const Color(0x88FFFFFF),
+      _ => base,
+    };
   }
 }
 

@@ -5,12 +5,22 @@ import '../theme/world_profile.dart';
 /// 世界観ごとの画面遷移ビルダー。
 abstract final class ProfileSceneTransition {
   static Widget build({
+    required BuildContext context,
     required Animation<double> animation,
     required Animation<double> secondaryAnimation,
     required Widget child,
     required SceneTransitionDirection direction,
     WorldProfile? profile,
+    bool reduceMotion = false,
   }) {
+    if (reduceMotion) {
+      return _default(
+        CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child,
+        direction,
+      );
+    }
+
     final curved = CurvedAnimation(
       parent: animation,
       curve: _curveFor(profile, direction),
@@ -24,6 +34,8 @@ abstract final class ProfileSceneTransition {
       WorldProfile.arg => _tactical(curved, child, direction),
       WorldProfile.magical => _magical(curved, child),
       WorldProfile.astronomy => _astronomy(curved, child),
+      WorldProfile.japaneseLuxury => _japaneseLuxury(curved, child, direction),
+      WorldProfile.westernLuxury => _westernLuxury(curved, child, direction),
       _ => _default(curved, child, direction),
     };
   }
@@ -31,6 +43,8 @@ abstract final class ProfileSceneTransition {
   static Curve _curveFor(WorldProfile? profile, SceneTransitionDirection dir) {
     if (profile == WorldProfile.sport) return Curves.elasticOut;
     if (profile == WorldProfile.arg) return Curves.easeOutQuart;
+    if (profile == WorldProfile.japaneseLuxury) return Curves.easeInOutCubic;
+    if (profile == WorldProfile.westernLuxury) return Curves.easeOutQuart;
     return Curves.easeOutCubic;
   }
 
@@ -64,7 +78,7 @@ abstract final class ProfileSceneTransition {
       opacity: curved,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0.08, 0),
+          begin: const Offset(0.10, 0),
           end: Offset.zero,
         ).animate(curved),
         child: child,
@@ -76,7 +90,7 @@ abstract final class ProfileSceneTransition {
     return AnimatedBuilder(
       animation: curved,
       builder: (context, c) {
-        final jitter = (1 - curved.value) * 6;
+        final jitter = (1 - curved.value) * 5;
         return Transform.translate(
           offset: Offset(jitter * (curved.value - 0.5), 0),
           child: FadeTransition(
@@ -97,7 +111,7 @@ abstract final class ProfileSceneTransition {
     return FadeTransition(
       opacity: curved,
       child: ScaleTransition(
-        scale: Tween<double>(begin: 0.9, end: 1).animate(curved),
+        scale: Tween<double>(begin: 0.88, end: 1).animate(curved),
         child: SlideTransition(
           position: Tween<Offset>(
             begin: Offset(0, direction == SceneTransitionDirection.up ? 0.1 : 0.05),
@@ -133,9 +147,9 @@ abstract final class ProfileSceneTransition {
     return FadeTransition(
       opacity: curved,
       child: RotationTransition(
-        turns: Tween<double>(begin: 0.01, end: 0).animate(curved),
+        turns: Tween<double>(begin: 0.012, end: 0).animate(curved),
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+          scale: Tween<double>(begin: 0.94, end: 1).animate(curved),
           child: child,
         ),
       ),
@@ -146,9 +160,49 @@ abstract final class ProfileSceneTransition {
     return FadeTransition(
       opacity: curved,
       child: ScaleTransition(
-        scale: Tween<double>(begin: 0.82, end: 1).animate(curved),
+        scale: Tween<double>(begin: 0.80, end: 1).animate(curved),
         alignment: Alignment.center,
         child: child,
+      ),
+    );
+  }
+
+  static Widget _japaneseLuxury(
+    Animation<double> curved,
+    Widget child,
+    SceneTransitionDirection direction,
+  ) {
+    final dx = direction == SceneTransitionDirection.back ? -0.14 : 0.14;
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: Offset(dx, 0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  }
+
+  static Widget _westernLuxury(
+    Animation<double> curved,
+    Widget child,
+    SceneTransitionDirection direction,
+  ) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(parent: curved, curve: const Interval(0.15, 1)),
+      ),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(0, direction == SceneTransitionDirection.up ? 0.06 : 0.03),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
       ),
     );
   }

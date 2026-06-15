@@ -48,3 +48,6 @@ app.*.map.json
 # Firebase
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+
+# Audio prep scratch (Mixkit raw downloads)
+tools/_world_sfx_raw/

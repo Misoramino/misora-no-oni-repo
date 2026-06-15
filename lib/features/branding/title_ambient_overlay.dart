@@ -83,6 +83,10 @@ class _TitleAmbientPainter extends CustomPainter {
         _magical(canvas, size);
       case LaunchEffectKind.astronomy:
         _astronomy(canvas, size);
+      case LaunchEffectKind.japaneseLuxury:
+        _japaneseLuxury(canvas, size);
+      case LaunchEffectKind.westernLuxury:
+        _westernLuxury(canvas, size);
     }
   }
 
@@ -316,6 +320,44 @@ class _TitleAmbientPainter extends CustomPainter {
           ..strokeCap = StrokeCap.round,
       );
     }
+  }
+
+  void _japaneseLuxury(Canvas canvas, Size size) {
+    final line = Paint()
+      ..color = _a(branding.accent, 0.1)
+      ..strokeWidth = 0.6;
+    for (var x = size.width * 0.1; x < size.width * 0.9; x += 40) {
+      canvas.drawLine(
+        Offset(x, size.height * 0.15),
+        Offset(x, size.height * 0.85),
+        line,
+      );
+    }
+    for (var i = 0; i < 6; i++) {
+      final t = (progress + i * 0.13) % 1.0;
+      canvas.drawCircle(
+        _n(size, 0.18 + i * 0.12, 0.25 + (i % 3) * 0.2),
+        1.0 + t * 1.5,
+        Paint()..color = _a(branding.particleColor, 0.12 + t * 0.08),
+      );
+    }
+    _cornerTicks(canvas, size, _a(branding.accent, 0.2), 14);
+  }
+
+  void _westernLuxury(Canvas canvas, Size size) {
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.36;
+    for (var ring = 1; ring <= 2; ring++) {
+      canvas.drawCircle(
+        Offset(cx, cy),
+        32.0 * ring + progress * 8,
+        Paint()
+          ..color = _a(branding.accent, 0.1 / ring)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+    _cornerTicks(canvas, size, _a(branding.accent, 0.22), 16);
   }
 
   void _cornerTicks(

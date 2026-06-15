@@ -20,7 +20,7 @@ Future<void> showMatchStartCountdown({
   if (!context.mounted) return;
   final reduce = MotionHelpers.reduceMotionOf(context);
   if (reduce) {
-    GameAudio.instance.playSfx(SfxId.matchStart);
+    GameAudio.instance.playSfx(SfxId.matchStart, profile: profile);
     HapticFeedback.mediumImpact();
     return;
   }
@@ -72,10 +72,10 @@ class _MatchStartCountdownOverlayState extends State<_MatchStartCountdownOverlay
 
   void _playStepFeedback() {
     if (_index < 3) {
-      GameAudio.instance.playSfx(SfxId.uiConfirm);
+      GameAudio.instance.playSfx(SfxId.uiConfirm, profile: widget.profile);
       HapticFeedback.selectionClick();
     } else {
-      GameAudio.instance.playSfx(SfxId.matchStart);
+      GameAudio.instance.playSfx(SfxId.matchStart, profile: widget.profile);
       HapticFeedback.heavyImpact();
     }
     _pulse.forward(from: 0);

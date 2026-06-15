@@ -102,10 +102,13 @@ extension _GameMapAccusation on _GameMapScreenState {
       _statusMessage = '${copy.facilityName}: ${copy.unlockLines.last}';
     });
     for (final line in copy.unlockLines) {
-      _pushHudRevealAlert(line);
+      _pushHudRevealAlert(
+        line,
+        momentKind: WorldMomentKind.accusationUnlock,
+      );
     }
     HapticFeedback.mediumImpact();
-    GameAudio.instance.playSfx(SfxId.unlock);
+    GameAudio.instance.playSfx(SfxId.unlock, profile: _activeProfile);
     _recordMatchFeed(MatchHudCopy.accusationUnlockFeed(copy.facilityName));
   }
 
@@ -381,7 +384,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     _pushHudRevealAlert(message);
     _recordMatchFeed(message);
     HapticFeedback.heavyImpact();
-    GameAudio.instance.playSfx(SfxId.reveal);
+    GameAudio.instance.playSfx(SfxId.reveal, profile: _activeProfile);
   }
 
   void _applyAccusationPointDelta({required int delta}) {

@@ -17,6 +17,8 @@ abstract final class LaunchSoundSynth {
       WorldProfile.arg => _tacticalSonar(),
       WorldProfile.magical => _magicalChime(),
       WorldProfile.astronomy => _astronomyWarp(),
+      WorldProfile.japaneseLuxury => _japaneseLuxuryBell(),
+      WorldProfile.westernLuxury => _westernLuxuryChime(),
     };
     return _encodeWav(_fadeTail(samples, 0.12));
   }
@@ -116,6 +118,41 @@ abstract final class LaunchSoundSynth {
       _tone(freq: 1568, ms: 280, gain: 0.07, delayMs: 900, envelope: _Env.sustain),
       _noise(ms: 420, gain: 0.03, delayMs: 0, envelope: _Env.swell),
     ]);
+  }
+
+  /// 和風（高級）: 静かな鈴 → 金の余韻。
+  static List<int> _japaneseLuxuryBell() {
+    final bell = _tone(freq: 784, ms: 280, gain: 0.16, envelope: _Env.bell);
+    return _mix([
+      bell,
+      _tone(freq: 988, ms: 320, gain: 0.14, delayMs: 120, envelope: _Env.sustain),
+      _tone(freq: 1174.7, ms: 320, gain: 0.1, delayMs: 280, envelope: _Env.sustain),
+      _tone(freq: 880, ms: 220, gain: 0.07, delayMs: 520, envelope: _Env.sustain),
+      _noise(ms: 80, gain: 0.03, delayMs: 60, envelope: _Env.pluck),
+      _echo(bell, 160, 0.32),
+    ]);
+  }
+
+  /// 洋風（高級）: 格式ある低音 → 短い金の和音。
+  static List<int> _westernLuxuryChime() {
+    const notes = [261.63, 329.63, 392.0, 523.25];
+    final parts = <List<int>>[];
+    for (var i = 0; i < notes.length; i++) {
+      parts.add(
+        _tone(
+          freq: notes[i],
+          ms: 160,
+          gain: 0.14 - i * 0.01,
+          delayMs: i * 90,
+          envelope: _Env.bell,
+        ),
+      );
+    }
+    parts.add(_tone(freq: 65.41, ms: 520, gain: 0.12, envelope: _Env.swell));
+    parts.add(
+      _tone(freq: 659.25, ms: 240, gain: 0.08, delayMs: 480, envelope: _Env.sustain),
+    );
+    return _mix(parts);
   }
 
   static List<int> _echo(List<int> source, int delayMs, double gainScale) {

@@ -150,7 +150,8 @@ import '../services/play_area_store.dart';
 import '../sync/room_session_port.dart';
 import '../sync/offline_sync_queue.dart';
 import '../features/game_map/visual/map_visual_controller.dart';
-import '../features/game_map/visual/reveal_flash_controller.dart';
+import '../features/game_map/visual/world_moment_flash_controller.dart';
+import '../theme/world_fx_profile.dart';
 import '../features/game_map/widgets/world_map_atmosphere.dart';
 import '../theme/elimination_role_copy.dart';
 import '../theme/world_profile.dart';
@@ -299,7 +300,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   late MapVisualController _mapVisual;
   String? _avatarImagePath;
   String? _localNicknameOverride;
-  late RevealFlashController _revealFlash;
+  late WorldMomentFlashController _momentFlash;
   double _cameraPulsePhase = 0;
   ControlSheetMode _controlSheetMode = ControlSheetMode.skillsOnly;
   bool _hudExpanded = false;
@@ -444,7 +445,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     WidgetsBinding.instance.addObserver(this);
     _activeProfile = widget.profile;
     _mapVisual = MapVisualController(_activeProfile);
-    _revealFlash = RevealFlashController(() {
+    _momentFlash = WorldMomentFlashController(() {
       if (mounted) setState(() {});
     });
     _mapLayerToggles = _mapVisual.pack.layerDefaults;
@@ -1142,7 +1143,10 @@ class _GameMapScreenState extends State<GameMapScreen>
     _publishMapOverlay(force: true);
   }
 
-  void _pushHudRevealAlert(String message) {
+  void _pushHudRevealAlert(
+    String message, {
+    WorldMomentKind momentKind = WorldMomentKind.namedReveal,
+  }) {
     _hudRevealAlertTimer?.cancel();
     setState(() {
       _hudRevealAlert = message;
@@ -1151,12 +1155,27 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     });
     if (_suppressMatchFeedback) return;
-    _revealFlash.trigger(_mapVisual.pack);
+    final fx = WorldFxCatalog.forProfile(_activeProfile);
+    _momentFlash.trigger(
+      pack: _mapVisual.pack,
+      fx: fx,
+      kind: momentKind,
+    );
     unawaited(_refreshPlayerAvatarIcon());
     _hudRevealAlertTimer = Timer(const Duration(seconds: 14), () {
       if (!mounted) return;
       setState(() => _hudRevealAlert = null);
     });
+  }
+
+  void _triggerCaptureMoment() {
+    if (_suppressMatchFeedback) return;
+    final fx = WorldFxCatalog.forProfile(_activeProfile);
+    _momentFlash.trigger(
+      pack: _mapVisual.pack,
+      fx: fx,
+      kind: WorldMomentKind.capture,
+    );
   }
 
   void _remoteRevealFeedback({SfxId sfx = SfxId.reveal, bool heavy = false}) {
@@ -1166,13 +1185,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     } else {
       HapticFeedback.mediumImpact();
     }
-    GameAudio.instance.playSfx(sfx);
+    GameAudio.instance.playSfx(sfx, profile: _activeProfile);
   }
 
   void _remoteLightFeedback({SfxId sfx = SfxId.anonReveal}) {
     if (_suppressMatchFeedback) return;
     HapticFeedback.lightImpact();
-    GameAudio.instance.playSfx(sfx);
+    GameAudio.instance.playSfx(sfx, profile: _activeProfile);
+    _momentFlash.trigger(
+      pack: _mapVisual.pack,
+      fx: WorldFxCatalog.forProfile(_activeProfile),
+      kind: WorldMomentKind.anonReveal,
+    );
   }
 
   Future<void> _initWorldVisual() async {
@@ -1190,6 +1214,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       _activeProfile = profile;
       _mapLayerToggles = _mapVisual.pack.layerDefaults;
     });
+    GameAudio.instance.setActiveWorldProfile(profile);
     unawaited(_syncAvatarThumbToFirestore());
   }
 
@@ -2978,7 +3003,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _dangerPulseController.dispose();
     _mapOverlayNotifier.dispose();
     _cameraPulseNotifier.dispose();
-    _revealFlash.dispose();
+    _momentFlash.dispose();
     _proximityService.stop();
     unawaited(_bleAdvertiser.stop());
     if (_ownsRoomSession) {
@@ -3202,9 +3227,11 @@ class _GameMapScreenState extends State<GameMapScreen>
                               return WorldMapAtmosphere(
                                 pack: _mapVisual.pack,
                                 dangerPulse: dangerExtra,
-                                revealFlashActive: _revealFlash.active,
+                                revealFlashActive: _momentFlash.active,
                                 scanPhase: scanPhase,
-                                revealNoiseSeed: _revealFlash.noiseSeed,
+                                revealNoiseSeed: _momentFlash.noiseSeed,
+                                momentKind: _momentFlash.momentKind,
+                                flashOpacityOverride: _momentFlash.flashOpacity,
                               );
                             },
                           ),

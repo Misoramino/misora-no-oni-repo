@@ -6,10 +6,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import '../session/audio_prefs.dart';
+import '../theme/world_fx_profile.dart';
 import '../theme/world_profile.dart';
 import 'audio_library.dart';
 import 'sfx_id.dart';
 import 'sfx_synth.dart';
+import 'world_sfx_debounce.dart';
+import 'world_sfx_preview.dart';
 
 enum _MusicMode { none, menu, match }
 
@@ -62,7 +65,17 @@ class GameAudio {
 
   _MusicMode _mode = _MusicMode.none;
   WorldProfile? _profile;
+  WorldProfile? _activeWorldProfile;
   BgmId? _playingBgm;
+
+  final WorldSfxDebounce _worldSfxDebounce = WorldSfxDebounce();
+
+  /// 効果音の世界観フォールバック（試合画面などで設定）。
+  void setActiveWorldProfile(WorldProfile? profile) {
+    _activeWorldProfile = profile;
+  }
+
+  WorldProfile? get activeWorldProfile => _activeWorldProfile;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -143,16 +156,33 @@ class GameAudio {
   // ---- 効果音 ----
 
   /// 効果音を一度だけ鳴らす。失敗しても例外は投げない。
-  Future<void> playSfx(SfxId id) async {
+  ///
+  /// [profile] を渡すと `assets/audio/sfx/worlds/<profile>/` を優先する。
+  Future<void> playSfx(SfxId id, {WorldProfile? profile}) async {
     if (kIsWeb || _sfxPool.isEmpty) return;
-    final vol = settings.value.effectiveSfx;
+    final baseVol = settings.value.effectiveSfx;
+    if (baseVol <= 0) return;
+
+    final world = profile ?? _activeWorldProfile;
+    final previewKind = _previewKindForSfx(id);
+    if (world != null && previewKind != null) {
+      if (!_worldSfxDebounce.tryAcquire(world, previewKind)) return;
+    }
+
+    final vol = _volumeForSfx(id, world, baseVol);
     if (vol <= 0) return;
 
     final player = _sfxPool[_sfxCursor];
     _sfxCursor = (_sfxCursor + 1) % _sfxPool.length;
 
     try {
-      final assetPath = _resolveAsset('audio/sfx', id.asset, _sfxExts);
+      String? assetPath;
+      if (world != null) {
+        final fx = WorldFxCatalog.forProfile(world);
+        final base = fx.assetBaseFor(id);
+        assetPath = _resolveWorldSfxAsset(world, base);
+      }
+      assetPath ??= _resolveAsset('audio/sfx', id.asset, _sfxExts);
       if (assetPath != null) {
         await player.play(AssetSource(assetPath), volume: vol);
       } else {
@@ -164,6 +194,71 @@ class GameAudio {
     } catch (e) {
       debugPrint('GameAudio.playSfx($id): $e');
     }
+  }
+
+  /// 設定画面などから世界観 SE を試聴する。
+  Future<void> previewWorldSfx(
+    WorldProfile profile,
+    WorldSfxPreviewKind kind,
+  ) async {
+    switch (kind) {
+      case WorldSfxPreviewKind.uiTap:
+        await playSfx(SfxId.uiTap, profile: profile);
+      case WorldSfxPreviewKind.reveal:
+        await playSfx(SfxId.reveal, profile: profile);
+      case WorldSfxPreviewKind.transition:
+        await playTransitionSfx(profile);
+    }
+  }
+
+  /// 画面遷移用の世界観 SE。
+  Future<void> playTransitionSfx(WorldProfile profile) async {
+    if (kIsWeb || _sfxPool.isEmpty) return;
+    final baseVol = settings.value.effectiveSfx;
+    if (baseVol <= 0) return;
+    if (!_worldSfxDebounce.tryAcquire(
+      profile,
+      WorldSfxPreviewKind.transition,
+    )) {
+      return;
+    }
+
+    final fx = WorldFxCatalog.forProfile(profile);
+    final vol = baseVol * fx.transitionVolume;
+    if (vol <= 0) return;
+
+    final path = _resolveWorldSfxAsset(profile, fx.transitionAssetBase);
+    final player = _sfxPool[_sfxCursor];
+    _sfxCursor = (_sfxCursor + 1) % _sfxPool.length;
+    try {
+      if (path != null) {
+        await player.play(AssetSource(path), volume: vol);
+      } else {
+        await player.play(
+          BytesSource(SfxSynth.wavFor(SfxId.uiTap), mimeType: 'audio/wav'),
+          volume: vol * 0.92,
+        );
+      }
+    } catch (e) {
+      debugPrint('GameAudio.playTransitionSfx(${profile.name}): $e');
+    }
+  }
+
+  WorldSfxPreviewKind? _previewKindForSfx(SfxId id) => switch (id) {
+        SfxId.uiTap => WorldSfxPreviewKind.uiTap,
+        SfxId.reveal => WorldSfxPreviewKind.reveal,
+        _ => null,
+      };
+
+  double _volumeForSfx(SfxId id, WorldProfile? world, double baseVol) {
+    if (world == null) return baseVol;
+    final fx = WorldFxCatalog.forProfile(world);
+    final coeff = switch (id) {
+      SfxId.uiTap => fx.uiTapVolume,
+      SfxId.reveal => fx.revealVolume,
+      _ => 1.0,
+    };
+    return baseVol * coeff;
   }
 
   // ---- 音楽（BGM / 環境音）----
@@ -349,6 +444,14 @@ class GameAudio {
       if (_assets.contains(full)) return '$dir/$base.$ext';
     }
     return null;
+  }
+
+  String? _resolveWorldSfxAsset(WorldProfile profile, String base) {
+    return _resolveAsset(
+      'audio/sfx/worlds/${profile.storageName}',
+      base,
+      _sfxExts,
+    );
   }
 
   Future<void> dispose() async {

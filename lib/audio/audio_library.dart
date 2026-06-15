@@ -53,6 +53,8 @@ abstract final class WorldAudio {
         WorldProfile.arg => BgmId.tactical,
         WorldProfile.magical => BgmId.magical,
         WorldProfile.astronomy => BgmId.space,
+        WorldProfile.japaneseLuxury => BgmId.magical,
+        WorldProfile.westernLuxury => BgmId.space,
       };
 
   static AmbientId ambient(WorldProfile profile) => switch (profile) {
@@ -62,5 +64,7 @@ abstract final class WorldAudio {
         WorldProfile.arg => AmbientId.comms, // 無線・通信
         WorldProfile.magical => AmbientId.forest, // 森・妖精
         WorldProfile.astronomy => AmbientId.beep, // 微かな機械音
+        WorldProfile.japaneseLuxury => AmbientId.forest,
+        WorldProfile.westernLuxury => AmbientId.wind,
       };
 }

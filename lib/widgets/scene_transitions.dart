@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../audio/game_audio.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
+import 'motion_helpers.dart';
 import 'profile_scene_transition.dart';
+import 'world_transition_fx.dart';
 
 export 'profile_scene_transition.dart'
     show ProfileSceneTransition, SceneTransitionDirection;
@@ -22,12 +27,28 @@ class ScenePageRoute<T> extends PageRouteBuilder<T> {
               builder(context),
           transitionsBuilder:
               (context, animation, secondaryAnimation, child) {
-            return ProfileSceneTransition.build(
-              animation: animation,
-              secondaryAnimation: secondaryAnimation,
-              child: child,
-              direction: direction,
-              profile: worldProfile,
+            final reduce = MotionHelpers.reduceMotionOf(context);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ProfileSceneTransition.build(
+                  context: context,
+                  animation: animation,
+                  secondaryAnimation: secondaryAnimation,
+                  child: child,
+                  direction: direction,
+                  profile: worldProfile,
+                  reduceMotion: reduce,
+                ),
+                if (!reduce)
+                  AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, child) => WorldTransitionFxOverlay(
+                      profile: worldProfile,
+                      progress: animation.value,
+                    ),
+                  ),
+              ],
             );
           },
         );
@@ -48,6 +69,7 @@ abstract final class AppNav {
   }) async {
     final profile = worldProfile ?? await WorldProfilePrefs.load();
     if (!context.mounted) return null;
+    unawaited(GameAudio.instance.playTransitionSfx(profile));
     return Navigator.of(context).push<T>(
       ScenePageRoute<T>(
         builder: builder,
@@ -66,6 +88,7 @@ abstract final class AppNav {
   }) async {
     final profile = worldProfile ?? await WorldProfilePrefs.load();
     if (!context.mounted) return null;
+    unawaited(GameAudio.instance.playTransitionSfx(profile));
     return Navigator.of(context).pushReplacement<T, TO>(
       ScenePageRoute<T>(
         builder: builder,

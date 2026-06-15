@@ -361,5 +361,7 @@ class _OrbitCinemaHud extends StatelessWidget {
         WorldProfile.horror => '暗がりの中、プレイエリアを探索…',
         WorldProfile.sport => 'みんなのプレイエリア、チェック！',
         WorldProfile.arg => 'プレイエリアを俯瞰確認…',
+        WorldProfile.japaneseLuxury => '結界（プレイエリア）を静かに確認…',
+        WorldProfile.westernLuxury => '館内のプレイエリアを記録照合中…',
       };
 }

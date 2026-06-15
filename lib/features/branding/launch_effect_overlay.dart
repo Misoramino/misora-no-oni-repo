@@ -55,6 +55,10 @@ class _LaunchEffectPainter extends CustomPainter {
         _paintMagical(canvas, size);
       case LaunchEffectKind.astronomy:
         _paintAstronomy(canvas, size);
+      case LaunchEffectKind.japaneseLuxury:
+        _paintJapaneseLuxury(canvas, size);
+      case LaunchEffectKind.westernLuxury:
+        _paintWesternLuxury(canvas, size);
     }
   }
 
@@ -803,6 +807,67 @@ class _LaunchEffectPainter extends CustomPainter {
       Paint()
         ..color = branding.coreGlow.withValues(alpha: 0.06 + warp * 0.1),
     );
+  }
+
+  void _paintJapaneseLuxury(Canvas canvas, Size size) {
+    _ambientWash(
+      canvas,
+      size,
+      [
+        branding.accent.withValues(alpha: 0.05),
+        branding.secondaryAccent.withValues(alpha: 0.06),
+        Colors.transparent,
+      ],
+      const [0.0, 0.5, 1.0],
+    );
+    final line = Paint()
+      ..color = branding.particleColor.withValues(alpha: 0.08)
+      ..strokeWidth = 0.7;
+    for (var x = size.width * 0.08; x < size.width * 0.92; x += 36) {
+      canvas.drawLine(
+        Offset(x, size.height * 0.12),
+        Offset(x, size.height * 0.88),
+        line,
+      );
+    }
+    for (var i = 0; i < 8; i++) {
+      final t = (progress + i * 0.11) % 1.0;
+      canvas.drawCircle(
+        Offset(
+          size.width * (0.2 + i * 0.09),
+          size.height * (0.3 + (i % 3) * 0.2),
+        ),
+        1.2 + t * 2,
+        Paint()..color = branding.accent.withValues(alpha: 0.15 + t * 0.1),
+      );
+    }
+    _cornerBrackets(canvas, size, branding.accent.withValues(alpha: 0.16), 16);
+  }
+
+  void _paintWesternLuxury(Canvas canvas, Size size) {
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.4;
+    _ambientWash(
+      canvas,
+      size,
+      [
+        branding.secondaryAccent.withValues(alpha: 0.06),
+        branding.accent.withValues(alpha: 0.04),
+        Colors.transparent,
+      ],
+      const [0.0, 0.45, 1.0],
+    );
+    for (var ring = 1; ring <= 3; ring++) {
+      canvas.drawCircle(
+        Offset(cx, cy),
+        28.0 * ring + progress * 12,
+        Paint()
+          ..color = branding.accent.withValues(alpha: 0.08 / ring)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+    _cornerBrackets(canvas, size, branding.accent.withValues(alpha: 0.18), 20);
   }
 
   @override

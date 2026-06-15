@@ -11,5 +11,7 @@ abstract final class TitleProfileChrome {
         WorldProfile.arg => Icons.visibility_off_outlined,
         WorldProfile.magical => Icons.auto_awesome,
         WorldProfile.astronomy => Icons.public,
+        WorldProfile.japaneseLuxury => Icons.temple_buddhist_outlined,
+        WorldProfile.westernLuxury => Icons.account_balance_outlined,
       };
 }

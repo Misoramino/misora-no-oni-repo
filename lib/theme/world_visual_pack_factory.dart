@@ -97,6 +97,27 @@ abstract final class WorldVisualPackFactory {
           revealFlashColor: const Color(0x66FFD54F),
           useScanOverlay: true,
         ),
+      WorldProfile.japaneseLuxury => WorldVisualPack(
+          profile: profile,
+          mapStyleAssetPath: 'assets/map_styles/japanese_luxury.json',
+          tokens: tokens,
+          layerDefaults: GameMapLayerToggles.allOn,
+          lodPolicy: MapZoomLodPolicy.standard,
+          vignetteColor: const Color(0x88080A06),
+          revealFlashColor: const Color(0x99C9A227),
+          revealFlashDurationMs: 460,
+        ),
+      WorldProfile.westernLuxury => WorldVisualPack(
+          profile: profile,
+          mapStyleAssetPath: 'assets/map_styles/western_luxury.json',
+          tokens: tokens,
+          layerDefaults: GameMapLayerToggles.allOn,
+          lodPolicy: MapZoomLodPolicy.standard,
+          vignetteColor: const Color(0x66101828),
+          revealFlashColor: const Color(0x99D4AF37),
+          revealFlashDurationMs: 440,
+          useRevealNoise: true,
+        ),
     };
   }
 }

@@ -92,6 +92,8 @@ abstract final class MapHudContrast {
     switch (profile) {
       case WorldProfile.horror:
       case WorldProfile.astronomy:
+      case WorldProfile.japaneseLuxury:
+      case WorldProfile.westernLuxury:
         return Color.alphaBlend(
           const Color(0xFFFFF8F5).withValues(alpha: 0.11),
           scheme.surface.withValues(alpha: 0.96),
@@ -122,6 +124,8 @@ abstract final class MapHudContrast {
     switch (profile) {
       case WorldProfile.horror:
       case WorldProfile.astronomy:
+      case WorldProfile.japaneseLuxury:
+      case WorldProfile.westernLuxury:
         return Color.alphaBlend(
           Colors.white.withValues(alpha: 0.12),
           hi.withValues(alpha: 0.97),

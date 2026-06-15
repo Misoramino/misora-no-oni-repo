@@ -122,6 +122,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
       });
       widget.onProfileChanged?.call(saved);
       GameAudio.instance.playMenuBgm(saved);
+      GameAudio.instance.setActiveWorldProfile(saved);
       _maybeShowWelcomeOnFirstLaunch();
     } catch (e, st) {
       debugPrint('TitleScreen._boot failed: $e\n$st');
@@ -154,6 +155,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
     setState(() => _profile = next);
     widget.onProfileChanged?.call(next);
     GameAudio.instance.playMenuBgm(next);
+    GameAudio.instance.setActiveWorldProfile(next);
   }
 
   @override

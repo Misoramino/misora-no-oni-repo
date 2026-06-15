@@ -11,6 +11,8 @@ abstract final class AppThemeFactory {
       WorldProfile.arg => const Color(0xFF607D8B),
       WorldProfile.magical => const Color(0xFF9C27B0),
       WorldProfile.astronomy => const Color(0xFF1A237E),
+      WorldProfile.japaneseLuxury => const Color(0xFF1A237E),
+      WorldProfile.westernLuxury => const Color(0xFF722F37),
     };
 
     final base = ThemeData(

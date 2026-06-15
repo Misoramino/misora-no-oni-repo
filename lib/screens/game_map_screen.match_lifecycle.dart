@@ -1034,7 +1034,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             HapticFeedback.mediumImpact();
           }
           if (state == GameState.caughtByOni) {
-            GameAudio.instance.playSfx(SfxId.capture);
+            GameAudio.instance.playSfx(SfxId.capture, profile: _activeProfile);
+            _triggerCaptureMoment();
             final cause = message.contains(MatchTickEvaluator.outsideEliminationMarker)
                 ? 'outside'
                 : 'caught';

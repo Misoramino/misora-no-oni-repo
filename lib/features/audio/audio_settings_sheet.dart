@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import '../../audio/audio_library.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
+import '../../audio/world_sfx_preview.dart';
 import '../../session/audio_prefs.dart';
 import '../../session/launch_branding_prefs.dart';
+import '../../session/world_profile_prefs.dart';
+import '../../theme/world_profile.dart';
 
 /// サウンド設定（マスター/効果音/BGM 音量・ミュート）のボトムシート。
-Future<void> showAudioSettingsSheet(BuildContext context) {
+Future<void> showAudioSettingsSheet(
+  BuildContext context, {
+  WorldProfile? worldProfile,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -15,15 +21,20 @@ Future<void> showAudioSettingsSheet(BuildContext context) {
     isDismissible: true,
     enableDrag: true,
     builder: (sheetCtx) => _AudioSettingsSheet(
+      initialWorldProfile: worldProfile,
       onClose: () => Navigator.pop(sheetCtx),
     ),
   );
 }
 
 class _AudioSettingsSheet extends StatefulWidget {
-  const _AudioSettingsSheet({required this.onClose});
+  const _AudioSettingsSheet({
+    required this.onClose,
+    this.initialWorldProfile,
+  });
 
   final VoidCallback onClose;
+  final WorldProfile? initialWorldProfile;
 
   @override
   State<_AudioSettingsSheet> createState() => _AudioSettingsSheetState();
@@ -31,10 +42,18 @@ class _AudioSettingsSheet extends StatefulWidget {
 
 class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
   bool? _launchSoundOn;
+  WorldProfile? _worldProfile;
 
   @override
   void initState() {
     super.initState();
+    _worldProfile = widget.initialWorldProfile ??
+        GameAudio.instance.activeWorldProfile;
+    if (_worldProfile == null) {
+      WorldProfilePrefs.load().then((p) {
+        if (mounted) setState(() => _worldProfile = p);
+      });
+    }
     LaunchBrandingPrefs.loadSoundEnabled().then((v) {
       if (mounted) setState(() => _launchSoundOn = v);
     });
@@ -153,6 +172,16 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           onChanged: (v) =>
                               audio.updateSettings(s.copyWith(ambientVolume: v)),
                         ),
+                        const SizedBox(height: 16),
+                        _WorldSfxPreviewSection(
+                          profile: _worldProfile,
+                          enabled: !s.muted,
+                          onPreview: (kind) {
+                            final profile = _worldProfile;
+                            if (profile == null) return;
+                            audio.previewWorldSfx(profile, kind);
+                          },
+                        ),
                         const SizedBox(height: 14),
                         Text('BGMの曲', style: theme.textTheme.labelLarge),
                         const SizedBox(height: 8),
@@ -195,6 +224,71 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
       },
     );
   }
+}
+
+class _WorldSfxPreviewSection extends StatelessWidget {
+  const _WorldSfxPreviewSection({
+    required this.profile,
+    required this.enabled,
+    required this.onPreview,
+  });
+
+  final WorldProfile? profile;
+  final bool enabled;
+  final ValueChanged<WorldSfxPreviewKind> onPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final profileLabel = profile?.label ?? '読み込み中…';
+
+    return Opacity(
+      opacity: enabled && profile != null ? 1 : 0.5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('世界観SEを試す', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 4),
+          Text(
+            '現在の世界観: $profileLabel',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final kind in WorldSfxPreviewKind.values)
+                FilledButton.tonalIcon(
+                  onPressed: enabled && profile != null
+                      ? () => onPreview(kind)
+                      : null,
+                  icon: Icon(_iconFor(kind)),
+                  label: Text(kind.buttonLabel),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'UI音・暴露音・遷移音をその場で試聴できます。'
+            'ファイルが無い場合は合成音にフォールバックします。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconFor(WorldSfxPreviewKind kind) => switch (kind) {
+        WorldSfxPreviewKind.uiTap => Icons.touch_app_outlined,
+        WorldSfxPreviewKind.reveal => Icons.visibility_outlined,
+        WorldSfxPreviewKind.transition => Icons.swap_horiz_rounded,
+      };
 }
 
 class _BgmChoicePicker extends StatelessWidget {
