@@ -8,6 +8,7 @@ import '../../../services/battery_power_mode.dart';
 import '../../../services/location_service.dart';
 import '../../../session/onboarding_prefs.dart';
 import '../../../widgets/app_dialog.dart';
+import '../../onboarding/guide_bullet_list.dart';
 
 /// 試合開始前に、バックグラウンド・位置情報・低電力モードについて案内する。
 Future<void> showMatchPlayabilityHintsIfNeeded(
@@ -28,17 +29,17 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
 
   final lines = <String>[
     if (!generalSeen) ...[
-      '試合中に LINE などへ切り替えたり、通話しながら歩いても大丈夫です。',
-      '戻ってきたとき、残り時間と位置は自動で追いつきます。',
-      'スキルボタンの操作だけは、アプリを前面に戻してから行ってください。',
-      '低電力モード中は位置更新や同期が止まりやすいです。試合中はオフを推奨します。',
+      '試合中に他アプリへ切り替えても、戻ったとき自動で追いつきます',
+      'スキル操作だけは、アプリを前面に戻してから',
     ],
     if (needsAlways)
-      'iPhone では位置情報を「常に許可」にすると、画面ロック中も位置判定が安定します。',
+      'iPhone は位置情報を「常に許可」にすると、ロック中も判定が安定します',
     if (lowPower)
-      '低電力モードがオンです。位置更新・同期・危機通知が遅れることがあります。可能ならオフを推奨します。',
+      '低電力モード中は位置更新・同期が遅れやすいです',
   ];
   if (lines.isEmpty) return;
+
+  final accent = Theme.of(context).colorScheme.primary;
 
   await showAppDialog<void>(
     context: context,
@@ -60,16 +61,7 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
           onPressed: () => Navigator.pop(ctx),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final line in lines) ...[
-            Text(line),
-            if (line != lines.last) const SizedBox(height: 10),
-          ],
-        ],
-      ),
+      child: GuideBulletList(lines: lines, accent: accent),
     ),
   );
 

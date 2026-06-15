@@ -3,18 +3,7 @@ import 'package:flutter/material.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../widgets/juicy_tap.dart';
-
-/// ウェルカム終了後にユーザーが選んだ次の行動。
-enum WelcomeResult {
-  /// 「やってみる」でそのまま閉じる。
-  play,
-
-  /// 「チュートリアル」を希望（B 段階で利用）。
-  tutorial,
-
-  /// スキップ／戻る。
-  skipped,
-}
+import 'guide_bullet_list.dart';
 
 /// 初回起動・「遊び方」から開く、スワイプ式のかんたん紹介。
 Future<WelcomeResult?> showWelcomeFlow(
@@ -26,19 +15,11 @@ Future<WelcomeResult?> showWelcomeFlow(
     PageRouteBuilder<WelcomeResult>(
       opaque: false,
       barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 360),
+      transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondary) =>
           _WelcomeFlow(offerTutorial: offerTutorial),
       transitionsBuilder: (context, animation, secondary, child) {
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.96, end: 1).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-            child: child,
-          ),
-        );
+        return FadeTransition(opacity: animation, child: child);
       },
     ),
   );
@@ -64,9 +45,9 @@ const _pages = <_WelcomePage>[
     color: Color(0xFF2E86DE),
     title: '街がフィールドの鬼ごっこ',
     lines: [
-      'スマホのGPSで、実際の街を歩きながら遊びます。',
-      '友達と同じルームに入り、ホストが決めたエリアの中が舞台。',
-      '位置は基本見えない — 手がかりと距離感で追いかけっこ。',
+      'スマホのGPSで、実際の街を歩きながら遊びます',
+      '同じルームの仲間と、ホストが決めたエリアの中が舞台',
+      '位置は基本見えない — 手がかりと距離感で追いかけっこ',
     ],
   ),
   _WelcomePage(
@@ -74,9 +55,9 @@ const _pages = <_WelcomePage>[
     color: Color(0xFF8E5BD8),
     title: 'シンプルな勝ち負け',
     lines: [
-      '🏃 逃走者：時間まで生き残れば勝ち。',
-      '👹 鬼：人を捕まえて0人にすれば勝ち。',
-      'くわしい構造は、準備画面で「試合の構造」として案内します。',
+      '🏃 逃走者：時間まで生き残れば勝ち',
+      '👹 鬼：人を捕まえて0人にすれば勝ち',
+      'くわしい流れは、準備画面の「試合の構造」で案内します',
     ],
   ),
 ];
@@ -108,7 +89,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
       return;
     }
     _controller.nextPage(
-      duration: const Duration(milliseconds: 320),
+      duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
     );
   }
@@ -142,7 +123,9 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
                 controller: _controller,
                 itemCount: _pages.length,
                 onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (context, i) => _WelcomeCard(page: _pages[i]),
+                itemBuilder: (context, i) => RepaintBoundary(
+                  child: _WelcomeCard(page: _pages[i]),
+                ),
               ),
             ),
             _Dots(count: _pages.length, index: _index, color: page.color),
@@ -200,33 +183,29 @@ class _WelcomeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 132,
-            height: 132,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  page.color.withValues(alpha: 0.32),
-                  page.color.withValues(alpha: 0.05),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: page.color.withValues(alpha: 0.35),
-                  blurRadius: 32,
-                  spreadRadius: 2,
+          const SizedBox(height: 8),
+          Center(
+            child: Container(
+              width: 108,
+              height: 108,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    page.color.withValues(alpha: 0.32),
+                    page.color.withValues(alpha: 0.05),
+                  ],
                 ),
-              ],
+              ),
+              child: Icon(page.icon, size: 56, color: page.color),
             ),
-            child: Icon(page.icon, size: 68, color: page.color),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 22),
           Text(
             page.title,
             textAlign: TextAlign.center,
@@ -234,20 +213,8 @@ class _WelcomeCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
-          ...page.lines.map(
-            (l) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                l,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 18),
+          GuideBulletList(lines: page.lines, accent: page.color),
         ],
       ),
     );
@@ -282,4 +249,10 @@ class _Dots extends StatelessWidget {
       }),
     );
   }
+}
+
+enum WelcomeResult {
+  play,
+  tutorial,
+  skipped,
 }

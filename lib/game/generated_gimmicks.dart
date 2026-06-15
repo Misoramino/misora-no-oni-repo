@@ -113,7 +113,8 @@ class GeneratedGimmicks {
     final center = centerOf(area);
     final radius = effectiveRadiusMeters(area, center).clamp(180.0, 2400.0);
     int densify(int count, int minC, int maxC) {
-      return (count * d).round().clamp(minC, maxC);
+      final cap = _scaledMax(radius, maxC);
+      return (count * d).round().clamp(minC, cap);
     }
     final safeCount = densify(
       _scaledCount(
@@ -133,12 +134,12 @@ class GeneratedGimmicks {
       GameConfig.infoBrokerMinCount,
       GameConfig.infoBrokerMaxCount,
     );
-    final cameraBase =
-        (GameConfig.cameraMinCount + ((radius - 250) / 180).floor())
-            .clamp(GameConfig.cameraMinCount, GameConfig.cameraMaxCount)
-            .toInt();
     final cameraCount = densify(
-      cameraBase,
+      _scaledCount(
+        radius,
+        GameConfig.cameraMinCount,
+        GameConfig.cameraMaxCount,
+      ),
       GameConfig.cameraMinCount,
       GameConfig.cameraMaxCount,
     );
@@ -160,7 +161,7 @@ class GeneratedGimmicks {
       GameConfig.accusationFacilityMinCount,
       GameConfig.accusationFacilityMaxCount,
     );
-    final minGap = (radius * 0.14).clamp(48.0, 150.0);
+    final minGap = 52.0;
 
     final used = <LatLng>[];
     List<LatLng> group({
@@ -172,20 +173,14 @@ class GeneratedGimmicks {
     }) {
       final out = <LatLng>[];
       final gap = minGapOverride ?? minGap;
-      final sector = 360.0 / math.max(1, count);
-      final bands = <double>[
-        (radiusFactor + 0.28).clamp(0.42, 0.94),
-        (radiusFactor + 0.10).clamp(0.34, 0.78),
-        (radiusFactor - 0.08).clamp(0.28, 0.62),
-        (radiusFactor - 0.20).clamp(0.22, 0.52),
-      ];
+      // 中心〜外周まで均等にリングを割り当て（外周だけに寄せない）。
+      const ringFractions = <double>[0.28, 0.44, 0.58, 0.72, 0.86];
       for (var i = 0; i < count; i++) {
         final jitter = ((s + i * 17 + sectorOffset * 7) % 37) - 18;
+        final sector = 360.0 / math.max(1, count);
         final angle = angleSeed + sectorOffset * 41 + i * sector + jitter * 0.35;
-        final dist = math.max(
-          radius * bands[i % bands.length],
-          radius * 0.25,
-        );
+        final ring = ringFractions[(i + sectorOffset) % ringFractions.length];
+        final dist = radius * (ring * 0.92 + radiusFactor * 0.08).clamp(0.22, 0.94);
         final p = pointInArea(
           area: area,
           center: center,
@@ -249,9 +244,23 @@ class GeneratedGimmicks {
     );
   }
 
+  static const double _refRadiusMeters = 500.0;
+
+  static double _areaRatio(double radius) {
+    final r = radius.clamp(180.0, 2400.0);
+    return (r * r) / (_refRadiusMeters * _refRadiusMeters);
+  }
+
+  /// 500m 円を基準に面積比例で個数を増やす（密度スライダーは別途 [density] で調整）。
   static int _scaledCount(double radius, int min, int max) {
-    final extra = ((radius - 240) / 320).round();
-    return (min + extra).clamp(min, max).toInt();
+    final ratio = _areaRatio(radius);
+    final baseAtRef = min + (max - min) * 0.5;
+    final cap = _scaledMax(radius, max);
+    return (baseAtRef * ratio).round().clamp(min, cap);
+  }
+
+  static int _scaledMax(double radius, int max) {
+    return (max * _areaRatio(radius)).ceil().clamp(max, max * 10);
   }
 
   static LatLng centerOf(PlayArea area) {
@@ -301,7 +310,7 @@ class GeneratedGimmicks {
     required double minGapMeters,
     int seed = 0,
   }) {
-    final scales = <double>[1.0, 0.88, 0.76, 0.64, 0.52, 0.40];
+    final scales = <double>[1.0, 0.9, 0.8, 0.7, 0.6, 0.5];
     for (var attempt = 0; attempt < scales.length; attempt++) {
       final angleJitter = (seed + attempt * 47) % 360;
       final p = _offset(
@@ -316,13 +325,13 @@ class GeneratedGimmicks {
       final fallback = _offset(
         center,
         angleDegrees + k * 45 + (seed % 30),
-        math.max(40.0, distanceMeters * 0.35),
+        math.max(40.0, distanceMeters * 0.4),
       );
       if (area.contains(fallback) && _farEnough(fallback, avoid, minGapMeters * 0.7)) {
         return fallback;
       }
     }
-    return _offset(center, angleDegrees, math.min(distanceMeters * 0.3, 120));
+    return _offset(center, angleDegrees, math.min(distanceMeters * 0.35, 140));
   }
 
   /// 道路スナップ失敗時 — 既存ギミックからできるだけ離れたエリア内地点。

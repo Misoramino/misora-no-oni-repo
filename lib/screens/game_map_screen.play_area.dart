@@ -502,6 +502,35 @@ extension _GameMapPlayArea on _GameMapScreenState {
 
   static const _defaultTokyoCenter = LatLng(35.681236, 139.767125);
 
+  /// ホスト向け「現在地を中心に」案内の本文（条件ごとに意味が通るよう分岐）。
+  List<String> _playAreaRelocateHintLines({
+    required bool stillDefault,
+    required bool farFromHere,
+  }) {
+    if (stillDefault && farFromHere) {
+      return const [
+        'プレイエリアが初期の東京付近のままです。',
+        '今いる場所はそのエリアの外にいます。',
+        'このままだと、試合開始直後からエリア外になります。',
+        '現在地を中心に円エリアを作りますか？',
+      ];
+    }
+    if (stillDefault) {
+      return const [
+        'プレイエリアが初期の東京付近のままです。',
+        '現在地が離れていると、開始直後からエリア外になります。',
+        '現在地を中心に円エリアを作りますか？',
+      ];
+    }
+    // カスタムエリアだが現在地がエリア外＋中心から離れている。
+    return const [
+      '設定したプレイエリアが現在地から離れています。',
+      '今いる場所はそのエリアの外にいます。',
+      'このままだと、試合開始直後からエリア外になります。',
+      '現在地を中心に円エリアを作りますか？',
+    ];
+  }
+
   bool _usesDefaultTokyoPlayArea() {
     if (_playArea.type != PlayAreaType.circle) return false;
     final d = Geolocator.distanceBetween(
@@ -513,9 +542,30 @@ extension _GameMapPlayArea on _GameMapScreenState {
     return d < 150;
   }
 
+  bool _playAreaFarFromCurrentLocation() {
+    if (_playArea.contains(_currentPosition)) return false;
+    final center = GeneratedGimmicks.centerOf(_playArea);
+    final d = Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      center.latitude,
+      center.longitude,
+    );
+    return d > 600;
+  }
+
   Future<void> _maybeSuggestPlayAreaAtCurrentLocation() async {
-    if (!_isHost || !_usesDefaultTokyoPlayArea()) return;
+    if (!_isHost) return;
+    final stillDefault = _usesDefaultTokyoPlayArea();
+    final farFromHere = _playAreaFarFromCurrentLocation();
+    if (!stillDefault && !farFromHere) return;
     if (!mounted) return;
+
+    final lines = _playAreaRelocateHintLines(
+      stillDefault: stillDefault,
+      farFromHere: farFromHere,
+    );
+
     final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AppDialog(
@@ -532,9 +582,15 @@ extension _GameMapPlayArea on _GameMapScreenState {
             onPressed: () => Navigator.pop(ctx, true),
           ),
         ],
-        child: const Text(
-          '初期エリアは東京付近です。埼玉など遠方だと開始直後からエリア外になります。\n'
-          '現在地を中心に円エリアを作りますか？',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < lines.length; i++) ...[
+              Text(lines[i]),
+              if (i < lines.length - 1) const SizedBox(height: 8),
+            ],
+          ],
         ),
       ),
     );

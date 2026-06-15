@@ -186,7 +186,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     final nowSec = elapsed.inMicroseconds / 1e6;
     final animating = _step.act == _Act.flee || _step.act == _Act.chase;
     if (dirty || animating) {
-      if (nowSec - _lastUiPaintAt >= 1 / 20) {
+      if (nowSec - _lastUiPaintAt >= 1 / 60) {
         _lastUiPaintAt = nowSec;
         if (mounted) setState(() {});
       }
@@ -337,10 +337,11 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                           constraints.maxHeight,
                         );
                         return Center(
-                          child: SizedBox(
-                            width: side,
-                            height: side,
-                            child: GestureDetector(
+                          child: RepaintBoundary(
+                            child: SizedBox(
+                              width: side,
+                              height: side,
+                              child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTapDown: (d) => _onArenaTap(
                                 Offset(
@@ -366,6 +367,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                               ),
                             ),
                           ),
+                        ),
                         );
                       },
                     ),

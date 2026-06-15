@@ -10,6 +10,13 @@ void main() {
     radiusMeters: 500,
   );
 
+  int totalGimmicks(GeneratedGimmicks g) =>
+      g.safeZones.length +
+      g.infoBrokers.length +
+      g.cameras.length +
+      g.eventAreas.length +
+      g.accusationFacilities.length;
+
   test('GeneratedGimmicks same seed+density is deterministic', () {
     const seed = 424242;
     final a = GeneratedGimmicks.create(area, seed: seed, density: 1.0);
@@ -21,29 +28,26 @@ void main() {
     expect(a.safeZones.first, b.safeZones.first);
   });
 
-  test('large circle gimmicks spread away from center', () {
+  test('large circle grows gimmick count with area', () {
     const seed = 777;
     const large = PlayArea.circle(
       center: LatLng(35.68, 139.76),
       radiusMeters: 1200,
     );
-    final g = GeneratedGimmicks.create(large, seed: seed, density: 1.2);
-    final center = GeneratedGimmicks.centerOf(large);
-    double minDist(List<LatLng> pts) {
-      if (pts.isEmpty) return double.infinity;
-      var min = double.infinity;
-      for (final p in pts) {
-        final d = Geolocator.distanceBetween(
-          center.latitude,
-          center.longitude,
-          p.latitude,
-          p.longitude,
-        );
-        if (d < min) min = d;
-      }
-      return min;
-    }
+    final small = GeneratedGimmicks.create(area, seed: seed, density: 1.0);
+    final big = GeneratedGimmicks.create(large, seed: seed, density: 1.0);
+    // 面積比 (1200/500)^2 ≈ 5.76 — 個数もおおよそ増える。
+    expect(totalGimmicks(big), greaterThan(totalGimmicks(small) * 3));
+  });
 
+  test('gimmicks spread across inner and outer area', () {
+    const seed = 777;
+    const large = PlayArea.circle(
+      center: LatLng(35.68, 139.76),
+      radiusMeters: 1200,
+    );
+    final g = GeneratedGimmicks.create(large, seed: seed, density: 1.0);
+    final center = GeneratedGimmicks.centerOf(large);
     final all = [
       ...g.safeZones,
       ...g.infoBrokers,
@@ -51,21 +55,29 @@ void main() {
       ...g.eventAreas,
       ...g.accusationFacilities,
     ];
-    expect(all.length, greaterThan(4));
-    // 広い円でも、少なくとも一部は中心から十分離れる（中心固まり防止）。
-    expect(minDist(all), greaterThan(150));
+    expect(all.length, greaterThan(12));
+
+    var hasInner = false;
+    var hasOuter = false;
+    for (final p in all) {
+      final dist = Geolocator.distanceBetween(
+        center.latitude,
+        center.longitude,
+        p.latitude,
+        p.longitude,
+      );
+      if (dist < 1200 * 0.45) hasInner = true;
+      if (dist > 1200 * 0.55) hasOuter = true;
+    }
+    expect(hasInner, isTrue, reason: '中心付近にもギミックがある');
+    expect(hasOuter, isTrue, reason: '外周付近にもギミックがある');
   });
 
   test('higher gimmick density yields at least as many placements', () {
     const seed = 1001;
     final sparse = GeneratedGimmicks.create(area, seed: seed, density: 0.45);
     final dense = GeneratedGimmicks.create(area, seed: seed, density: 1.55);
-    int total(GeneratedGimmicks g) =>
-        g.safeZones.length +
-        g.infoBrokers.length +
-        g.cameras.length +
-        g.eventAreas.length;
-    expect(total(dense), greaterThanOrEqualTo(total(sparse)));
+    expect(totalGimmicks(dense), greaterThanOrEqualTo(totalGimmicks(sparse)));
   });
 
   test('relocateFarFromOthers keeps distance from existing gimmicks', () {
