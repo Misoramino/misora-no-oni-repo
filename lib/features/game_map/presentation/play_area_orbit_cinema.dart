@@ -368,7 +368,7 @@ class _OrbitCinemaHud extends StatelessWidget {
   }
 
   String _orbitTagline(WorldProfile profile) => switch (profile) {
-        WorldProfile.astronomy => 'プレイエリアを軌道からスキャン中…',
+        WorldProfile.astronomy => 'プレイエリアを軌道から観測中…',
         WorldProfile.magical => '結界（プレイエリア）を確認しています…',
         WorldProfile.sciFi => 'プレイエリアをロックオン…',
         WorldProfile.horror => '暗がりの中、プレイエリアを探索…',

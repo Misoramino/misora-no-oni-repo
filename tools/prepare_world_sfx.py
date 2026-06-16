@@ -13,6 +13,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_DIR = os.path.join(ROOT, "tools", "_world_sfx_raw")
 OUT_ROOT = os.path.join(ROOT, "assets", "audio", "sfx", "worlds")
+OUT_AMBIENT = os.path.join(ROOT, "assets", "audio", "ambient")
 
 FFMPEG_CANDIDATES = [
     r"C:\Users\misor\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.1-full_build\bin\ffmpeg.exe",
@@ -108,7 +109,53 @@ P3_MOMENT_JOBS = [
 
 JOBS = P0_JOBS + P1_JOBS + P2_JOBS + P3_MOMENT_JOBS
 
+# Final pass — decision-table SFX overrides (2026-06-06).
+# Tuple: world, slot, mixkit_id, trim_start, trim_duration, target_lufs, extra_af
+P4_FINAL_JOBS = [
+    # Zen Kyoto — paper UI, wood capture, page result
+    ("japaneseLuxury", "ui_tap", 1530, 0.0, 0.22, -26, ""),  # Paper slide
+    ("japaneseLuxury", "result_sting", 1107, 0.0, 0.38, -24, ""),  # Page turn single
+    # Royal Classic — bell unlock, door transition, lose sting
+    ("westernLuxury", "transition", 187, 0.0, 0.55, -22, ""),  # Old medieval door lock
+    ("westernLuxury", "accusation_unlock", 619, 0.0, 0.42, -26, ""),  # Cinematic church bell hit
+    ("westernLuxury", "lose_sting", 627, 0.0, 0.55, -26, ""),  # Church bells ending
+    # Cyber Night — interference UI, radio reveal, electronic capture, radio swell
+    ("sciFi", "ui_tap", 2548, 0.0, 0.20, -26, ""),  # Digital signal interference
+    ("sciFi", "reveal", 895, 0.0, 0.48, -22, ""),  # Sci-Fi radio waves
+    ("sciFi", "capture", 2940, 0.0, 0.45, -21, ""),  # Electronic glitch sound
+    ("sciFi", "transition", 2554, 0.0, 0.68, -20, ""),  # Radio frequency signal swell
+    # Urban Horror — static UI, static reveal, cassette transition, creepy capture
+    ("horror", "ui_tap", 2561, 0.0, 0.18, -26, ""),  # Radio static
+    ("horror", "reveal", 2559, 0.0, 0.22, -24, ""),  # Static radio noise sound
+    ("horror", "transition", 2557, 0.0, 0.55, -22, ""),  # Cassette player working
+    ("horror", "capture", 2558, 0.0, 0.45, -22, ""),  # Creepy radio frequency
+    # Stealth Tactical — metal ping UI, radio swell reveal, bass wood capture, weird lose
+    ("arg", "ui_tap", 2544, 0.0, 0.18, -26, ""),  # Metal button radio ping
+    ("arg", "reveal", 2554, 0.0, 0.55, -24, ""),  # Radio frequency signal swell
+    (
+        "arg",
+        "capture",
+        2182,
+        0.0,
+        0.48,
+        -22,
+        "lowpass=f=900,highpass=f=90",
+    ),  # Wood hard hit (bass emphasis)
+    ("arg", "lose_sting", 2553, 0.0, 0.45, -26, ""),  # Weird radio frequency connection
+]
+
+JOBS = P0_JOBS + P1_JOBS + P2_JOBS + P3_MOMENT_JOBS + P4_FINAL_JOBS
+
+# World ambients — Mixkit loops normalized to mp3 in assets/audio/ambient/.
+# Tuple: asset_name, mixkit_id, trim_start, trim_duration, target_lufs
+AMBIENT_JOBS = [
+    ("zen_wood_jungle", 2422, 0.0, 12.0, -28),  # Knocking on wood with jungle ambience
+    ("royal_bell_indoor", 628, 0.0, 22.0, -30),  # Church bell indoor
+    ("arg_bad_radio", 2552, 0.0, 8.0, -28),  # Bad radio frequency connection
+]
+
 SFX_FILTER = "loudnorm=I={lufs}:TP=-2.0:LRA=7,alimiter=limit=0.92"
+AMB_FILTER = "loudnorm=I={lufs}:TP=-2.0:LRA=11,alimiter=limit=0.88"
 
 
 def find_ffmpeg() -> str:
@@ -138,9 +185,19 @@ def download(url: str, dest: str) -> None:
     urllib.request.urlretrieve(url, dest)
 
 
-def process(ffmpeg: str, src: str, dst: str, start: float, duration: float, lufs: int) -> None:
+def process(
+    ffmpeg: str,
+    src: str,
+    dst: str,
+    start: float,
+    duration: float,
+    lufs: int,
+    extra_af: str = "",
+) -> None:
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     af = SFX_FILTER.format(lufs=lufs)
+    if extra_af:
+        af = f"{extra_af},{af}"
     cmd = [
         ffmpeg,
         "-y",
@@ -168,24 +225,78 @@ def process(ffmpeg: str, src: str, dst: str, start: float, duration: float, lufs
         raise RuntimeError(f"ffmpeg failed for {dst}:\n{res.stderr}")
 
 
+def process_ambient(
+    ffmpeg: str,
+    src: str,
+    dst: str,
+    start: float,
+    duration: float,
+    lufs: int,
+) -> None:
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    af = AMB_FILTER.format(lufs=lufs)
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-ss",
+        str(start),
+        "-t",
+        str(duration),
+        "-i",
+        src,
+        "-af",
+        af,
+        "-ac",
+        "1",
+        "-ar",
+        "44100",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "128k",
+        dst,
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if res.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed for {dst}:\n{res.stderr}")
+
+
 def main() -> None:
     ffmpeg = find_ffmpeg()
     print(f"ffmpeg: {ffmpeg}")
     ok = 0
-    for world, slot, mixkit_id, start, duration, lufs in JOBS:
+    total = len(JOBS) + len(AMBIENT_JOBS)
+    for job in JOBS:
+        world, slot, mixkit_id, start, duration, lufs = job[:6]
+        extra_af = job[6] if len(job) > 6 else ""
         raw = os.path.join(RAW_DIR, f"{mixkit_id}.wav")
         out = os.path.join(OUT_ROOT, world, f"{slot}.wav")
         print(f"== {world}/{slot}.wav (Mixkit #{mixkit_id}) ==")
         try:
             download(mixkit_url(mixkit_id), raw)
-            process(ffmpeg, raw, out, start, duration, lufs)
+            process(ffmpeg, raw, out, start, duration, lufs, extra_af)
             size = os.path.getsize(out)
             print(f"  ok -> {out} ({size // 1024} KB)")
             ok += 1
         except Exception as exc:  # noqa: BLE001
             print(f"  FAILED: {exc}", file=sys.stderr)
-    print(f"\nDone: {ok}/{len(JOBS)}")
-    if ok != len(JOBS):
+    for asset_name, mixkit_id, start, duration, lufs in AMBIENT_JOBS:
+        raw = os.path.join(RAW_DIR, f"{mixkit_id}.wav")
+        out = os.path.join(OUT_AMBIENT, f"{asset_name}.mp3")
+        print(f"== ambient/{asset_name}.mp3 (Mixkit #{mixkit_id}) ==")
+        try:
+            download(mixkit_url(mixkit_id), raw)
+            process_ambient(ffmpeg, raw, out, start, duration, lufs)
+            size = os.path.getsize(out)
+            print(f"  ok -> {out} ({size // 1024} KB)")
+            ok += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"  FAILED: {exc}", file=sys.stderr)
+    print(f"\nDone: {ok}/{total}")
+    if ok != total:
         sys.exit(1)
 
 

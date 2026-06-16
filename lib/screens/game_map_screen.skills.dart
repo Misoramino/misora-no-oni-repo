@@ -814,7 +814,7 @@ extension _GameMapSkills on _GameMapScreenState {
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
     _captureBoundTimers[placeId] = Timer(
-      const Duration(milliseconds: 2000),
+      const Duration(milliseconds: 6000),
       () async {
         _captureBoundTimers.remove(placeId);
         if (!mounted || _gameState != GameState.running) return;
@@ -1143,6 +1143,35 @@ extension _GameMapSkills on _GameMapScreenState {
       type: RoomMatchEventTypes.infoBroker,
       payload: {
         'intel': text,
+        'hitIndex': hitIndex,
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'nextLat': nextLat,
+        'nextLng': nextLng,
+      },
+      sessionKey: sk,
+    );
+    if (err != null && mounted) _toast(err);
+  }
+
+  Future<void> _publishFirestoreSafeZonePickup({
+    required int hitIndex,
+    required double pickupLat,
+    required double pickupLng,
+    required double nextLat,
+    required double nextLng,
+  }) async {
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null ||
+        sk == null ||
+        !_isOnlineFirestore ||
+        _gameState != GameState.running) {
+      return;
+    }
+    final err = await fs.publishRoomEvent(
+      type: RoomMatchEventTypes.safeZonePickup,
+      payload: {
         'hitIndex': hitIndex,
         'pickupLat': pickupLat,
         'pickupLng': pickupLng,

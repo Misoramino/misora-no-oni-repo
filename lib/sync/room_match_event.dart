@@ -79,6 +79,7 @@ abstract final class RoomMatchEventTypes {
   static const fakeIntelReveal = 'fake_intel_reveal';
   static const infoBroker = 'info_broker';
   static const oniInfoBroker = 'oni_info_broker';
+  static const safeZonePickup = 'safe_zone_pickup';
   static const matchEvent = 'match_event';
   static const captureZonePlaced = 'capture_zone_placed';
   static const captureZoneAck = 'capture_zone_ack';

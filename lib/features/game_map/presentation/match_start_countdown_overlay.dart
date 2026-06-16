@@ -68,6 +68,7 @@ class _MatchStartCountdownOverlayState extends State<_MatchStartCountdownOverlay
   @override
   void initState() {
     super.initState();
+    unawaited(WorldAudioDirector.instance.dipForCountdown());
     _playStepFeedback();
     _timer = Timer.periodic(const Duration(milliseconds: 780), (_) => _advance());
   }
@@ -104,6 +105,7 @@ class _MatchStartCountdownOverlayState extends State<_MatchStartCountdownOverlay
   void dispose() {
     _timer?.cancel();
     _pulse.dispose();
+    unawaited(WorldAudioDirector.instance.restorePresentationVolume());
     super.dispose();
   }
 

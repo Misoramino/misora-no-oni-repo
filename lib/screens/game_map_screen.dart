@@ -18,6 +18,7 @@ import '../progression/progress_store.dart';
 import '../session/onboarding_prefs.dart';
 import '../features/onboarding/coach_marks.dart';
 import '../features/onboarding/match_structure_guide.dart';
+import '../features/onboarding/welcome_flow.dart';
 import '../features/tutorial/second_game_tutorial_kind.dart';
 import '../features/tutorial/tutorial_entry.dart';
 import '../widgets/app_dialog.dart';
@@ -372,6 +373,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   RoomConnectionStatus _roomConnectionStatus = RoomConnectionStatus.connected;
   LocationAccessStatus? _locationAccessStatus;
   bool _locationPromptShown = false;
+  bool _gpsPositionReady = false;
   final Set<String> _processedRoomEventDocIds = {};
   final Map<String, Timer> _captureBoundTimers = {};
   bool _ownsRoomSession = false;
@@ -475,19 +477,25 @@ class _GameMapScreenState extends State<GameMapScreen>
     _startRenderPump();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _maybeShowPrepOnboarding();
       if (mounted) await _maybeShowHostQuickPresetPicker();
     });
   }
 
   /// 初回だけ、準備画面で「かんたんガイド」を案内する（軽量導入A）。
+  ///
+  /// 順序: 基本ルール（ウェルカム）→ 試合の構造 → プレイエリア案内 → 操作ガイド。
   Future<void> _maybeShowPrepOnboarding() async {
     if (_prepOnboardingChecked) return;
     _prepOnboardingChecked = true;
     if (!mounted || _gameState != GameState.waiting) return;
 
-    if (!await OnboardingPrefs.structureGuideSeen()) {
+    if (!await OnboardingPrefs.welcomeSeen()) {
+      await showWelcomeFlow(context, offerTutorial: false);
+      await OnboardingPrefs.markWelcomeSeen();
       if (!mounted || _gameState != GameState.waiting) return;
+    }
+
+    if (!await OnboardingPrefs.structureGuideSeen()) {
       await showMatchStructureGuide(context);
       await OnboardingPrefs.markStructureGuideSeen();
       if (!mounted || _gameState != GameState.waiting) return;
@@ -497,7 +505,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted || _gameState != GameState.waiting) return;
 
     if (await OnboardingPrefs.prepGuideSeen()) return;
-    if (!mounted || _gameState != GameState.waiting) return;
 
     final seeGuide = await showAppDialog<bool>(
       context: context,
@@ -520,8 +527,7 @@ class _GameMapScreenState extends State<GameMapScreen>
             ),
           ],
           child: Text(
-            '準備画面のボタンと、試合用の操作を短く案内します。\n'
-            '試合の流れは先ほどの「試合の構造」で確認できます。',
+            '準備画面のボタンと、試合用の操作を短く案内します。',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -530,29 +536,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted) return;
     if (seeGuide == true) {
       await _showPrepCoachMarks(markSeen: false);
-      if (!mounted) return;
-      final runTutorial = await showAppDialog<bool>(
-        context: context,
-        builder: (ctx) => AppDialog(
-          title: 'チュートリアル',
-          icon: Icons.school_outlined,
-          actions: [
-            AppDialogAction(
-              label: 'あとで',
-              filled: false,
-              onPressed: () => Navigator.pop(ctx, false),
-            ),
-            AppDialogAction(
-              label: 'やってみる',
-              onPressed: () => Navigator.pop(ctx, true),
-            ),
-          ],
-          child: const Text('役職別の操作練習（サンドボックス）も利用できます。'),
-        ),
-      );
-      if (runTutorial == true && mounted) {
-        await openTutorialPicker(context);
-      }
     } else {
       await _showPrepCoachMarks(markSeen: true);
     }
@@ -1367,6 +1350,9 @@ class _GameMapScreenState extends State<GameMapScreen>
 
     _acceptPosition(position, animateCamera: true);
     _bindGpsSubscription();
+    if (!_prepOnboardingChecked) {
+      unawaited(_maybeShowPrepOnboarding());
+    }
   }
 
   String _locationStatusMessage(LocationAccessStatus status) {
@@ -1698,6 +1684,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       }
     }
 
+    _gpsPositionReady = true;
     _recordMovementBearing(next);
     final overlayOnly = _gameState == GameState.running && !_editingArea;
     if (overlayOnly) {

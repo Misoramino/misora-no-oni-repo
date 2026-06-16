@@ -4,6 +4,7 @@ import '../../theme/world_profile.dart';
 import 'world_presentation_catalog.dart';
 import 'world_presentation_context.dart';
 import 'world_studio_identity_catalog.dart';
+import 'world_ui_layout.dart';
 
 /// 世界観別スナックバー。
 void showWorldSnackBar(
@@ -14,14 +15,16 @@ void showWorldSnackBar(
 }) {
   final p = profile ?? context.worldProfile;
   final pack = WorldPresentationCatalog.of(p);
-  final studio = WorldStudioIdentityCatalog.of(p);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
+      content: Text(
+        message,
+        style: TextStyle(color: pack.textOnScaffold),
+      ),
       behavior: SnackBarBehavior.floating,
       backgroundColor: pack.panelSurface,
       duration: duration ?? const Duration(seconds: 3),
-      margin: studio.layout.dialogInsets(context),
+      margin: WorldUILayout.dialogInsets(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(pack.chipBorderRadius + 2),
         side: BorderSide(color: pack.panelBorder),

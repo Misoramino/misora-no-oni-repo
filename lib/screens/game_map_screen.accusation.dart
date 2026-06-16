@@ -268,7 +268,6 @@ extension _GameMapAccusation on _GameMapScreenState {
       );
       return;
     }
-    _syncSetState(() => _rt.accusationSpentByMe = true);
     if (_isOnlineFirestore) {
       final fs = _firestoreSession;
       final sk = _matchEventSessionKey;
@@ -283,8 +282,12 @@ extension _GameMapAccusation on _GameMapScreenState {
           },
           sessionKey: sk,
         );
-        if (err != null && mounted) _toast(err);
+        if (err != null) {
+          if (mounted) _toast(err);
+          return;
+        }
       }
+      _syncSetState(() => _rt.accusationSpentByMe = true);
       if (_isHost) {
         _hostResolveAccusationAttempt(
           accuserUid: fs?.myUid ?? '',
@@ -292,6 +295,7 @@ extension _GameMapAccusation on _GameMapScreenState {
         );
       }
     } else {
+      _syncSetState(() => _rt.accusationSpentByMe = true);
       _resolveAccusationLocally(accuserUid: 'local', accusedUid: accusedUid);
     }
   }

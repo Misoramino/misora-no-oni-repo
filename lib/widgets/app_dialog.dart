@@ -4,6 +4,7 @@ import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/world_ui_layout.dart';
 import 'juicy_tap.dart';
 
 /// スケール＋フェードで登場する、テーマ配色の演出付きダイアログを表示する。
@@ -21,7 +22,7 @@ Future<T?> showAppDialog<T>({
     context: context,
     barrierDismissible: barrierDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: Colors.black54,
+    barrierColor: Colors.black.withValues(alpha: 0.72),
     transitionDuration: studio.motion.dialog,
     pageBuilder: (ctx, animation, secondary) => builder(ctx),
     transitionBuilder: (ctx, animation, secondary, child) {
@@ -71,12 +72,11 @@ class AppDialog extends StatelessWidget {
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
+      backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.98),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          context.studioIdentity.layout.symmetric ? 22 : 12,
-        ),
+        borderRadius: BorderRadius.circular(WorldUILayout.dialogBorderRadius),
       ),
-      insetPadding: context.studioIdentity.layout.dialogInsets(context),
+      insetPadding: WorldUILayout.dialogInsets(context),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: Column(

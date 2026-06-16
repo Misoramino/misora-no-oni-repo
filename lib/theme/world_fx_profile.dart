@@ -53,6 +53,7 @@ class WorldFxProfile {
   const WorldFxProfile({
     required this.profile,
     required this.uiTapAsset,
+    this.uiConfirmAsset,
     required this.uiBackAsset,
     required this.revealAsset,
     required this.anonRevealAsset,
@@ -60,6 +61,8 @@ class WorldFxProfile {
     required this.countdownAsset,
     required this.transitionAsset,
     required this.accusationUnlockAsset,
+    this.resultStingAsset,
+    this.loseStingAsset,
     this.ambientLoopCandidate,
     required this.transitionStyle,
     required this.revealFlashStyle,
@@ -79,12 +82,15 @@ class WorldFxProfile {
     this.captureVolume = 0.86,
     this.accusationUnlockVolume = 0.70,
     this.countdownVolume = 0.56,
+    this.resultStingVolume = 0.68,
+    this.loseStingVolume = 0.62,
   });
 
   final WorldProfile profile;
 
   /// `assets/audio/sfx/worlds/<profile.name>/<asset>.(wav|mp3|…)` のベース名。
   final String uiTapAsset;
+  final String? uiConfirmAsset;
   final String uiBackAsset;
   final String revealAsset;
   final String anonRevealAsset;
@@ -92,6 +98,8 @@ class WorldFxProfile {
   final String countdownAsset;
   final String transitionAsset;
   final String accusationUnlockAsset;
+  final String? resultStingAsset;
+  final String? loseStingAsset;
 
   final AmbientId? ambientLoopCandidate;
   final WorldTransitionStyle transitionStyle;
@@ -116,6 +124,8 @@ class WorldFxProfile {
   final double captureVolume;
   final double accusationUnlockVolume;
   final double countdownVolume;
+  final double resultStingVolume;
+  final double loseStingVolume;
 
   int flashDurationMsFor(WorldMomentKind kind) => switch (kind) {
         WorldMomentKind.namedReveal => namedRevealFlashMs,
@@ -147,11 +157,14 @@ class WorldFxProfile {
   /// 世界観モーメント向けアセット。未対応は `null`（汎用 SE へ）。
   String? worldMomentAssetFor(SfxId id) => switch (id) {
         SfxId.uiTap => uiTapAsset,
+        SfxId.uiConfirm => uiConfirmAsset,
         SfxId.reveal => revealAsset,
         SfxId.anonReveal => anonRevealAsset,
         SfxId.capture => captureAsset,
         SfxId.unlock => accusationUnlockAsset,
         SfxId.matchStart => countdownAsset,
+        SfxId.matchWin => resultStingAsset,
+        SfxId.matchLose => loseStingAsset,
         _ => null,
       };
 
@@ -187,12 +200,13 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.52,
       anonRevealFlashOpacity: 0.26,
       captureFlashOpacity: 0.58,
-      uiTapVolume: 0.55,
-      revealVolume: 0.70,
-      anonRevealVolume: 0.50,
-      captureVolume: 0.88,
-      accusationUnlockVolume: 0.72,
-      countdownVolume: 0.54,
+      uiTapVolume: 0.44,
+      revealVolume: 0.62,
+      transitionVolume: 0.52,
+      anonRevealVolume: 0.38,
+      captureVolume: 0.66,
+      accusationUnlockVolume: 0.68,
+      countdownVolume: 0.50,
     ),
     WorldProfile.magical: WorldFxProfile(
       profile: WorldProfile.magical,
@@ -204,7 +218,7 @@ abstract final class WorldFxCatalog {
       countdownAsset: 'countdown',
       transitionAsset: 'transition',
       accusationUnlockAsset: 'accusation_unlock',
-      ambientLoopCandidate: AmbientId.forest,
+      ambientLoopCandidate: AmbientId.magicalFireplace,
       transitionStyle: WorldTransitionStyle.magicalSparkle,
       revealFlashStyle: WorldRevealFlashStyle.magicalSigil,
       captureFlashStyle: WorldCaptureFlashStyle.magicalImpact,
@@ -216,10 +230,13 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.48,
       anonRevealFlashOpacity: 0.28,
       captureFlashOpacity: 0.55,
-      uiTapVolume: 0.55,
-      anonRevealVolume: 0.52,
-      captureVolume: 0.84,
-      accusationUnlockVolume: 0.74,
+      uiTapVolume: 0.50,
+      revealVolume: 0.62,
+      transitionVolume: 0.60,
+      anonRevealVolume: 0.46,
+      captureVolume: 0.62,
+      accusationUnlockVolume: 0.70,
+      countdownVolume: 0.52,
     ),
     WorldProfile.horror: WorldFxProfile(
       profile: WorldProfile.horror,
@@ -231,7 +248,7 @@ abstract final class WorldFxCatalog {
       countdownAsset: 'countdown',
       transitionAsset: 'transition',
       accusationUnlockAsset: 'accusation_unlock',
-      ambientLoopCandidate: AmbientId.wind,
+      ambientLoopCandidate: AmbientId.urbanRainCity,
       transitionStyle: WorldTransitionStyle.horrorFlicker,
       revealFlashStyle: WorldRevealFlashStyle.horrorVhs,
       captureFlashStyle: WorldCaptureFlashStyle.horrorHeartbeat,
@@ -261,7 +278,8 @@ abstract final class WorldFxCatalog {
       countdownAsset: 'countdown',
       transitionAsset: 'transition',
       accusationUnlockAsset: 'accusation_unlock',
-      ambientLoopCandidate: AmbientId.comms,
+      loseStingAsset: 'lose_sting',
+      ambientLoopCandidate: AmbientId.argBadRadio,
       transitionStyle: WorldTransitionStyle.tacticalScan,
       revealFlashStyle: WorldRevealFlashStyle.tacticalBracket,
       captureFlashStyle: WorldCaptureFlashStyle.tacticalMuted,
@@ -273,13 +291,14 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.40,
       anonRevealFlashOpacity: 0.24,
       captureFlashOpacity: 0.50,
-      uiTapVolume: 0.48,
-      revealVolume: 0.68,
-      transitionVolume: 0.68,
-      anonRevealVolume: 0.48,
-      captureVolume: 0.84,
-      accusationUnlockVolume: 0.68,
-      countdownVolume: 0.52,
+      uiTapVolume: 0.42,
+      revealVolume: 0.58,
+      transitionVolume: 0.60,
+      anonRevealVolume: 0.44,
+      captureVolume: 0.76,
+      accusationUnlockVolume: 0.62,
+      countdownVolume: 0.48,
+      loseStingVolume: 0.54,
     ),
     WorldProfile.astronomy: WorldFxProfile(
       profile: WorldProfile.astronomy,
@@ -338,7 +357,8 @@ abstract final class WorldFxCatalog {
     ),
     WorldProfile.japaneseLuxury: WorldFxProfile(
       profile: WorldProfile.japaneseLuxury,
-      uiTapAsset: 'ui_tap',
+      uiTapAsset: 'paper_ui',
+      uiConfirmAsset: 'paper_ui',
       uiBackAsset: 'ui_back',
       revealAsset: 'reveal',
       anonRevealAsset: 'anon_reveal',
@@ -346,7 +366,8 @@ abstract final class WorldFxCatalog {
       countdownAsset: 'countdown',
       transitionAsset: 'transition',
       accusationUnlockAsset: 'accusation_unlock',
-      ambientLoopCandidate: AmbientId.forest,
+      resultStingAsset: 'result_sting',
+      ambientLoopCandidate: AmbientId.zenWoodJungle,
       transitionStyle: WorldTransitionStyle.japaneseShoji,
       revealFlashStyle: WorldRevealFlashStyle.japaneseGoldMist,
       captureFlashStyle: WorldCaptureFlashStyle.japaneseInkImpact,
@@ -358,12 +379,14 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.46,
       anonRevealFlashOpacity: 0.24,
       captureFlashOpacity: 0.52,
-      uiTapVolume: 0.45,
-      revealVolume: 0.63,
-      anonRevealVolume: 0.48,
-      captureVolume: 0.80,
-      accusationUnlockVolume: 0.64,
-      countdownVolume: 0.50,
+      uiTapVolume: 0.40,
+      revealVolume: 0.58,
+      transitionVolume: 0.55,
+      anonRevealVolume: 0.44,
+      captureVolume: 0.72,
+      accusationUnlockVolume: 0.58,
+      countdownVolume: 0.46,
+      resultStingVolume: 0.56,
     ),
     WorldProfile.westernLuxury: WorldFxProfile(
       profile: WorldProfile.westernLuxury,
@@ -375,7 +398,8 @@ abstract final class WorldFxCatalog {
       countdownAsset: 'countdown',
       transitionAsset: 'transition',
       accusationUnlockAsset: 'accusation_unlock',
-      ambientLoopCandidate: AmbientId.wind,
+      loseStingAsset: 'lose_sting',
+      ambientLoopCandidate: AmbientId.royalFireplace,
       transitionStyle: WorldTransitionStyle.westernCurtain,
       revealFlashStyle: WorldRevealFlashStyle.westernGildedRecord,
       captureFlashStyle: WorldCaptureFlashStyle.westernSealImpact,
@@ -387,12 +411,14 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.44,
       anonRevealFlashOpacity: 0.23,
       captureFlashOpacity: 0.50,
-      uiTapVolume: 0.56,
-      revealVolume: 0.70,
-      anonRevealVolume: 0.50,
-      captureVolume: 0.82,
-      accusationUnlockVolume: 0.68,
-      countdownVolume: 0.52,
+      uiTapVolume: 0.50,
+      revealVolume: 0.62,
+      transitionVolume: 0.58,
+      anonRevealVolume: 0.46,
+      captureVolume: 0.76,
+      accusationUnlockVolume: 0.52,
+      countdownVolume: 0.48,
+      loseStingVolume: 0.50,
     ),
   };
 
@@ -410,6 +436,8 @@ abstract final class WorldFxCatalog {
       fx.countdownAsset,
       fx.transitionAsset,
       fx.accusationUnlockAsset,
+      if (fx.resultStingAsset != null) fx.resultStingAsset!,
+      if (fx.loseStingAsset != null) fx.loseStingAsset!,
     ];
     return [
       for (final base in bases)

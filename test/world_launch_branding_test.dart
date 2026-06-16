@@ -64,9 +64,9 @@ void main() {
 
   test('cyber aligns with map neon palette', () {
     final b = WorldLaunchBranding.of(WorldProfile.sciFi);
-    expect(b.backgroundTop, const Color(0xFF0B1020));
-    expect(b.coreColor, const Color(0xFF00E5FF));
-    expect(b.secondaryAccent, const Color(0xFF7C4DFF));
+    expect(b.backgroundTop, const Color(0xFF05070D));
+    expect(b.coreColor, const Color(0xFF00F0FF));
+    expect(b.secondaryAccent, const Color(0xFF7A3CFF));
   });
 
   test('tactical logo uses calm monochrome', () {

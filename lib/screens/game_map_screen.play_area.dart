@@ -555,7 +555,7 @@ extension _GameMapPlayArea on _GameMapScreenState {
   }
 
   Future<void> _maybeSuggestPlayAreaAtCurrentLocation() async {
-    if (!_isHost) return;
+    if (!_isHost || !_gpsPositionReady) return;
     final stillDefault = _usesDefaultTokyoPlayArea();
     final farFromHere = _playAreaFarFromCurrentLocation();
     if (!stillDefault && !farFromHere) return;

@@ -25,8 +25,54 @@ void main() {
         expect(music.galleryPreviewMusic.asset, isNotEmpty);
         expect(music.victoryMusic.asset, isNotEmpty);
         expect(music.loseMusic.asset, isNotEmpty);
-        expect(music.layers.base.bgm, isNotNull);
+        expect(music.layers.base.bgm ?? music.layers.base.ambient, isNotNull);
       }
+    });
+
+    test('every world has distinct match base track slot', () {
+      for (final profile in WorldProfile.values) {
+        final layers = WorldMusicProfileCatalog.of(profile).layers;
+        expect(layers.effectiveMatchBase.bgm ?? layers.effectiveMatchBase.ambient,
+            isNotNull);
+      }
+    });
+
+    test('Royal Classic uses dedicated title and match tracks', () {
+      final royal = WorldMusicProfileCatalog.of(WorldProfile.westernLuxury);
+      expect(royal.introMusic, BgmId.royalSarabande);
+      expect(royal.layers.effectiveTitleBase.bgm, BgmId.royalSarabande);
+      expect(royal.layers.base.bgm, BgmId.royalLarghetto);
+      expect(royal.layers.effectiveMatchBase.bgm, BgmId.royalLarghetto);
+      expect(royal.victoryMusic, BgmId.royalQueenOfSheba);
+      expect(royal.matchAmbientOneShotsEnabled, isTrue);
+    });
+
+    test('polish pass BGM tracks are wired per world', () {
+      final zen = WorldMusicProfileCatalog.of(WorldProfile.japaneseLuxury);
+      expect(zen.layers.titleBase?.bgm, BgmId.zenTsukiyomi);
+      expect(zen.layers.effectiveMatchBase.ambient, AmbientId.zenWoodJungle);
+      expect(zen.matchAmbientOneShotsEnabled, isFalse);
+
+      final cyber = WorldMusicProfileCatalog.of(WorldProfile.sciFi);
+      expect(cyber.layers.titleBase?.bgm, BgmId.cyber);
+      expect(cyber.layers.base.bgm, BgmId.cyberSuspense);
+      expect(cyber.layers.ambient?.ambient, AmbientId.cyberAmbientDeep);
+      expect(cyber.layers.tension, isNull);
+      expect(cyber.layers.moment?.ambient, AmbientId.sonar);
+
+      final astro = WorldMusicProfileCatalog.of(WorldProfile.astronomy);
+      expect(astro.layers.base.bgm, BgmId.astroAloneMoon);
+      expect(astro.layers.effectiveMatchBase.bgm, BgmId.astroDeepUnderscore);
+      expect(astro.layers.tension, isNull);
+
+      final horror = WorldMusicProfileCatalog.of(WorldProfile.horror);
+      expect(horror.layers.titleBase?.bgm, BgmId.urbanSilentTension);
+      expect(horror.layers.base.bgm, BgmId.urbanSilentPursuit);
+      expect(horror.layers.moment?.bgm, BgmId.urbanSilentShot);
+
+      final magical = WorldMusicProfileCatalog.of(WorldProfile.magical);
+      expect(magical.layers.titleBase?.bgm, BgmId.magicalEthereal);
+      expect(magical.victoryMusic, BgmId.magicalVictory);
     });
 
     test('gallery preview duration is 15 seconds', () {

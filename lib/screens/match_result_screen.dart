@@ -161,10 +161,11 @@ class _MatchResultScreenState extends State<MatchResultScreen>
       }
       if (!mounted) return;
       WorldHaptics.emphasis(widget.worldProfile);
-      GameAudio.instance.playSfx(
+      GameAudio.instance.playWorldSfx(
         widget.spectatorMode
             ? SfxId.uiConfirm
             : (_personalWon ? SfxId.matchWin : SfxId.matchLose),
+        profile: widget.worldProfile,
       );
       if (_personalWon && !reduced) {
         setState(() {

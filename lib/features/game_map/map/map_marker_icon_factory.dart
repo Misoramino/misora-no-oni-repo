@@ -34,10 +34,11 @@ abstract final class MapMarkerIconFactory {
         );
       }
     }
+    final bg = _backgroundFor(kind, tokens);
     final bytes = await _render(
       icon: _iconFor(kind),
-      background: _backgroundFor(kind, tokens),
-      foreground: _foregroundFor(kind),
+      background: bg,
+      foreground: _foregroundFor(kind, bg),
       ringColor: kind == MapMarkerKind.player || kind == MapMarkerKind.playerRevealed
           ? tokens.playerRingColor
           : null,
@@ -70,20 +71,31 @@ abstract final class MapMarkerIconFactory {
         MapMarkerKind.accusationFacility => Icons.account_balance,
       };
 
-  static Color _backgroundFor(MapMarkerKind kind, WorldProfileTokens t) =>
-      switch (kind) {
-        MapMarkerKind.safeZone => t.safeColor,
-        MapMarkerKind.infoBroker => t.infoColor,
-        MapMarkerKind.camera || MapMarkerKind.oniIntel => t.alertColor,
-        MapMarkerKind.reveal => t.alertColor.withValues(alpha: 0.9),
-        MapMarkerKind.playerRevealed => t.markerAccent,
-        MapMarkerKind.player => const Color(0xFF37474F),
-        _ => t.markerAccent.withValues(alpha: 0.85),
-      };
+  static Color _backgroundFor(MapMarkerKind kind, WorldProfileTokens t) {
+    final m = t.mapIcons;
+    return switch (kind) {
+      MapMarkerKind.player => m.player,
+      MapMarkerKind.playerRevealed => m.player.withValues(alpha: 0.92),
+      MapMarkerKind.oni || MapMarkerKind.remoteOni => m.hunter,
+      MapMarkerKind.remoteRunner => m.runner,
+      MapMarkerKind.remoteSpectator => m.werewolf,
+      MapMarkerKind.safeZone => m.safeZone,
+      MapMarkerKind.infoBroker => m.infoBroker,
+      MapMarkerKind.camera || MapMarkerKind.oniIntel => m.camera,
+      MapMarkerKind.commJamming => m.jamming,
+      MapMarkerKind.trace => m.trace,
+      MapMarkerKind.reveal || MapMarkerKind.anonymousReveal => m.accusation,
+      MapMarkerKind.accusationFacility => m.accusation,
+      MapMarkerKind.bodyThrow ||
+      MapMarkerKind.fakePosition =>
+        m.capture,
+      _ => t.markerAccent.withValues(alpha: 0.85),
+    };
+  }
 
-  static Color _foregroundFor(MapMarkerKind kind) {
-    if (kind == MapMarkerKind.player) return Colors.white70;
-    return Colors.white;
+  static Color _foregroundFor(MapMarkerKind kind, Color background) {
+    final lum = background.computeLuminance();
+    return lum > 0.55 ? const Color(0xFF1A1A2E) : Colors.white;
   }
 
   static Future<Uint8List> _render({

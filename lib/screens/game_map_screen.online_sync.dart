@@ -51,6 +51,10 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         if (ev.actorUid == fs.myUid) return;
         _applyRemoteInfoBroker(ev);
         return;
+      case RoomMatchEventTypes.safeZonePickup:
+        if (ev.actorUid == fs.myUid) return;
+        _applyRemoteSafeZonePickup(ev);
+        return;
       case RoomMatchEventTypes.oniInfoBroker:
         if (ev.actorUid == fs.myUid) return;
         _applyRemoteOniInfoBroker(ev);
@@ -294,6 +298,22 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     // 他プレイヤーの鬼情報は共有しない。地点移動だけ同期する。
     _applyRemoteGimmickRelocate(
       kind: 'info_broker',
+      hitIndex: hitIndex,
+      nextPosition: LatLng(nextLat, nextLng),
+    );
+  }
+
+  void _applyRemoteSafeZonePickup(RoomMatchEvent ev) {
+    final hitIndex = (ev.payload['hitIndex'] as num?)?.toInt();
+    final nextLat = (ev.payload['nextLat'] as num?)?.toDouble();
+    final nextLng = (ev.payload['nextLng'] as num?)?.toDouble();
+    if (hitIndex == null || nextLat == null || nextLng == null) {
+      return;
+    }
+    if (hitIndex < 0 || hitIndex >= _rt.safeZonePositions.length) return;
+    if (!mounted) return;
+    _applyRemoteGimmickRelocate(
+      kind: 'safe_zone',
       hitIndex: hitIndex,
       nextPosition: LatLng(nextLat, nextLng),
     );

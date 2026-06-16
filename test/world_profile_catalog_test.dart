@@ -78,10 +78,10 @@ void main() {
     );
   });
 
-  test('luxury profiles use provisional BGM and ambient', () {
-    expect(WorldAudio.defaultBgm(WorldProfile.japaneseLuxury), BgmId.magical);
-    expect(WorldAudio.defaultBgm(WorldProfile.westernLuxury), BgmId.space);
-    expect(WorldAudio.ambient(WorldProfile.japaneseLuxury), AmbientId.wind);
-    expect(WorldAudio.ambient(WorldProfile.westernLuxury), AmbientId.wind);
+  test('luxury profiles use polish-pass BGM and ambient', () {
+    expect(WorldAudio.defaultBgm(WorldProfile.japaneseLuxury), BgmId.zenTsukiyomi);
+    expect(WorldAudio.defaultBgm(WorldProfile.westernLuxury), BgmId.royalLarghetto);
+    expect(WorldAudio.ambient(WorldProfile.japaneseLuxury), AmbientId.zenWoodJungle);
+    expect(WorldAudio.ambient(WorldProfile.westernLuxury), AmbientId.royalBellIndoor);
   });
 }

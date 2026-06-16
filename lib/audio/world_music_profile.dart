@@ -26,15 +26,26 @@ class LayerTrackRef {
 class WorldMusicLayers {
   const WorldMusicLayers({
     required this.base,
+    this.titleBase,
+    this.matchBase,
     this.ambient,
     this.tension,
     this.moment,
   });
 
   final LayerTrackRef base;
+
+  /// Title / Gallery 用（未指定時は [base]）。
+  final LayerTrackRef? titleBase;
+
+  /// 試合専用ループ（未指定時は [base] と同じ）。
+  final LayerTrackRef? matchBase;
   final LayerTrackRef? ambient;
   final LayerTrackRef? tension;
   final LayerTrackRef? moment;
+
+  LayerTrackRef get effectiveTitleBase => titleBase ?? base;
+  LayerTrackRef get effectiveMatchBase => matchBase ?? base;
 }
 
 /// 世界観ごとの音楽プロファイル（MP3 差し替え前提の設計）。
@@ -64,6 +75,7 @@ class WorldMusicProfile {
     this.captureDuckDb = 3.0,
     this.captureDuckHoldMs = 480,
     this.accusationSilenceMs = 220,
+    this.matchAmbientOneShotsEnabled = true,
   });
 
   final BgmId introMusic;
@@ -100,4 +112,9 @@ class WorldMusicProfile {
   final double captureDuckDb;
   final int captureDuckHoldMs;
   final int accusationSilenceMs;
+
+  /// 対戦中のワンショット環境音（40–120s）を有効にするか。
+  ///
+  /// 常時 Ambient レイヤーがある世界観は `false` にして二重再生を防ぐ。
+  final bool matchAmbientOneShotsEnabled;
 }

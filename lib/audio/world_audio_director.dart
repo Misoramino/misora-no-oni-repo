@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import '../presentation/world/world_studio_identity.dart';import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/world_studio_identity.dart';
+import '../presentation/world/world_studio_identity_catalog.dart';
 import '../session/audio_prefs.dart';
 import '../theme/world_profile.dart';
-import 'bgm_layer_engine.dart';
+import 'audio_library.dart';
 import 'game_audio.dart';
 import 'world_audio_state.dart';
 import 'world_music_profile.dart';
@@ -71,6 +72,8 @@ class WorldAudioDirector {
         await _applyTitleLayers(music, crossFade);
       case WorldAudioState.lobby:
         await _applyLobbyLayers(music, crossFade);
+      case WorldAudioState.preMatchPresentation:
+        await _applyLobbyLayers(music, crossFade);
       case WorldAudioState.matchCountdown:
         await _applyCountdownLayers(p, music, crossFade);
       case WorldAudioState.match:
@@ -134,6 +137,10 @@ class WorldAudioDirector {
         ? music.crossFadeMs
         : 80;
     final track = LayerTrackRef.bgm(music.galleryPreviewMusic);
+    await GameAudio.instance.stopMusicLayer(
+      WorldMusicLayer.ambient,
+      fadeMs: crossFade ~/ 2,
+    );
     await GameAudio.instance.setMusicLayer(
       WorldMusicLayer.base,
       track: track,
@@ -245,32 +252,56 @@ class WorldAudioDirector {
     await enter(WorldAudioState.accusationSequence, profile: p);
   }
 
-  /// カウントダウン「開始!」— 短いジングル + マッチレイヤー準備。
+  /// カウントダウン「開始!」— SE のみ（BGM レイヤーは増やさない）。
   Future<void> onMatchCountdownGo() async {
     final p = _profile;
     if (p == null) return;
-    final music = WorldMusicProfileCatalog.of(p);
-    final crossFade = 280;
-    final intro = LayerTrackRef.bgm(
-      music.introMusic,
-      gain: music.countdownIntroGain,
-    );
-    await GameAudio.instance.setMusicLayer(
-      WorldMusicLayer.moment,
-      track: intro,
-      relativeGain: 1.0,
-      loop: false,
-      crossFadeMs: crossFade,
-      curve: music.volumeCurve,
-    );
-    // マッチ Base は _startGameCore で enter(match) される
+    await restorePresentationVolume();
   }
 
-  /// カウントダウン開始前の無音。
-  Future<void> beginMatchCountdown() async {
+  /// 試合開始演出（ロスター・軌道・説明）— ロビー音量を維持。
+  Future<void> beginMatchPresentation() async {
     final p = _profile;
     if (p == null) return;
-    await enter(WorldAudioState.matchCountdown, profile: p);
+    await enter(WorldAudioState.preMatchPresentation, profile: p);
+  }
+
+  /// カウントダウン UI 表示中の短いダック（二重再生・無音化しない）。
+  Future<void> dipForCountdown() async {
+    final p = _profile;
+    if (p == null) return;
+    if (!GameAudio.instance.settings.value.layeredBgmEnabled) return;
+    final music = WorldMusicProfileCatalog.of(p);
+    final crossFade = GameAudio.instance.settings.value.crossFadeEnabled
+        ? music.crossFadeMs ~/ 3
+        : 80;
+    await GameAudio.instance.fadeMusicLayer(
+      WorldMusicLayer.base,
+      relativeGain: music.lobbyGain * 0.55,
+      ms: crossFade,
+    );
+    await _clearClimaxLayers(crossFade);
+  }
+
+  /// カウントダウン後・役職説明中にロビー相当の音量へ戻す。
+  Future<void> restorePresentationVolume() async {
+    final p = _profile;
+    if (p == null) return;
+    if (!GameAudio.instance.settings.value.layeredBgmEnabled) return;
+    if (_state != WorldAudioState.preMatchPresentation &&
+        _state != WorldAudioState.matchCountdown) {
+      return;
+    }
+    final music = WorldMusicProfileCatalog.of(p);
+    final crossFade = GameAudio.instance.settings.value.crossFadeEnabled
+        ? WorldMusicProfileCatalog.crossFadeFor(p)
+        : 120;
+    await _applyLobbyLayers(music, crossFade);
+  }
+
+  /// @deprecated 試合開始全体では [beginMatchPresentation] を使う。
+  Future<void> beginMatchCountdown() async {
+    await beginMatchPresentation();
   }
 
   /// アプリがバックグラウンドへ入ったとき。
@@ -320,7 +351,7 @@ class WorldAudioDirector {
     GameAudio.instance.stopMatchAmbientSchedule();
     await GameAudio.instance.setMusicLayer(
       WorldMusicLayer.base,
-      track: music.layers.base,
+      track: music.layers.effectiveTitleBase,
       relativeGain: 1.0,
       crossFadeMs: crossFade,
       curve: music.volumeCurve,
@@ -342,28 +373,32 @@ class WorldAudioDirector {
       curve: music.volumeCurve,
     );
     await _setAmbientLayer(music, crossFade, gainMultiplier: 0.55);
-    await _clearClimaxLayers(crossFade);
+    if (_profile == WorldProfile.westernLuxury &&
+        WorldMusicProfileCatalog.royalLobbyUseSarabandeUndertone) {
+      await GameAudio.instance.setMusicLayer(
+        WorldMusicLayer.tension,
+        track: LayerTrackRef.bgm(BgmId.royalSarabande, gain: 0.16),
+        relativeGain: 0.22,
+        crossFadeMs: crossFade,
+        curve: music.volumeCurve,
+      );
+    } else {
+      await GameAudio.instance.stopMusicLayer(
+        WorldMusicLayer.tension,
+        fadeMs: crossFade,
+      );
+    }
+    await GameAudio.instance.stopMusicLayer(
+      WorldMusicLayer.moment,
+      fadeMs: crossFade,
+    );
   }
   Future<void> _applyCountdownLayers(
     WorldProfile p,
     WorldMusicProfile music,
     int crossFade,
   ) async {
-    final studio = WorldStudioIdentityCatalog.of(p);
-    final silence = music.countdownSilenceMs + studio.silence.sfxLeadMs;
-    if (silence > 0) {
-      await GameAudio.instance.fadeMusicLayer(
-        WorldMusicLayer.base,
-        relativeGain: 0.12,
-        ms: crossFade ~/ 2,
-      );
-      await Future<void>.delayed(Duration(milliseconds: silence));
-    }
-    await GameAudio.instance.fadeMusicLayer(
-      WorldMusicLayer.base,
-      relativeGain: 0.22,
-      ms: crossFade,
-    );
+    await dipForCountdown();
   }
 
   Future<void> _applyMatchLayers(
@@ -373,9 +408,10 @@ class WorldAudioDirector {
   ) async {
     final audio = GameAudio.instance;
     audio.startMatchAmbientSchedule(p);
+    final matchTrack = music.layers.effectiveMatchBase;
     await audio.setMusicLayer(
       WorldMusicLayer.base,
-      track: music.layers.base,
+      track: matchTrack,
       relativeGain: music.matchBaseGain,
       crossFadeMs: crossFade,
       curve: music.volumeCurve,
@@ -389,8 +425,18 @@ class WorldAudioDirector {
         crossFadeMs: crossFade,
         curve: music.volumeCurve,
       );
+    } else {
+      await audio.stopMusicLayer(
+        WorldMusicLayer.ambient,
+        fadeMs: crossFade,
+      );
     }
     await _clearClimaxLayers(crossFade);
+  }
+
+  String _layerTrackKey(LayerTrackRef track) {
+    if (track.bgm != null) return 'bgm:${track.bgm!.name}';
+    return 'amb:${track.ambient!.name}';
   }
 
   Future<void> _applyClimaxLayers(
@@ -398,6 +444,7 @@ class WorldAudioDirector {
     int crossFade,
     WorldAudioState phase,
   ) async {
+    GameAudio.instance.stopMatchAmbientSchedule();
     final tension = music.layers.tension;
     final moment = music.layers.moment;
     if (phase == WorldAudioState.finalFiveMinutes) {
@@ -409,22 +456,47 @@ class WorldAudioDirector {
           crossFadeMs: crossFade,
           curve: music.volumeCurve,
         );
+      } else if (music.layers.ambient != null) {
+        await GameAudio.instance.fadeMusicLayer(
+          WorldMusicLayer.ambient,
+          relativeGain: music.ambientGain * 1.15,
+          ms: crossFade,
+        );
       }
     } else if (phase == WorldAudioState.finalMinute) {
-      await GameAudio.instance.setMusicLayer(
-        WorldMusicLayer.base,
-        track: LayerTrackRef.bgm(music.finalMinuteMusic),
-        relativeGain: music.matchBaseGain,
-        crossFadeMs: crossFade,
-        curve: music.volumeCurve,
-      );
-      if (tension != null) {
+      final matchBase = music.layers.effectiveMatchBase;
+      if (matchBase.bgm != null) {
+        final finalTrack = LayerTrackRef.bgm(music.finalMinuteMusic);
+        await GameAudio.instance.setMusicLayer(
+          WorldMusicLayer.base,
+          track: finalTrack,
+          relativeGain: music.matchBaseGain,
+          crossFadeMs: crossFade,
+          curve: music.volumeCurve,
+        );
+        if (tension != null &&
+            _layerTrackKey(tension) != _layerTrackKey(finalTrack)) {
+          await GameAudio.instance.setMusicLayer(
+            WorldMusicLayer.tension,
+            track: tension,
+            relativeGain: music.finalMinuteTensionGain,
+            crossFadeMs: crossFade,
+            curve: music.volumeCurve,
+          );
+        }
+      } else if (tension != null) {
         await GameAudio.instance.setMusicLayer(
           WorldMusicLayer.tension,
           track: tension,
           relativeGain: music.finalMinuteTensionGain,
           crossFadeMs: crossFade,
           curve: music.volumeCurve,
+        );
+      } else if (music.layers.ambient != null) {
+        await GameAudio.instance.fadeMusicLayer(
+          WorldMusicLayer.ambient,
+          relativeGain: music.ambientGain * 1.2,
+          ms: crossFade,
         );
       }
     } else if (phase == WorldAudioState.finalTenSeconds) {
@@ -451,25 +523,40 @@ class WorldAudioDirector {
     WorldMusicProfile music,
     int crossFade,
   ) async {
+    GameAudio.instance.stopMatchAmbientSchedule();
     final tension = music.layers.tension;
-    if (tension == null) return;
+    final moment = music.layers.moment;
     final base = _matchRemainingSeconds != null &&
             _matchRemainingSeconds! <= 60
         ? music.finalMinuteTensionGain
         : music.finalFiveMinTensionGain;
-    await GameAudio.instance.setMusicLayer(
-      WorldMusicLayer.tension,
-      track: tension,
-      relativeGain: base + music.dangerTensionBoost,
-      crossFadeMs: crossFade ~/ 2,
-      curve: music.volumeCurve,
-    );
+    final gain = base + music.dangerTensionBoost;
+    if (tension != null) {
+      await GameAudio.instance.setMusicLayer(
+        WorldMusicLayer.tension,
+        track: tension,
+        relativeGain: gain,
+        crossFadeMs: crossFade ~/ 2,
+        curve: music.volumeCurve,
+      );
+      return;
+    }
+    if (moment != null) {
+      await GameAudio.instance.setMusicLayer(
+        WorldMusicLayer.moment,
+        track: moment,
+        relativeGain: gain * 0.85,
+        crossFadeMs: crossFade ~/ 2,
+        curve: music.volumeCurve,
+      );
+    }
   }
 
   Future<void> _applyAccusationAvailable(
     WorldMusicProfile music,
     int crossFade,
   ) async {
+    GameAudio.instance.stopMatchAmbientSchedule();
     final moment = music.layers.moment;
     if (moment == null) return;
     await GameAudio.instance.setMusicLayer(
@@ -602,6 +689,7 @@ class WorldAudioDirector {
       case WorldAudioState.title:
       case WorldAudioState.gallery:
       case WorldAudioState.lobby:
+      case WorldAudioState.preMatchPresentation:
       case WorldAudioState.returnTitle:
       case WorldAudioState.resultVictory:
       case WorldAudioState.resultLose:

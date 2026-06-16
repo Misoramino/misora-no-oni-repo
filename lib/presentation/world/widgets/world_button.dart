@@ -89,7 +89,7 @@ class _WorldButtonState extends State<WorldButton> {
               ),
               child: DefaultTextStyle(
                 style: TextStyle(
-                  color: pack.onAccent,
+                  color: pack.buttonLabelOnAccent,
                   fontWeight: FontWeight.w600,
                 ),
                 child: child,

@@ -14,6 +14,7 @@ import 'bgm_layer_engine.dart';
 import 'sfx_id.dart';
 import 'sfx_synth.dart';
 import 'world_music_profile.dart';
+import 'world_music_profile_catalog.dart';
 import 'world_sfx_debounce.dart';
 import 'world_sfx_preview.dart';
 enum _MusicMode { none, menu, match }
@@ -38,15 +39,19 @@ class GameAudio {
   static const _sfxPoolSize = 4;
 
   /// 対戦開始から最初の環境音までの遅延（秒, ランダム下限/上限）。
-  static const _ambientFirstMinSec = 900;
-  static const _ambientFirstMaxSec = 1500;
+  static const _ambientFirstMinSec = 40;
+  static const _ambientFirstMaxSec = 120;
 
-  /// 環境音どうしの間隔（秒, ランダム下限/上限）— おおよそ20分前後。
-  static const _ambientGapMinSec = 1080;
-  static const _ambientGapMaxSec = 1320;
+  /// 環境音どうしの間隔（秒, ランダム下限/上限）。
+  static const _ambientGapMinSec = 40;
+  static const _ambientGapMaxSec = 120;
+
+  /// ワンショット環境音のフェード（ms）。
+  static const _ambientFadeInMs = 2400;
+  static const _ambientFadeOutMs = 3100;
 
   /// 通常の世界観音以外が流れる確率（珍しい音）。
-  static const _ambientRareChance = 0.12;
+  static const _ambientRareChance = 0.22;
 
   /// 現在のサウンド設定。UI から監視・更新する。
   final ValueNotifier<AudioSettings> settings =
@@ -59,6 +64,8 @@ class GameAudio {
   AudioPlayer? _bgmPlayer;
   AudioPlayer? _ambientPlayer;
   Timer? _ambientTimer;
+  Timer? _ambientFadeTimer;
+  Timer? _ambientHoldTimer;
   Timer? _bgmFadeTimer;
   Timer? _duckRestoreTimer;
 
@@ -78,6 +85,7 @@ class GameAudio {
   BgmId? _playingBgm;
 
   final WorldSfxDebounce _worldSfxDebounce = WorldSfxDebounce();
+  AudioPlayer? _galleryPreviewSfxPlayer;
 
   /// 試合画面などの現在の世界観（BGM/環境音・試聴用）。
   void setActiveWorldProfile(WorldProfile? profile) {
@@ -177,8 +185,13 @@ class GameAudio {
 
   // ---- 効果音 ----
 
-  /// 汎用 UI 効果音（世界観フォルダは使わない）。
+  /// 汎用 UI 効果音。Zen など UI 専用 SE がある世界観のみルーティング。
   Future<void> playSfx(SfxId id) async {
+    final profile = _activeWorldProfile;
+    if (profile != null && _routesPlaySfxToWorld(id, profile)) {
+      await playWorldSfx(id, profile: profile);
+      return;
+    }
     if (kIsWeb || _sfxPool.isEmpty) return;
     final vol = settings.value.effectiveSfx;
     if (vol <= 0) return;
@@ -250,6 +263,46 @@ class GameAudio {
     }
   }
 
+  /// ギャラリー試聴用（プールを回さず最後まで再生しやすくする）。
+  Future<void> playGalleryPreviewSfx(
+    SfxId id, {
+    required WorldProfile profile,
+  }) async {
+    if (kIsWeb) return;
+    final baseVol = settings.value.effectiveSfx;
+    if (baseVol <= 0) return;
+
+    final fx = WorldFxCatalog.forProfile(profile);
+    final assetBase = fx.worldMomentAssetFor(id);
+    if (assetBase == null) {
+      await playSfx(id);
+      return;
+    }
+
+    final vol = _volumeForWorldSfx(id, fx, baseVol);
+    if (vol <= 0) return;
+
+    _galleryPreviewSfxPlayer ??= AudioPlayer();
+    final player = _galleryPreviewSfxPlayer!;
+    try {
+      if (_layersActive) {
+        _duckForSfx();
+      }
+      await player.stop();
+      final assetPath = _resolveWorldSfxAsset(profile, assetBase);
+      if (assetPath != null) {
+        await player.play(AssetSource(assetPath), volume: vol);
+      } else {
+        await player.play(
+          BytesSource(SfxSynth.wavFor(id), mimeType: 'audio/wav'),
+          volume: vol,
+        );
+      }
+    } catch (e) {
+      debugPrint('GameAudio.playGalleryPreviewSfx($id, ${profile.name}): $e');
+    }
+  }
+
   /// 設定画面などから世界観 SE を試聴する。
   Future<void> previewWorldSfx(
     WorldProfile profile,
@@ -298,6 +351,15 @@ class GameAudio {
     }
   }
 
+  bool _routesPlaySfxToWorld(SfxId id, WorldProfile profile) {
+    final fx = WorldFxCatalog.forProfile(profile);
+    return switch (id) {
+      SfxId.uiTap => true,
+      SfxId.uiConfirm => fx.uiConfirmAsset != null,
+      _ => false,
+    };
+  }
+
   WorldSfxPreviewKind? _previewKindForSfx(SfxId id) => switch (id) {
         SfxId.uiTap => WorldSfxPreviewKind.uiTap,
         SfxId.reveal => WorldSfxPreviewKind.reveal,
@@ -307,11 +369,14 @@ class GameAudio {
   double _volumeForWorldSfx(SfxId id, WorldFxProfile fx, double baseVol) {
     final coeff = switch (id) {
       SfxId.uiTap => fx.uiTapVolume,
+      SfxId.uiConfirm => fx.uiTapVolume * 0.92,
       SfxId.reveal => fx.revealVolume,
       SfxId.anonReveal => fx.anonRevealVolume,
       SfxId.capture => fx.captureVolume,
       SfxId.unlock => fx.accusationUnlockVolume,
       SfxId.matchStart => fx.countdownVolume,
+      SfxId.matchWin => fx.resultStingVolume,
+      SfxId.matchLose => fx.loseStingVolume,
       _ => 1.0,
     };
     return baseVol * coeff;
@@ -428,6 +493,8 @@ class GameAudio {
   /// 対戦中の環境音ワンショット（レイヤー BGM と併用可）。
   void startMatchAmbientSchedule(WorldProfile profile) {
     if (kIsWeb) return;
+    final music = WorldMusicProfileCatalog.of(profile);
+    if (!music.matchAmbientOneShotsEnabled) return;
     _mode = _MusicMode.match;
     _profile = profile;
     _startAmbientSchedule();
@@ -564,23 +631,74 @@ class GameAudio {
       final p = _ambientPlayer ??= AudioPlayer(playerId: 'ambient');
       await p.setReleaseMode(ReleaseMode.stop);
       await p.stop();
-      await p.play(AssetSource(assetPath), volume: vol);
+      await p.setVolume(0);
+      await p.play(AssetSource(assetPath));
+      _fadeAmbientVolume(
+        from: 0,
+        to: vol,
+        duration: const Duration(milliseconds: _ambientFadeInMs),
+      );
+      // 短いテレメトリ（beep）は短く、長尺ループは長めに鳴らす。
+      final holdMs = id == AmbientId.beep ? 1200 : 28000;
+      _ambientHoldTimer?.cancel();
+      _ambientHoldTimer = Timer(Duration(milliseconds: holdMs), () {
+        if (_mode != _MusicMode.match) return;
+        _fadeAmbientVolume(
+          from: vol,
+          to: 0,
+          duration: const Duration(milliseconds: _ambientFadeOutMs),
+          stopAtEnd: true,
+        );
+      });
     } catch (e) {
       debugPrint('GameAudio._playAmbientOneShot($id): $e');
     }
   }
 
+  void _fadeAmbientVolume({
+    required double from,
+    required double to,
+    required Duration duration,
+    bool stopAtEnd = false,
+  }) {
+    final p = _ambientPlayer;
+    if (p == null) return;
+    _ambientFadeTimer?.cancel();
+    const steps = 12;
+    final stepMs = (duration.inMilliseconds / steps).round().clamp(16, 200);
+    var i = 0;
+    p.setVolume(from.clamp(0.0, 1.0));
+    _ambientFadeTimer = Timer.periodic(Duration(milliseconds: stepMs), (t) {
+      i++;
+      final v = (from + (to - from) * (i / steps)).clamp(0.0, 1.0);
+      p.setVolume(v);
+      if (i >= steps) {
+        t.cancel();
+        _ambientFadeTimer = null;
+        if (stopAtEnd) {
+          try {
+            p.stop();
+          } catch (_) {}
+        }
+      }
+    });
+  }
+
   AmbientId _pickAmbientId(WorldProfile profile) {
-    final usual = WorldAudio.ambient(profile);
-    if (_rand.nextDouble() >= _ambientRareChance) return usual;
-    final pool = AmbientId.values.where((a) => a != usual).toList();
-    if (pool.isEmpty) return usual;
-    return pool[_rand.nextInt(pool.length)];
+    final pool = WorldAudio.ambientPool(profile);
+    if (pool.length == 1) return pool.first;
+    if (_rand.nextDouble() >= _ambientRareChance) return pool.first;
+    final alt = pool.sublist(1);
+    return alt[_rand.nextInt(alt.length)];
   }
 
   void _stopAmbientSchedule() {
     _ambientTimer?.cancel();
     _ambientTimer = null;
+    _ambientHoldTimer?.cancel();
+    _ambientHoldTimer = null;
+    _ambientFadeTimer?.cancel();
+    _ambientFadeTimer = null;
     try {
       _ambientPlayer?.stop();
     } catch (_) {}

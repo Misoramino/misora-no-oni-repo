@@ -320,6 +320,118 @@
 
 音量係数は `WorldFxProfile` の `anonRevealVolume` / `captureVolume` / `accusationUnlockVolume` / `countdownVolume` で世界観ごとに調整。
 
+---
+
+## Final pass — 決定表 SFX / Ambient（2026-06-06）
+
+`tools/prepare_world_sfx.py` の `P4_FINAL_JOBS` / `AMBIENT_JOBS` で生成。Mixkit License（https://mixkit.co/license/#sfxFree）
+
+### 採用済み SFX 上書き（P4）
+
+| 世界観 | スロット | Mixkit ID | タイトル |
+|--------|----------|-----------|----------|
+| japaneseLuxury | ui_tap / paper_ui | #1530 Paper slide → Polish Pass で `paper_ui.wav`（鉛筆）を Confirm にも使用 |
+| japaneseLuxury | result_sting | #1107 | Page forward single chime |
+| westernLuxury | transition | #187 | Old medieval door lock |
+| westernLuxury | accusation_unlock | jasonlee church-bells（Polish Pass で差し替え） |
+| westernLuxury | lose_sting | #627 | Church bells ending |
+| sciFi | ui_tap | #2548 | Digital signal interference |
+| sciFi | reveal | #895 | Sci-Fi radio waves |
+| sciFi | capture | #2940 | Electronic glitch sound |
+| sciFi | transition | #2554 | Radio frequency signal swell |
+| horror | ui_tap | #2561 | Radio static fx |
+| horror | reveal | #2559 | Static radio noise sound |
+| horror | transition | #2557 | Cassette player working |
+| horror | capture | #2558 | Creepy radio frequency |
+| arg | ui_tap | #2544 | Metal button radio ping |
+| arg | reveal | #2554 | Radio frequency signal swell |
+| arg | capture | #2182 | Wood hard hit（lowpass 低音化） |
+| arg | lose_sting | #2553 | Weird radio frequency connection |
+
+## 最終統合ステータス（2026-06）
+
+### Implemented — ゲーム内で正式参照されている音源
+
+**BGM** (`assets/audio/bgm/`): `zen_tsukiyomi`, `cyber_suspense`, `astro_alone_moon`, `astro_deep_underscore`, `urban_silent_*`（3曲）, `magical_ethereal`, `magical_orchestra`, `magical_victory`, `royal_sarabande`, `royal_larghetto`, `royal_queen_of_sheba`, `cyber`, `tactical`, `pop`, `pop2`
+
+**Ambient** (`assets/audio/ambient/`): `zen_wood_jungle`, `zen_wind_leaves`, `zen_bird_subtle`, `royal_fireplace`, `royal_bell_indoor`, `magical_fireplace`, `cyber_ambient_deep`, `urban_rain_city`, `wind`, `forest`, `arg_bad_radio`, `comms`, `sonar`, `beep`, `pop_city`
+
+**世界観 SFX** (`assets/audio/sfx/worlds/`): 各世界 Mixkit 系 + `japaneseLuxury/paper_ui.wav`, `westernLuxury/accusation_unlock.wav`（教会ベル）
+
+**比較用（切替フラグ）**: `space.mp3` — `WorldMusicProfileCatalog.astronomyUseLegacySpaceBgm`
+
+### Candidate — 未採用・差し替え待ち
+
+| 用途 | 候補 | 現状 |
+|------|------|------|
+| Cyber Title/Gallery | Neon Synthwave Cyberpunk | `cyber.mp3` 維持 |
+| 全世界観 ui_back | 専用 back SE | 汎用 / 合成音 |
+| Astronomy 追加 Ambient | Deep Space Travel Ambience 03 | `beep` テレメトリのみ |
+
+---
+
+### 採用済み Ambient（`assets/audio/ambient/`）
+
+| ファイル | ソース | 用途 |
+|----------|--------|------|
+| zen_wood_jungle.mp3 | Mixkit #2422 | Zen Kyoto Match |
+| zen_wind_leaves.mp3 | StoreGraphic soft-wind-leaves | Zen Kyoto Ambient |
+| zen_bird_subtle.mp3 | StoreGraphic bird（高域カット・低ゲイン） | Zen Kyoto Moment |
+| royal_bell_indoor.mp3 | Mixkit #628 | Royal Classic（稀な Ambient） |
+| royal_fireplace.mp3 | Freesound fireplace-jim | Royal Classic Ambient |
+| magical_fireplace.mp3 | 同上 | Magical World Ambient |
+| cyber_ambient_deep.mp3 | defekt_maschine ambient-cyberpunk-cinematic | Cyber Night Deep Layer |
+| urban_rain_city.mp3 | sspsurvival rain-in-the-city | Urban Horror Ambient |
+| arg_bad_radio.mp3 | Mixkit #2552 | Stealth Tactical |
+
+### Polish Pass BGM（`assets/audio/bgm/` — `tools/prepare_polish_audio.py`）
+
+| ファイル | ソース | 用途 |
+|----------|--------|------|
+| zen_tsukiyomi.mp3 | harumachimusic Tsukiyomi | Zen Title/Gallery/Lobby |
+| cyber_suspense.mp3 | the_mountain suspense-cyberpunk | Cyber Lobby/Match |
+| astro_alone_moon.mp3 | ame_atmos alone on the moon | Astro Title/Gallery/Lobby |
+| astro_deep_underscore.mp3 | openmindaudio deep space underscore | Astro Match/Danger |
+| urban_silent_tension.mp3 | mohamed_hassan silent-tension | Horror Title |
+| urban_silent_pursuit.mp3 | mohamed_hassan silent-pursuit | Horror Lobby/Match |
+| urban_silent_shot.mp3 | mohamed_hassan silent-shot | Horror Moment/Capture |
+| magical_ethereal.mp3 | rockot ethereal-magic | Magical Title/Gallery |
+| magical_orchestra.mp3 | rockot orchestra-of-magic | Magical Lobby/Match |
+| magical_victory.mp3 | rockot magic-orchestra-of-inspiration | Magical Victory |
+
+比較用に `space.mp3` は維持。`WorldMusicProfileCatalog.astronomyUseLegacySpaceBgm` で切替。
+
+### Polish Pass SFX
+
+| ファイル | ソース | 用途 |
+|----------|--------|------|
+| japaneseLuxury/paper_ui.wav | Freesound pencil | Zen Dialog/Confirm UI |
+| westernLuxury/accusation_unlock.wav | jasonlee church-bells | Royal Accusation Unlock |
+
+ダウンロード URL: `https://mixkit.co/free-sound-effects/download/<id>/`
+
+### 旧「取得不可」表（解決済みを除く）
+
+| 世界観 | 用途 | 決定名 | 状態 |
+|--------|------|--------|------|
+| sciFi | Title | Neon Synthwave | **Candidate** — `cyber` 維持 |
+| sciFi | Moment | Digital Static Glitch | **Implemented** — `sonar`（Moment のみ） |
+| astronomy | Reveal/Info | Incoming Telemetry | Mixkit #2555（既存 reveal） |
+| astronomy | Transition | Space Flight 11 | Mixkit #3001（既存 transition） |
+| magical | Reveal | Sacred Rune Lock 02 | Mixkit #871 |
+| magical | UI | Mystical Chime | Mixkit #3108 |
+| magical | Capture | Epic Spell Impact | Mixkit #3203（音量抑制） |
+
+### 音量調整（`WorldFxProfile` / `WorldMusicProfile`）
+
+- **Zen Kyoto**: paper_ui、Match は Ambient 主体（wood/leaves/wind/bird）
+- **Royal Classic**: fireplace Ambient、church bell は accusation_unlock
+- **Cyber Night**: glitch SE 控えめ、cinematic ambient deep layer
+- **Urban Horror**: Silent シリーズ + rain_city ループ
+- **Magical World**: capture/reveal 控えめ、fireplace + forest
+- **Stealth Tactical**: arg_bad_radio + comms（変更なし）
+- **Pop City**: 変更なし
+
 ## 同梱済み BGM / 環境音
 
 `assets/audio/bgm/` および `assets/audio/ambient/` のファイルはプロジェクト内で正規化済み。

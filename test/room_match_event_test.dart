@@ -3,6 +3,10 @@ import 'package:oni_game/sync/firestore_room_blueprint.dart';
 import 'package:oni_game/sync/room_match_event.dart';
 
 void main() {
+  test('safeZonePickup event type is defined', () {
+    expect(RoomMatchEventTypes.safeZonePickup, 'safe_zone_pickup');
+  });
+
   test('RoomMatchEvent.tryParse reads abort_vote payload', () {
     final ev = RoomMatchEvent.tryParse('e1', {
       RoomEventsFields.type: RoomMatchEventTypes.abortVote,

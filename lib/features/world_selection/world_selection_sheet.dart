@@ -11,6 +11,7 @@ import '../../presentation/world/world_presentation_context.dart';
 import '../../presentation/world/world_presentation_pack.dart';
 import '../../presentation/world/world_studio_identity.dart';
 import '../../presentation/world/world_studio_identity_catalog.dart';
+import '../../presentation/world/world_ui_layout.dart';
 import '../../presentation/world/widgets/world_ambient_painter.dart';
 import '../../presentation/world/widgets/world_button.dart';
 import '../../presentation/world/widgets/world_loading.dart';
@@ -116,7 +117,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
 
   void _previewSe(SfxId id) {
     WorldHaptics.selection(_preview);
-    GameAudio.instance.playWorldSfx(id, profile: _preview);
+    GameAudio.instance.playGalleryPreviewSfx(id, profile: _preview);
   }
 
   void _confirm() {
@@ -128,7 +129,6 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final layout = _studio.layout;
     final size = MediaQuery.sizeOf(context);
 
     return Theme(
@@ -154,11 +154,9 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
             ),
             SafeArea(
               child: Padding(
-                padding: layout.screenPadding(context),
+                padding: WorldUILayout.screenPadding(context),
                 child: Column(
-                  crossAxisAlignment: layout.symmetric
-                      ? CrossAxisAlignment.center
-                      : CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Row(
                       children: [
@@ -170,9 +168,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                         Expanded(
                           child: Text(
                             'WORLD GALLERY',
-                            textAlign: layout.symmetric
-                                ? TextAlign.center
-                                : TextAlign.start,
+                            textAlign: TextAlign.center,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
@@ -193,9 +189,9 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                           ),
                       ],
                     ),
-                    SizedBox(height: layout.sectionGap * 0.5),
+                    SizedBox(height: WorldUILayout.sectionGap * 0.5),
                     SizedBox(
-                      height: size.height * layout.galleryHeroHeight,
+                      height: size.height * WorldUILayout.galleryHeroHeight,
                       child: PageView.builder(
                         controller: _page,
                         onPageChanged: _onPage,
@@ -209,22 +205,24 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                             pack: pack,
                             studio: studio,
                             selected: p == _preview,
-                            float: layout.cardFloat,
+                            float: WorldUILayout.cardFloat,
                           );
                         },
                       ),
                     ),
-                    SizedBox(height: layout.cardGap),
+                    SizedBox(height: WorldUILayout.cardGap),
                     if (_studio.recommended)
-                      Align(
-                        alignment: layout.contentAlign,
+                      Center(
                         child: Chip(
                           avatar: Icon(Icons.star, size: 16, color: _pack.accent),
-                          label: const Text('おすすめ'),
+                          label: Text(
+                            'おすすめ',
+                            style: TextStyle(color: _pack.textOnScaffold, fontSize: 11),
+                          ),
                           side: BorderSide(color: _pack.panelBorder),
                         ),
                       ),
-                    SizedBox(height: layout.cardGap),
+                    SizedBox(height: WorldUILayout.cardGap),
                     Text(
                       _preview.label,
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -232,22 +230,22 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                             fontWeight: _pack.headlineWeight,
                           ),
                     ),
-                    SizedBox(height: layout.cardGap * 0.5),
+                    SizedBox(height: WorldUILayout.cardGap * 0.5),
                     Text(
                       _studio.galleryBlurb ?? _pack.shortIntro,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _pack.onAccent.withValues(alpha: 0.85),
+                            color: _pack.mutedOnScaffold,
                             height: _pack.bodyLineHeight,
                           ),
                     ),
-                    SizedBox(height: layout.sectionGap),
+                    SizedBox(height: WorldUILayout.sectionGap),
                     Text(
                       '試聴',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
                             color: _pack.accentMuted,
                           ),
                     ),
-                    SizedBox(height: layout.cardGap),
+                    SizedBox(height: WorldUILayout.cardGap),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -277,7 +275,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       label: _studio.microcopy.gallerySelect,
                       onPressed: _confirm,
                     ),
-                    SizedBox(height: layout.cardGap),
+                    SizedBox(height: WorldUILayout.cardGap),
                   ],
                 ),
               ),
@@ -339,14 +337,12 @@ class _GalleryHeroCard extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            right: studio.layout.symmetric ? null : 20,
-            left: studio.layout.symmetric ? 0 : null,
+            left: 0,
+            right: 0,
             top: 24,
-            child: studio.layout.symmetric
-                ? Center(
-                    child: Icon(pack.profileIcon, size: 72, color: pack.accent),
-                  )
-                : Icon(pack.profileIcon, size: 64, color: pack.accent),
+            child: Center(
+              child: Icon(pack.profileIcon, size: 72, color: pack.accent),
+            ),
           ),
           Positioned(
             left: 20,
@@ -365,7 +361,7 @@ class _GalleryHeroCard extends StatelessWidget {
                 Text(
                   pack.tagline,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: pack.onAccent.withValues(alpha: 0.9),
+                        color: pack.textOnScaffold.withValues(alpha: 0.9),
                       ),
                 ),
               ],

@@ -20,7 +20,7 @@ import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../features/world_selection/world_selection_sheet.dart';
 import '../presentation/world/world_presentation_catalog.dart';
-import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/world_ui_layout.dart';
 import '../presentation/world/widgets/world_button.dart';
 import '../presentation/world/widgets/world_loading.dart';
 import '../theme/world_profile.dart';
@@ -284,23 +284,14 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                     SliverFillRemaining(
                       hasScrollBody: true,
                       child: Padding(
-                        padding: WorldStudioIdentityCatalog.of(_profile)
-                            .layout
-                            .screenPadding(context),
+                        padding: WorldUILayout.screenPadding(context),
                         child: Align(
-                          alignment: WorldStudioIdentityCatalog.of(_profile)
-                              .layout
-                              .contentAlign,
+                          alignment: WorldUILayout.contentAlign,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 520),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment:
-                                  WorldStudioIdentityCatalog.of(_profile)
-                                          .layout
-                                          .symmetric
-                                      ? CrossAxisAlignment.stretch
-                                      : CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 if (handoff == null && bodyOpacity > 0.95)
                                   Opacity(

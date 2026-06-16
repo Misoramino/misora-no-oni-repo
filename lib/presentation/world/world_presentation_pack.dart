@@ -155,4 +155,20 @@ class WorldPresentationPack {
   LinearGradient get accentGradient => LinearGradient(
         colors: [accent, accentMuted],
       );
+
+  /// 明るい背景（Pop City 等）かどうか。
+  bool get isLightScaffold => scaffoldTop.computeLuminance() > 0.45;
+
+  /// スキャフォールド上の本文色（パネル外テキスト）。
+  Color get textOnScaffold =>
+      isLightScaffold ? const Color(0xFF1A1A2E) : onAccent;
+
+  /// スキャフォールド上の補助テキスト色。
+  Color get mutedOnScaffold => isLightScaffold
+      ? const Color(0xFF424242)
+      : onAccent.withValues(alpha: 0.85);
+
+  /// フィルドボタン上のラベル色（アクセント上は常に高コントラスト）。
+  Color get buttonLabelOnAccent =>
+      accent.computeLuminance() > 0.55 ? const Color(0xFF1A1A2E) : Colors.white;
 }

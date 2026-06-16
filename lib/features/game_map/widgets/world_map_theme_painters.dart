@@ -60,6 +60,22 @@ class _StarfieldPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rng = math.Random(42);
     final twinkle = (math.sin(phase * math.pi * 2) + 1) * 0.5;
+    // 深宇宙の星雲グロー
+    final nebulae = [
+      (Offset(size.width * 0.22, size.height * 0.38), const Color(0xFF5C6BC0)),
+      (Offset(size.width * 0.78, size.height * 0.55), const Color(0xFFCE93D8)),
+    ];
+    for (final (c, color) in nebulae) {
+      final glow = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.07 + twinkle * 0.02),
+            color.withValues(alpha: 0.02),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: c, radius: size.shortestSide * 0.28));
+      canvas.drawCircle(c, size.shortestSide * 0.28, glow);
+    }
     for (var i = 0; i < 48; i++) {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;

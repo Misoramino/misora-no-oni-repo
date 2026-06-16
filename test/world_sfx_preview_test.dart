@@ -35,11 +35,19 @@ void main() {
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.sciFi).revealVolume,
-      0.70,
+      0.62,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.sciFi).captureVolume,
+      0.66,
+    );
+    expect(
+      WorldFxCatalog.forProfile(WorldProfile.magical).captureVolume,
+      0.62,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.magical).uiTapVolume,
-      0.55,
+      0.50,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.sport).uiTapVolume,
@@ -47,27 +55,27 @@ void main() {
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).uiTapVolume,
-      0.45,
+      0.40,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).revealVolume,
-      0.63,
+      0.58,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.westernLuxury).uiTapVolume,
-      0.56,
+      0.50,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.westernLuxury).revealVolume,
-      0.70,
+      0.62,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.arg).uiTapVolume,
-      0.48,
+      0.42,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.arg).transitionVolume,
-      0.68,
+      0.60,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.astronomy).uiTapVolume,
@@ -101,14 +109,14 @@ void main() {
         WorldProfile.japaneseLuxury,
         WorldSfxPreviewKind.transition,
       ),
-      0.68,
+      0.55,
     );
     expect(
       WorldSfxPreview.volumeFor(
         WorldProfile.japaneseLuxury,
         WorldSfxPreviewKind.reveal,
       ),
-      0.63,
+      0.58,
     );
   });
 

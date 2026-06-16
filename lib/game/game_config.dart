@@ -156,6 +156,10 @@ class GameConfig {
   /// ハートビート途絶・切断とみなす時間（秒）。ホスト譲渡・切断脱落で共通。
   static const int memberPresenceStaleSeconds = 120;
 
+  /// 切断判定（[memberPresenceStaleSeconds] 超過）後、脱落までの猶予（秒）。
+  /// ホスト tick 間の揺れ用。合計 ≒2分で脱落。
+  static const int disconnectEliminationGraceSeconds = 15;
+
   /// 試合中バックグラウンド（他アプリ・画面ロック）の最大猶予（秒）。
   /// この間はハートビート停止でも切断脱落しない。
   static const int matchBackgroundMaxSeconds = 15 * 60;

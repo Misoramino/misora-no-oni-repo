@@ -11,7 +11,33 @@ enum BgmId {
   tactical('tactical', 'タクティカル（スパイ）'),
   space('space', 'アストロ（壮大）'),
   magical('magical', 'マジカル（古楽器）'),
-  funky('funky', 'ファンキー');
+  funky('funky', 'ファンキー'),
+  /// Royal Classic — Handel Water Music: Sarabande（Title/Gallery/Final tension）
+  royalSarabande('royal_sarabande', 'Royal — Sarabande'),
+  /// Royal Classic — Dvořák Serenade Op.22: IV. Larghetto（Lobby/Match/Lose）
+  royalLarghetto('royal_larghetto', 'Royal — Larghetto'),
+  /// Royal Classic — Handel Arrival of the Queen of Sheba（Victory）
+  royalQueenOfSheba('royal_queen_of_sheba', 'Royal — Queen of Sheba'),
+  /// Zen Kyoto — Tsukiyomi calm zen piano（Title / Gallery / Lobby のみ）
+  zenTsukiyomi('zen_tsukiyomi', 'Zen — Tsukiyomi'),
+  /// Cyber Night — suspense cyberpunk（Lobby / Match）
+  cyberSuspense('cyber_suspense', 'Cyber — Suspense'),
+  /// Astronomy — alone on the moon（Title / Gallery / Lobby）
+  astroAloneMoon('astro_alone_moon', 'Astro — Alone on Moon'),
+  /// Astronomy — deep space underscore（Match / Danger）
+  astroDeepUnderscore('astro_deep_underscore', 'Astro — Deep Underscore'),
+  /// Urban Horror — silent tension（Title）
+  urbanSilentTension('urban_silent_tension', 'Urban — Silent Tension'),
+  /// Urban Horror — silent pursuit（Lobby / Match）
+  urbanSilentPursuit('urban_silent_pursuit', 'Urban — Silent Pursuit'),
+  /// Urban Horror — silent shot（Moment / Capture）
+  urbanSilentShot('urban_silent_shot', 'Urban — Silent Shot'),
+  /// Magical World — ethereal magic（Title / Gallery）
+  magicalEthereal('magical_ethereal', 'Magical — Ethereal'),
+  /// Magical World — orchestra（Lobby / Match）
+  magicalOrchestra('magical_orchestra', 'Magical — Orchestra'),
+  /// Magical World — victory orchestra
+  magicalVictory('magical_victory', 'Magical — Victory');
 
   const BgmId(this.asset, this.label);
 
@@ -37,7 +63,16 @@ enum AmbientId {
   comms('comms'),
   sonar('sonar'),
   popCity('pop_city'),
-  beep('beep');
+  beep('beep'),
+  zenWoodJungle('zen_wood_jungle'),
+  zenWindLeaves('zen_wind_leaves'),
+  zenBirdSubtle('zen_bird_subtle'),
+  royalBellIndoor('royal_bell_indoor'),
+  royalFireplace('royal_fireplace'),
+  cyberAmbientDeep('cyber_ambient_deep'),
+  urbanRainCity('urban_rain_city'),
+  magicalFireplace('magical_fireplace'),
+  argBadRadio('arg_bad_radio');
 
   const AmbientId(this.asset);
 
@@ -47,24 +82,41 @@ enum AmbientId {
 /// 世界観ごとの既定サウンド（タイトル/ロビーのBGM・対戦中の環境音）。
 abstract final class WorldAudio {
   static BgmId defaultBgm(WorldProfile profile) => switch (profile) {
-        WorldProfile.horror => BgmId.horror,
+        WorldProfile.horror => BgmId.urbanSilentPursuit,
         WorldProfile.sport => BgmId.pop,
-        WorldProfile.sciFi => BgmId.cyber,
+        WorldProfile.sciFi => BgmId.cyberSuspense,
         WorldProfile.arg => BgmId.tactical,
-        WorldProfile.magical => BgmId.magical,
-        WorldProfile.astronomy => BgmId.space,
-        WorldProfile.japaneseLuxury => BgmId.magical,
-        WorldProfile.westernLuxury => BgmId.space,
+        WorldProfile.magical => BgmId.magicalOrchestra,
+        WorldProfile.astronomy => BgmId.astroAloneMoon,
+        WorldProfile.japaneseLuxury => BgmId.zenTsukiyomi,
+        WorldProfile.westernLuxury => BgmId.royalLarghetto,
       };
 
-  static AmbientId ambient(WorldProfile profile) => switch (profile) {
-        WorldProfile.horror => AmbientId.wind, // 風（遠くの環境音）
-        WorldProfile.sport => AmbientId.popCity, // 街の賑わい
-        WorldProfile.sciFi => AmbientId.sonar, // 電子的なソナー
-        WorldProfile.arg => AmbientId.comms, // 無線・通信
-        WorldProfile.magical => AmbientId.forest, // 森・妖精
-        WorldProfile.astronomy => AmbientId.beep, // 微かな機械音
-        WorldProfile.japaneseLuxury => AmbientId.wind,
-        WorldProfile.westernLuxury => AmbientId.wind,
+  /// 対戦中ワンショット環境音のプライマリ。
+  static AmbientId ambient(WorldProfile profile) => ambientPool(profile).first;
+
+  /// 世界観ごとの環境音プール（プライマリ + セカンダリ）。
+  static List<AmbientId> ambientPool(WorldProfile profile) => switch (profile) {
+        WorldProfile.japaneseLuxury => [
+            AmbientId.zenWoodJungle,
+            AmbientId.zenWindLeaves,
+            AmbientId.wind,
+          ],
+        WorldProfile.westernLuxury => [AmbientId.royalBellIndoor],
+        WorldProfile.sciFi => [AmbientId.cyberAmbientDeep],
+        WorldProfile.horror => [
+            AmbientId.urbanRainCity,
+            AmbientId.wind,
+          ],
+        WorldProfile.magical => [
+            AmbientId.magicalFireplace,
+            AmbientId.forest,
+          ],
+        WorldProfile.astronomy => [AmbientId.beep],
+        WorldProfile.arg => [
+            AmbientId.argBadRadio,
+            AmbientId.comms,
+          ],
+        WorldProfile.sport => [AmbientId.popCity],
       };
 }

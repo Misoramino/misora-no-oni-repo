@@ -58,7 +58,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
 
       game_feedback.Feedback.confirm();
-      unawaited(WorldAudioDirector.instance.beginMatchCountdown());
+      unawaited(WorldAudioDirector.instance.beginMatchPresentation());
       _progressRecordedForMatch = false;
       _lastNewlyUnlockedTitles = const [];
       _matchRoleBriefingShown = false;
@@ -235,7 +235,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
       final since = _absentSinceByUid.putIfAbsent(uid, () => now);
       if (now.difference(since).inSeconds <
-          GameConfig.memberPresenceStaleSeconds) {
+          GameConfig.disconnectEliminationGraceSeconds) {
         continue;
       }
       _absentSinceByUid.remove(uid);

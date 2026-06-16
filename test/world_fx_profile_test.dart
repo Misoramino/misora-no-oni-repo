@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oni_game/audio/audio_library.dart';
 import 'package:oni_game/audio/sfx_id.dart';
 import 'package:oni_game/theme/world_fx_profile.dart';
 import 'package:oni_game/theme/world_profile.dart';
@@ -12,7 +13,11 @@ void main() {
       final fx = WorldFxCatalog.forProfile(p);
       expect(fx.profile, p);
       expect(fx.namedRevealBanner, isNotEmpty);
-      expect(fx.uiTapAsset, 'ui_tap');
+      if (p == WorldProfile.japaneseLuxury) {
+        expect(fx.uiTapAsset, 'paper_ui');
+      } else {
+        expect(fx.uiTapAsset, 'ui_tap');
+      }
     }
   });
 
@@ -70,7 +75,7 @@ void main() {
 
   test('P2 luxury world SFX wav files are bundled', () async {
     await _expectBundledWorldSfx({
-      WorldProfile.japaneseLuxury: ['ui_tap', 'reveal', 'transition'],
+      WorldProfile.japaneseLuxury: ['paper_ui', 'reveal', 'transition'],
       WorldProfile.westernLuxury: ['ui_tap', 'reveal', 'transition'],
     });
   });
@@ -110,6 +115,76 @@ void main() {
       for (final p in WorldProfile.values) p: momentSlots,
     };
     await _expectBundledWorldSfx(worlds);
+  });
+
+  test('final pass sting SFX wav files are bundled where defined', () async {
+    await _expectBundledWorldSfx({
+      WorldProfile.japaneseLuxury: ['result_sting', 'paper_ui'],
+      WorldProfile.westernLuxury: ['lose_sting'],
+      WorldProfile.arg: ['lose_sting'],
+    });
+  });
+
+  test('Zen Kyoto maps paper_ui for tap and confirm', () {
+    final fx = WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury);
+    expect(fx.uiTapAsset, 'paper_ui');
+    expect(fx.worldMomentAssetFor(SfxId.uiConfirm), 'paper_ui');
+  });
+
+  test('polish pass BGM mp3 files are bundled', () async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final assets = manifest.listAssets().toSet();
+    for (final id in [
+      BgmId.zenTsukiyomi,
+      BgmId.cyberSuspense,
+      BgmId.astroAloneMoon,
+      BgmId.astroDeepUnderscore,
+      BgmId.urbanSilentTension,
+      BgmId.urbanSilentPursuit,
+      BgmId.urbanSilentShot,
+      BgmId.magicalEthereal,
+      BgmId.magicalOrchestra,
+      BgmId.magicalVictory,
+      BgmId.space,
+      BgmId.royalSarabande,
+      BgmId.royalLarghetto,
+      BgmId.royalQueenOfSheba,
+    ]) {
+      final path = 'assets/audio/bgm/${id.asset}.mp3';
+      expect(assets, contains(path), reason: 'missing $path');
+    }
+  });
+
+  test('polish pass ambient mp3 files are bundled', () async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final assets = manifest.listAssets().toSet();
+    for (final id in [
+      AmbientId.zenWoodJungle,
+      AmbientId.zenWindLeaves,
+      AmbientId.zenBirdSubtle,
+      AmbientId.royalBellIndoor,
+      AmbientId.royalFireplace,
+      AmbientId.cyberAmbientDeep,
+      AmbientId.urbanRainCity,
+      AmbientId.magicalFireplace,
+      AmbientId.argBadRadio,
+    ]) {
+      final path = 'assets/audio/ambient/${id.asset}.mp3';
+      expect(assets, contains(path), reason: 'missing $path');
+    }
+  });
+
+  test('all worlds resolve primary SFX asset paths without null mapping', () {
+    for (final p in WorldProfile.values) {
+      final fx = WorldFxCatalog.forProfile(p);
+      expect(fx.uiTapAsset, isNotEmpty);
+      expect(fx.revealAsset, isNotEmpty);
+      expect(fx.captureAsset, isNotEmpty);
+      expect(fx.transitionAsset, isNotEmpty);
+      expect(fx.worldMomentAssetFor(SfxId.uiTap), isNotNull);
+      expect(fx.worldMomentAssetFor(SfxId.reveal), isNotNull);
+      expect(fx.worldMomentAssetFor(SfxId.capture), isNotNull);
+    }
   });
 }
 

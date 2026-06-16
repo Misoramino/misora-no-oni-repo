@@ -87,30 +87,70 @@ class WorldAmbientPainter extends CustomPainter {
   }
 
   void _sparks(Canvas canvas, Size size, double t) {
+    final center = Offset(size.width * 0.5, size.height * 0.42);
+    final radius = size.shortestSide * 0.28;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = pack.accentMuted.withValues(alpha: 0.12);
+    canvas.drawCircle(center, radius, ring);
+    canvas.drawCircle(center, radius * 0.62, ring..color = const Color(0xFFFFD54F).withValues(alpha: 0.1));
     for (var i = 0; i < 6; i++) {
-      final c = Offset(
-        size.width * (0.2 + i * 0.12),
-        size.height * (0.25 + math.sin(t + i) * 0.05),
-      );
+      final a = t + i * math.pi / 3;
+      final c = center + Offset(math.cos(a) * radius * 0.85, math.sin(a) * radius * 0.85);
       canvas.drawCircle(
         c,
         2.5,
-        Paint()..color = pack.accent.withValues(alpha: 0.18),
+        Paint()..color = pack.accent.withValues(alpha: 0.2),
+      );
+      // 古代文字風の短い刻み
+      final rune = Paint()
+        ..color = pack.accentMuted.withValues(alpha: 0.14)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(c, c + Offset(0, -8 - math.sin(t + i) * 3), rune);
+    }
+    for (var i = 0; i < 4; i++) {
+      final spark = Offset(
+        size.width * (0.15 + i * 0.22),
+        size.height * (0.2 + math.sin(t * 1.2 + i) * 0.04),
+      );
+      canvas.drawCircle(
+        spark,
+        1.8,
+        Paint()..color = const Color(0xFFFFE082).withValues(alpha: 0.22),
       );
     }
   }
 
   void _stardust(Canvas canvas, Size size, double t) {
-    for (var i = 0; i < 20; i++) {
-      final a = (i / 20) * math.pi * 2 + t * 0.3;
-      final r = size.shortestSide * (0.15 + (i % 5) * 0.04);
+    // 星雲（淡い光の塊）
+    final nebula = [
+      (Offset(size.width * 0.28, size.height * 0.32), const Color(0xFF7E57C2)),
+      (Offset(size.width * 0.72, size.height * 0.48), const Color(0xFF4FC3F7)),
+      (Offset(size.width * 0.5, size.height * 0.62), const Color(0xFFFFD54F)),
+    ];
+    for (final (c, color) in nebula) {
+      final pulse = 0.85 + math.sin(t + c.dx) * 0.08;
+      final paint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.09 * pulse),
+            color.withValues(alpha: 0.03),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: c, radius: size.shortestSide * 0.22));
+      canvas.drawCircle(c, size.shortestSide * 0.22, paint);
+    }
+    for (var i = 0; i < 24; i++) {
+      final a = (i / 24) * math.pi * 2 + t * 0.25;
+      final r = size.shortestSide * (0.12 + (i % 6) * 0.035);
       canvas.drawCircle(
         Offset(
           size.width / 2 + math.cos(a) * r,
-          size.height * 0.35 + math.sin(a) * r * 0.5,
+          size.height * 0.38 + math.sin(a) * r * 0.45,
         ),
-        1,
-        Paint()..color = pack.accent.withValues(alpha: 0.2),
+        0.8 + (i % 3) * 0.4,
+        Paint()..color = pack.accent.withValues(alpha: 0.16 + (i % 4) * 0.03),
       );
     }
   }

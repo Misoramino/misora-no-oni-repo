@@ -269,6 +269,16 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       type: 'safe_charge',
       message: '安全地帯でチャージ獲得・スキル再使用可能・安全地帯移動',
       position: hit,
+      syncFirestore: false,
+    );
+    unawaited(
+      _publishFirestoreSafeZonePickup(
+        hitIndex: hitIndex,
+        pickupLat: hit.latitude,
+        pickupLng: hit.longitude,
+        nextLat: nextSafeZone.latitude,
+        nextLng: nextSafeZone.longitude,
+      ),
     );
   }
 
