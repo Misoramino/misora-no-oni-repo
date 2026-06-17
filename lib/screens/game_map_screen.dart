@@ -662,7 +662,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         title: 'スキル',
         body: '画面下のボタンでスキルを発動。'
             '地図に置くスキルは押し続けて範囲を確認し、指を離して設置。'
-            '×へドラッグでキャンセルできます。',
+            'キャンセルは画面右上の×です。',
       ),
       CoachStep(
         targetKey: _matchOverflowKey,

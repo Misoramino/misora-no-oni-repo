@@ -19,4 +19,6 @@ abstract final class GuideTerms {
   static const secondGame = '第二ゲーム';
   static const echoForm = '残響体';
   static const vengefulShadow = '復讐の鬼影';
+  /// マップ・HUD と同じ名称（旧: 通信妨害ゾーン）。
+  static const commJamZone = '通信障害地帯';
 }

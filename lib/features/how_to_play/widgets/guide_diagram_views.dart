@@ -22,6 +22,7 @@ Widget buildGuideDiagram(BuildContext context, GuideDiagramType type) {
     GuideDiagramType.skillPlacement => const SkillPlacementDiagram(),
     GuideDiagramType.roleOverview => const RoleOverviewDiagram(),
     GuideDiagramType.skillOverview => const SkillOverviewDiagram(),
+    GuideDiagramType.matchSessionFlow => const MatchSessionFlowDiagram(),
     GuideDiagramType.onlineMatch => const OnlineMatchDiagram(),
   };
 }
@@ -284,7 +285,7 @@ class TraceChainDiagram extends StatelessWidget {
   }
 }
 
-/// DIA-ONLINE-001: 試合中止と記録
+/// DIA-ONLINE-001: 通話プレイと同期
 class OnlineMatchDiagram extends StatelessWidget {
   const OnlineMatchDiagram({super.key});
 
@@ -295,22 +296,61 @@ class OnlineMatchDiagram extends StatelessWidget {
       children: [
         const HelpFlowDiagram(
           steps: [
-            (icon: Icons.how_to_vote_outlined, label: '過半数で中止', color: null),
+            (icon: Icons.phone_in_talk_outlined, label: '通話で話す', color: null),
             (
-              icon: Icons.block_outlined,
-              label: '勝敗・戦績なし',
-              color: Color(0xFFE88B2E),
+              icon: Icons.gps_fixed_outlined,
+              label: '背面でも近接判定',
+              color: Color(0xFF1FA98A),
             ),
             (
-              icon: Icons.photo_library_outlined,
-              label: '同意時はギャラリー',
-              color: null,
+              icon: Icons.touch_app_outlined,
+              label: 'スキルは前面',
+              color: Color(0xFF2E86DE),
             ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
-          '再接続時は経過時間や脱落後の状態が復元されます。',
+          '復帰時に通話中の出来事（捕獲・暴露など）をまとめて反映します。',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.35,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '試合中止・ギャラリー保存は下のカードを参照。',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+            height: 1.35,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+/// DIA-MATCH-001: 1試合の流れ
+class MatchSessionFlowDiagram extends StatelessWidget {
+  const MatchSessionFlowDiagram({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        const HelpFlowDiagram(
+          steps: [
+            (icon: Icons.flag_outlined, label: '準備', color: null),
+            (icon: Icons.radar_outlined, label: '追跡', color: Color(0xFF2E86DE)),
+            (icon: Icons.emoji_events_outlined, label: '終了', color: Color(0xFFF39C12)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '脱落しても残響体・鬼影として第二ゲームに参加できます。',
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.35,

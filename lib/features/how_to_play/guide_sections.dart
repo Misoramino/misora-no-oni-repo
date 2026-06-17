@@ -407,7 +407,7 @@ final _facilitiesSection = GuideSectionData(
         title: '施設の種類',
         caption: '安全地帯・情報屋・カメラ・告発など',
       ),
-      body: '使うと別の場所へ移動します。スキルの再使用待ち短縮もあります。',
+      body: 'チャージで一定時間追跡されにくくなり、エリア外暴露を1回防げます。使うと別の場所へ移動します。',
       details: [
         _detail(
           title: '数値を見る',
@@ -446,7 +446,7 @@ final _facilitiesSection = GuideSectionData(
     ),
     _card(
       id: 'jam_zone',
-      title: '通信妨害ゾーン',
+      title: GuideTerms.commJamZone,
       icon: Icons.wifi_off_outlined,
       oneLine: '通信が乱れるエリア。',
       body: '情報の読み合いが複雑になります。周囲の痕跡と合わせて判断しましょう。',
@@ -491,8 +491,10 @@ final _accusationSection = GuideSectionData(
       id: 'unlock',
       title: 'いつ使える？',
       icon: Icons.lock_clock_outlined,
-      oneLine: '試合の後半に解禁。',
-      body: '時間が経つか、脱落が出ると使えるようになります。',
+      oneLine: '試合の後半に解禁されます。',
+      body:
+          '時間が経つか、誰かが脱落すると使えるようになります。\n'
+          '生き残っている逃走者だけが、告発施設で指名できます。',
       details: [
         _detail(
           title: '数値を見る',
@@ -521,8 +523,9 @@ final _accusationSection = GuideSectionData(
       id: 'facility_fight',
       title: '施設の奪い合い',
       icon: Icons.groups_outlined,
-      oneLine: '残響体は増やす、鬼影は減らす。鬼が近くにいる施設は使えない。',
-      body: '${GuideTerms.secondGame}の行動で、使える施設の数が変わります。',
+      oneLine: '残響体は施設を増やす／鬼影は減らす（鬼が近い施設は使えない）。',
+      body:
+          '${GuideTerms.secondGame}の行動で、味方が使える告発施設の数が変わります。',
       details: [
         _detail(
           title: '数値を見る',
@@ -558,7 +561,7 @@ final _rolesSection = GuideSectionData(
       title: GuideTerms.trueOni,
       icon: Icons.nightlight_round,
       oneLine: '追って、捕まえる。鬼陣営の中心。',
-      body: '手がかりから逃走者を追い詰めます。全員脱落すると人側の勝ちです。',
+      body: '逃走者を全員捕まえれば鬼側の勝ち。手がかりを読んで追い詰めます。',
     ),
     _card(
       id: 'werewolf',
@@ -573,8 +576,16 @@ final _rolesSection = GuideSectionData(
       ),
       details: [
         _detail(
-          title: '立場の補足',
-          body: '状況で人側・鬼側の見え方が変わることがあります。画面表示を確認してください。',
+          title: '陣営の決まり方',
+          body:
+              '生存者のうち、人側と鬼側のどちらか少ない方の陣営が味方です（脱落時に固定）。',
+        ),
+        _detail(
+          title: 'つまりどういうこと？',
+          body:
+              '試合が進むと人は捕まって減っていきます。'
+              'だから多くの試合では前半は鬼側・後半は人側の味方になりやすい、'
+              'と覚えるとラクです。',
         ),
       ],
     ),
@@ -617,12 +628,20 @@ final _skillsSection = GuideSectionData(
       id: 'skill_basic',
       title: '基本',
       icon: Icons.info_outline,
-      oneLine: 'ボタンで発動。再使用まで待ち時間あり。',
+      oneLine: '役職ごとに1〜2個。目的を決めてから使う。',
       body:
-          '逃走者：候補から1つ\n'
-          '鬼：候補から2つ\n'
-          '人狼：鬼化',
+          '逃走者：候補から1つ／鬼：候補から2つ／人狼：鬼化。\n'
+          '「1分チュートリアル」で操作の感覚を体験できます。',
       details: [
+        _detail(
+          title: '即時 vs 地図設置',
+          body:
+              '鬼化・偽位置はボタン1回。\n'
+              '捕獲結界・体投げは\n'
+              '①ボタン\n'
+              '②地図を長押し\n'
+              '③離して設置',
+        ),
         _detail(
           title: '数値を見る',
           body: '各スキルの持続・射程・クールダウンは詳細ルールに一覧があります。',
@@ -634,7 +653,7 @@ final _skillsSection = GuideSectionData(
       id: 'map_place',
       title: '地図に置く',
       icon: Icons.touch_app_outlined,
-      oneLine: 'ボタン → 地図を長押し → 離して設置。',
+      oneLine: 'ボタン／長押し／離して設置。',
       body: '捕獲結界・体投げなど。キャンセルは画面右上の×。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.skillPlacement,
@@ -675,7 +694,7 @@ final _skillsSection = GuideSectionData(
       title: '鬼化',
       icon: Icons.auto_fix_high_outlined,
       oneLine: '一時的に鬼のように追える（人狼）。',
-      body: '${GuideTerms.realOni}ではなく、告発の正解にもなりません。',
+      body: '${GuideTerms.realOni}ではなく、告発の正解にもなりません。見た目の切替・自動切替は詳細ルールを参照。',
     ),
   ],
   relatedSectionIds: ['combat', 'roles'],
@@ -703,7 +722,7 @@ final _secondGameSection = GuideSectionData(
       id: 'echo',
       title: GuideTerms.echoForm,
       icon: Icons.sensors_outlined,
-      oneLine: '人側脱落後。端子ジャック・告発施設の陣取り。',
+      oneLine: '人側脱落後：端子で鬼位置を暴露／旗のそばで施設を増やす',
       body: '鬼の位置を味方に暴露したり、使える告発施設を増やせます。',
       details: [
         _detail(
@@ -717,7 +736,7 @@ final _secondGameSection = GuideSectionData(
       id: 'shadow',
       title: GuideTerms.vengefulShadow,
       icon: Icons.blur_on_outlined,
-      oneLine: '鬼側脱落後。告発妨害・カメラ停止。',
+      oneLine: '鬼側脱落後：旗のそばで施設を減らす／カメラを止める',
       body: '人側の告発を遅らせたり、残響体のジャックを妨げられます。',
     ),
   ],
@@ -737,8 +756,8 @@ final _onlineSection = GuideSectionData(
   oneLine: '同期・再接続・中止・保存について。',
   sectionDiagram: const GuideDiagramData(
     type: GuideDiagramType.onlineMatch,
-    title: '試合中止と記録',
-    caption: '中止は勝敗なし',
+    title: '通話しながら遊ぶ',
+    caption: '近接判定は背面でも／スキル操作は前面',
   ),
   cards: [
     _card(

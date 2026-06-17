@@ -59,6 +59,7 @@ class EliminationSupportBar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
                   rule.supportsFacilitySabotage
@@ -83,24 +84,36 @@ class EliminationSupportBar extends StatelessWidget {
                         copy.roleSubtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: pack.mutedOnPanel,
+                          height: 1.4,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (onOpenTutorial != null)
-                  TextButton.icon(
-                    onPressed: onOpenTutorial,
-                    icon: Icon(Icons.school_outlined, size: 18, color: pack.accent),
-                    label: Text('操作を練習', style: TextStyle(color: pack.accent)),
-                  ),
-                if (showResultButton && onOpenResult != null)
-                  TextButton(
-                    onPressed: onOpenResult,
-                    child: Text('リザルト', style: TextStyle(color: pack.accent)),
-                  ),
               ],
             ),
+            if (onOpenTutorial != null || (showResultButton && onOpenResult != null))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 0,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    if (onOpenTutorial != null)
+                      TextButton.icon(
+                        onPressed: onOpenTutorial,
+                        icon: Icon(Icons.school_outlined, size: 18, color: pack.accent),
+                        label: Text('操作を練習', style: TextStyle(color: pack.accent)),
+                      ),
+                    if (showResultButton && onOpenResult != null)
+                      TextButton(
+                        onPressed: onOpenResult,
+                        child: Text('リザルト', style: TextStyle(color: pack.accent)),
+                      ),
+                  ],
+                ),
+              ),
             if (rule.supportsCameraJack || rule.supportsFacilitySabotage) ...[
               const SizedBox(height: 8),
               Text(

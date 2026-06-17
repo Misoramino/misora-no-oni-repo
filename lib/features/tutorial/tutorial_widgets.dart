@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../audio/sfx_id.dart';
 import '../../widgets/juicy_tap.dart';
+import '../how_to_play/guide_text.dart';
 import 'tutorial_copy.dart';
 
 /// チュートリアル上部の指示バナー。
@@ -43,7 +44,7 @@ class TutorialInstructionBanner extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  text,
+                  GuideText.forDisplay(text),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     height: 1.3,
@@ -125,7 +126,7 @@ class TutorialFinishPanel extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              copy.body,
+              GuideText.forDisplay(copy.body),
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
             ),
             const SizedBox(height: 20),

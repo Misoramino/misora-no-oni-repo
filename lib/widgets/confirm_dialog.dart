@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../presentation/world/world_ui_layout.dart';
+
 /// 確認ダイアログ。確定で `true`、キャンセルで `false`。
 Future<bool> showConfirmDialog(
   BuildContext context, {
@@ -10,26 +12,64 @@ Future<bool> showConfirmDialog(
 }) async {
   final ok = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('キャンセル'),
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      final width = MediaQuery.sizeOf(ctx).width;
+      final stackActions = width < 300;
+      return AlertDialog(
+        insetPadding: WorldUILayout.dialogInsets(ctx),
+        title: Text(title),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+            ),
+          ),
         ),
-        FilledButton(
-          style: isDestructive
-              ? FilledButton.styleFrom(
-                  backgroundColor: Theme.of(ctx).colorScheme.error,
-                  foregroundColor: Theme.of(ctx).colorScheme.onError,
-                )
-              : null,
-          onPressed: () => Navigator.pop(ctx, true),
-          child: Text(confirmLabel),
-        ),
-      ],
-    ),
+        actionsAlignment:
+            stackActions ? MainAxisAlignment.center : MainAxisAlignment.end,
+        actionsOverflowAlignment: OverflowBarAlignment.center,
+        actionsOverflowDirection: VerticalDirection.down,
+        actions: stackActions
+            ? [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: isDestructive
+                        ? FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.error,
+                            foregroundColor: theme.colorScheme.onError,
+                          )
+                        : null,
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(confirmLabel),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('キャンセル'),
+                ),
+              ]
+            : [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: isDestructive
+                      ? FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                        )
+                      : null,
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(confirmLabel),
+                ),
+              ],
+      );
+    },
   );
   return ok == true;
 }
@@ -48,14 +88,20 @@ Future<String?> showTextPromptDialog(
     return await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: WorldUILayout.dialogInsets(ctx),
         title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: labelText,
-            hintText: hintText,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            child: TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: labelText,
+                hintText: hintText,
+              ),
+              autofocus: true,
+            ),
           ),
-          autofocus: true,
         ),
         actions: [
           TextButton(

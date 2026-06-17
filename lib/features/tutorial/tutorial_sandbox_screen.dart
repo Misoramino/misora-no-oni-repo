@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../game/player_role.dart';
+import '../how_to_play/guide_text.dart';
 import '../../widgets/juicy_tap.dart';
 import '../game_map/widgets/how_to_play_sheet.dart';
 import '../game_map/widgets/role_briefing_dialog.dart';
@@ -25,7 +26,14 @@ class TutorialSandboxScreen extends StatefulWidget {
   State<TutorialSandboxScreen> createState() => _TutorialSandboxScreenState();
 }
 
-enum _Act { tapNext, move, pressSkill, flee, chase }
+enum _Act {
+  tapNext,
+  move,
+  flee,
+  chase,
+  skillInstant,
+  skillMapPlace,
+}
 
 class _Step {
   const _Step({
@@ -45,6 +53,15 @@ class _Step {
   final bool showAnonMarker;
   final bool showAccusationMarker;
   final String? guideSectionId;
+
+  static _Act _actFrom(TutorialStepInteraction i) => switch (i) {
+        TutorialStepInteraction.tapNext => _Act.tapNext,
+        TutorialStepInteraction.moveArena => _Act.move,
+        TutorialStepInteraction.fleeOni => _Act.flee,
+        TutorialStepInteraction.chaseRunner => _Act.chase,
+        TutorialStepInteraction.skillInstant => _Act.skillInstant,
+        TutorialStepInteraction.skillMapPlace => _Act.skillMapPlace,
+      };
 }
 
 class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
@@ -66,6 +83,13 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   double _stepElapsed = 0;
   double _travel = 0;
   bool _skillPressed = false;
+  bool _skillArmed = false;
+  bool _werewolfTransformed = false;
+  bool _fakePositionActive = false;
+  bool _placementHolding = false;
+  double _placementHoldSeconds = 0;
+  Offset? _placementPreview;
+  Offset? _placedZoneCenter;
   bool _finished = false;
   double _lastUiPaintAt = 0;
 
@@ -88,37 +112,28 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   static List<_Step> _buildSteps(PlayerRole role) {
     final copies = TutorialCopyCatalog.stepsFor(role);
     return [
-      for (var i = 0; i < copies.length; i++)
+      for (final copy in copies)
         _Step(
-          text: copies[i].text,
-          act: _actFor(role, i),
-          showOni: copies[i].showOni,
-          showRunner: copies[i].showRunner,
-          showAnonMarker: copies[i].showAnonMarker,
-          showAccusationMarker: copies[i].showAccusationMarker,
-          guideSectionId: copies[i].guideSectionId,
+          text: copy.text,
+          act: _Step._actFrom(copy.interaction),
+          showOni: copy.showOni,
+          showRunner: copy.showRunner,
+          showAnonMarker: copy.showAnonMarker,
+          showAccusationMarker: copy.showAccusationMarker,
+          guideSectionId: copy.guideSectionId,
         ),
     ];
   }
 
-  static _Act _actFor(PlayerRole role, int index) {
-    switch (role) {
-      case PlayerRole.runner:
-        return switch (index) {
-          0 => _Act.move,
-          2 => _Act.flee,
-          3 => _Act.move,
-          _ => _Act.tapNext,
-        };
-      case PlayerRole.hunter:
-        return index == 5 ? _Act.chase : _Act.tapNext;
-      case PlayerRole.werewolf:
-        return switch (index) {
-          1 => _Act.move,
-          2 => _Act.pressSkill,
-          _ => _Act.tapNext,
-        };
-    }
+  void _resetStepSkillState() {
+    _skillPressed = false;
+    _skillArmed = false;
+    _werewolfTransformed = false;
+    _fakePositionActive = false;
+    _placementHolding = false;
+    _placementHoldSeconds = 0;
+    _placementPreview = null;
+    _placedZoneCenter = null;
   }
 
   String get _skillLabel => switch (widget.role) {
@@ -177,7 +192,12 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
         }
       case _Act.tapNext:
       case _Act.move:
-      case _Act.pressSkill:
+      case _Act.skillInstant:
+      case _Act.skillMapPlace:
+        if (_placementHolding) {
+          _placementHoldSeconds += dt;
+          dirty = true;
+        }
         break;
     }
 
@@ -196,9 +216,11 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   void _evaluateCompletion() {
     if (_stepDone) return;
     final done = switch (_step.act) {
-      _Act.tapNext => false, // ボタンで進む
+      _Act.tapNext => false,
       _Act.move => _travel >= 0.28 && _stepElapsed >= 1.5,
-      _Act.pressSkill => _skillPressed && _stepElapsed >= 1.2,
+      _Act.skillInstant => _skillPressed && _stepElapsed >= 0.8,
+      _Act.skillMapPlace =>
+        _placedZoneCenter != null && _stepElapsed >= 1.0,
       _Act.flee => _travel >= 0.15 && _stepElapsed >= 5.5,
       _Act.chase =>
         (_runner - _player).distance <= 0.07 && _stepElapsed >= 3.5,
@@ -225,8 +247,8 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
       _stepDone = false;
       _stepElapsed = 0;
       _travel = 0;
-      _skillPressed = false;
       _moveTarget = null;
+      _resetStepSkillState();
     });
   }
 
@@ -242,9 +264,9 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
       _stepDone = false;
       _stepElapsed = 0;
       _travel = 0;
-      _skillPressed = false;
       _moveTarget = null;
       _finished = false;
+      _resetStepSkillState();
       _player = const Offset(0.5, 0.62);
       _oni = const Offset(0.5, 0.15);
       _runner = const Offset(0.78, 0.3);
@@ -282,16 +304,77 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     }
   }
 
+  void _onArenaPlaceDown(Offset normalized) {
+    if (_finished || _step.act != _Act.skillMapPlace || !_skillArmed) return;
+    setState(() {
+      _placementHolding = true;
+      _placementHoldSeconds = 0;
+      _placementPreview = _clampToArea(normalized);
+    });
+  }
+
+  void _onArenaPlaceMove(Offset normalized) {
+    if (!_placementHolding) return;
+    setState(() => _placementPreview = _clampToArea(normalized));
+  }
+
+  void _onArenaPlaceUp() {
+    if (!_placementHolding) return;
+    if (_placementHoldSeconds >= 0.35 && _placementPreview != null) {
+      setState(() {
+        _placedZoneCenter = _placementPreview;
+        _placementHolding = false;
+        _placementPreview = null;
+        _skillArmed = false;
+      });
+      GameAudio.instance.playSfx(SfxId.skillCast);
+      _evaluateCompletion();
+    } else {
+      setState(() {
+        _placementHolding = false;
+        _placementPreview = null;
+      });
+    }
+  }
+
+  void _cancelMapPlacement() {
+    if (_step.act != _Act.skillMapPlace) return;
+    setState(() => _resetStepSkillState());
+  }
+
   void _onSkill() {
     GameAudio.instance.playSfx(SfxId.skillCast);
-    setState(() => _skillPressed = true);
-    if (_step.act == _Act.pressSkill) _evaluateCompletion();
+    switch (_step.act) {
+      case _Act.skillInstant:
+        setState(() {
+          _skillPressed = true;
+          if (widget.role == PlayerRole.werewolf) {
+            _werewolfTransformed = true;
+          }
+          if (widget.role == PlayerRole.runner) {
+            _fakePositionActive = true;
+          }
+        });
+        _evaluateCompletion();
+      case _Act.skillMapPlace:
+        if (!_skillArmed) {
+          setState(() => _skillArmed = true);
+        }
+      default:
+        break;
+    }
   }
+
+  Offset? get _fakePositionDecoy =>
+      _fakePositionActive ? _player + const Offset(0.14, -0.08) : null;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final skillActive = _step.act == _Act.pressSkill && !_stepDone;
+    final skillActive = (_step.act == _Act.skillInstant ||
+            _step.act == _Act.skillMapPlace) &&
+        !_stepDone;
+    final mapPlaceActive = _step.act == _Act.skillMapPlace && !_stepDone;
 
     final finishCopy = TutorialCopyCatalog.finishFor(widget.role);
 
@@ -341,33 +424,90 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                             child: SizedBox(
                               width: side,
                               height: side,
-                              child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (d) => _onArenaTap(
-                                Offset(
-                                  d.localPosition.dx / side,
-                                  d.localPosition.dy / side,
-                                ),
-                              ),
-                              child: CustomPaint(
-                                painter: _ArenaPainter(
-                                  player: _player,
-                                  oni: _step.showOni ? _oni : null,
-                                  runner: _step.showRunner ? _runner : null,
-                                  moveTarget: _moveTarget,
-                                  showAnonMarker: _step.showAnonMarker,
-                                  showAccusationMarker:
-                                      _step.showAccusationMarker,
-                                  areaCenter: _areaCenter,
-                                  areaRadius: _areaRadius,
-                                  accent: _accent,
-                                  skillPulse: skillActive,
-                                  scheme: theme.colorScheme,
-                                ),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Listener(
+                                    behavior: HitTestBehavior.opaque,
+                                    onPointerDown: (e) {
+                                      final n = Offset(
+                                        e.localPosition.dx / side,
+                                        e.localPosition.dy / side,
+                                      );
+                                      if (mapPlaceActive && _skillArmed) {
+                                        _onArenaPlaceDown(n);
+                                      } else {
+                                        _onArenaTap(n);
+                                      }
+                                    },
+                                    onPointerMove: (e) {
+                                      if (!mapPlaceActive || !_placementHolding) {
+                                        return;
+                                      }
+                                      _onArenaPlaceMove(
+                                        Offset(
+                                          e.localPosition.dx / side,
+                                          e.localPosition.dy / side,
+                                        ),
+                                      );
+                                    },
+                                    onPointerUp: (_) {
+                                      if (mapPlaceActive && _placementHolding) {
+                                        _onArenaPlaceUp();
+                                      }
+                                    },
+                                    onPointerCancel: (_) {
+                                      if (_placementHolding) {
+                                        setState(() {
+                                          _placementHolding = false;
+                                          _placementPreview = null;
+                                        });
+                                      }
+                                    },
+                                    child: CustomPaint(
+                                      painter: _ArenaPainter(
+                                        player: _player,
+                                        oni: _step.showOni ? _oni : null,
+                                        runner:
+                                            _step.showRunner ? _runner : null,
+                                        moveTarget: _moveTarget,
+                                        showAnonMarker: _step.showAnonMarker,
+                                        showAccusationMarker:
+                                            _step.showAccusationMarker,
+                                        areaCenter: _areaCenter,
+                                        areaRadius: _areaRadius,
+                                        accent: _accent,
+                                        skillPulse: skillActive && !_skillArmed,
+                                        werewolfTransformed:
+                                            _werewolfTransformed,
+                                        fakePositionDecoy: _fakePositionDecoy,
+                                        placementPreview: _placementPreview,
+                                        placedZone: _placedZoneCenter,
+                                        placementHolding: _placementHolding &&
+                                            _placementHoldSeconds >= 0.35,
+                                        scheme: theme.colorScheme,
+                                      ),
+                                    ),
+                                  ),
+                                  if (mapPlaceActive && _skillArmed)
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Material(
+                                        color: theme.colorScheme.surface
+                                            .withValues(alpha: 0.92),
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: IconButton(
+                                          tooltip: 'キャンセル',
+                                          icon: const Icon(Icons.close),
+                                          onPressed: _cancelMapPlacement,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
-                        ),
                         );
                       },
                     ),
@@ -377,6 +517,8 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                   role: widget.role,
                   skillLabel: _skillLabel,
                   skillActive: skillActive,
+                  skillArmed: _skillArmed,
+                  mapPlaceStep: mapPlaceActive,
                   showNext: _step.act == _Act.tapNext,
                   onSkill: _onSkill,
                   onNext: _advance,
@@ -394,6 +536,8 @@ class _ControlBar extends StatelessWidget {
     required this.role,
     required this.skillLabel,
     required this.skillActive,
+    required this.skillArmed,
+    required this.mapPlaceStep,
     required this.showNext,
     required this.onSkill,
     required this.onNext,
@@ -403,45 +547,80 @@ class _ControlBar extends StatelessWidget {
   final PlayerRole role;
   final String skillLabel;
   final bool skillActive;
+  final bool skillArmed;
+  final bool mapPlaceStep;
   final bool showNext;
   final VoidCallback onSkill;
   final VoidCallback onNext;
   final Color accent;
 
+  String? get _hint {
+    if (!skillActive) return null;
+    if (mapPlaceStep) {
+      return skillArmed
+          ? '地図を長押しして離す（×でキャンセル）'
+          : 'まずスキルボタンを押してください';
+    }
+    return switch (role) {
+      PlayerRole.runner => 'ボタンで、見える位置をずらします',
+      PlayerRole.werewolf => 'ボタンで鬼化の見た目を試します',
+      _ => 'ボタンを押して発動',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hint = _hint;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _PulsingWrap(
-            active: skillActive,
-            color: accent,
-            child: JuicyTap(
-              onTap: onSkill,
-              sfx: SfxId.skillCast,
-              child: IgnorePointer(
-                child: FilledButton.tonalIcon(
-                  onPressed: () {},
-                  icon: Icon(roleIcon(role)),
-                  label: Text(skillLabel),
-                ),
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                GuideText.forDisplay(hint),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: accent,
+                      height: 1.35,
+                    ),
               ),
             ),
+          Row(
+            children: [
+              _PulsingWrap(
+                active: skillActive,
+                color: accent,
+                child: JuicyTap(
+                  onTap: skillActive ? onSkill : null,
+                  sfx: SfxId.skillCast,
+                  child: IgnorePointer(
+                    child: FilledButton.tonalIcon(
+                      onPressed: skillActive ? () {} : null,
+                      icon: Icon(roleIcon(role)),
+                      label: Text(skillLabel),
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (showNext)
+                JuicyTap(
+                  onTap: onNext,
+                  sfx: SfxId.uiTap,
+                  child: IgnorePointer(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: accent),
+                      onPressed: () {},
+                      child: const Text('次へ'),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const Spacer(),
-          if (showNext)
-            JuicyTap(
-              onTap: onNext,
-              sfx: SfxId.uiTap,
-              child: IgnorePointer(
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: accent),
-                  onPressed: () {},
-                  child: const Text('次へ'),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -491,6 +670,11 @@ class _ArenaPainter extends CustomPainter {
     required this.areaRadius,
     required this.accent,
     required this.skillPulse,
+    required this.werewolfTransformed,
+    required this.fakePositionDecoy,
+    required this.placementPreview,
+    required this.placedZone,
+    required this.placementHolding,
     required this.scheme,
   });
 
@@ -504,7 +688,14 @@ class _ArenaPainter extends CustomPainter {
   final double areaRadius;
   final Color accent;
   final bool skillPulse;
+  final bool werewolfTransformed;
+  final Offset? fakePositionDecoy;
+  final Offset? placementPreview;
+  final Offset? placedZone;
+  final bool placementHolding;
   final ColorScheme scheme;
+
+  static const _zoneRadiusNorm = 0.14;
 
   static const _anonMarkerPos = Offset(0.36, 0.38);
   static const _accusationMarkerPos = Offset(0.68, 0.52);
@@ -566,6 +757,34 @@ class _ArenaPainter extends CustomPainter {
       _facilityMarker(canvas, _px(_accusationMarkerPos, size), scheme.primary);
     }
 
+    void drawZone(Offset centerNorm, {required bool preview}) {
+      final c = _px(centerNorm, size);
+      final r = _zoneRadiusNorm * size.width;
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..color = const Color(0xFFE53935)
+              .withValues(alpha: preview ? 0.12 : 0.22)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..color = const Color(0xFFE53935)
+              .withValues(alpha: preview ? 0.55 : 0.85)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = preview ? 2 : 2.5,
+      );
+    }
+
+    final placed = placedZone;
+    if (placed != null) drawZone(placed, preview: false);
+    if (placementHolding && placementPreview != null) {
+      drawZone(placementPreview!, preview: true);
+    }
+
     // 鬼。
     final o = oni;
     if (o != null) _dot(canvas, _px(o, size), const Color(0xFFD64545), '鬼');
@@ -576,6 +795,33 @@ class _ArenaPainter extends CustomPainter {
 
     // 自分。
     final pp = _px(player, size);
+    final decoy = fakePositionDecoy;
+    if (decoy != null) {
+      final dp = _px(decoy, size);
+      canvas.drawCircle(
+        dp,
+        16,
+        Paint()
+          ..color = accent.withValues(alpha: 0.2)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        dp,
+        16,
+        Paint()
+          ..color = accent.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      _dot(canvas, dp, accent.withValues(alpha: 0.75), '偽', big: false);
+      canvas.drawLine(
+        pp,
+        dp,
+        Paint()
+          ..color = accent.withValues(alpha: 0.35)
+          ..strokeWidth = 1.5,
+      );
+    }
     if (skillPulse) {
       canvas.drawCircle(
         pp,
@@ -583,7 +829,11 @@ class _ArenaPainter extends CustomPainter {
         Paint()..color = accent.withValues(alpha: 0.25),
       );
     }
-    _dot(canvas, pp, accent, 'You', big: true);
+    final selfColor = werewolfTransformed
+        ? const Color(0xFFD64545)
+        : accent;
+    final selfLabel = werewolfTransformed ? '鬼化' : 'You';
+    _dot(canvas, pp, selfColor, selfLabel, big: true);
   }
 
   void _marker(
@@ -691,5 +941,10 @@ class _ArenaPainter extends CustomPainter {
       old.moveTarget != moveTarget ||
       old.showAnonMarker != showAnonMarker ||
       old.showAccusationMarker != showAccusationMarker ||
-      old.skillPulse != skillPulse;
+      old.skillPulse != skillPulse ||
+      old.werewolfTransformed != werewolfTransformed ||
+      old.fakePositionDecoy != fakePositionDecoy ||
+      old.placementPreview != placementPreview ||
+      old.placedZone != placedZone ||
+      old.placementHolding != placementHolding;
 }

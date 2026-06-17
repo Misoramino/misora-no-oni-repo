@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../how_to_play/guide_text.dart';
+
 /// 作戦マニュアル／旧遊び方シート用の簡易図解。
 ///
 /// - [HelpFlowDiagram]: `guide_diagram_views.dart`（告発・エリア外・スキル設置）で使用中。
@@ -140,7 +142,7 @@ class _DiagramNode extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            label,
+            GuideText.forDisplay(label),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.labelSmall,
           ),

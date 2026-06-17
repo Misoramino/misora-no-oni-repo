@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../guide_text.dart';
 import '../../../game/player_role.dart';
 import '../../game_map/widgets/role_briefing_dialog.dart';
 import '../guide_models.dart';
@@ -60,7 +61,7 @@ class GuideSectionWidget extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          section.oneLine,
+                          GuideText.forDisplay(section.oneLine),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                             height: 1.35,

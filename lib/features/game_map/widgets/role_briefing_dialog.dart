@@ -5,6 +5,7 @@ import '../../../game/role_briefing.dart';
 import '../../../game/runner_modifier.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
+import '../../how_to_play/guide_text.dart';
 import '../../../widgets/app_dialog.dart';
 import '../../tutorial/tutorial_entry.dart';
 import 'how_to_play_sheet.dart';
@@ -127,6 +128,13 @@ Future<void> showRoleBriefingDialog(
                 label: const Text('1分チュートリアルで練習する'),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              'スキル操作はチュートリアルで本番と同じ流れを体験できます。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
@@ -145,7 +153,7 @@ Future<void> showRoleBriefingDialog(
               ),
             ),
             Text(
-              start.learnMoreHint,
+              GuideText.forDisplay(start.learnMoreHint),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),

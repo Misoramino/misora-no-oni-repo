@@ -6,6 +6,7 @@ import '../../features/how_to_play/guide_diagram_type.dart';
 import '../../features/how_to_play/guide_models.dart';
 import '../../features/how_to_play/widgets/guide_diagram_slot.dart';
 import '../../widgets/juicy_tap.dart';
+import '../how_to_play/guide_text.dart';
 import 'guide_bullet_list.dart';
 
 /// 第2段階：試合の構造と駆け引き（初回準備画面など）。
@@ -50,13 +51,15 @@ const _pages = <_GuidePage>[
     title: '1試合の流れ',
     subtitle: '準備 → 追跡 → 終了（脱落しても続行）',
     diagram: GuideDiagramData(
-      type: GuideDiagramType.outsideAreaFlow,
-      title: 'エリアの外に出すぎると危険',
-      caption: '安全地帯やギミックはこのあと詳しく学べます。',
+      type: GuideDiagramType.matchSessionFlow,
+      title: '準備 → 追跡 → 終了',
+      caption: '脱落しても試合は続行（第二ゲームへ）',
     ),
     lines: [
       'ホストがエリアと時間を決めて「試合を開始」',
-      '鬼は追う／逃走者は耐える — スキルとギミックが道具',
+      '鬼は追う／逃走者は耐える — スキルとギミックはあとで詳しく',
+      '脱落しても残響体・鬼影として、第二ゲームで味方を助けられます',
+      '通話を前面にしても近づき・捕獲は続く（スキル操作だけアプリを前面に）',
     ],
   ),
   _GuidePage(
@@ -69,8 +72,8 @@ const _pages = <_GuidePage>[
     ),
     lines: [
       '👹 鬼 … 追う側。逃走者を全員捕まえれば勝ち',
-      '🏃 逃走者 … 逃げる側。時間切れか告発成功で勝ち',
-      '🌙 人狼 … 常に「少ない方の陣営」の味方',
+      '🏃 逃走者 … 逃げる側。生き残るか告発成功で勝ち',
+      '🌙 人狼 … 人数で味方が決まる二面役（次のページ）',
     ],
   ),
   _GuidePage(
@@ -82,7 +85,8 @@ const _pages = <_GuidePage>[
       title: '人狼は鬼そのものではない',
     ),
     lines: [
-      '前半は鬼側の味方、後半は人側の味方になりうる',
+      '【決まり方】生存者のうち、人側・鬼側の人数が少ない方が味方',
+      '【つまり？】人が捕まって減るほど、前半は鬼側・後半は人側の味方になりやすい',
       '「人化」「鬼化」で見た目を切り替えて撹乱',
     ],
   ),
@@ -91,10 +95,10 @@ const _pages = <_GuidePage>[
     color: Color(0xFFF39C12),
     title: '逃走者の選択肢',
     lines: [
-      '情報屋 … 鬼の方角・距離の手がかり',
-      '通信障害地帯 … 今の安全度を上げる',
-      '安全地帯 … 一定時間、追われにくくなる',
-      '告発 … 条件を満たせば鬼を追放できる（詳細はガイドへ）',
+      '情報屋 … 鬼の方角・距離（今の座標ではない）',
+      '通信障害地帯 … 今の安全度を上げやすい',
+      '安全地帯 … チャージで追跡されにくくなる（使うと別の場所へ移動）',
+      '告発 … 後半に解禁。条件を満たせば本物の鬼を追放（詳細はガイドへ）',
     ],
   ),
 ];
@@ -164,7 +168,7 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
                   if (page.subtitle != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      page.subtitle!,
+                      GuideText.forDisplay(page.subtitle!),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

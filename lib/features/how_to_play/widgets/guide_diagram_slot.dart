@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../guide_text.dart';
 import '../guide_models.dart';
 import 'guide_diagram_views.dart';
 
@@ -30,7 +31,7 @@ class GuideDiagramSlot extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    data.title,
+                    GuideText.forDisplay(data.title),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -43,7 +44,7 @@ class GuideDiagramSlot extends StatelessWidget {
             if (data.caption != null && data.caption!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                data.caption!,
+                GuideText.forDisplay(data.caption!),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                   height: 1.4,

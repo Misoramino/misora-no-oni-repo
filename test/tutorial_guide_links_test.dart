@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:oni_game/features/how_to_play/guide_diagram_type.dart';
 import 'package:oni_game/features/how_to_play/guide_sections.dart';
+import 'package:oni_game/features/how_to_play/guide_terms.dart';
 import 'package:oni_game/features/how_to_play/widgets/guide_diagram_views.dart';
 import 'package:oni_game/features/how_to_play/widgets/how_to_play_guide_body.dart';
 import 'package:oni_game/features/tutorial/second_game_tutorial_kind.dart';
@@ -39,15 +40,28 @@ void main() {
   test('runner tutorial has accusation lead-in before facility step', () {
     final steps = TutorialCopyCatalog.stepsFor(PlayerRole.runner);
     expect(steps.length, 6);
+    expect(steps[3].interaction, TutorialStepInteraction.skillInstant);
     expect(steps[4].showAccusationMarker, isFalse);
     expect(steps[5].showAccusationMarker, isTrue);
   });
 
-  test('hunter tutorial includes map placement step', () {
+  test('hunter tutorial includes map placement skill step', () {
     final steps = TutorialCopyCatalog.stepsFor(PlayerRole.hunter);
     expect(steps.length, 6);
-    expect(steps[4].text, contains('長押し'));
-    expect(steps[4].guideSectionId, 'skills');
+    expect(steps[4].interaction, TutorialStepInteraction.skillMapPlace);
+    expect(steps[4].text, contains('②地図を長押し'));
+    expect(steps[5].interaction, TutorialStepInteraction.chaseRunner);
+  });
+
+  test('werewolf tutorial uses instant skill for transform', () {
+    final steps = TutorialCopyCatalog.stepsFor(PlayerRole.werewolf);
+    expect(steps[2].interaction, TutorialStepInteraction.skillInstant);
+  });
+
+  test('werewolf tutorial finish points to guide for transform details', () {
+    final finish = TutorialCopyCatalog.finishFor(PlayerRole.werewolf);
+    expect(finish.body, contains('自動切替'));
+    expect(finish.body, contains(GuideTerms.werewolf));
   });
 
   test('guide spec card ids are unique', () {
@@ -127,6 +141,10 @@ void main() {
     expect(
       guideSectionById('online')?.sectionDiagram?.type,
       GuideDiagramType.onlineMatch,
+    );
+    expect(
+      guideSectionById('online')?.sectionDiagram?.title,
+      contains('通話'),
     );
   });
 

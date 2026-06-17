@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../audio/game_audio.dart';
 import '../../../audio/sfx_id.dart';
+import '../guide_text.dart';
 import '../guide_models.dart';
 
 /// 折りたたみ詳細（秒数・距離・例外など）。
@@ -104,7 +105,7 @@ class _DetailTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(data.body, style: bodyStyle),
+                  Text(GuideText.forDisplay(data.body), style: bodyStyle),
                   if (data.specCardId != null && onOpenSpecCard != null) ...[
                     const SizedBox(height: 10),
                     Align(

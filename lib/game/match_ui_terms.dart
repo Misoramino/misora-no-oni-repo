@@ -29,5 +29,5 @@ abstract final class MatchUiTerms {
   static const namedReveal = '名前付き暴露';
 
   static const learnMoreHint =
-      'くわしいルールは「チュートリアル」か ⋮ →「$guideHub」→「$operationsManual」で見られます。';
+      '操作は「1分チュートリアル」で体験できます。ルールは ⋮ →「$guideHub」→「$operationsManual」へ。';
 }

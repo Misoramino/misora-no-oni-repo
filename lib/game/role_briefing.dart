@@ -78,7 +78,7 @@ abstract final class RoleBriefingCatalog {
       mustKnow: [
         '情報屋 … 鬼の方角・距離の手がかり（今どこにいるかの答えではない）。',
         '通信障害地帯 … 今の安全度を上げやすい（暴露位置がノイズになりやすい）。',
-        '安全地帯 … 未来の安全を買う（一定時間、追跡されにくくなる）。',
+        '安全地帯 … チャージで追跡されにくくなる（使うと別の場所へ移動）。',
         '鬼に近づきすぎると危ない（${GuideTerms.panic}は脱落しません）。',
         '他役職: 鬼は痕跡で追う／人狼は人数で味方が変わる。',
         ?extra,
@@ -91,9 +91,9 @@ abstract final class RoleBriefingCatalog {
     tagline: '痕跡と暴露から読み、作戦を立てて追う${GuideTerms.trueOni}です。',
     winLine: '逃走者を全員捕まえれば勝ちです。',
     mustKnow: [
-      '位置は常に見えません。${GuideTerms.anonTrace}・${MatchUiTerms.namedReveal}・カメラをつなげる。',
+      '逃走者の今いる場所は見えません。${GuideTerms.anonTrace}・${MatchUiTerms.namedReveal}・カメラをつなげる。',
       'スキル（偽情報・体投げ・捕獲結界）で読みをずらし、要所へ移動。',
-      '告発施設の近くにいると、その施設での告発を止められる。',
+      '告発施設の近くにいると、そこでの逃走者の告発を止められます。',
       '他役職: 逃走者は情報屋・安全地帯・通信障害を使う／人狼は前半協力・後半翻る。',
     ],
   );
@@ -103,9 +103,9 @@ abstract final class RoleBriefingCatalog {
       role: PlayerRole.werewolf,
       tagline:
           '${GuideTerms.werewolf}は人数で味方が決まる二面役。見た目と陣営は別です。',
-      winLine: '生存者のうち、人側と鬼側のどちらか少ない方の陣営が味方です。',
+      winLine: '人数が少ない方の陣営が味方。そちらが勝てばあなたの勝ちです。',
       mustKnow: [
-        '前半（人が多い）: 鬼と協力し、人を追い込む・撹乱する（鬼化でも人は襲えない）。',
+        '前半（人が多い）: 鬼と協力し、逃走者を追い込む（鬼化しても人は捕獲できない）。',
         '後半（人が減る）: 人側と協力し、鬼を追い詰める（鬼化すると捕獲できる）。',
         '「人化」「鬼化」で姿を切り替え。告発はできません。',
         faction == null
@@ -127,7 +127,7 @@ abstract final class RoleBriefingCatalog {
     actions: [
       '情報屋 … 鬼の方角・距離（座標そのものではない）',
       '通信障害地帯 … 今の安全度を上げる',
-      '安全地帯 … 未来の安全を買う',
+      '安全地帯 … チャージで追跡されにくくなる（移動あり）',
       '告発は解禁後のみ。失敗すると脱落（${GuideTerms.echoForm}へ）',
     ],
     notes: [
@@ -145,7 +145,7 @@ abstract final class RoleBriefingCatalog {
       '告発される前に決着をつける',
     ],
     actions: [
-      '位置は見えない。痕跡・カメラ・${GuideTerms.panic}から追う',
+      '今いる場所は見えない。痕跡・カメラ・${GuideTerms.panic}から追う',
       'スキルで読みをずらし、要所へ移動して作戦を立てる',
       '近い円で止め、至近で捕獲',
       '告発施設の近くで告発を阻止',
@@ -173,6 +173,7 @@ abstract final class RoleBriefingCatalog {
     ],
     notes: [
       '3人戦は人側寄り、5〜6人は鬼側寄りになりやすい',
+      '人数比＝厳密なルール。前半鬼側・後半人側はその直感的な見え方',
       '6人以上で人狼2人のことも。脱落時の陣営は固定',
     ],
   );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../how_to_play/guide_text.dart';
+
 /// オンボーディング／構造説明用の読みやすい箇条書き。
 class GuideBulletList extends StatelessWidget {
   const GuideBulletList({
@@ -47,7 +49,7 @@ class GuideBulletList extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    lines[i],
+                    GuideText.forDisplay(lines[i]),
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.45,
                       color: theme.colorScheme.onSurface,

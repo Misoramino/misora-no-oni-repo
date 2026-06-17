@@ -5,7 +5,7 @@ import '../../../game/role_briefing.dart';
 import '../../game_map/widgets/role_briefing_dialog.dart';
 import '../guide_terms.dart';
 
-/// 作戦マニュアル冒頭：自分の役職向けクイックリファレンス。
+/// 作戦マニュアル冒頭：自分の役職の「目指すこと」だけ（詳細は役職章へ）。
 class GuideYourRoleCard extends StatelessWidget {
   const GuideYourRoleCard({
     required this.role,
@@ -50,35 +50,23 @@ class GuideYourRoleCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
+              start.tagline,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+            ),
+            const SizedBox(height: 6),
+            Text(
               start.winLine,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                height: 1.45,
               ),
             ),
             const SizedBox(height: 8),
-            Text('まずこれだけ', style: theme.textTheme.labelMedium),
-            const SizedBox(height: 4),
-            for (final item in start.mustKnow)
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.chevron_right_rounded, size: 18, color: accent),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 4),
             Text(
-              'くわしい操作は「役職」章の下にまとめています。',
+              '操作・スキル・ギミックは下の「役職」「マップ施設」章で確認できます。',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
+                height: 1.4,
               ),
             ),
           ],

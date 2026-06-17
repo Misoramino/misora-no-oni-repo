@@ -84,8 +84,9 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  height: 1.2,
                   color: compactLabelFg.withValues(alpha: 0.92),
                 ),
               ),
@@ -94,7 +95,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: TextStyle(fontSize: 9, color: scheme.primary),
+                  style: TextStyle(fontSize: 11, color: scheme.primary),
                 ),
               )
             else if (showPinnedCd || onCd)
@@ -102,7 +103,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 child: Text(
                   showPinnedCd ? 'CD ${widget.cooldownSeconds}s' : '${widget.cooldownSeconds}',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.w700 : FontWeight.normal,
                     color: showPinnedCd
                         ? scheme.primary
@@ -131,14 +132,14 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 10),
+                style: const TextStyle(fontSize: 12, height: 1.2),
               ),
             ),
             if (onBuff)
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: const TextStyle(fontSize: 9),
+                  style: const TextStyle(fontSize: 11),
                 ),
               )
             else if (showPinnedCd || onCd)
@@ -148,7 +149,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                       ? 'CD ${widget.cooldownSeconds}s'
                       : 'CD ${widget.cooldownSeconds}',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.bold : FontWeight.normal,
                     color: showPinnedCd ? scheme.primary : null,
                   ),

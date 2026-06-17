@@ -15,5 +15,6 @@ enum GuideDiagramType {
   introClues,
   roleOverview,
   skillOverview,
+  matchSessionFlow,
   onlineMatch,
 }

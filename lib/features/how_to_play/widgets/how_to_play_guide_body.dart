@@ -12,8 +12,8 @@ const guideIndexSectionIds = [
   'win',
   'info',
   'combat',
-  'accusation',
   'roles',
+  'online',
   'spec',
 ];
 

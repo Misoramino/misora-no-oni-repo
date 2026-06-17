@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../guide_text.dart';
 import '../guide_models.dart';
 import 'guide_detail_expansion.dart';
 import 'guide_diagram_slot.dart';
@@ -45,7 +46,7 @@ class GuideCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        data.oneLine,
+                        GuideText.forDisplay(data.oneLine),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.primary,
                           fontWeight: FontWeight.w600,
@@ -67,7 +68,7 @@ class GuideCard extends StatelessWidget {
             ] else ...[
               const SizedBox(height: 8),
               Text(
-                data.body,
+                GuideText.forDisplay(data.body),
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
               ),
             ],
@@ -82,7 +83,7 @@ class GuideCard extends StatelessWidget {
                       Text('・', style: theme.textTheme.bodyMedium),
                       Expanded(
                         child: Text(
-                          b,
+                          GuideText.forDisplay(b),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             height: 1.45,
                           ),
@@ -95,7 +96,7 @@ class GuideCard extends StatelessWidget {
             if (data.footnote != null) ...[
               const SizedBox(height: 6),
               Text(
-                data.footnote!,
+                GuideText.forDisplay(data.footnote!),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                   fontStyle: FontStyle.italic,

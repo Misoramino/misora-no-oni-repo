@@ -109,7 +109,9 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                           Expanded(
                             child: Text(
                               t,
-                              style: theme.textTheme.bodySmall,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                height: 1.45,
+                              ),
                             ),
                           ),
                         ],

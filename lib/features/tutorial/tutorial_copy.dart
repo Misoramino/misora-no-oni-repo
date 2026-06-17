@@ -2,10 +2,32 @@ import '../../game/player_role.dart';
 import '../how_to_play/guide_terms.dart';
 import 'second_game_tutorial_kind.dart';
 
+/// チュートリアル1ステップでプレイヤーに求める操作。
+enum TutorialStepInteraction {
+  /// 「次へ」ボタンで進む（読むだけのステップ）。
+  tapNext,
+
+  /// アリーナをタップして移動。
+  moveArena,
+
+  /// 鬼から逃げる（移動しながら距離を取る）。
+  fleeOni,
+
+  /// 逃走者に近づいて捕獲圏へ。
+  chaseRunner,
+
+  /// スキルボタン1回（鬼化・偽位置など即時発動）。
+  skillInstant,
+
+  /// スキルボタン → 地図長押し → 離して設置（本番と同じ流れ）。
+  skillMapPlace,
+}
+
 /// チュートリアル1ステップ分の文案。
 class TutorialStepCopy {
   const TutorialStepCopy({
     required this.text,
+    this.interaction = TutorialStepInteraction.tapNext,
     this.showAnonMarker = false,
     this.showAccusationMarker = false,
     this.showOni = false,
@@ -14,6 +36,7 @@ class TutorialStepCopy {
   });
 
   final String text;
+  final TutorialStepInteraction interaction;
   final bool showAnonMarker;
   final bool showAccusationMarker;
   final bool showOni;
@@ -64,7 +87,7 @@ abstract final class TutorialCopyCatalog {
   static TutorialFinishCopy finishFor(PlayerRole role) => switch (role) {
         PlayerRole.runner => const TutorialFinishCopy(
             title: '逃走者チュートリアル完了',
-            body: '手がかりを読んで、鬼を当てるのが勝ち筋です。\nくわしくは「遊び方」を見てください。',
+            body: '生き残るか、手がかりから鬼を当てるか — どちらも勝ち筋です。\nくわしくは「遊び方」を見てください。',
             relatedGuides: [
               (sectionId: 'info', title: '情報戦'),
               (sectionId: 'combat', title: '鬼との距離'),
@@ -73,7 +96,9 @@ abstract final class TutorialCopyCatalog {
           ),
         PlayerRole.hunter => TutorialFinishCopy(
             title: '${GuideTerms.trueOni}チュートリアル完了',
-            body: '追うのは痕跡と暴露です。現在地がずっと見えるわけではありません。',
+            body:
+                '追うのは痕跡と暴露です。\n'
+                '点は「いまここ」ではなく、動いた手がかりと読みましょう。',
             relatedGuides: const [
               (sectionId: 'info', title: '情報戦'),
               (sectionId: 'combat', title: '鬼との距離'),
@@ -84,11 +109,12 @@ abstract final class TutorialCopyCatalog {
             title: '${GuideTerms.werewolf}チュートリアル完了',
             body:
                 '${GuideTerms.werewolf}は${GuideTerms.realOni}ではありません。\n'
-                '告発の正解にもなりません。役職は「遊び方」を参照。',
+                '人数で味方が決まり、試合の流れで前半鬼側・後半人側になりやすいです。\n'
+                '見た目の切替や自動切替は「遊び方」の${GuideTerms.werewolf}を参照。',
             relatedGuides: const [
               (sectionId: 'roles', title: '役職'),
               (sectionId: 'skills', title: 'スキル'),
-              (sectionId: 'accusation', title: '告発'),
+              (sectionId: 'online', title: 'オンライン'),
             ],
           ),
       };
@@ -121,12 +147,16 @@ abstract final class TutorialCopyCatalog {
       switch (kind) {
         SecondGameTutorialKind.echoForm => TutorialFinishCopy(
             title: '${GuideTerms.echoForm}チュートリアル完了',
-            body: '脱落後も、端子ジャックと告発施設で人側を助けられます。',
+            body:
+                '脱落後も観戦ではありません。\n'
+                '端子ジャックと告発施設で、生き残っている味方を助けられます。',
             relatedGuides: secondGameRelatedGuides,
           ),
         SecondGameTutorialKind.vengefulShadow => TutorialFinishCopy(
             title: '${GuideTerms.vengefulShadow}チュートリアル完了',
-            body: '脱落後も、告発とカメラを妨害して鬼側を助けられます。',
+            body:
+                '脱落後も観戦ではありません。\n'
+                '告発施設とカメラを妨害して、鬼側の味方を助けられます。',
             relatedGuides: secondGameRelatedGuides,
           ),
       };
@@ -142,20 +172,20 @@ abstract final class TutorialCopyCatalog {
   static const _echoFormSteps = [
     SecondGameTutorialStepCopy(
       text:
-          '${GuideTerms.echoForm}になりました。\n'
-          '脱落しても、まだ味方を助けられます。',
+          '${GuideTerms.echoForm}になりました（人側・脱落後の姿）。\n'
+          'まだ試合に関われます。味方を助けましょう。',
     ),
     SecondGameTutorialStepCopy(
       text:
-          '監視端子をジャックしましょう。\n'
-          '鬼の位置を味方に暴露できます。近づいてボタンを押します。',
+          'マップの監視端子に近づきます。\n'
+          'ボタンでジャックすると、鬼の位置を味方に教えられます。',
       showTerminal: true,
       successFlash: '鬼の位置が味方に暴露されました。',
     ),
     SecondGameTutorialStepCopy(
       text:
-          '告発施設の近くで陣取りしましょう。\n'
-          '使える告発施設が増えます。',
+          '告発施設（旗マーク）のそばにとどまります。\n'
+          '味方が使える告発施設が1つ増えます。',
       showAccusationFacility: true,
       showRevealedOni: true,
       successFlash: '有効な告発施設が増えました。',
@@ -165,20 +195,20 @@ abstract final class TutorialCopyCatalog {
   static const _vengefulShadowSteps = [
     SecondGameTutorialStepCopy(
       text:
-          '${GuideTerms.vengefulShadow}になりました。\n'
-          '脱落しても、まだ鬼側を助けられます。',
+          '${GuideTerms.vengefulShadow}になりました（鬼側・脱落後の姿）。\n'
+          'まだ試合に関われます。鬼側を助けましょう。',
     ),
     SecondGameTutorialStepCopy(
       text:
-          '告発施設を妨害しましょう。\n'
-          '使える告発施設が減ります。',
+          '告発施設（旗マーク）に近づきます。\n'
+          'ボタンで妨害すると、味方が使える施設が減ります。',
       showAccusationFacility: true,
       successFlash: '有効な告発施設が減りました。',
     ),
     SecondGameTutorialStepCopy(
       text:
-          '監視カメラを停止しましょう。\n'
-          '残響体のジャックを妨げられます。',
+          '監視カメラに近づきます。\n'
+          'ボタンで停止すると、残響体のジャックを妨げられます。',
       showCamera: true,
       successFlash: '監視カメラを停止しました。',
     ),
@@ -187,39 +217,43 @@ abstract final class TutorialCopyCatalog {
   static const _runnerSteps = [
     TutorialStepCopy(
       text:
-          '相手の位置は基本見えません。\n'
-          '地図の点は手がかりです。タップして少し動いてみましょう。',
+          '相手の今いる場所は、地図には出ません。\n'
+          'マーカーは「手がかり」です。タップして少し動きましょう。',
+      interaction: TutorialStepInteraction.moveArena,
       guideSectionId: 'info',
     ),
     TutorialStepCopy(
       text:
-          'これは${GuideTerms.anonTrace}です。\n'
-          '「誰かがいた」手がかり。誰かは分かりません。',
+          'マップの「?」が${GuideTerms.anonTrace}です。\n'
+          '「誰かがここにいた」だけ分かり、誰かは不明です。',
       showAnonMarker: true,
       guideSectionId: 'info',
     ),
     TutorialStepCopy(
       text:
-          '鬼に近づきすぎると${GuideTerms.panic}です。\n'
-          '脱落しませんが、痕跡が出やすくなります。離れてみましょう。',
+          '赤い鬼に近づきすぎると${GuideTerms.panic}です。\n'
+          'すぐ脱落はしません。タップして距離を取りましょう。',
+      interaction: TutorialStepInteraction.fleeOni,
       showOni: true,
       guideSectionId: 'combat',
     ),
     TutorialStepCopy(
       text:
-          '${GuideTerms.panic}中は動くと痕跡が残りやすいです。\n'
-          '鬼から距離を取りましょう。',
-      showOni: true,
-      guideSectionId: 'combat',
+          '「偽位置」で、他人に見える位置をずらせます。\n'
+          '下のボタンを押して、もう一つの点を確認しましょう。',
+      interaction: TutorialStepInteraction.skillInstant,
+      guideSectionId: 'skills',
     ),
     TutorialStepCopy(
       text:
-          '3人以上の試合では、後半に告発が使えます。\n'
-          '生存中の逃走者だけが、${GuideTerms.realOni}を指名できます。',
+          '3人以上の試合では、後半に「告発」が解禁されます。\n'
+          '生き残っている逃走者だけが、${GuideTerms.realOni}を指名できます。',
       guideSectionId: 'accusation',
     ),
     TutorialStepCopy(
-      text: '告発は告発施設で行います。解禁後、施設へ向かいましょう。',
+      text:
+          '告発は地図の告発施設で行います（旗マーク）。\n'
+          '解禁されたら、施設へ向かいましょう。',
       showAccusationMarker: true,
       guideSectionId: 'accusation',
     ),
@@ -228,38 +262,44 @@ abstract final class TutorialCopyCatalog {
   static const _hunterSteps = [
     TutorialStepCopy(
       text:
-          '逃走者の位置は常に見えるわけではありません。\n'
-          '痕跡と暴露から動きを読みます。',
+          '逃走者の今いる場所は、地図には出ません。\n'
+          'マップの痕跡と暴露から、動いた方向を読みます。',
       guideSectionId: 'info',
     ),
     TutorialStepCopy(
       text:
-          '${GuideTerms.anonTrace}は「誰かがいた」手がかりです。\n'
-          '複数つなげると方向が見えます。',
+          '「?」の${GuideTerms.anonTrace}は「誰かがいた」手がかり。\n'
+          '複数つなげると、逃げた方向が見えます。',
       showAnonMarker: true,
       guideSectionId: 'info',
     ),
     TutorialStepCopy(
       text:
           '${GuideTerms.namedReveal}は「○○がここにいた」と分かります。\n'
-          '今もそこにいるとは限りません。',
+          '強い手がかりですが、今もそこにいるとは限りません。',
       guideSectionId: 'info',
     ),
     TutorialStepCopy(
       text:
-          '逃走者が${GuideTerms.panic}になると痕跡が出ます。\n'
+          '逃走者が${GuideTerms.panic}になると、痕跡（?）が出やすくなります。\n'
           '追跡の大きな手がかりです。',
       showAnonMarker: true,
       guideSectionId: 'combat',
     ),
     TutorialStepCopy(
       text:
-          '捕獲結界は地図を長押しで置きます。\n'
-          '指を離して設置、右上の×でキャンセルです。',
+          '捕獲結界で、逃走者をその場に留められます。\n'
+          '①下のボタンを押す\n'
+          '②地図を長押し\n'
+          '③離して設置',
+      interaction: TutorialStepInteraction.skillMapPlace,
       guideSectionId: 'skills',
     ),
     TutorialStepCopy(
-      text: '至近まで追い詰めると捕獲です。青い印に近づいてみましょう。',
+      text:
+          '青い「逃」に十分近づくと捕獲です。\n'
+          'タップして近づいてみましょう。',
+      interaction: TutorialStepInteraction.chaseRunner,
       showRunner: true,
       guideSectionId: 'combat',
     ),
@@ -268,27 +308,31 @@ abstract final class TutorialCopyCatalog {
   static const _werewolfSteps = [
     TutorialStepCopy(
       text:
-          'あなたは${GuideTerms.werewolf}です。\n'
-          '${GuideTerms.realOni}でも逃走者でもありません。',
+          'あなたは${GuideTerms.werewolf}（第三の役職）です。\n'
+          '${GuideTerms.realOni}でも${GuideTerms.runner}でもありません。',
       guideSectionId: 'roles',
     ),
     TutorialStepCopy(
       text: 'マップをタップして、少し動いてみましょう。',
+      interaction: TutorialStepInteraction.moveArena,
     ),
     TutorialStepCopy(
       text:
-          '「鬼化」で一時的に鬼のように追えます。\n'
-          '下のボタンを押してみましょう。',
+          '「鬼化」で見た目を鬼に近づけられます（ボタン1回）。\n'
+          '地図に置くスキルとは別です。下のボタンを試しましょう。',
+      interaction: TutorialStepInteraction.skillInstant,
       guideSectionId: 'skills',
     ),
     TutorialStepCopy(
       text:
-          '告発の正解は${GuideTerms.realOni}だけです。\n'
-          '人狼は正解になりません。',
+          '告発で当てるのは${GuideTerms.realOni}だけです。\n'
+          '${GuideTerms.werewolf}を選んでも正解にはなりません。',
       guideSectionId: 'accusation',
     ),
     TutorialStepCopy(
-      text: '告発できるのは生存中の逃走者だけです。',
+      text:
+          'あなた（人狼）は告発できません。\n'
+          '告発できるのは、生き残っている逃走者だけです。',
       guideSectionId: 'accusation',
     ),
   ];
