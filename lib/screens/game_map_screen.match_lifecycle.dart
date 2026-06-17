@@ -20,6 +20,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         return;
       }
 
+      final relocateOk = await _maybeWarnPlayAreaFarOnMatchStart();
+      if (!relocateOk || !mounted) return;
+
       if (_isOnlineFirestore && _isHost) {
         final count = _lobbyParticipantCount();
         if (count < GameConfig.accusationMinPlayers) {
@@ -99,7 +102,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
 
   void _startGameCore({bool rejoin = false, bool inspector = false}) {
     if (!rejoin) {
-      _processedRoomEventDocIds.clear();
+      _roomEventDeduper.clear();
       _eliminatedUids.clear();
     _absentSinceByUid.clear();
       _factionAtDeath = null;
@@ -177,8 +180,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _matchRecorder?.tryAppendOni(_oniPosition);
       }
       _syncSetState(() {
-        _rt.remainingSeconds -= _timeScale;
-        _rt.elapsedSeconds += _timeScale;
+        if (_isOnlineFirestore) {
+          final snap = _firestoreSession?.currentMatchStart;
+          if (snap != null) {
+            _syncMatchTimerFromSnapshot(snap);
+          }
+        } else {
+          _rt.remainingSeconds -= _timeScale;
+          _rt.elapsedSeconds += _timeScale;
+        }
         if (_gameState == GameState.running) {
           _estimatedBatteryScore += _batteryCostPerSecond() * _timeScale;
         }
@@ -187,9 +197,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         WorldAudioDirector.instance.onMatchTick(_rt.remainingSeconds);
       }
       if (_rt.remainingSeconds <= 0) {
-        if (_isHost) {
-          _endGameForTimeUp();
-        }
+        unawaited(_handleMatchTimeUp());
         return;
       }
       if (_gameState == GameState.running) {
@@ -239,11 +247,70 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         continue;
       }
       _absentSinceByUid.remove(uid);
+      _eliminatedUids.add(uid);
       unawaited(
         _publishParticipantEliminatedByHost(
           uid: uid,
           cause: 'disconnect',
         ),
+      );
+    }
+  }
+
+  /// ホスト不在時に非ホストが時間切れ終了を担う。
+  Future<void> _handleMatchTimeUp() async {
+    if (!mounted) return;
+    if (_isHost) {
+      _endGameForTimeUp();
+      return;
+    }
+    if (!_isOnlineFirestore) return;
+    final fs = _firestoreSession;
+    if (fs == null) return;
+    if (!fs.isHostAbsent(DateTime.now().toUtc())) return;
+    if (_hostAbsentClaimInFlight) return;
+    await _maybeAutoClaimHostIfAbsent();
+    if (mounted && _isHost) {
+      _endGameForTimeUp();
+    }
+  }
+
+  /// ホスト引継ぎ後に権限付き処理を再同期する。
+  Future<void> _reconcileHostAuthorityAfterHandoff() async {
+    if (!_isHost || !_isOnlineFirestore) return;
+    final fs = _firestoreSession;
+    final snap = fs?.currentMatchStart;
+    if (fs == null || snap == null) return;
+    if (_gameState != GameState.running &&
+        _gameState != GameState.caughtByOni) {
+      return;
+    }
+    _syncMatchTimerFromSnapshot(snap);
+    _maybeEliminateDisconnectedParticipants();
+    await _replayMissedMatchEventsOnResume();
+    await _rebuildHostCaptureBindTimersFromEvents();
+  }
+
+  Future<void> _rebuildHostCaptureBindTimersFromEvents() async {
+    if (!_isHost || !_isOnlineFirestore) return;
+    final sk = _matchEventSessionKey;
+    final fs = _firestoreSession;
+    if (sk == null || fs == null) return;
+    final events = await fs.fetchMatchEvents(sk);
+    events.sort((a, b) => a.emittedAtMs.compareTo(b.emittedAtMs));
+    for (final ev in events) {
+      if (ev.type != RoomMatchEventTypes.captureZonePlaced) continue;
+      final placeId = ev.payload['placeId'] as String?;
+      if (placeId == null || _captureBoundTimers.containsKey(placeId)) {
+        continue;
+      }
+      final cLat = ev.payload['centerLat'];
+      final cLng = ev.payload['centerLng'];
+      if (cLat is! num || cLng is! num) continue;
+      _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
+      _scheduleHostCaptureBoundOnce(
+        placeId: placeId,
+        center: LatLng(cLat.toDouble(), cLng.toDouble()),
       );
     }
   }
@@ -261,6 +328,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (!mounted) return;
       if (err == null) {
         _toast('ホストが不在のため、あなたがホストを引き継ぎました');
+        await _reconcileHostAuthorityAfterHandoff();
         _syncSetState(() {});
       }
     } finally {
@@ -416,7 +484,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _matchRoleBriefingShown = false;
     _matchTimer?.cancel();
     _cancelCaptureBoundTimers();
-    _processedRoomEventDocIds.clear();
+    _roomEventDeduper.clear();
     _hostAccusationUnlockSent = false;
     _accusationPromptOpen = false;
     _matchRecorder?.discard();
@@ -1012,6 +1080,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       return;
     }
     if (_gameState != GameState.running) return;
+    if (_appInBackground && _isOnlineFirestore) return;
 
     _advanceFakePositionDrift();
     _maybePeriodicAnonymousReveal();

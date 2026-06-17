@@ -7,8 +7,7 @@ part of 'game_map_screen.dart';
 extension _GameMapOnlineSyncEvents on _GameMapScreenState {
   void _onRemoteRoomMatchEvent(RoomMatchEvent ev) {
     if (!mounted) return;
-    if (_processedRoomEventDocIds.contains(ev.id)) return;
-    _processedRoomEventDocIds.add(ev.id);
+    if (!_roomEventDeduper.markIfNew(ev.id)) return;
 
     if (_gameState == GameState.waiting &&
         ev.sessionKey == lobbySessionKey) {

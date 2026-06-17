@@ -160,6 +160,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   String? _uid;
   String? _nickname;
   String _role = 'runner';
+  bool _presenceReportsBackground = false;
   Timer? _heartbeatTimer;
   List<RoomMemberView> _latestLobby = const [];
   Map<String, RemoteMemberSnapshot> _latestRemoteMembers = const {};
@@ -1000,9 +1001,13 @@ class FirestoreRoomSession implements RoomSessionPort {
       MemberPresenceFields.role: _role,
       MemberPresenceFields.nickname: _nickname,
       MemberPresenceFields.locationVisibility: 'hidden',
-      MemberPresenceFields.appLifecycle: 'foreground',
-      MemberPresenceFields.backgroundSinceUtc: FieldValue.delete(),
     };
+    if (_presenceReportsBackground) {
+      payload[MemberPresenceFields.appLifecycle] = 'background';
+    } else {
+      payload[MemberPresenceFields.appLifecycle] = 'foreground';
+      payload[MemberPresenceFields.backgroundSinceUtc] = FieldValue.delete();
+    }
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
     }
@@ -1015,6 +1020,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   /// 試合中のバックグラウンド／復帰を通知（ハートビート停止時の脱落猶予用）。
   Future<void> publishAppLifecycle({required bool background}) async {
     if (_roomId == null || _uid == null) return;
+    _presenceReportsBackground = background;
     final now = DateTime.now().toUtc().toIso8601String();
     final ref = _db
         .collection('rooms')

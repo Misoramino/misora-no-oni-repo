@@ -54,7 +54,7 @@ void main() {
   test('magical and astronomy use dark premium palettes', () {
     final magical = WorldLaunchBranding.of(WorldProfile.magical);
     expect(magical.isLightBackground, isFalse);
-    expect(magical.accent, const Color(0xFFC9A227));
+    expect(magical.accent, const Color(0xFFC6A45A));
 
     final astro = WorldLaunchBranding.of(WorldProfile.astronomy);
     expect(astro.isLightBackground, isFalse);

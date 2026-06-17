@@ -63,12 +63,15 @@ class _OniGameAppState extends State<OniGameApp> with WidgetsBindingObserver {
       title: 'ONI PIN',
       debugShowCheckedModeBanner: false,
       theme: AppThemeFactory.create(_profile),
+      themeAnimationDuration: const Duration(milliseconds: 850),
+      themeAnimationCurve: Curves.easeInOutCubic,
       onGenerateRoute: _onGenerateRoute,
       home: AppLaunchShell(
         initialProfile: _profile,
         onProfileChanged: (p) async {
           await WorldProfilePrefs.save(p);
           if (mounted) setState(() => _profile = p);
+          unawaited(WorldAudioDirector.instance.onProfileChanged(p));
         },
       ),
     );

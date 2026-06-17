@@ -15,9 +15,9 @@ extension LocationSamplingTierX on LocationSamplingTier {
           distanceFilter: distanceFilterMeters,
           intervalDuration: intervalDuration,
           foregroundNotificationConfig: const ForegroundNotificationConfig(
-            notificationTitle: 'Oni Game is tracking location',
-            notificationText: 'ゲーム中の位置判定を継続しています。',
-            notificationChannelName: 'Oni Game GPS',
+            notificationTitle: 'ONI PIN が位置情報を取得中',
+            notificationText: '試合中の位置追跡',
+            notificationChannelName: 'ONI PIN 位置情報',
             setOngoing: true,
           ),
         );

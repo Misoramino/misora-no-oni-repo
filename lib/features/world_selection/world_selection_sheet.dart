@@ -211,18 +211,6 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       ),
                     ),
                     SizedBox(height: WorldUILayout.cardGap),
-                    if (_studio.recommended)
-                      Center(
-                        child: Chip(
-                          avatar: Icon(Icons.star, size: 16, color: _pack.accent),
-                          label: Text(
-                            'おすすめ',
-                            style: TextStyle(color: _pack.textOnScaffold, fontSize: 11),
-                          ),
-                          side: BorderSide(color: _pack.panelBorder),
-                        ),
-                      ),
-                    SizedBox(height: WorldUILayout.cardGap),
                     Text(
                       _preview.label,
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'world_launch_branding.dart';
 import 'world_profile.dart';
+import '../presentation/world/world_presentation_catalog.dart';
 
 /// 準備画面（地図オフ）の背景に対して読みやすい前景色セット。
 @immutable
@@ -36,48 +37,41 @@ class MapHudPrepLegibility {
     ColorScheme scheme,
     WorldProfile profile,
   ) {
+    final pack = WorldPresentationCatalog.of(profile);
     final background = MapHudContrast.prepScaffoldBg(scheme, profile);
-    final darkBg =
-        ThemeData.estimateBrightnessForColor(background) == Brightness.dark;
 
-    /// 背景上で十分なコントラストになるよう前景を選ぶ。
-    Color strong() => darkBg
-        ? const Color(0xFFF2F2F7)
-        : const Color(0xFF1A1C1E);
-    Color soft() => darkBg
-        ? const Color(0xFFC7C7CC)
-        : const Color(0xFF44474E);
+    final title = pack.textOnScaffold;
+    final body = pack.textOnScaffold;
+    final muted = pack.mutedOnScaffold;
 
-    final tileSurface = darkBg
-        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.1), background)
-        : Color.alphaBlend(Colors.black.withValues(alpha: 0.06), background);
+    final tileSurface = pack.isLightScaffold
+        ? Color.alphaBlend(Colors.black.withValues(alpha: 0.05), pack.panelSurface)
+        : Color.alphaBlend(Colors.white.withValues(alpha: 0.08), pack.panelSurface);
 
     final tileDark =
         ThemeData.estimateBrightnessForColor(tileSurface) == Brightness.dark;
-    final tileStrong = tileDark
-        ? const Color(0xFFF2F2F7)
-        : const Color(0xFF1A1C1E);
+    final tileStrong = tileDark ? const Color(0xFFF2F2F7) : pack.textOnScaffold;
     final tileSoft = tileDark
         ? const Color(0xFFC7C7CC)
-        : const Color(0xFF5C5F66);
+        : pack.mutedOnScaffold;
 
     final primary = scheme.primary;
-    final link = darkBg
-        ? Color.alphaBlend(primary.withValues(alpha: 0.85), Colors.white)
-        : primary;
+    final link = pack.isLightScaffold
+        ? Color.alphaBlend(primary.withValues(alpha: 0.88), Colors.black)
+        : Color.alphaBlend(primary.withValues(alpha: 0.85), Colors.white);
 
     return MapHudPrepLegibility(
       background: background,
-      title: strong(),
-      body: strong(),
-      muted: soft(),
+      title: title,
+      body: body,
+      muted: muted,
       tileSurface: tileSurface,
       tileTitle: tileSoft,
       tileValue: tileStrong,
       tileIcon: primary,
       tileMutedIcon: tileSoft,
       link: link,
-      decorativeIcon: soft().withValues(alpha: darkBg ? 0.55 : 0.65),
+      decorativeIcon: muted.withValues(alpha: 0.72),
     );
   }
 }

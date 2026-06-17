@@ -10,42 +10,48 @@ class WorldMapThemeOverlay extends StatelessWidget {
     required this.profile,
     required this.phase,
     this.accent,
+    this.strength = 1.0,
     super.key,
   });
 
   final WorldProfile profile;
   final double phase;
   final Color? accent;
+  final double strength;
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: CustomPaint(
-        painter: switch (profile) {
-          WorldProfile.astronomy => _StarfieldPainter(phase: phase),
-          WorldProfile.magical => _MagicSigilPainter(
-              phase: phase,
-              accent: accent ?? const Color(0xFFE040FB),
-            ),
-          WorldProfile.sciFi => _HexGridPainter(
-              phase: phase,
-              accent: accent ?? const Color(0xFF00E5FF),
-            ),
-          WorldProfile.horror => _FogMotesPainter(phase: phase),
-          WorldProfile.sport => _SparklePainter(
-              phase: phase,
-              accent: accent ?? const Color(0xFFFF8FB3),
-            ),
-          WorldProfile.arg => _CrosshairPainter(phase: phase),
-          WorldProfile.japaneseLuxury => _JapaneseLuxuryPainter(
-              phase: phase,
-              accent: accent ?? const Color(0xFFC9A227),
-            ),
-          WorldProfile.westernLuxury => _WesternLuxuryPainter(
-              phase: phase,
-              accent: accent ?? const Color(0xFFD4AF37),
-            ),
-        },
+      child: Opacity(
+        opacity: strength.clamp(0.0, 1.0),
+        child: CustomPaint(
+          painter: switch (profile) {
+            WorldProfile.astronomy => _StarfieldPainter(phase: phase),
+            WorldProfile.magical => _MagicSigilPainter(
+                phase: phase,
+                accent: accent ?? const Color(0xFF6FC9D8),
+                subdued: strength < 0.55,
+              ),
+            WorldProfile.sciFi => _HexGridPainter(
+                phase: phase,
+                accent: accent ?? const Color(0xFF00E5FF),
+              ),
+            WorldProfile.horror => _FogMotesPainter(phase: phase),
+            WorldProfile.sport => _SparklePainter(
+                phase: phase,
+                accent: accent ?? const Color(0xFFFF8FB3),
+              ),
+            WorldProfile.arg => _CrosshairPainter(phase: phase),
+            WorldProfile.japaneseLuxury => _JapaneseLuxuryPainter(
+                phase: phase,
+                accent: accent ?? const Color(0xFFC9A227),
+              ),
+            WorldProfile.westernLuxury => _WesternLuxuryPainter(
+                phase: phase,
+                accent: accent ?? const Color(0xFFC8A75A),
+              ),
+          },
+        ),
       ),
     );
   }
@@ -112,16 +118,22 @@ class _StarfieldPainter extends CustomPainter {
 }
 
 class _MagicSigilPainter extends CustomPainter {
-  _MagicSigilPainter({required this.phase, required this.accent});
+  _MagicSigilPainter({
+    required this.phase,
+    required this.accent,
+    this.subdued = false,
+  });
 
   final double phase;
   final Color accent;
+  final bool subdued;
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (subdued) return;
     final center = Offset(size.width * 0.5, size.height * 0.46);
     final radius = math.min(size.width, size.height) * 0.38;
-    final rot = phase * math.pi * 2;
+    final rot = phase * math.pi * 2 * 0.12;
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
@@ -213,7 +225,9 @@ class _MagicSigilPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MagicSigilPainter oldDelegate) =>
-      oldDelegate.phase != phase || oldDelegate.accent != accent;
+      oldDelegate.phase != phase ||
+      oldDelegate.accent != accent ||
+      oldDelegate.subdued != subdued;
 }
 
 class _HexGridPainter extends CustomPainter {

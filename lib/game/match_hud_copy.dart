@@ -25,7 +25,7 @@ abstract final class MatchHudCopy {
   static const restraintStarted = '動きを止められました';
   static const restraintStartedDetail = '大きな円の外に出れば助かります';
   static const restraintLockStatusPrefix = '止められ中: 残り';
-  static const restraintLockStatusSuffix = '秒 / 至近またはBLE接触で捕獲';
+  static const restraintLockStatusSuffix = '秒 / 至近距離または体の接近で捕獲';
   static const captureSucceeded = '捕獲されました';
   static const captureSucceededDetail = '${GuideTerms.secondGame}に移行します。';
   static const captureSucceededOni = '捕獲成功';
@@ -52,7 +52,7 @@ abstract final class MatchHudCopy {
   static String namedRevealAlert(String playerLabel, String reason) =>
       reason.isEmpty
           ? '$playerLabel がこの付近で${MatchUiTerms.namedReveal}されました'
-          : '$playerLabel がこの付近で暴露されました（$reason）';
+          : '$playerLabel がこの付近で${MatchUiTerms.namedReveal}されました（$reason）';
 
   static const anonRevealAction = '${GuideTerms.anonPositionReveal}が行われた';
   static const anonTraceFallback = '${GuideTerms.anonTrace}が出ました';

@@ -18,6 +18,7 @@ class WorldMapAtmosphere extends StatelessWidget {
     this.revealNoiseSeed = 0,
     this.momentKind,
     this.flashOpacityOverride,
+    this.subduedOverlay = false,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class WorldMapAtmosphere extends StatelessWidget {
   final double revealNoiseSeed;
   final WorldMomentKind? momentKind;
   final double? flashOpacityOverride;
+  final bool subduedOverlay;
 
   WorldFxProfile get _fx => WorldFxCatalog.forProfile(pack.profile);
 
@@ -63,6 +65,7 @@ class WorldMapAtmosphere extends StatelessWidget {
     final useNoise = pack.useRevealNoise ||
         momentKind == WorldMomentKind.namedReveal &&
             _fx.revealFlashStyle == WorldRevealFlashStyle.horrorVhs;
+    final overlayStrength = subduedOverlay ? 0.28 : 1.0;
 
     return IgnorePointer(
       child: Stack(
@@ -72,6 +75,7 @@ class WorldMapAtmosphere extends StatelessWidget {
             profile: profile,
             phase: scanPhase,
             accent: pack.tokens.markerAccent,
+            strength: overlayStrength,
           ),
           if (profile == WorldProfile.arg)
             ColoredBox(
@@ -147,7 +151,7 @@ class WorldMapAtmosphere extends StatelessWidget {
                 phase: scanPhase,
               ),
             ),
-          if (pack.useScanOverlay && profile == WorldProfile.sciFi) ...[
+          if (pack.useScanOverlay && profile == WorldProfile.sciFi && !subduedOverlay) ...[
             CustomPaint(
               painter: _ScanLinePainter(
                 color: const Color(0xFF00E5FF).withValues(alpha: 0.062),

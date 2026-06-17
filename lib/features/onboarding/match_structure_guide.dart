@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
+import '../../features/how_to_play/guide_diagram_type.dart';
+import '../../features/how_to_play/guide_models.dart';
+import '../../features/how_to_play/widgets/guide_diagram_slot.dart';
 import '../../widgets/juicy_tap.dart';
 import 'guide_bullet_list.dart';
 
@@ -10,8 +13,8 @@ Future<bool?> showMatchStructureGuide(BuildContext context) {
   GameAudio.instance.playSfx(SfxId.uiConfirm);
   return Navigator.of(context).push<bool>(
     PageRouteBuilder<bool>(
-      opaque: false,
-      barrierColor: Colors.black54,
+      opaque: true,
+      barrierColor: Colors.black87,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondary) =>
           const _MatchStructureGuide(),
@@ -29,6 +32,7 @@ class _GuidePage {
     required this.title,
     required this.lines,
     this.subtitle,
+    this.diagram,
   });
 
   final IconData icon;
@@ -36,6 +40,7 @@ class _GuidePage {
   final String title;
   final List<String> lines;
   final String? subtitle;
+  final GuideDiagramData? diagram;
 }
 
 const _pages = <_GuidePage>[
@@ -43,19 +48,27 @@ const _pages = <_GuidePage>[
     icon: Icons.timeline_rounded,
     color: Color(0xFF2E86DE),
     title: '1試合の流れ',
-    subtitle: '基本ルールのあとに覚えること',
+    subtitle: '準備 → 追跡 → 終了（脱落しても続行）',
+    diagram: GuideDiagramData(
+      type: GuideDiagramType.outsideAreaFlow,
+      title: 'エリアの外に出すぎると危険',
+      caption: '安全地帯やギミックはこのあと詳しく学べます。',
+    ),
     lines: [
-      '準備 → 追跡 → （脱落しても続行）→ 終了',
-      '鬼は捕まえる／逃走者は時間まで耐える',
-      'スキル・ギミックはその上に載る道具',
+      'ホストがエリアと時間を決めて「試合を開始」',
+      '鬼は追う／逃走者は耐える — スキルとギミックが道具',
     ],
   ),
   _GuidePage(
     icon: Icons.hub_outlined,
     color: Color(0xFF8E5BD8),
     title: '3役の関係',
+    diagram: GuideDiagramData(
+      type: GuideDiagramType.roleOverview,
+      title: '役職は試合開始時に決まる',
+    ),
     lines: [
-      '👹 鬼 … 追う側。0人にすれば勝ち',
+      '👹 鬼 … 追う側。逃走者を全員捕まえれば勝ち',
       '🏃 逃走者 … 逃げる側。時間切れか告発成功で勝ち',
       '🌙 人狼 … 常に「少ない方の陣営」の味方',
     ],
@@ -64,33 +77,24 @@ const _pages = <_GuidePage>[
     icon: Icons.nightlight_round,
     color: Color(0xFF6C5CE7),
     title: '人狼の駆け引き',
+    diagram: GuideDiagramData(
+      type: GuideDiagramType.werewolfNotOni,
+      title: '人狼は鬼そのものではない',
+    ),
     lines: [
-      '前半：人が多い → 鬼側の味方',
-      '鬼化しても人は襲えない（撹乱・誘導）',
-      '後半：人が多い → 人側の味方',
-      '鬼化すると捕獲できる → 距離を取る',
-      '「人化」「鬼化」で見た目を切り替え',
+      '前半は鬼側の味方、後半は人側の味方になりうる',
+      '「人化」「鬼化」で見た目を切り替えて撹乱',
     ],
   ),
   _GuidePage(
     icon: Icons.layers_outlined,
     color: Color(0xFFF39C12),
-    title: '逃走者の3つの選択',
+    title: '逃走者の選択肢',
     lines: [
-      '情報屋 … 鬼の方角・距離（座標そのものではない）',
+      '情報屋 … 鬼の方角・距離の手がかり',
       '通信障害地帯 … 今の安全度を上げる',
       '安全地帯 … 一定時間、追われにくくなる',
-    ],
-  ),
-  _GuidePage(
-    icon: Icons.groups_outlined,
-    color: Color(0xFF1FA98A),
-    title: 'みんなが狙うもの',
-    lines: [
-      '鬼 … 痕跡・暴露・スキルで追う',
-      '逃走者 … ギミック＋告発で生き延びる',
-      '人狼 … 人数で味方が変わる',
-      '脱落後 … 残響体・鬼影の第二ゲーム',
+      '告発 … 条件を満たせば鬼を追放できる（詳細はガイドへ）',
     ],
   ),
 ];
@@ -239,6 +243,10 @@ class _GuideCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
+          if (page.diagram != null) ...[
+            GuideDiagramSlot(data: page.diagram!),
+            const SizedBox(height: 12),
+          ],
           GuideBulletList(lines: page.lines, accent: page.color),
         ],
       ),

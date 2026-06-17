@@ -6,10 +6,17 @@ import '../world_presentation_pack.dart';
 
 /// 各画面用の薄いアンビエント装飾。
 class WorldAmbientPainter extends CustomPainter {
-  WorldAmbientPainter({required this.pack, required this.phase});
+  WorldAmbientPainter({
+    required this.pack,
+    required this.phase,
+    this.strength = 1.0,
+  });
 
   final WorldPresentationPack pack;
   final double phase;
+  final double strength;
+
+  double _a(double alpha) => (alpha * strength).clamp(0.0, 1.0);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -61,13 +68,13 @@ class WorldAmbientPainter extends CustomPainter {
 
   void _dataBits(Canvas canvas, Size size, double t) {
     final paint = Paint()
-      ..color = pack.accent.withValues(alpha: 0.08)
+      ..color = pack.accent.withValues(alpha: _a(0.04))
       ..strokeWidth = 1;
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 4; i++) {
       final y = size.height * 0.2 + i * 28;
       canvas.drawLine(
-        Offset(0, y + math.sin(t + i) * 4),
-        Offset(size.width * (0.3 + 0.1 * i), y),
+        Offset(0, y + math.sin(t + i) * 3),
+        Offset(size.width * (0.22 + 0.08 * i), y),
         paint,
       );
     }
@@ -173,20 +180,22 @@ class WorldAmbientPainter extends CustomPainter {
 
   void _lightRays(Canvas canvas, Size size, double t) {
     final center = Offset(size.width * 0.5, -size.height * 0.1);
-    for (var i = 0; i < 5; i++) {
-      final a = -math.pi / 2 + (i - 2) * 0.12 + math.sin(t) * 0.02;
+    for (var i = 0; i < 3; i++) {
+      final a = -math.pi / 2 + (i - 1) * 0.1 + math.sin(t) * 0.015;
       final end = center + Offset(math.cos(a) * size.height, math.sin(a) * size.height);
       canvas.drawLine(
         center,
         end,
         Paint()
-          ..color = pack.accent.withValues(alpha: 0.05)
-          ..strokeWidth = 2,
+          ..color = pack.accent.withValues(alpha: _a(0.03))
+          ..strokeWidth = 1.5,
       );
     }
   }
 
   @override
   bool shouldRepaint(covariant WorldAmbientPainter old) =>
-      old.phase != phase || old.pack.profile != pack.profile;
+      old.phase != phase ||
+      old.pack.profile != pack.profile ||
+      old.strength != strength;
 }

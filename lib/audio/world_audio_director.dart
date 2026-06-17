@@ -4,7 +4,6 @@ import '../presentation/world/world_studio_identity.dart';
 import '../presentation/world/world_studio_identity_catalog.dart';
 import '../session/audio_prefs.dart';
 import '../theme/world_profile.dart';
-import 'audio_library.dart';
 import 'game_audio.dart';
 import 'world_audio_state.dart';
 import 'world_music_profile.dart';
@@ -110,18 +109,52 @@ class WorldAudioDirector {
     if (_state != WorldAudioState.gallery) return;
     await enter(WorldAudioState.title, profile: restoreProfile);
   }
-  /// 世界観変更時のクロスフェード（タイトル／ギャラリー）。
+  /// 世界観変更時のクロスフェード（タイトル／ギャラリー／ロビー／試合中）。
   Future<void> onProfileChanged(WorldProfile next) async {
     final prev = _profile;
     _profile = next;
     GameAudio.instance.setActiveWorldProfile(next);
     if (prev == next) return;
+
     if (_state == WorldAudioState.gallery) {
       await enter(WorldAudioState.gallery, profile: next);
       return;
     }
     if (_state == WorldAudioState.title || _state == WorldAudioState.returnTitle) {
       await enter(WorldAudioState.title, profile: next);
+      return;
+    }
+    if (_state == WorldAudioState.lobby ||
+        _state == WorldAudioState.preMatchPresentation) {
+      await enter(WorldAudioState.lobby, profile: next);
+      return;
+    }
+    if (_state == WorldAudioState.matchCountdown) {
+      await enter(WorldAudioState.matchCountdown, profile: next);
+      return;
+    }
+    if (_state == WorldAudioState.match ||
+        _state == WorldAudioState.finalFiveMinutes ||
+        _state == WorldAudioState.finalMinute ||
+        _state == WorldAudioState.finalTenSeconds ||
+        _state == WorldAudioState.danger) {
+      await enter(
+        _dangerActive
+            ? WorldAudioState.danger
+            : _climaxStateForRemaining(_matchRemainingSeconds ?? 9999),
+        profile: next,
+      );
+      return;
+    }
+    if (_state == WorldAudioState.accusationAvailable) {
+      await enter(WorldAudioState.accusationAvailable, profile: next);
+      return;
+    }
+    if (_state == WorldAudioState.resultVictory ||
+        _state == WorldAudioState.resultLose ||
+        _state == WorldAudioState.resultDraw ||
+        _state == WorldAudioState.resultSpectator) {
+      await enter(_state, profile: next);
     }
   }
 
@@ -373,21 +406,10 @@ class WorldAudioDirector {
       curve: music.volumeCurve,
     );
     await _setAmbientLayer(music, crossFade, gainMultiplier: 0.55);
-    if (_profile == WorldProfile.westernLuxury &&
-        WorldMusicProfileCatalog.royalLobbyUseSarabandeUndertone) {
-      await GameAudio.instance.setMusicLayer(
-        WorldMusicLayer.tension,
-        track: LayerTrackRef.bgm(BgmId.royalSarabande, gain: 0.16),
-        relativeGain: 0.22,
-        crossFadeMs: crossFade,
-        curve: music.volumeCurve,
-      );
-    } else {
-      await GameAudio.instance.stopMusicLayer(
-        WorldMusicLayer.tension,
-        fadeMs: crossFade,
-      );
-    }
+    await GameAudio.instance.stopMusicLayer(
+      WorldMusicLayer.tension,
+      fadeMs: crossFade,
+    );
     await GameAudio.instance.stopMusicLayer(
       WorldMusicLayer.moment,
       fadeMs: crossFade,

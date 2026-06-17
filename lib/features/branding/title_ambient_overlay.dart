@@ -94,39 +94,30 @@ class _TitleAmbientPainter extends CustomPainter {
     final beat = _beat;
     final horizon = size.height * 0.42;
     canvas.drawRect(
-      Rect.fromLTWH(0, horizon, size.width, 1.5),
-      Paint()..color = _a(branding.accent, 0.22 + beat * 0.08),
+      Rect.fromLTWH(0, horizon, size.width, 1),
+      Paint()..color = _a(branding.accent, 0.12 + beat * 0.04),
     );
-    for (final x in [0.06, 0.94]) {
-      canvas.drawLine(
-        _n(size, x, 0.1),
-        _n(size, x, 0.9),
-        Paint()
-          ..color = _a(branding.particleColor, 0.18)
-          ..strokeWidth = 0.9,
-      );
-    }
     final grid = Paint()
-      ..color = _a(branding.scanLineColor, 0.14)
+      ..color = _a(branding.scanLineColor, 0.08)
       ..strokeWidth = 0.5;
     const step = 44.0;
     for (var y = horizon; y < size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
-    for (var i = 0; i < 7; i++) {
+    for (var i = 0; i < 4; i++) {
       final phase = (progress * 0.9 + i * 0.14) % 1.0;
-      final x = size.width * [0.1, 0.88, 0.22, 0.75, 0.5, 0.14, 0.65][i];
+      final x = size.width * [0.22, 0.78, 0.5, 0.35][i];
       final y = size.height * (0.52 + phase * 0.38);
       canvas.drawLine(
-        Offset(x, y - 18),
+        Offset(x, y - 12),
         Offset(x, y),
         Paint()
-          ..color = _a(branding.accent, 0.2)
-          ..strokeWidth = 1
+          ..color = _a(branding.accent, 0.1)
+          ..strokeWidth = 0.8
           ..strokeCap = StrokeCap.round,
       );
     }
-    _cornerTicks(canvas, size, _a(branding.accent, 0.2), 14);
+    _cornerTicks(canvas, size, _a(branding.accent, 0.12), 12);
   }
 
   void _horror(Canvas canvas, Size size) {

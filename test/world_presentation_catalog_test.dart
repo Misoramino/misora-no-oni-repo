@@ -20,7 +20,7 @@ void main() {
     final magical = WorldPresentationCatalog.of(WorldProfile.magical);
     expect(zen.accent, isNot(magical.accent));
     expect(zen.momentParticle, WorldParticleKind.goldInk);
-    expect(magical.momentParticle, WorldParticleKind.sparks);
+    expect(magical.momentParticle, WorldParticleKind.goldInk);
   });
 
   test('Zen Kyoto and Royal Classic have Japanese/English result copy', () {

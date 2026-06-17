@@ -10,9 +10,6 @@ abstract final class WorldMusicProfileCatalog {
   /// `true` のとき Astronomy Match は従来の [BgmId.space] を使用（比較用）。
   static const astronomyUseLegacySpaceBgm = false;
 
-  /// `true` のとき Royal Lobby に Sarabande を極薄アンダートーン（比較用）。
-  static const royalLobbyUseSarabandeUndertone = false;
-
   static WorldMusicProfile of(WorldProfile profile) => switch (profile) {
         WorldProfile.horror => _horror,
         WorldProfile.sport => _sport,
@@ -47,8 +44,8 @@ abstract final class WorldMusicProfileCatalog {
     loseMusic: BgmId.urbanSilentTension,
     drawMusic: BgmId.urbanSilentTension,
     resultPauseMs: resultPauseFor(WorldProfile.horror),
-    crossFadeMs: 900,
-    ambientGain: 0.34,
+    crossFadeMs: 1200,
+    ambientGain: 0.26,
     volumeCurve: Curves.easeInOutQuad,
     lobbyGain: 0.62,
     matchBaseGain: 0.76,
@@ -58,7 +55,7 @@ abstract final class WorldMusicProfileCatalog {
       titleBase: LayerTrackRef.bgm(BgmId.urbanSilentTension),
       base: LayerTrackRef.bgm(BgmId.urbanSilentPursuit),
       matchBase: LayerTrackRef.bgm(BgmId.urbanSilentPursuit),
-      ambient: LayerTrackRef.ambient(AmbientId.urbanRainCity, gain: 0.36),
+      ambient: LayerTrackRef.ambient(AmbientId.urbanRainCity, gain: 0.22),
       tension: LayerTrackRef.ambient(AmbientId.wind, gain: 0.2),
       moment: LayerTrackRef.bgm(BgmId.urbanSilentShot, gain: 0.5),
     ),
@@ -163,7 +160,7 @@ abstract final class WorldMusicProfileCatalog {
       titleBase: LayerTrackRef.bgm(BgmId.magicalEthereal, gain: 0.66),
       base: LayerTrackRef.bgm(BgmId.magicalOrchestra, gain: 0.58),
       matchBase: LayerTrackRef.bgm(BgmId.magicalOrchestra, gain: 0.5),
-      ambient: LayerTrackRef.ambient(AmbientId.magicalFireplace, gain: 0.28),
+      ambient: LayerTrackRef.ambient(AmbientId.magicalFireplace, gain: 0.18),
       moment: LayerTrackRef.ambient(AmbientId.forest, gain: 0.32),
     ),
   );
@@ -220,7 +217,7 @@ abstract final class WorldMusicProfileCatalog {
       titleBase: LayerTrackRef.bgm(BgmId.zenTsukiyomi, gain: 0.5),
       base: LayerTrackRef.bgm(BgmId.zenTsukiyomi, gain: 0.44),
       matchBase: LayerTrackRef.ambient(AmbientId.zenWoodJungle, gain: 0.38),
-      ambient: LayerTrackRef.ambient(AmbientId.zenWindLeaves, gain: 0.26),
+      ambient: LayerTrackRef.ambient(AmbientId.zenWindLeaves, gain: 0.18),
       tension: LayerTrackRef.ambient(AmbientId.wind, gain: 0.16),
       moment: LayerTrackRef.ambient(AmbientId.zenBirdSubtle, gain: 0.06),
     ),
@@ -236,8 +233,8 @@ abstract final class WorldMusicProfileCatalog {
     loseMusic: BgmId.royalLarghetto,
     drawMusic: BgmId.royalLarghetto,
     resultPauseMs: resultPauseFor(WorldProfile.westernLuxury),
-    crossFadeMs: 1000,
-    ambientGain: 0.22,
+    crossFadeMs: 1300,
+    ambientGain: 0.16,
     volumeCurve: Curves.easeOutQuart,
     lobbyGain: 0.54,
     matchBaseGain: 0.36,
@@ -247,7 +244,7 @@ abstract final class WorldMusicProfileCatalog {
       titleBase: LayerTrackRef.bgm(BgmId.royalSarabande),
       base: LayerTrackRef.bgm(BgmId.royalLarghetto, gain: 0.9),
       matchBase: LayerTrackRef.bgm(BgmId.royalLarghetto, gain: 0.46),
-      ambient: LayerTrackRef.ambient(AmbientId.royalFireplace, gain: 0.24),
+      ambient: LayerTrackRef.ambient(AmbientId.royalFireplace, gain: 0.14),
       tension: LayerTrackRef.bgm(BgmId.royalSarabande, gain: 0.24),
       moment: LayerTrackRef.bgm(BgmId.royalQueenOfSheba, gain: 0.46),
     ),

@@ -13,7 +13,7 @@ abstract final class WorldStudioIdentityCatalog {
   static const _all = <WorldProfile, WorldStudioIdentity>{
     WorldProfile.horror: WorldStudioIdentity(
       profile: WorldProfile.horror,
-      recommended: true,
+      recommended: false,
       galleryBlurb: '静かな深夜都市。調査と監視のスタイリッシュホラー。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 22,
@@ -74,7 +74,7 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.sport: WorldStudioIdentity(
       profile: WorldProfile.sport,
-      recommended: true,
+      recommended: false,
       galleryBlurb: '休日の街を駆ける。軽快でポップな週末プレイ。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 16,

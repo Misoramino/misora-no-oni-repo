@@ -7,9 +7,10 @@ import 'guide_terms.dart';
 /// 遊び方のヘッダー。
 const guideHeader = GuideHeaderData(
   title: 'ONI PIN の遊び方',
-  subtitle: '相手の位置は見えない。手がかりを読もう。',
-  body: '屋外で遊ぶ鬼ごっこ＋推理ゲームです。\n困ったときだけ、下の章を開いてください。',
-  hint: '最初から全部読む必要はありません。',
+  subtitle: '地図に隠れた相手を、手がかりだけで追いかける。',
+  body: '屋外で走り回る鬼ごっこに、推理と駆け引きが加わったゲームです。\n'
+      '知らない用語は章を開けば図つきで説明しています。',
+  hint: '全部読まなくて大丈夫。困ったところだけ見てください。',
   indexPrompt: 'よく見る章',
 );
 
@@ -124,7 +125,10 @@ final _introSection = GuideSectionData(
       title: '何をするゲーム？',
       icon: Icons.sports_esports_outlined,
       oneLine: '逃げる・追う・当てる。',
-      body: '人は逃げ、鬼は追います。地図の点は「いまここ」ではなく手がかりです。',
+      body: '鬼は追い、逃走者は耐えます。人狼は人数で味方が変わる第三の顔。'
+          '地図の点は「いまここ」ではなく、読み解く手がかりです。',
+      diagramType: GuideDiagramType.mapConcept,
+      diagramCaption: 'GPSで走りながら、情報戦を楽しむ',
     ),
     _card(
       id: 'first_things',

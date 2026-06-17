@@ -19,7 +19,6 @@
 比較用フラグ:
 
 - `WorldMusicProfileCatalog.astronomyUseLegacySpaceBgm` — `space.mp3` へ切替
-- `WorldMusicProfileCatalog.royalLobbyUseSarabandeUndertone` — Lobby に Sarabande 極薄アンダートーン
 
 ---
 
@@ -41,7 +40,7 @@
 | フェーズ | 音源 |
 |----------|------|
 | Title / Gallery | `royal_sarabande` |
-| Lobby / Match | `royal_larghetto`（Match は低ゲイン） |
+| Lobby / Match | `royal_larghetto`（Dvořák 正式版・Match は低ゲイン） |
 | Victory | `royal_queen_of_sheba` |
 | Ambient | `royal_fireplace`（常時）/ `royal_bell_indoor`（稀） |
 | Unlock SFX | 教会ベル `accusation_unlock.wav` |
@@ -95,7 +94,7 @@ SE は派手さを抑えた音量係数。
 | 世界観 | 用途 | 候補名 | 現状 |
 |--------|------|--------|------|
 | Cyber Night | Title/Gallery | Neon Synthwave Cyberpunk | `cyber` 維持 |
-| Royal Classic | — | 追加 Handel / Dvořák 原盤 | 同梱 MP3 で代替済み |
+| Royal Classic | — | — | **正式採用済み**（Handel + Dvořák 原盤） |
 | Astronomy | — | Telepathic Spheres 等 | `astro_*` 採用済み |
 | 全般 | ui_back | 世界観別 back SE | 汎用 SE / 合成音 |
 

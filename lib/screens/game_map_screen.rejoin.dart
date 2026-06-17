@@ -23,7 +23,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     await _applySharedMatchStart(snap);
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
-    _processedRoomEventDocIds.clear();
+    _roomEventDeduper.clear();
     if (!mounted) return;
     _ensureMatchRecorder(discardExisting: true);
     final elapsed = _rt.elapsedSeconds;
@@ -53,7 +53,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     await _applySharedMatchStart(snap);
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
-    _processedRoomEventDocIds.clear();
+    _roomEventDeduper.clear();
     if (!mounted) return;
     final startedRaw = snap.startedAtUtc;
     final startedUtc = startedRaw != null
@@ -105,18 +105,14 @@ extension _GameMapRejoin on _GameMapScreenState {
   }
 
   void _syncMatchTimerFromSnapshot(SharedMatchSnapshot snap) {
-    final startedRaw = snap.startedAtUtc;
-    if (startedRaw == null) return;
-    final started = DateTime.tryParse(startedRaw);
-    if (started == null) return;
-    final elapsed = DateTime.now()
-        .toUtc()
-        .difference(started.toUtc())
-        .inSeconds
-        .clamp(0, snap.matchDurationSeconds);
-    _rt.elapsedSeconds = elapsed;
-    _rt.remainingSeconds = (snap.matchDurationSeconds - elapsed)
-        .clamp(0, snap.matchDurationSeconds);
+    _rt.elapsedSeconds = MatchElapsedSync.elapsedSeconds(
+      startedAtUtc: snap.startedAtUtc,
+      matchDurationSeconds: snap.matchDurationSeconds,
+    );
+    _rt.remainingSeconds = MatchElapsedSync.remainingSeconds(
+      startedAtUtc: snap.startedAtUtc,
+      matchDurationSeconds: snap.matchDurationSeconds,
+    );
   }
 
   Future<void> _replayHistoricalMatchEvents(int sessionKey) async {
@@ -124,6 +120,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (fs == null) return;
     final events = await fs.fetchMatchEvents(sessionKey);
     if (!mounted) return;
+    events.sort((a, b) => a.emittedAtMs.compareTo(b.emittedAtMs));
     final myUid = fs.myUid;
     for (final ev in events) {
       if (ev.type == RoomMatchEventTypes.playerEliminated &&
@@ -134,7 +131,7 @@ extension _GameMapRejoin on _GameMapScreenState {
             ? '告発により脱落 — 復讐の鬼影として戦線に残る'
             : '脱落 — 第二ゲームへ';
         _restoreLocalEliminationFromEvent(ev, message: msg);
-        _processedRoomEventDocIds.add(ev.id);
+        _roomEventDeduper.markIfNew(ev.id);
         continue;
       }
       _onRemoteRoomMatchEvent(ev);

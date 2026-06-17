@@ -151,7 +151,7 @@ extension _GameMapPrepSync on _GameMapScreenState {
         ],
         child: Text(
           '準備完了を押していない参加者:\n$names\n\n'
-          '全員の同期参加を優先するなら、準備完了を待ってから開始してください。',
+          '全員が準備完了するまで待つなら、開始を見送ってください。',
         ),
       ),
     );
@@ -175,15 +175,16 @@ extension _GameMapPrepSync on _GameMapScreenState {
 
     final events = await fs.fetchMatchEvents(sk);
     if (!mounted) return;
+    events.sort((a, b) => a.emittedAtMs.compareTo(b.emittedAtMs));
 
     var applied = 0;
     _suppressMatchFeedback = true;
     try {
       for (final ev in events) {
-        if (_processedRoomEventDocIds.contains(ev.id)) continue;
-        final before = _processedRoomEventDocIds.length;
+        if (_roomEventDeduper.contains(ev.id)) continue;
+        final before = _roomEventDeduper.length;
         _onRemoteRoomMatchEvent(ev);
-        if (_processedRoomEventDocIds.length > before) applied++;
+        if (_roomEventDeduper.length > before) applied++;
       }
     } finally {
       _suppressMatchFeedback = false;
@@ -226,6 +227,11 @@ extension _GameMapPrepSync on _GameMapScreenState {
   }
 
   Future<void> _catchUpGameStateOnResumeAsync(DateTime? pausedAt) async {
+    if (pausedAt != null) {
+      _resumeCatchUpUntilUtc = DateTime.now().toUtc().add(
+        const Duration(seconds: GameConfig.resumeCatchUpGraceSeconds),
+      );
+    }
     if (_tryApplyRemoteRoomEnded(fromResume: true)) {
       if (mounted && pausedAt != null) {
         _toast('試合は終了していました — 結果を確認してください');
@@ -256,6 +262,10 @@ extension _GameMapPrepSync on _GameMapScreenState {
     }
 
     if (pausedAt != null) {
+      await _replayMissedMatchEventsOnResume();
+    }
+
+    if (pausedAt != null && !_isOnlineFirestore) {
       _catchUpRunningTicksOnResume(pausedAt);
     }
 
@@ -266,8 +276,10 @@ extension _GameMapPrepSync on _GameMapScreenState {
       _evaluateEliminationAftermathCharges();
     }
 
-    if (pausedAt != null) {
-      await _replayMissedMatchEventsOnResume();
+    if ((_gameState == GameState.running ||
+            _gameState == GameState.caughtByOni) &&
+        pausedAt != null) {
+      unawaited(_syncBleMatchContext(forceAdvertiseRestart: true));
     }
 
     if (!mounted) return;
@@ -275,6 +287,7 @@ extension _GameMapPrepSync on _GameMapScreenState {
         DateTime.now().toUtc().difference(pausedAt).inSeconds >= 8) {
       _toast('試合に復帰しました — 位置と同期を更新しています');
     }
+    _resumeCatchUpUntilUtc = null;
   }
 
   void _maybeCatchUpRunningMatch({String? toastMessage}) {

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
+import '../../features/how_to_play/guide_diagram_type.dart';
+import '../../features/how_to_play/guide_models.dart';
+import '../../features/how_to_play/widgets/guide_diagram_slot.dart';
 import '../../widgets/juicy_tap.dart';
 import 'guide_bullet_list.dart';
 
@@ -13,8 +16,8 @@ Future<WelcomeResult?> showWelcomeFlow(
   GameAudio.instance.playSfx(SfxId.uiConfirm);
   return Navigator.of(context).push<WelcomeResult>(
     PageRouteBuilder<WelcomeResult>(
-      opaque: false,
-      barrierColor: Colors.black54,
+      opaque: true,
+      barrierColor: Colors.black87,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondary) =>
           _WelcomeFlow(offerTutorial: offerTutorial),
@@ -31,12 +34,14 @@ class _WelcomePage {
     required this.color,
     required this.title,
     required this.lines,
+    this.diagram,
   });
 
   final IconData icon;
   final Color color;
   final String title;
   final List<String> lines;
+  final GuideDiagramData? diagram;
 }
 
 const _pages = <_WelcomePage>[
@@ -44,20 +49,28 @@ const _pages = <_WelcomePage>[
     icon: Icons.my_location_rounded,
     color: Color(0xFF2E86DE),
     title: '街がフィールドの鬼ごっこ',
+    diagram: GuideDiagramData(
+      type: GuideDiagramType.mapConcept,
+      title: 'みんな同じエリアの中で遊ぶ',
+      caption: 'GPSで歩く。相手の正確な位置は基本見えません。',
+    ),
     lines: [
-      'スマホのGPSで、実際の街を歩きながら遊びます',
-      '同じルームの仲間と、ホストが決めたエリアの中が舞台',
-      '位置は基本見えない — 手がかりと距離感で追いかけっこ',
+      'ホストが決めたエリア（公園・商店街など）が舞台',
+      '手がかり・距離感・スキルで追いかけっこ',
     ],
   ),
   _WelcomePage(
     icon: Icons.emoji_events_outlined,
     color: Color(0xFF8E5BD8),
-    title: 'シンプルな勝ち負け',
+    title: 'かんたんな勝ち負け',
+    diagram: GuideDiagramData(
+      type: GuideDiagramType.factionWin,
+      title: '時間切れか、全員捕まえるか',
+    ),
     lines: [
-      '🏃 逃走者：時間まで生き残れば勝ち',
-      '👹 鬼：人を捕まえて0人にすれば勝ち',
-      'くわしい流れは、準備画面の「試合の構造」で案内します',
+      '🏃 逃走者：制限時間まで生き残れば勝ち',
+      '👹 鬼：逃走者を全員捕まえれば勝ち',
+      'くわしい流れは準備画面の「試合の構造」で案内します',
     ],
   ),
 ];
@@ -214,6 +227,10 @@ class _WelcomeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
+          if (page.diagram != null) ...[
+            GuideDiagramSlot(data: page.diagram!),
+            const SizedBox(height: 12),
+          ],
           GuideBulletList(lines: page.lines, accent: page.color),
         ],
       ),

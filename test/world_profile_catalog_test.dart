@@ -82,6 +82,6 @@ void main() {
     expect(WorldAudio.defaultBgm(WorldProfile.japaneseLuxury), BgmId.zenTsukiyomi);
     expect(WorldAudio.defaultBgm(WorldProfile.westernLuxury), BgmId.royalLarghetto);
     expect(WorldAudio.ambient(WorldProfile.japaneseLuxury), AmbientId.zenWoodJungle);
-    expect(WorldAudio.ambient(WorldProfile.westernLuxury), AmbientId.royalBellIndoor);
+    expect(WorldAudio.ambient(WorldProfile.westernLuxury), AmbientId.royalFireplace);
   });
 }

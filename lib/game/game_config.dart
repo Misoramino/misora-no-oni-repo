@@ -35,7 +35,14 @@ class GameConfig {
   static const int outsideAreaEliminationSeconds = 90;
 
   static const double gpsJumpIgnoreMeters = 120;
+  /// GPS の異常ジャンプを無視する時間窓（秒）。
   static const int gpsJumpIgnoreWindowSeconds = 2;
+
+  /// 位置 fix がこれより古い場合は捕獲・エリア判定に使わない（秒）。
+  static const int gpsMaxFixAgeSeconds = 12;
+
+  /// 復帰直後にローカル判定を抑止する時間（秒）。catch-up 優先。
+  static const int resumeCatchUpGraceSeconds = 4;
 
   // Phase 2 prep: map gimmicks
   static const double safeZoneRadiusMeters = 40;

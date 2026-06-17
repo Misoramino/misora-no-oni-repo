@@ -102,7 +102,10 @@ abstract final class WorldAudio {
             AmbientId.zenWindLeaves,
             AmbientId.wind,
           ],
-        WorldProfile.westernLuxury => [AmbientId.royalBellIndoor],
+        WorldProfile.westernLuxury => [
+            AmbientId.royalFireplace,
+            AmbientId.royalBellIndoor,
+          ],
         WorldProfile.sciFi => [AmbientId.cyberAmbientDeep],
         WorldProfile.horror => [
             AmbientId.urbanRainCity,

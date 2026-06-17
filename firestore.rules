@@ -116,7 +116,10 @@ service cloud.firestore {
         || t == 'capture_zone_ack'
         || t == 'abort_vote'
         || t == 'abort_proposal'
-        || t == 'abort_majority';
+        || t == 'abort_majority'
+        || t == 'safe_zone_pickup'
+        || t == 'accusation_point_scored'
+        || t == 'lobby_play_area_proposal';
     }
 
     function hostOnlyRoomEventType(t) {
@@ -150,7 +153,10 @@ service cloud.firestore {
         && d.emittedAtUtc.size() <= 48
         && d.payload is map
         && d.payload.size() <= 32
-        && allowedRoomEventType(roomId, d.type);
+        && allowedRoomEventType(roomId, d.type)
+        && (d.type != 'player_eliminated'
+            || isEventRoomHost(roomId)
+            || (d.payload.uid is string && d.payload.uid == request.auth.uid));
     }
 
     match /rooms/{roomId}/events/{eventId} {

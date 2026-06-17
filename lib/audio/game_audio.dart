@@ -47,8 +47,8 @@ class GameAudio {
   static const _ambientGapMaxSec = 120;
 
   /// ワンショット環境音のフェード（ms）。
-  static const _ambientFadeInMs = 2400;
-  static const _ambientFadeOutMs = 3100;
+  static const _ambientFadeInMs = 3000;
+  static const _ambientFadeOutMs = 3800;
 
   /// 通常の世界観音以外が流れる確率（珍しい音）。
   static const _ambientRareChance = 0.22;
@@ -235,7 +235,11 @@ class GameAudio {
 
     final previewKind = _previewKindForSfx(id);
     if (previewKind != null &&
-        !_worldSfxDebounce.tryAcquire(profile, previewKind)) {
+        !_worldSfxDebounce.tryAcquire(
+          profile,
+          previewKind,
+          debounceMs: _sfxDebounceMs(id, profile),
+        )) {
       return;
     }
 
@@ -362,9 +366,18 @@ class GameAudio {
 
   WorldSfxPreviewKind? _previewKindForSfx(SfxId id) => switch (id) {
         SfxId.uiTap => WorldSfxPreviewKind.uiTap,
+        SfxId.uiConfirm => WorldSfxPreviewKind.uiTap,
         SfxId.reveal => WorldSfxPreviewKind.reveal,
         _ => null,
       };
+
+  int _sfxDebounceMs(SfxId id, WorldProfile profile) {
+    if (id == SfxId.uiTap || id == SfxId.uiConfirm) {
+      if (profile == WorldProfile.japaneseLuxury) return 320;
+    }
+    final kind = _previewKindForSfx(id);
+    return kind?.debounceMs ?? 0;
+  }
 
   double _volumeForWorldSfx(SfxId id, WorldFxProfile fx, double baseVol) {
     final coeff = switch (id) {

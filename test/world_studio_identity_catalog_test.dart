@@ -29,19 +29,14 @@ void main() {
       expect(layout.hudEdgeInset, greaterThanOrEqualTo(0));
     });
 
-    test('recommended flags match design intent', () {
-      expect(
-        WorldStudioIdentityCatalog.of(WorldProfile.horror).recommended,
-        isTrue,
-      );
-      expect(
-        WorldStudioIdentityCatalog.of(WorldProfile.sport).recommended,
-        isTrue,
-      );
-      expect(
-        WorldStudioIdentityCatalog.of(WorldProfile.sciFi).recommended,
-        isFalse,
-      );
+    test('recommended flags are disabled in gallery UI', () {
+      for (final profile in WorldProfile.values) {
+        expect(
+          WorldStudioIdentityCatalog.of(profile).recommended,
+          isFalse,
+          reason: profile.name,
+        );
+      }
     });
   });
 }

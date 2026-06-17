@@ -10,11 +10,15 @@ class WorldSfxDebounce {
   final Map<String, DateTime> _lastPlayed = {};
 
   /// 再生してよければ `true` を返し、ゲートを更新する。
-  bool tryAcquire(WorldProfile profile, WorldSfxPreviewKind kind) {
+  bool tryAcquire(
+    WorldProfile profile,
+    WorldSfxPreviewKind kind, {
+    int? debounceMs,
+  }) {
     final key = '${profile.storageName}:${kind.name}';
     final now = _clock();
     final last = _lastPlayed[key];
-    final gap = Duration(milliseconds: kind.debounceMs);
+    final gap = Duration(milliseconds: debounceMs ?? kind.debounceMs);
     if (last != null && now.difference(last) < gap) {
       return false;
     }

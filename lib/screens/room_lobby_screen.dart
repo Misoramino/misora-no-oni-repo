@@ -123,7 +123,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
         _joining = false;
         _error =
             FirebaseBootstrap.lastErrorBrief ??
-            'Firebase に接続できません。設定ファイルを確認してください。';
+            'サーバーに接続できません。ネットワーク接続を確認してください。';
       });
       return;
     }
@@ -455,10 +455,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              '試合進行中です。'
-                                              'ゲーム画面へ入ると、参加者は再参加、'
-                                              '参加者リストにいない場合は観戦モード'
-                                              '（操作なし）でマップを閲覧します。',
+                                              '試合中です。ゲーム画面へ入ると、参加者は再参加、リスト外は観戦（操作なし）でマップを見られます。',
                                               style: theme.textTheme.bodySmall,
                                             ),
                                           ),
@@ -703,7 +700,7 @@ class _MemberTile extends StatelessWidget {
                     [
                       if (view.isSelf) 'あなた',
                       if (view.isHost) 'ホスト',
-                      if (view.isStale(DateTime.now().toUtc())) 'ハートビート遅延',
+                      if (view.isStale(DateTime.now().toUtc())) '接続不安定',
                       if (band != null && band.isNotEmpty) band,
                     ].where((s) => s.isNotEmpty).join(' · '),
                     maxLines: 1,

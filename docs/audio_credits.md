@@ -398,8 +398,11 @@
 | magical_ethereal.mp3 | rockot ethereal-magic | Magical Title/Gallery |
 | magical_orchestra.mp3 | rockot orchestra-of-magic | Magical Lobby/Match |
 | magical_victory.mp3 | rockot magic-orchestra-of-inspiration | Magical Victory |
+| royal_sarabande.mp3 | Handel Water Music Sarabande（US Marine Band, `音/` opus） | Royal Title/Gallery/Final |
+| royal_queen_of_sheba.mp3 | Handel Arrival of the Queen of Sheba（`音/` ogg） | Royal Victory/Moment |
+| royal_larghetto.mp3 | Dvořák Serenade Op.22 IV Larghetto（`音/今回追加した分` ogg） | Royal Lobby/Match/Lose |
 
-比較用に `space.mp3` は維持。`WorldMusicProfileCatalog.astronomyUseLegacySpaceBgm` で切替。
+`tools/prepare_royal_bgm.py` で loudnorm（-15 LUFS）・alimiter・前後無音除去（silenceremove）・フェードイン 1s / フェードアウト 2s・弦楽 EQ（highpass 55 Hz / lowpass 15.5 kHz）・105s ループ床を生成。`WorldMusicProfileCatalog.astronomyUseLegacySpaceBgm` で切替。
 
 ### Polish Pass SFX
 

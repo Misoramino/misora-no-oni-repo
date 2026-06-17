@@ -148,7 +148,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4, bottom: 4),
                       child: Text(
-                        '時間・エリア・ルールを決めて開始。',
+                        '時間・プレイエリア・ルールを決めて開始。',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: leg.muted,
                         ),
@@ -444,7 +444,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         widget.prepReady
-                            ? 'ホストの開始を待っています。ルール確認以外の操作は制限されます。'
+                            ? 'ホストの開始を待っています。ルールの確認とプレイエリアの提案以外はできません。'
                             : '設定が済んだら「準備完了」を押してください。',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: leg.muted,

@@ -22,6 +22,7 @@ import '../features/world_selection/world_selection_sheet.dart';
 import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_ui_layout.dart';
 import '../presentation/world/widgets/world_button.dart';
+import '../presentation/world/widgets/world_profile_morph_overlay.dart';
 import '../presentation/world/widgets/world_loading.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_launch_branding.dart';
@@ -57,6 +58,7 @@ class TitleScreen extends StatefulWidget {
 
 class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin {
   bool _booting = true;
+  bool _titleBgmScheduled = false;
   late WorldProfile _profile;
   AnimationController? _logoPulse;
   AnimationController? _ambientEffect;
@@ -130,18 +132,31 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
         _booting = false;
       });
       widget.onProfileChanged?.call(saved);
-      unawaited(
-        WorldAudioDirector.instance.enter(
-          WorldAudioState.title,
-          profile: saved,
-        ),
-      );
+      unawaited(_scheduleTitleBgm(saved));
       _maybeShowWelcomeOnFirstLaunch();
     } catch (e, st) {
       debugPrint('TitleScreen._boot failed: $e\n$st');
       if (!mounted) return;
       setState(() => _booting = false);
     }
+  }
+
+  /// 起動音の余韻のあと、ゆっくりタイトル BGM を入れる。
+  Future<void> _scheduleTitleBgm(WorldProfile profile) async {
+    if (_titleBgmScheduled) return;
+    _titleBgmScheduled = true;
+    while (mounted && widget.handoff != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+    }
+    if (!mounted) return;
+    await Future<void>.delayed(const Duration(milliseconds: 2600));
+    if (!mounted) return;
+    unawaited(
+      WorldAudioDirector.instance.enter(
+        WorldAudioState.title,
+        profile: profile,
+      ),
+    );
   }
 
   Future<void> _maybeShowWelcomeOnFirstLaunch() async {
@@ -222,6 +237,10 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                   ),
                 ),
               ),
+            ),
+          if (handoff == null)
+            Positioned.fill(
+              child: WorldProfileMorphOverlay(profile: _profile),
             ),
           if (handoff != null && effectOpacity > 0.01)
             RepaintBoundary(
@@ -433,6 +452,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                               context,
                                               (_) => GameMapScreen(
                                                 profile: _profile,
+                                                onProfileChanged:
+                                                    widget.onProfileChanged,
                                               ),
                                               worldProfile: _profile,
                                               routeName: GameMapScreen.routeName,
