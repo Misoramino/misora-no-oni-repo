@@ -102,6 +102,7 @@ class GameInfoPanel extends StatelessWidget {
                   revealAlert!,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: scheme.onErrorContainer,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

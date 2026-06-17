@@ -16,6 +16,7 @@ import '../features/match/match_result_copy.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/world_studio_identity.dart';
 import '../presentation/world/world_studio_identity_catalog.dart';
 import '../presentation/world/widgets/world_particle_burst.dart';
@@ -47,6 +48,7 @@ class MatchResultScreen extends StatefulWidget {
     this.worldProfile = WorldProfile.horror,
     this.spectatorRecord,
     this.onOpenReplay,
+    this.replayTrackCount,
     super.key,
   });
 
@@ -70,6 +72,8 @@ class MatchResultScreen extends StatefulWidget {
   final SavedMatchRecord? spectatorRecord;
   final WorldProfile worldProfile;
   final VoidCallback? onOpenReplay;
+  /// リプレイ可能な軌跡本数（自分＋取得済みの他プレイヤー）。
+  final int? replayTrackCount;
   final String? endReason;
   final VoidCallback onPrepareNext;
   final VoidCallback onOpenGallery;
@@ -247,11 +251,18 @@ class _MatchResultScreenState extends State<MatchResultScreen>
       curve: Interval(0.35, 1, curve: motion.enterCurve),
     );
 
-    return WorldScaffold(
+    return Theme(
+      data: theme.copyWith(
+        extensions: [WorldProfileTheme(widget.worldProfile)],
+      ),
+      child: WorldScaffold(
       profile: widget.worldProfile,
+      showProfileMorph: true,
+      playEntryReveal: !_motionReduced,
       appBar: AppBar(
         title: Text(widget.spectatorMode ? '観戦リザルト' : 'リザルト'),
         backgroundColor: Colors.transparent,
+        foregroundColor: pack.textOnScaffold,
       ),
       body: Stack(
         children: [
@@ -275,7 +286,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: accent,
+                      color: pack.readableOnScaffold(accent),
                     ),
                   ),
                   if (headline.subtitle != null) ...[
@@ -284,7 +295,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                       headline.subtitle!,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: pack.mutedOnScaffold,
                       ),
                     ),
                   ],
@@ -302,7 +313,9 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: personalWon ? Colors.green.shade700 : Colors.grey.shade700,
+                    color: pack.readableOnScaffold(
+                      personalWon ? pack.winAccent : pack.loseAccent,
+                    ),
                   ),
                 ),
               ],
@@ -419,6 +432,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                             widget.contextualHint!,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               height: 1.4,
+                              color: theme.colorScheme.onPrimaryContainer,
                             ),
                           ),
                         ),
@@ -460,17 +474,23 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                 ),
               ],
               const SizedBox(height: 24),
-              if (widget.spectatorMode && widget.onOpenReplay != null)
+              if (widget.onOpenReplay != null)
                 FilledButton.icon(
                   onPressed: widget.onOpenReplay,
                   icon: const Icon(Icons.map_outlined),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Text('全員の軌跡を再生'),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(
+                      widget.spectatorMode
+                          ? '全員の軌跡を再生'
+                          : widget.replayTrackCount != null &&
+                                  widget.replayTrackCount! > 1
+                              ? '試合を地図で振り返る（${widget.replayTrackCount}人）'
+                              : '試合を地図で振り返る',
+                    ),
                   ),
                 ),
-              if (widget.spectatorMode && widget.onOpenReplay != null)
-                const SizedBox(height: 10),
+              if (widget.onOpenReplay != null) const SizedBox(height: 10),
               FilledButton.icon(
                 onPressed: widget.onOpenGallery,
                 icon: const Icon(Icons.play_circle_outline),
@@ -503,6 +523,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
               ),
             ),
         ],
+      ),
       ),
     );
   }

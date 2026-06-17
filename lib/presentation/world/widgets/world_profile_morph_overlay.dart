@@ -41,7 +41,9 @@ class _WorldProfileMorphOverlayState extends State<WorldProfileMorphOverlay>
     if (oldWidget.profile == widget.profile) return;
     _from = oldWidget.profile;
     _to = widget.profile;
-    _controller.duration = widget.duration;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    _controller.duration =
+        reduce ? const Duration(milliseconds: 180) : widget.duration;
     _controller.forward(from: 0);
   }
 
@@ -79,6 +81,67 @@ class _WorldProfileMorphOverlayState extends State<WorldProfileMorphOverlay>
   }
 }
 
+/// 画面入場時に世界観レイヤーを短くフェードアウト（Result / Lobby 等）。
+class WorldEntryRevealOverlay extends StatefulWidget {
+  const WorldEntryRevealOverlay({
+    required this.profile,
+    this.duration = const Duration(milliseconds: 850),
+    super.key,
+  });
+
+  final WorldProfile profile;
+  final Duration duration;
+
+  @override
+  State<WorldEntryRevealOverlay> createState() =>
+      _WorldEntryRevealOverlayState();
+}
+
+class _WorldEntryRevealOverlayState extends State<WorldEntryRevealOverlay>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _controller;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    _controller = AnimationController(
+      vsync: this,
+      duration: reduce ? const Duration(milliseconds: 180) : widget.duration,
+    );
+    _controller!.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final opacity = (1 - Curves.easeOutCubic.transform(controller.value))
+              .clamp(0.0, 1.0);
+          if (opacity < 0.02) return const SizedBox.shrink();
+          return Opacity(
+            opacity: opacity * 0.88,
+            child: _MorphLayer(profile: widget.profile, phase: 0.35),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _MorphLayer extends StatelessWidget {
   const _MorphLayer({required this.profile, required this.phase});
 
@@ -87,16 +150,19 @@ class _MorphLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduce = MediaQuery.disableAnimationsOf(context);
     final pack = WorldPresentationCatalog.of(profile);
     return DecoratedBox(
       decoration: BoxDecoration(gradient: pack.scaffoldGradient),
-      child: CustomPaint(
-        painter: WorldAmbientPainter(
-          pack: pack,
-          phase: phase,
-          strength: 0.55,
-        ),
-      ),
+      child: reduce
+          ? null
+          : CustomPaint(
+              painter: WorldAmbientPainter(
+                pack: pack,
+                phase: phase,
+                strength: 0.45,
+              ),
+            ),
     );
   }
 }

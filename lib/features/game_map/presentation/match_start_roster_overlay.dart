@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -38,7 +36,7 @@ Future<void> showMatchStartRoster({
     barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.55),
     transitionDuration: const Duration(milliseconds: 280),
-    pageBuilder: (_, __, ___) => _MatchStartRosterOverlay(
+    pageBuilder: (context, animation, secondaryAnimation) => _MatchStartRosterOverlay(
       profile: profile,
       entries: entries,
     ),
@@ -188,7 +186,7 @@ class _RosterBody extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
       itemCount: entries.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (context, index) => const SizedBox(height: 14),
       itemBuilder: (_, i) => _RosterTile(
         entry: entries[i],
         accent: accent,

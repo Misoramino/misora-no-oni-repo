@@ -125,7 +125,6 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
     await OniOperatorPrefs.save(
       prefs,
       OniOperatorSnapshot(
-        roleEnabled: true,
         notifyVibration: _oniNotifyVibration,
         notifySound: _oniNotifySound,
         notifyAggressive: _oniNotifyAggressive,

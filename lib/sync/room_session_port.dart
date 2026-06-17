@@ -7,7 +7,6 @@ abstract class RoomSessionPort {
   /// 接続済みルームID。未接続は null。
   String? get roomId;
 
-  Future<void> connectLocalDemo();
   Future<void> disconnect();
 }
 
@@ -18,9 +17,6 @@ class LocalOnlyRoomSession implements RoomSessionPort {
 
   @override
   String? get roomId => null;
-
-  @override
-  Future<void> connectLocalDemo() async {}
 
   @override
   Future<void> disconnect() async {}

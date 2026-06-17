@@ -33,6 +33,7 @@ extension _GameMapSecondGame on _GameMapScreenState {
     }
     final myUid = _firestoreSession?.myUid ?? 'local';
     _eliminatedUids.add(myUid);
+    _matchRecorder?.markRunnerEliminated(rule);
     _emitMatchEvent(
       type: cause,
       message: message,

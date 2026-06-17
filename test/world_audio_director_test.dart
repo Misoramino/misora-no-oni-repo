@@ -119,7 +119,7 @@ void main() {
 
   group('BgmLayerEngine', () {
     test('does not play after dispose', () async {
-      final engine = BgmLayerEngine(resolveAsset: (_, __) => 'audio/bgm/cyber.mp3');
+      final engine = BgmLayerEngine(resolveAsset: (dir, base) => 'audio/bgm/cyber.mp3');
       await engine.dispose();
       expect(engine.isDisposed, isTrue);
       await engine.setLayer(

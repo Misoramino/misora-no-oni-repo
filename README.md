@@ -1,63 +1,72 @@
 # ONI PIN
 
-**GPS × ONI GAME** — Urban GPS tag game prototype with tension-focused design:
+**GPS × 鬼ごっこ** — 都市型・緊張感重視のマルチプレイ原型。8 世界観・オンラインルーム・タイムラプスリプレイ・バックグラウンド通話対応。
 
-## Brand assets (`assets/branding/`)
+## できること
 
-| File | Use |
-|------|-----|
-| `app_icon.png` | Home screen (1024×1024, symbol only) — `dart run flutter_launcher_icons` |
-| `brand_logo.png` | Title screen, README, share images (ONI PIN + subtitle) |
-| `splash_logo.png` | App icon source (launcher); in-app uses geometric `ThemedGeometricLogo` |
+| 領域 | 概要 |
+|------|------|
+| **世界観** | 8 profiles（Horror, Pop, Cyber, Stealth, Magical, Astronomy, Zen, Royal）— 地図・BGM・UI・Presentation morph |
+| **マルチ** | Firestore ルーム、ホスト権威、presence、イベント同期 |
+| **Replay** | 試合後の軌跡タイムラプス（端末保存 + 任意クラウド archive） |
+| **Background** | 通話・一時離脱中も可能な範囲で同期；復帰時にイベント追いつき |
+| **Audio** | 4 レイヤー BGM + 世界観 SE（`WorldAudioDirector`） |
 
-Launch sound ON/OFF: volume icon on the title screen (persisted locally).
+遠距離は粗い追跡でよい／近距離はプレッシャー優先。位置の常時共有はせず、スキル・イベントで開示。
 
-- Far distance: coarse tracking is acceptable
-- Near distance: high-pressure experience is prioritized
-- Replay: opt-in local timeline archive after each match
-
-## Core Principles
-
-- Gameplay tension over perfect geolocation
-- Privacy-by-default (opt-in storage for trajectory)
-- Layered architecture for easy UI/worldview replacement
-- Cost-aware sync design (event-first, low-frequency presence)
-
-## Current Features (v2)
-
-- **Online rooms** — Firestore lobby, host sync, abort vote
-- **Match presets** — Casual / Standard / Intense (duration, area, gimmick density)
-- **Accusation weight modes** — Instant win, eliminate oni, or point scoring
-- **Second game** — Spectral operative (camera jack, territory) and revenant oni sabotage after elimination
-- **HUD** — Phase label, event feed line, skill cooldown pin on long-press, facility highlight on first elimination
-- **Roles & skills** — Oni, runners, hunter, werewolf, modifiers, fake position, body throw, capture zone, etc.
-- **Play area editor** — Circle / polygon, saved slots, GeoJSON import/export
-- **Trajectory archive** — Opt-in local replay after each match
-- **6 world profiles** — Map style, atmosphere, launch branding per theme
-- **Audio** — BGM and ambient per world (`assets/audio/`)
-
-Release notes: [CHANGELOG.md](CHANGELOG.md)
-
-## Key paths
-
-- **`lib/screens/game_map_screen.dart`** — main game orchestrator (split into `part` files; see index below)
-- **`lib/features/game_map/game_map_screen_index.dart`** — part file map for AI / maintainers
-- **`lib/screens/title_screen.dart`** — app entry, online lobby navigation
-- **`lib/screens/match_gallery_screen.dart`** — saved matches list
-- **`lib/screens/match_replay_screen.dart`** — replay / timelapse
-- **`lib/game/`** — rules, config, play area, match record
-- **`lib/features/game_map/`** — map-only UI (HUD, prep, match bridge)
-- **`lib/sync/`** — Firestore room session and events
-- **`lib/services/`** — location, recording, local persistence
-- **`lib/theme/`** — worldview profiles and `AppThemeFactory`
-- **`docs/HANDBOOK.md`** — **start here** for handoff (humans & AI): doc index + verification commands
-- **`docs/FILE_STRUCTURE.md`** — directory tree + Firebase plist/json cheat sheet (for sharing)
-- **`docs/AI_HANDOFF.md`** — short English design priorities + links to the docs above
-- **`docs/BLE_PROXIMITY.md`** — BLE proximity behavior notes
-
-## Run
+## ビルド・実行
 
 ```bash
 flutter pub get
 flutter run
 ```
+
+実機テスト（位置・バックグラウンド）:
+
+1. 位置情報「常に許可」（iOS 推奨）
+2. 2 台以上で同一ルーム ID
+3. `docs/DEVICE_VERIFICATION_CHECKLIST.md`
+
+Firebase（オンライン機能）:
+
+1. `google-services.json` / `GoogleService-Info.plist` を配置
+2. `firebase deploy --only firestore:rules` — **ルール変更後は必須**
+
+品質チェック:
+
+```bash
+flutter analyze
+flutter test
+```
+
+## ドキュメント（入口）
+
+| ドキュメント | 内容 |
+|--------------|------|
+| [docs/HANDBOOK.md](docs/HANDBOOK.md) | 引き継ぎ・検証コマンド |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 全体構成（30 分で把握） |
+| [docs/event_pipeline.md](docs/event_pipeline.md) | ゲーム → Firestore → Replay |
+| [docs/sync.md](docs/sync.md) | `FirestoreRoomSession` 責務マップ |
+| [lib/audio/README.md](lib/audio/README.md) | `WorldAudioState` 遷移 |
+| [lib/features/game_map/replay/README.md](lib/features/game_map/replay/README.md) | リプレイモジュール |
+| [lib/presentation/world/README.md](lib/presentation/world/README.md) | Theme → Pack → Widget |
+
+## 主要パス
+
+- `lib/screens/game_map_screen.dart` + `part` — 試合オーケストレータ
+- `lib/features/game_map/game_map_screen_index.dart` — part 索引
+- `lib/sync/firestore_room_session.dart` — ルーム同期
+- `lib/screens/match_replay_screen.dart` — タイムラプス
+- `lib/presentation/world/` — 世界観 UI
+
+## Brand assets (`assets/branding/`)
+
+| File | Use |
+|------|-----|
+| `app_icon.png` | Launcher — `dart run flutter_launcher_icons` |
+| `brand_logo.png` | Title / README |
+| `splash_logo.png` | Launcher source |
+
+タイトル画面の音量アイコンで起動 SE ON/OFF（ローカル保存）。
+
+変更履歴: [CHANGELOG.md](CHANGELOG.md)

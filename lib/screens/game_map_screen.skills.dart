@@ -202,6 +202,13 @@ extension _GameMapSkills on _GameMapScreenState {
       _matchDurationSeconds,
     );
     _rt.werewolfInOniForm = inOniForm;
+    if (inOniForm) {
+      _emitMatchEvent(
+        type: 'werewolf_transform_start',
+        message: voluntary ? '人狼 — 鬼化（自発）' : '人狼 — 鬼化（強制）',
+        position: _currentPosition,
+      );
+    }
     unawaited(
       _firestoreSession?.publishPresence(
         tension: false,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../theme/world_profile.dart';
 import '../world_presentation_catalog.dart';
 import 'world_ambient_painter.dart';
+import 'world_profile_morph_overlay.dart';
 
 /// 世界観グラデーション背景＋薄いアンビエント装飾。
 class WorldScaffold extends StatelessWidget {
@@ -14,6 +15,8 @@ class WorldScaffold extends StatelessWidget {
     this.bottomNavigationBar,
     this.extendBodyBehindAppBar = false,
     this.ambientPhase = 0,
+    this.showProfileMorph = false,
+    this.playEntryReveal = false,
     super.key,
   });
 
@@ -24,6 +27,12 @@ class WorldScaffold extends StatelessWidget {
   final Widget? bottomNavigationBar;
   final bool extendBodyBehindAppBar;
   final double ambientPhase;
+
+  /// 世界観切替時のクロスフェード（[WorldAudioDirector.onProfileChanged] と同期利用）。
+  final bool showProfileMorph;
+
+  /// 画面入場時の短い世界観リビール。
+  final bool playEntryReveal;
 
   @override
   Widget build(BuildContext context) {
@@ -40,13 +49,17 @@ class WorldScaffold extends StatelessWidget {
           DecoratedBox(
             decoration: BoxDecoration(gradient: pack.scaffoldGradient),
           ),
-          CustomPaint(
-            painter: WorldAmbientPainter(
-              pack: pack,
-              phase: ambientPhase,
+          if (!MediaQuery.disableAnimationsOf(context))
+            CustomPaint(
+              painter: WorldAmbientPainter(
+                pack: pack,
+                phase: ambientPhase,
+              ),
             ),
-          ),
+          if (showProfileMorph)
+            WorldProfileMorphOverlay(profile: profile),
           body,
+          if (playEntryReveal) WorldEntryRevealOverlay(profile: profile),
         ],
       ),
     );

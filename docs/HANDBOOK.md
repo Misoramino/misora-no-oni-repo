@@ -18,6 +18,8 @@
 |----------|------|----------------|
 | [FILE_STRUCTURE.md](./FILE_STRUCTURE.md) | **ディレクトリ構造の共有用**（plist/json の役割、`ios` のファイルが多い理由） | フォルダ構成や Firebase 配置を変えたら |
 | [CHANGE_MAP.md](./CHANGE_MAP.md) | **変更のピンポイント地図**（領域 → 主ファイル → 走らせるテスト） | 大きめのディレクトリ移動や責務分割のたび |
+| [event_pipeline.md](./event_pipeline.md) | ゲーム → Firestore → Replay パイプライン | 記録・同期・再生を変えたら |
+| [sync.md](./sync.md) | `FirestoreRoomSession` 責務マップ | 同期 API を分割・追加したら |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | モジュール構成・オンライン Phase・世界観パックの詳説（日本語） | 機能追加で構成が変わったら |
 | [AI_HANDOFF.md](./AI_HANDOFF.md) | 設計優先度の英語サマリ（短い） | プロダクト方針が変わったら |
 | [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) | Firebase / Maps キー / 実機の**運用手順** | 配布方法や制約が変わったら |

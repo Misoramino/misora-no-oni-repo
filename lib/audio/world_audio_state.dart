@@ -1,4 +1,23 @@
 /// ゲーム状態に応じた音楽演出フェーズ（ロジックは変更しない）。
+///
+/// ## 状態遷移（典型）
+///
+/// ```
+/// title ──► gallery / lobby ──► preMatchPresentation ──► matchCountdown
+///   ▲                              │
+///   │                              ▼
+/// returnTitle ◄── result* ◄── match ◄──┘
+///                    ▲         │ danger / accusation* / final*
+///                    │         ▼
+///                 replay (MatchReplayScreen)
+/// ```
+///
+/// * `resultVictory` | `resultLose` | `resultDraw` | `resultSpectator`
+/// * `accusationAvailable` → `accusationSequence`
+/// * `finalFiveMinutes` → `finalMinute` → `finalTenSeconds`
+///
+/// 実装: [WorldAudioDirector] — `lib/audio/world_audio_director.dart`
+/// 遷移表の詳細: `lib/audio/README.md`
 enum WorldAudioState {
   title,
   gallery,
@@ -17,6 +36,9 @@ enum WorldAudioState {
   resultDraw,
   resultSpectator,
   returnTitle,
+
+  /// 試合記録のタイムラプス再生（回想向け・低音量）。
+  replay,
 }
 
 extension WorldAudioStateLabels on WorldAudioState {
@@ -38,6 +60,7 @@ extension WorldAudioStateLabels on WorldAudioState {
         WorldAudioState.resultDraw => 'ResultDraw',
         WorldAudioState.resultSpectator => 'ResultSpectator',
         WorldAudioState.returnTitle => 'ReturnTitle',
+        WorldAudioState.replay => 'Replay',
       };
 }
 

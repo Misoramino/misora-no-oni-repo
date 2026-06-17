@@ -597,20 +597,20 @@ class _WorldProfilePickerCard extends StatelessWidget {
                       Text(
                         '世界観',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: pack.onAccent.withValues(alpha: 0.65),
+                              color: pack.mutedOnScaffold,
                             ),
                       ),
                       Text(
                         profile.label,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: pack.accent,
+                              color: pack.textOnScaffold,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
                       Text(
                         pack.tagline,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: pack.onAccent.withValues(alpha: 0.7),
+                              color: pack.mutedOnScaffold,
                             ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

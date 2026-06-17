@@ -29,7 +29,7 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
 
   final lines = <String>[
     if (!generalSeen) ...[
-      '試合中に他アプリへ切り替えても、戻ったとき自動で追いつきます',
+      '通話や一時離脱中も、可能な範囲で位置と状態を同期します。復帰時には試合中に起きた出来事を反映します。',
       'スキル操作だけは、アプリを前面に戻してから',
     ],
     if (needsAlways)

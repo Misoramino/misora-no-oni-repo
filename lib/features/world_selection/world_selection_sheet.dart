@@ -12,7 +12,9 @@ import '../../presentation/world/world_presentation_pack.dart';
 import '../../presentation/world/world_studio_identity.dart';
 import '../../presentation/world/world_studio_identity_catalog.dart';
 import '../../presentation/world/world_ui_layout.dart';
+import '../../presentation/world/world_icon_frame.dart';
 import '../../presentation/world/widgets/world_ambient_painter.dart';
+import '../../presentation/world/widgets/world_profile_morph_overlay.dart';
 import '../../presentation/world/widgets/world_button.dart';
 import '../../presentation/world/widgets/world_loading.dart';
 import '../../theme/world_profile.dart';
@@ -25,8 +27,9 @@ Future<WorldProfile?> showWorldSelectionSheet(
   return Navigator.of(context).push<WorldProfile>(
     PageRouteBuilder(
       opaque: true,
-      pageBuilder: (_, __, ___) => WorldGalleryScreen(current: current),
-      transitionsBuilder: (_, animation, __, child) {
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          WorldGalleryScreen(current: current),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final studio = WorldStudioIdentityCatalog.of(current);
         return FadeTransition(
           opacity: CurvedAnimation(
@@ -141,9 +144,10 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
           fit: StackFit.expand,
           children: [
             DecoratedBox(decoration: BoxDecoration(gradient: _pack.scaffoldGradient)),
+            WorldProfileMorphOverlay(profile: _preview),
             AnimatedBuilder(
               animation: _ambient,
-              builder: (_, __) => RepaintBoundary(
+              builder: (context, child) => RepaintBoundary(
                 child: CustomPaint(
                   painter: WorldAmbientPainter(
                     pack: _pack,
@@ -182,7 +186,10 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                           Chip(
                             label: Text(
                               '選択中',
-                              style: TextStyle(color: _pack.onAccent, fontSize: 11),
+                              style: TextStyle(
+                                color: _pack.buttonLabelOnAccent,
+                                fontSize: 11,
+                              ),
                             ),
                             backgroundColor: _pack.accent.withValues(alpha: 0.85),
                             visualDensity: VisualDensity.compact,
@@ -239,19 +246,39 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       runSpacing: 8,
                       children: [
                         ActionChip(
-                          label: const Text('UI'),
+                          label: Text(
+                            'UI',
+                            style: TextStyle(color: _pack.textOnPanel),
+                          ),
+                          backgroundColor: _pack.panelSurface,
+                          side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.uiTap),
                         ),
                         ActionChip(
-                          label: const Text('Reveal'),
+                          label: Text(
+                            'Reveal',
+                            style: TextStyle(color: _pack.textOnPanel),
+                          ),
+                          backgroundColor: _pack.panelSurface,
+                          side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.reveal),
                         ),
                         ActionChip(
-                          label: const Text('Capture'),
+                          label: Text(
+                            'Capture',
+                            style: TextStyle(color: _pack.textOnPanel),
+                          ),
+                          backgroundColor: _pack.panelSurface,
+                          side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.capture),
                         ),
                         ActionChip(
-                          label: const Text('BGM'),
+                          label: Text(
+                            'BGM',
+                            style: TextStyle(color: _pack.textOnPanel),
+                          ),
+                          backgroundColor: _pack.panelSurface,
+                          side: BorderSide(color: _pack.panelBorder),
                           onPressed: _previewBgm,
                         ),
                       ],
@@ -329,7 +356,11 @@ class _GalleryHeroCard extends StatelessWidget {
             right: 0,
             top: 24,
             child: Center(
-              child: Icon(pack.profileIcon, size: 72, color: pack.accent),
+              child: WorldIconFrame.of(profile).heroIcon(
+                profile: profile,
+                icon: pack.profileIcon,
+                iconColor: pack.accent,
+              ),
             ),
           ),
           Positioned(
@@ -363,7 +394,17 @@ class _GalleryHeroCard extends StatelessWidget {
               height: 40,
               child: selected
                   ? WorldLoading(profile: profile, size: 36)
-                  : Icon(pack.profileIcon, size: 28, color: pack.accentMuted),
+                  : WorldIconFrame.of(profile).wrap(
+                      accent: pack.accentMuted,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          pack.profileIcon,
+                          size: 22,
+                          color: pack.accentMuted,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],

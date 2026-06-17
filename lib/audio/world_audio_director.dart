@@ -96,6 +96,8 @@ class WorldAudioDirector {
         await _applyResultDraw(music, crossFade, studio);
       case WorldAudioState.resultSpectator:
         await _applyResultSpectator(music, crossFade);
+      case WorldAudioState.replay:
+        await _applyReplayLayers(music, crossFade);
       case WorldAudioState.returnTitle:
         await _applyReturnTitle(music, crossFade, studio);
     }
@@ -108,6 +110,15 @@ class WorldAudioDirector {
     _cancelGalleryPreview();
     if (_state != WorldAudioState.gallery) return;
     await enter(WorldAudioState.title, profile: restoreProfile);
+  }
+
+  /// リプレイを閉じて直前の音楽フェーズへ戻す。
+  Future<void> leaveReplay({
+    required WorldProfile restoreProfile,
+    required WorldAudioState restoreState,
+  }) async {
+    if (_state != WorldAudioState.replay) return;
+    await enter(restoreState, profile: restoreProfile);
   }
   /// 世界観変更時のクロスフェード（タイトル／ギャラリー／ロビー／試合中）。
   Future<void> onProfileChanged(WorldProfile next) async {
@@ -155,6 +166,10 @@ class WorldAudioDirector {
         _state == WorldAudioState.resultDraw ||
         _state == WorldAudioState.resultSpectator) {
       await enter(_state, profile: next);
+      return;
+    }
+    if (_state == WorldAudioState.replay) {
+      await enter(WorldAudioState.replay, profile: next);
     }
   }
 
@@ -689,6 +704,45 @@ class WorldAudioDirector {
     );
   }
 
+  /// 回想向け：低音量 BGM + 控えめ Ambient のみ。
+  Future<void> _applyReplayLayers(
+    WorldMusicProfile music,
+    int crossFade,
+  ) async {
+    GameAudio.instance.stopMatchAmbientSchedule();
+    await GameAudio.instance.stopMusicLayer(
+      WorldMusicLayer.tension,
+      fadeMs: crossFade,
+    );
+    await GameAudio.instance.stopMusicLayer(
+      WorldMusicLayer.moment,
+      fadeMs: crossFade,
+    );
+    await GameAudio.instance.setMusicLayer(
+      WorldMusicLayer.base,
+      track: LayerTrackRef.bgm(
+        music.effectiveReplayMusic,
+        gain: music.replayGain,
+      ),
+      relativeGain: music.replayGain,
+      crossFadeMs: crossFade,
+      curve: music.volumeCurve,
+    );
+    final amb = music.layers.ambient;
+    if (amb?.ambient != null) {
+      await GameAudio.instance.setMusicLayer(
+        WorldMusicLayer.ambient,
+        track: LayerTrackRef.ambient(
+          amb!.ambient!,
+          gain: music.replayAmbientGain,
+        ),
+        relativeGain: music.replayAmbientGain,
+        crossFadeMs: crossFade,
+        curve: music.volumeCurve,
+      );
+    }
+  }
+
   Future<void> _applyReturnTitle(
     WorldMusicProfile music,
     int crossFade,
@@ -717,6 +771,12 @@ class WorldAudioDirector {
       case WorldAudioState.resultLose:
       case WorldAudioState.resultDraw:
       case WorldAudioState.resultSpectator:
+        if (settings.bgmEnabled) {
+          await audio.playMenuBgm(p);
+        } else {
+          await audio.stopMusic();
+        }
+      case WorldAudioState.replay:
         if (settings.bgmEnabled) {
           await audio.playMenuBgm(p);
         } else {

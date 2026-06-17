@@ -1,7 +1,10 @@
 rules_version = '2';
-// 少人数テスト向け。rooms はホストのみ更新（Phase A）。
+// ONI PIN — Firestore security rules (少人数テスト向け)
+// デプロイ: firebase deploy --only firestore:rules
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ─── Shared helpers ───────────────────────────────────────────────
     function signedIn() {
       return request.auth != null;
     }
@@ -19,23 +22,44 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
-    function validMemberPresence() {
-      return request.resource.data.keys().hasOnly([
-        'nickname',
-        'role',
-        'reportedAtUtc',
-        'proximityBand',
-        'locationVisibility',
-        'preferredRole',
-        'preferredSkills',
-        'werewolfOniForm',
-        'avatarThumbB64',
-        'prepReady',
-        'appLifecycle',
-        'backgroundSinceUtc',
-      ]);
+    function memberDocPath(roomId, memberId) {
+      return /databases/$(database)/documents/rooms/$(roomId)/members/$(memberId);
     }
 
+    function memberExists(roomId, memberId) {
+      return exists(memberDocPath(roomId, memberId));
+    }
+
+    function memberRole(roomId, memberId) {
+      return get(memberDocPath(roomId, memberId)).data.role;
+    }
+
+    function roomExists(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function roomHostUid(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid;
+    }
+
+    function isRoomParticipant(roomId) {
+      return signedIn()
+        && memberExists(roomId, request.auth.uid)
+        && memberRole(roomId, request.auth.uid) != 'spectator';
+    }
+
+    function isRoomSpectator(roomId) {
+      return signedIn()
+        && memberExists(roomId, request.auth.uid)
+        && memberRole(roomId, request.auth.uid) == 'spectator';
+    }
+
+    function roomPhaseRunning(roomId) {
+      return roomExists(roomId)
+        && get(/databases/$(database)/documents/rooms/$(roomId)).data.phase == 'running';
+    }
+
+    // ─── Room document (Host authority + Match end rescue) ─────────────
     function validRoomCreate() {
       return request.resource.data.keys().hasOnly(['hostUid', 'phase'])
         && request.resource.data.hostUid == request.auth.uid
@@ -64,7 +88,7 @@ service cloud.firestore {
         && onlyKeysChanged(['hostUid']);
     }
 
-    // ホストが応答なしのとき、参加メンバーが hostUid を引き継ぐ（クライアント側で stale 判定）。
+    // Host takeover: client detects stale host, participant claims hostUid.
     function claimAbsentHost() {
       return signedIn()
         && resource.data.hostUid != request.auth.uid
@@ -72,10 +96,48 @@ service cloud.firestore {
         && onlyKeysChanged(['hostUid']);
     }
 
+    // Match end rescue: non-host may end when host is background/stale (time_up / all_humans_eliminated).
+    function validMatchEndRescueUpdate(roomId) {
+      return isRoomParticipant(roomId)
+        && resource.data.phase == 'running'
+        && request.resource.data.phase == 'ended'
+        && request.auth.uid != resource.data.hostUid
+        && onlyKeysChanged([
+          'phase',
+          'endedAtUtc',
+          'endReason',
+          'matchOutcome',
+          'endMessage',
+        ])
+        && (request.resource.data.endReason == 'time_up'
+            || request.resource.data.endReason == 'all_humans_eliminated');
+    }
+
     match /rooms/{roomId} {
       allow read: if signedIn();
       allow create: if signedIn() && validRoomCreate();
-      allow update: if validHostRoomUpdate() || claimEmptyHost() || claimAbsentHost();
+      allow update: if validHostRoomUpdate()
+        || claimEmptyHost()
+        || claimAbsentHost()
+        || validMatchEndRescueUpdate(roomId);
+    }
+
+    // ─── Members (Participant presence) ───────────────────────────────
+    function validMemberPresence() {
+      return request.resource.data.keys().hasOnly([
+        'nickname',
+        'role',
+        'reportedAtUtc',
+        'proximityBand',
+        'locationVisibility',
+        'preferredRole',
+        'preferredSkills',
+        'werewolfOniForm',
+        'avatarThumbB64',
+        'prepReady',
+        'appLifecycle',
+        'backgroundSinceUtc',
+      ]);
     }
 
     match /rooms/{roomId}/members/{memberId} {
@@ -84,14 +146,7 @@ service cloud.firestore {
       allow delete: if isMemberOwner(memberId);
     }
 
-    function roomExists(roomId) {
-      return exists(/databases/$(database)/documents/rooms/$(roomId));
-    }
-
-    function roomHostUid(roomId) {
-      return get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid;
-    }
-
+    // ─── Room events (Replay / Accusation / SafeZone / Capture zone) ──
     function isEventRoomHost(roomId) {
       return signedIn()
         && roomExists(roomId)
@@ -119,7 +174,8 @@ service cloud.firestore {
         || t == 'abort_majority'
         || t == 'safe_zone_pickup'
         || t == 'accusation_point_scored'
-        || t == 'lobby_play_area_proposal';
+        || t == 'lobby_play_area_proposal'
+        || t == 'match_end_rescue';
     }
 
     function hostOnlyRoomEventType(t) {
@@ -165,29 +221,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    function memberDocPath(roomId, memberId) {
-      return /databases/$(database)/documents/rooms/$(roomId)/members/$(memberId);
-    }
-
-    function memberExists(roomId, memberId) {
-      return exists(memberDocPath(roomId, memberId));
-    }
-
-    function memberRole(roomId, memberId) {
-      return get(memberDocPath(roomId, memberId)).data.role;
-    }
-
-    function isRoomSpectator(roomId) {
-      return signedIn()
-        && memberExists(roomId, request.auth.uid)
-        && memberRole(roomId, request.auth.uid) == 'spectator';
-    }
-
-    function roomPhaseRunning(roomId) {
-      return roomExists(roomId)
-        && get(/databases/$(database)/documents/rooms/$(roomId)).data.phase == 'running';
-    }
-
+    // ─── Inspector feed (Spectator read-only GPS summary) ─────────────
     function validInspectorFeedWrite(roomId, memberId) {
       let d = request.resource.data;
       return signedIn()
@@ -214,6 +248,27 @@ service cloud.firestore {
       allow create, update: if validInspectorFeedWrite(roomId, memberId);
       allow delete: if signedIn() && request.auth.uid == memberId;
     }
+
+    // ─── Match archives (Replay upload / Gallery download) ────────────
+    function validMatchArchiveWrite(roomId) {
+      let d = request.resource.data;
+      return isRoomParticipant(roomId)
+        && d.keys().hasAll(['kind', 'sessionKey', 'uploadedByUid'])
+        && d.uploadedByUid == request.auth.uid
+        && d.sessionKey is int
+        && (
+          (d.kind == 'chunk'
+            && archiveId == 'chunk_' + string(d.sessionKey) + '_' + request.auth.uid)
+          || (d.kind == 'meta'
+            && archiveId == 'meta_' + string(d.sessionKey) + '_' + request.auth.uid)
+          || (d.kind == 'full' && isEventRoomHost(roomId))
+        );
+    }
+
+    match /rooms/{roomId}/matchArchives/{archiveId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && validMatchArchiveWrite(roomId);
+      allow delete: if false;
+    }
   }
 }
-

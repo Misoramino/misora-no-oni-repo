@@ -27,6 +27,13 @@ abstract final class MapReplayMarkerHelper {
       'capture_zone_placed' ||
       'capture_zone_bound' =>
         MapMarkerKind.safeZone,
+      'accusation_unlocked' => MapMarkerKind.infoBroker,
+      'accusation_attempt' => MapMarkerKind.reveal,
+      'accusation_success' => MapMarkerKind.reveal,
+      'accusation_failed' => MapMarkerKind.trace,
+      'accusation_point_scored' => MapMarkerKind.safeZone,
+      'player_eliminated' => MapMarkerKind.oni,
+      'werewolf_transform_start' => MapMarkerKind.oni,
       _ => MapMarkerKind.trace,
     };
   }

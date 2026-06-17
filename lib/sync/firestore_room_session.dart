@@ -11,9 +11,15 @@ import 'inspector_feed_snapshot.dart';
 import 'remote_member_snapshot.dart';
 import 'room_member_view.dart';
 import '../game/game_state.dart';
+import '../game/location_reveal_event.dart';
+import '../game/match_event.dart';
+import '../game/match_gimmick_layout.dart';
 import '../game/match_record.dart';
 import '../game/player_role.dart';
 import '../game/play_area.dart';
+import '../game/trajectory_gap_fill.dart';
+import '../game/werewolf_faction_logic.dart';
+import '../services/room_event_replay_mapper.dart';
 import 'room_match_event.dart';
 import 'room_phase.dart';
 import 'room_session_port.dart';
@@ -145,7 +151,9 @@ String? _validateRoomDocId(String id) {
 
 /// Firestore ルームの最小プレゼンス同期（匿名 UID + members ドキュメント）。
 ///
-/// セキュリティルールは必ず本番用に差し替えてください（現状は開発向け想定）。
+/// 責務マップ: `docs/sync.md`
+///
+/// セクション: Join/Lobby · Events · Match · Host · Presence · Archive
 class FirestoreRoomSession implements RoomSessionPort {
   FirestoreRoomSession();
 
@@ -250,12 +258,14 @@ class FirestoreRoomSession implements RoomSessionPort {
   @override
   String? get roomId => _roomId;
 
+  /// ギャラリーからアーカイブ読み取りのみ行うときにルーム ID を差し替える。
+  void bindRoomForArchiveFetch(String roomId) {
+    _roomId = roomId;
+  }
+
   @override
   String get modeLabel =>
       _roomId == null ? 'Firebase（未参加）' : 'online: $_roomId';
-
-  @override
-  Future<void> connectLocalDemo() async {}
 
   String? get myUid => _uid;
   String? get hostUid => _hostUid;
@@ -880,6 +890,72 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
+  /// 時間切れ救済（非ホスト）。ルームが running のとき一度だけ終了を書く。
+  Future<String?> publishMatchEndRescue({
+    required String idempotencyKey,
+    required GameState outcome,
+    required String endReason,
+    required String message,
+    required int sessionKey,
+  }) async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    if (isHost) return 'ホストは通常終了を使ってください';
+    final roomRef = _db.collection('rooms').doc(_roomId!);
+    try {
+      final endedAt = DateTime.now().toUtc().toIso8601String();
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(roomRef);
+        if (!snap.exists) {
+          throw StateError('room_missing');
+        }
+        final data = snap.data()!;
+        final phase = RoomPhase.normalize(
+          data[RoomDocFields.phase] as String?,
+        );
+        if (phase != RoomPhase.running) {
+          throw StateError('already_ended');
+        }
+        tx.update(roomRef, {
+          RoomDocFields.phase: RoomPhase.ended,
+          RoomDocFields.endedAtUtc: endedAt,
+          RoomDocFields.endReason: endReason,
+          RoomDocFields.matchOutcome: outcome.name,
+          RoomDocFields.endMessage: message,
+        });
+      });
+      _phase = RoomPhase.ended;
+      if (!_phaseCtrl.isClosed) _phaseCtrl.add(_phase);
+      _latestRoomMatch = RoomMatchState(
+        phase: _phase,
+        matchStart: _latestMatchStart,
+        matchEnd: SharedMatchEnd(
+          endReason: endReason,
+          outcome: outcome,
+          message: message,
+          endedAtUtc: endedAt,
+        ),
+      );
+      if (!_roomMatchCtrl.isClosed) _roomMatchCtrl.add(_latestRoomMatch);
+      return publishRoomEvent(
+        type: RoomMatchEventTypes.matchEndRescue,
+        payload: {
+          'idempotencyKey': idempotencyKey,
+          'endReason': endReason,
+          'outcome': outcome.name,
+          'message': message,
+        },
+        sessionKey: sessionKey,
+      );
+    } on StateError catch (e) {
+      if (e.message == 'already_ended') return null;
+      return e.message;
+    } on FirebaseException catch (e) {
+      return e.message ?? e.code;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
   Future<String?> updateRoomPhase(String phase) async {
     if (_roomId == null) return 'ルームに参加していません';
     if (!isHost) return 'ホストのみ変更できます';
@@ -1140,6 +1216,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   }
 
   /// 観戦記録などマルチトラックを 1 ドキュメントに保存（試合終了時 1 回）。
+  // ── Archive upload / download (see docs/sync.md) ──
   Future<String?> publishMatchArchiveFull({
     required int sessionKey,
     required SavedMatchRecord record,
@@ -1213,8 +1290,63 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
-  /// ルームに保存された軌跡を取得して [SavedMatchRecord] に復元（フル優先、なければ chunk 結合）。
-  Future<SavedMatchRecord?> fetchMergedMatchArchive(int sessionKey) async {
+  /// 参加者が自分の軌跡メタ（イベント・暴露・ギミック等）を保存（試合終了時 1 回）。
+  Future<String?> publishMatchArchiveMeta({
+    required int sessionKey,
+    required SavedMatchRecord record,
+  }) async {
+    if (_roomId == null || _uid == null) return null;
+    try {
+      await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('matchArchives')
+          .doc('meta_${sessionKey}_$_uid')
+          .set({
+        MatchArchiveFields.kind: MatchArchiveKind.meta,
+        MatchArchiveFields.sessionKey: sessionKey,
+        MatchArchiveFields.uploadedAtUtc:
+            DateTime.now().toUtc().toIso8601String(),
+        MatchArchiveFields.uploadedByUid: _uid,
+        MatchArchiveFields.startedAtUtc:
+            record.startedAtUtc.toIso8601String(),
+        MatchArchiveFields.endedAtUtc: record.endedAtUtc.toIso8601String(),
+        MatchArchiveFields.outcome: record.outcome.name,
+        MatchArchiveFields.playArea: record.playArea.toJson(),
+        MatchArchiveFields.events:
+            record.events.map((e) => e.toJson()).toList(growable: false),
+        MatchArchiveFields.reveals:
+            record.reveals.map((r) => r.toJson()).toList(growable: false),
+        if (record.endReason != null)
+          MatchArchiveFields.endReason: record.endReason,
+        if (record.winningFaction != null)
+          MatchArchiveFields.winningFaction: record.winningFaction!.name,
+        if (record.gimmickLayout != null)
+          MatchArchiveFields.gimmickLayout: record.gimmickLayout!.toJson(),
+        if (record.worldProfile != null)
+          MatchArchiveFields.worldProfile: record.worldProfile,
+        if (record.onlineRoomId != null)
+          MatchArchiveFields.onlineRoomId: record.onlineRoomId,
+        if (record.onlineSessionKey != null)
+          MatchArchiveFields.onlineSessionKey: record.onlineSessionKey,
+        if (record.trackKinds.isNotEmpty)
+          MatchArchiveFields.trackKinds: record.trackKinds,
+      });
+      return null;
+    } on FirebaseException catch (e) {
+      return _describeFirebaseException(e);
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// ルームに保存された軌跡を取得して [SavedMatchRecord] に復元（フル優先、なければ chunk+meta 結合）。
+  Future<SavedMatchRecord?> fetchMergedMatchArchive(
+    int sessionKey, {
+    SavedMatchRecord? localFallback,
+    bool includeRoomEvents = true,
+    bool gapFillTracks = true,
+  }) async {
     if (_roomId == null) return null;
     try {
       final full = await _db
@@ -1230,7 +1362,15 @@ class FirestoreRoomSession implements RoomSessionPort {
             sessionKey: sessionKey,
             data: data,
           );
-          if (parsed != null) return parsed;
+          if (parsed != null) {
+            return await _finalizeFetchedArchive(
+              parsed,
+              sessionKey: sessionKey,
+              includeRoomEvents: includeRoomEvents,
+              gapFillTracks: gapFillTracks,
+              localFallback: localFallback,
+            );
+          }
         }
       }
 
@@ -1239,20 +1379,60 @@ class FirestoreRoomSession implements RoomSessionPort {
           .doc(_roomId!)
           .collection('matchArchives')
           .where(MatchArchiveFields.sessionKey, isEqualTo: sessionKey)
-          .where(MatchArchiveFields.kind, isEqualTo: MatchArchiveKind.chunk)
           .get();
 
-      if (chunks.docs.isEmpty) return null;
+      if (chunks.docs.isEmpty && localFallback == null) return null;
 
       final tracks = <String, List<TrajectorySample>>{};
       final labels = <String, String>{};
+      final mergedEvents = <MatchEvent>[];
+      final mergedReveals = <LocationRevealEvent>[];
       PlayArea? area;
-      GameState? outcome;
+      GameState outcome = GameState.waiting;
       DateTime? started;
       DateTime? ended;
+      String? endReason;
+      FactionSide? winningFaction;
+      MatchGimmickLayout? gimmickLayout;
 
       for (final doc in chunks.docs) {
         final data = doc.data();
+        final kind = data[MatchArchiveFields.kind] as String?;
+        if (kind == MatchArchiveKind.full) {
+          final parsed = _savedRecordFromArchiveMap(
+            sessionKey: sessionKey,
+            data: data,
+          );
+          if (parsed != null) {
+            return await _finalizeFetchedArchive(
+              parsed,
+              sessionKey: sessionKey,
+              includeRoomEvents: includeRoomEvents,
+              gapFillTracks: gapFillTracks,
+              localFallback: localFallback,
+            );
+          }
+          continue;
+        }
+        if (kind == MatchArchiveKind.meta) {
+          _ingestArchiveMetaDoc(
+            data,
+            eventsOut: mergedEvents,
+            revealsOut: mergedReveals,
+            onPlayArea: (a) => area ??= a,
+            onStarted: (s) => started ??= s,
+            onEnded: (e) => ended ??= e,
+            onOutcome: (o) {
+              if (outcome == GameState.waiting) outcome = o;
+            },
+            onEndReason: (r) => endReason ??= r,
+            onWinningFaction: (f) => winningFaction ??= f,
+            onGimmick: (g) => gimmickLayout ??= g,
+          );
+          continue;
+        }
+        if (kind != MatchArchiveKind.chunk) continue;
+
         final uid = data[MatchArchiveFields.uid] as String?;
         final rawSamples = data[MatchArchiveFields.samples] as List<dynamic>?;
         if (uid == null || rawSamples == null || rawSamples.isEmpty) continue;
@@ -1274,29 +1454,123 @@ class FirestoreRoomSession implements RoomSessionPort {
             nick != null && nick.isNotEmpty ? '$nick（$roleLabel）' : roleLabel;
       }
 
-      if (tracks.isEmpty) return null;
+      if (tracks.isEmpty &&
+          mergedEvents.isEmpty &&
+          mergedReveals.isEmpty &&
+          localFallback == null) {
+        return null;
+      }
 
       final matchStart = _latestMatchStart;
-      area = matchStart?.playArea;
-      started = matchStart?.startedAtUtc != null
+      area ??= matchStart?.playArea ?? localFallback?.playArea;
+      started ??= matchStart?.startedAtUtc != null
           ? DateTime.tryParse(matchStart!.startedAtUtc!)?.toUtc()
-          : null;
+          : localFallback?.startedAtUtc;
+      ended ??= localFallback?.endedAtUtc;
+      if (localFallback != null) {
+        outcome = localFallback.outcome != GameState.waiting
+            ? localFallback.outcome
+            : outcome;
+        endReason ??= localFallback.endReason;
+        winningFaction ??= localFallback.winningFaction;
+        gimmickLayout ??= localFallback.gimmickLayout;
+        mergedEvents.addAll(localFallback.events);
+        mergedReveals.addAll(localFallback.reveals);
+      }
 
-      return SavedMatchRecord(
+      final mergedTracks = <String, List<TrajectorySample>>{};
+      if (localFallback != null) {
+        mergedTracks.addAll(localFallback.tracks);
+      }
+      mergedTracks.addAll(tracks);
+
+      if (gapFillTracks) {
+        for (final key in mergedTracks.keys.toList()) {
+          final list = mergedTracks[key];
+          if (list != null && list.length >= 2) {
+            mergedTracks[key] = TrajectoryGapFill.densifyForReplay(list);
+          }
+        }
+      }
+
+      final record = SavedMatchRecord(
         version: SavedMatchRecord.currentVersion,
-        id: 'online_$sessionKey',
+        id: localFallback?.id ?? 'online_$sessionKey',
         startedAtUtc: started ?? DateTime.now().toUtc(),
         endedAtUtc: ended ?? DateTime.now().toUtc(),
-        outcome: outcome ?? GameState.waiting,
+        outcome: outcome,
         consentedToTrajectory: true,
         playArea: area ??
             PlayArea.circle(center: const LatLng(0, 0), radiusMeters: 100),
-        tracks: tracks,
-        trackLabels: labels,
+        tracks: mergedTracks,
+        trackLabels: {
+          if (localFallback != null) ...localFallback.trackLabels,
+          ...labels,
+        },
+        trackKinds: {
+          if (localFallback != null) ...localFallback.trackKinds,
+        },
+        reveals: _dedupeReveals(mergedReveals),
+        events: _dedupeEvents(mergedEvents),
+        endReason: endReason,
+        winningFaction: winningFaction,
+        gimmickLayout: gimmickLayout,
+        worldProfile: localFallback?.worldProfile,
+        onlineRoomId: localFallback?.onlineRoomId ?? _roomId,
+        onlineSessionKey: localFallback?.onlineSessionKey ?? sessionKey,
+      );
+
+      return await _finalizeFetchedArchive(
+        record,
+        sessionKey: sessionKey,
+        includeRoomEvents: includeRoomEvents,
+        gapFillTracks: false,
+        localFallback: localFallback,
       );
     } catch (_) {
-      return null;
+      return localFallback;
     }
+  }
+
+  Future<SavedMatchRecord> _finalizeFetchedArchive(
+    SavedMatchRecord record, {
+    required int sessionKey,
+    required bool includeRoomEvents,
+    required bool gapFillTracks,
+    SavedMatchRecord? localFallback,
+  }) async {
+    var out = record;
+    if (gapFillTracks) {
+      final tracks = Map<String, List<TrajectorySample>>.from(out.tracks);
+      for (final key in tracks.keys.toList()) {
+        final list = tracks[key];
+        if (list != null && list.length >= 2) {
+          tracks[key] = TrajectoryGapFill.densifyForReplay(list);
+        }
+      }
+      out = SavedMatchRecord(
+        version: out.version,
+        id: localFallback?.id ?? out.id,
+        startedAtUtc: out.startedAtUtc,
+        endedAtUtc: out.endedAtUtc,
+        outcome: out.outcome,
+        consentedToTrajectory: out.consentedToTrajectory,
+        playArea: out.playArea,
+        tracks: tracks,
+        trackLabels: out.trackLabels,
+        trackKinds: out.trackKinds,
+        reveals: out.reveals,
+        events: out.events,
+        endReason: out.endReason,
+        winningFaction: out.winningFaction,
+        gimmickLayout: out.gimmickLayout,
+        worldProfile: out.worldProfile,
+        onlineRoomId: out.onlineRoomId,
+        onlineSessionKey: out.onlineSessionKey,
+      );
+    }
+    if (!includeRoomEvents) return out;
+    return _withRoomEvents(out, sessionKey);
   }
 
   SavedMatchRecord? _savedRecordFromArchiveMap({
@@ -1319,6 +1593,27 @@ class FirestoreRoomSession implements RoomSessionPort {
     final startedRaw = data[MatchArchiveFields.startedAtUtc] as String?;
     final endedRaw = data[MatchArchiveFields.endedAtUtc] as String?;
     final outcomeRaw = data[MatchArchiveFields.outcome] as String?;
+    final events = <MatchEvent>[];
+    final rawEvents = data[MatchArchiveFields.events] as List<dynamic>?;
+    if (rawEvents != null) {
+      for (final item in rawEvents) {
+        if (item is Map<String, dynamic>) {
+          events.add(MatchEvent.fromJson(item));
+        }
+      }
+    }
+    final reveals = <LocationRevealEvent>[];
+    final rawReveals = data[MatchArchiveFields.reveals] as List<dynamic>?;
+    if (rawReveals != null) {
+      for (final item in rawReveals) {
+        if (item is Map<String, dynamic>) {
+          reveals.add(LocationRevealEvent.fromJson(item));
+        }
+      }
+    }
+    final factionRaw = data[MatchArchiveFields.winningFaction] as String?;
+  final gimmickRaw =
+        data[MatchArchiveFields.gimmickLayout] as Map<String, dynamic>?;
     return SavedMatchRecord(
       version: SavedMatchRecord.currentVersion,
       id: 'online_full_$sessionKey',
@@ -1338,7 +1633,150 @@ class FirestoreRoomSession implements RoomSessionPort {
       trackLabels: (data[MatchArchiveFields.trackLabels] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v as String)) ??
           const {},
+      events: events,
+      reveals: reveals,
+      endReason: data[MatchArchiveFields.endReason] as String?,
+      winningFaction: factionRaw == null
+          ? null
+          : FactionSide.values.firstWhere(
+              (f) => f.name == factionRaw,
+              orElse: () => FactionSide.humanTeam,
+            ),
+      gimmickLayout: gimmickRaw == null
+          ? null
+          : MatchGimmickLayout.fromJson(gimmickRaw),
+      worldProfile: data[MatchArchiveFields.worldProfile] as String?,
+      onlineRoomId: data[MatchArchiveFields.onlineRoomId] as String?,
+      onlineSessionKey:
+          (data[MatchArchiveFields.onlineSessionKey] as num?)?.toInt(),
+      trackKinds:
+          (data[MatchArchiveFields.trackKinds] as Map<String, dynamic>?)
+                  ?.map((k, v) => MapEntry(k, v as String)) ??
+              const {},
     );
+  }
+
+  Future<SavedMatchRecord> _withRoomEvents(
+    SavedMatchRecord record,
+    int sessionKey,
+  ) async {
+    final roomEvents = await fetchMatchEvents(sessionKey);
+    if (roomEvents.isEmpty) return record;
+    final events = List<MatchEvent>.from(record.events);
+    final reveals = List<LocationRevealEvent>.from(record.reveals);
+    for (final ev in roomEvents) {
+      final mapped = RoomEventReplayMapper.toMatchEvent(ev);
+      if (mapped != null) events.add(mapped);
+      final reveal = RoomEventReplayMapper.toReveal(ev);
+      if (reveal != null) reveals.add(reveal);
+    }
+    return SavedMatchRecord(
+      version: record.version,
+      id: record.id,
+      startedAtUtc: record.startedAtUtc,
+      endedAtUtc: record.endedAtUtc,
+      outcome: record.outcome,
+      consentedToTrajectory: record.consentedToTrajectory,
+      playArea: record.playArea,
+      tracks: record.tracks,
+      trackLabels: record.trackLabels,
+      trackKinds: record.trackKinds,
+      reveals: _dedupeReveals(reveals),
+      events: _dedupeEvents(events),
+      endReason: record.endReason,
+      winningFaction: record.winningFaction,
+      gimmickLayout: record.gimmickLayout,
+      worldProfile: record.worldProfile,
+      onlineRoomId: record.onlineRoomId,
+      onlineSessionKey: record.onlineSessionKey,
+    );
+  }
+
+  void _ingestArchiveMetaDoc(
+    Map<String, dynamic> data, {
+    required List<MatchEvent> eventsOut,
+    required List<LocationRevealEvent> revealsOut,
+    required void Function(PlayArea) onPlayArea,
+    required void Function(DateTime) onStarted,
+    required void Function(DateTime) onEnded,
+    required void Function(GameState) onOutcome,
+    required void Function(String) onEndReason,
+    required void Function(FactionSide) onWinningFaction,
+    required void Function(MatchGimmickLayout) onGimmick,
+  }) {
+    final rawEvents = data[MatchArchiveFields.events] as List<dynamic>?;
+    if (rawEvents != null) {
+      for (final item in rawEvents) {
+        if (item is Map<String, dynamic>) {
+          eventsOut.add(MatchEvent.fromJson(item));
+        }
+      }
+    }
+    final rawReveals = data[MatchArchiveFields.reveals] as List<dynamic>?;
+    if (rawReveals != null) {
+      for (final item in rawReveals) {
+        if (item is Map<String, dynamic>) {
+          revealsOut.add(LocationRevealEvent.fromJson(item));
+        }
+      }
+    }
+    final areaRaw = data[MatchArchiveFields.playArea] as Map<String, dynamic>?;
+    if (areaRaw != null) onPlayArea(PlayArea.fromJson(areaRaw));
+    final startedRaw = data[MatchArchiveFields.startedAtUtc] as String?;
+    if (startedRaw != null) {
+      onStarted(DateTime.parse(startedRaw).toUtc());
+    }
+    final endedRaw = data[MatchArchiveFields.endedAtUtc] as String?;
+    if (endedRaw != null) onEnded(DateTime.parse(endedRaw).toUtc());
+    final outcomeRaw = data[MatchArchiveFields.outcome] as String?;
+    if (outcomeRaw != null) {
+      onOutcome(
+        GameState.values.firstWhere(
+          (s) => s.name == outcomeRaw,
+          orElse: () => GameState.waiting,
+        ),
+      );
+    }
+    final reason = data[MatchArchiveFields.endReason] as String?;
+    if (reason != null) onEndReason(reason);
+    final factionRaw = data[MatchArchiveFields.winningFaction] as String?;
+    if (factionRaw != null) {
+      onWinningFaction(
+        FactionSide.values.firstWhere(
+          (f) => f.name == factionRaw,
+          orElse: () => FactionSide.humanTeam,
+        ),
+      );
+    }
+    final gimmickRaw =
+        data[MatchArchiveFields.gimmickLayout] as Map<String, dynamic>?;
+    if (gimmickRaw != null) {
+      onGimmick(MatchGimmickLayout.fromJson(gimmickRaw));
+    }
+  }
+
+  List<MatchEvent> _dedupeEvents(List<MatchEvent> input) {
+    final seen = <String>{};
+    final out = <MatchEvent>[];
+    for (final ev in input) {
+      final key =
+          '${ev.type}|${ev.atUtc.millisecondsSinceEpoch}|${ev.message}|${ev.position.latitude}|${ev.position.longitude}';
+      if (seen.add(key)) out.add(ev);
+    }
+    out.sort((a, b) => a.atUtc.compareTo(b.atUtc));
+    return out;
+  }
+
+  List<LocationRevealEvent> _dedupeReveals(List<LocationRevealEvent> input) {
+    final seen = <String>{};
+    final out = <LocationRevealEvent>[];
+    for (final r in input) {
+      final key =
+          '${r.sequence}|${r.timestamp.millisecondsSinceEpoch}|${r.position.latitude}|${r.position.longitude}';
+      if (seen.add(key)) out.add(r);
+    }
+    out.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return out;
   }
 
   @override

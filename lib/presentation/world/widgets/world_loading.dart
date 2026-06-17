@@ -47,7 +47,7 @@ class _WorldLoadingState extends State<WorldLoading>
           height: widget.size,
           child: AnimatedBuilder(
             animation: _c,
-            builder: (_, __) => CustomPaint(
+            builder: (context, child) => CustomPaint(
               painter: _WorldLoadingPainter(
                 pack: pack,
                 progress: _c.value,

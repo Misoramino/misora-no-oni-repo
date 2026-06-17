@@ -111,6 +111,22 @@ extension _GameMapAccusation on _GameMapScreenState {
     GameAudio.instance.playWorldSfx(SfxId.unlock, profile: _activeProfile);
     unawaited(WorldAudioDirector.instance.onAccusationUnlock());
     _recordMatchFeed(MatchHudCopy.accusationUnlockFeed(copy.facilityName));
+    _maybeBackgroundCrisisAlert(
+      kind: BackgroundCrisisKind.accusationUnlocked,
+      title: copy.facilityName,
+      body: copy.unlockLines.last,
+    );
+    final sites = _rt.accusationFacilityPositions;
+    final active = _rt.activeAccusationSiteIndices;
+    final siteIdx = active.isEmpty ? 0 : active.first;
+    final pos = sites.isNotEmpty
+        ? sites[siteIdx.clamp(0, sites.length - 1)]
+        : _currentPosition;
+    _emitMatchEvent(
+      type: 'accusation_unlocked',
+      message: '${copy.facilityName}: ${copy.unlockLines.last}',
+      position: pos,
+    );
   }
 
   Future<void> _promptAccusationAtSite(int siteIndex) async {
@@ -387,6 +403,18 @@ extension _GameMapAccusation on _GameMapScreenState {
 
   void _notifyAccusationSuccess(String message) {
     if (!mounted) return;
+    final sites = _rt.accusationFacilityPositions;
+    final active = _rt.activeAccusationSiteIndices;
+    final siteIdx = active.isEmpty ? 0 : active.first;
+    final pos = sites.isNotEmpty
+        ? sites[siteIdx.clamp(0, sites.length - 1)]
+        : _currentPosition;
+    _emitMatchEvent(
+      type: 'accusation_success',
+      message: message,
+      position: pos,
+      syncFirestore: false,
+    );
     _syncSetState(() => _statusMessage = message);
     _pushHudRevealAlert(message);
     _recordMatchFeed(message);

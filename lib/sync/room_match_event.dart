@@ -74,6 +74,9 @@ abstract final class CaptureZoneEventPayload {
 abstract final class RoomMatchEventTypes {
   static const matchStart = 'match_start';
   static const matchEnd = 'match_end';
+
+  /// 時間切れ救済（非ホストが host 不通時に一度だけ発行）。
+  static const matchEndRescue = 'match_end_rescue';
   static const reveal = 'reveal';
   static const anonymousReveal = 'anonymous_reveal';
   static const fakeIntelReveal = 'fake_intel_reveal';

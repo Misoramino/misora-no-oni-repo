@@ -26,7 +26,7 @@ class WorldChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final pack = WorldPresentationCatalog.of(profile);
     final bg = backgroundColor ?? pack.panelSurface;
-    final fg = foregroundColor ?? pack.accent;
+    final fg = foregroundColor ?? pack.textOnPanel;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bg,
@@ -41,10 +41,12 @@ class WorldChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: dense ? 12 : 14, color: fg),
-              SizedBox(width: dense ? 4 : 6),
-            ],
+            Icon(
+              icon ?? pack.profileIcon,
+              size: dense ? 12 : 14,
+              color: fg,
+            ),
+            SizedBox(width: dense ? 4 : 6),
             Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(

@@ -10,6 +10,7 @@ import 'play_area.dart';
 import 'werewolf_faction_logic.dart';
 import '../features/match/match_result_copy.dart';
 import '../sync/firestore_room_blueprint.dart';
+import '../theme/world_profile.dart';
 
 /// 1地点・1時刻の軌跡サンプル。
 class TrajectorySample {
@@ -50,14 +51,18 @@ class SavedMatchRecord {
     required this.playArea,
     required this.tracks,
     this.trackLabels = const {},
+    this.trackKinds = const {},
     this.reveals = const [],
     this.events = const [],
     this.endReason,
     this.winningFaction,
     this.gimmickLayout,
+    this.worldProfile,
+    this.onlineRoomId,
+    this.onlineSessionKey,
   });
 
-  static const int currentVersion = 1;
+  static const int currentVersion = 2;
 
   final int version;
   final String id;
@@ -72,11 +77,24 @@ class SavedMatchRecord {
 
   /// 再生 UI 用の表示名（観戦記録など）。
   final Map<String, String> trackLabels;
+
+  /// 軌跡 ID → [ReplayTrackKind.name]（脱落後の線種・色分け用）。
+  final Map<String, String> trackKinds;
   final List<LocationRevealEvent> reveals;
   final List<MatchEvent> events;
   final String? endReason;
   final FactionSide? winningFaction;
   final MatchGimmickLayout? gimmickLayout;
+
+  /// 試合時の世界観（[WorldProfile.name]）。無い旧記録は再生時に現在設定へフォールバック。
+  final String? worldProfile;
+
+  /// ギャラリーから最新アーカイブ取得用（オンライン試合のみ）。
+  final String? onlineRoomId;
+  final int? onlineSessionKey;
+
+  WorldProfile get effectiveWorldProfile =>
+      WorldProfile.fromStorageName(worldProfile);
 
   /// ギャラリー一覧など向けの短い見出し。
   String get galleryTitle {
@@ -105,11 +123,15 @@ class SavedMatchRecord {
           (k, v) => MapEntry(k, v.map((e) => e.toJson()).toList()),
         ),
         if (trackLabels.isNotEmpty) 'trackLabels': trackLabels,
+        if (trackKinds.isNotEmpty) 'trackKinds': trackKinds,
         'reveals': reveals.map((e) => e.toJson()).toList(),
         'events': events.map((e) => e.toJson()).toList(),
         if (endReason != null) 'endReason': endReason,
         if (winningFaction != null) 'winningFaction': winningFaction!.name,
         if (gimmickLayout != null) 'gimmickLayout': gimmickLayout!.toJson(),
+        if (worldProfile != null) 'worldProfile': worldProfile,
+        if (onlineRoomId != null) 'onlineRoomId': onlineRoomId,
+        if (onlineSessionKey != null) 'onlineSessionKey': onlineSessionKey,
       };
 
   factory SavedMatchRecord.fromJson(Map<String, dynamic> json) {
@@ -131,6 +153,8 @@ class SavedMatchRecord {
       tracks: tracks,
       trackLabels: (json['trackLabels'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, v as String)),
+      trackKinds: (json['trackKinds'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
       reveals: (json['reveals'] as List<dynamic>? ?? [])
           .map((r) => LocationRevealEvent.fromJson(r as Map<String, dynamic>))
           .toList(),
@@ -144,6 +168,9 @@ class SavedMatchRecord {
           : MatchGimmickLayout.fromJson(
               json['gimmickLayout'] as Map<String, dynamic>,
             ),
+      worldProfile: json['worldProfile'] as String?,
+      onlineRoomId: json['onlineRoomId'] as String?,
+      onlineSessionKey: (json['onlineSessionKey'] as num?)?.toInt(),
     );
   }
 

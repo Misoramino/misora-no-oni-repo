@@ -42,7 +42,10 @@ class GameConfig {
   static const int gpsMaxFixAgeSeconds = 12;
 
   /// 復帰直後にローカル判定を抑止する時間（秒）。catch-up 優先。
-  static const int resumeCatchUpGraceSeconds = 4;
+  static const int resumeCatchUpGraceSeconds = 5;
+
+  /// ホストが background のままこの秒数を超えると他端末に警告表示。
+  static const int hostBackgroundWarningSeconds = 90;
 
   // Phase 2 prep: map gimmicks
   static const double safeZoneRadiusMeters = 40;

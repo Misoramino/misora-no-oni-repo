@@ -10,27 +10,41 @@ abstract final class AppThemeFactory {
     final pack = WorldPresentationCatalog.of(profile);
     final seed = pack.accent;
 
+    final baseScheme = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: profile == WorldProfile.sport
+          ? Brightness.light
+          : Brightness.dark,
+      primary: pack.accent,
+      secondary: pack.accentMuted,
+      surface: pack.panelSurface,
+      error: pack.dangerColor,
+    );
+    final scheme = baseScheme.copyWith(
+      onSurface: pack.textOnPanel,
+      onSurfaceVariant: pack.mutedOnPanel,
+      onPrimary: pack.buttonLabelOnAccent,
+    );
+
     final base = ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: seed,
-        brightness: profile == WorldProfile.sport
-            ? Brightness.light
-            : Brightness.dark,
-        primary: pack.accent,
-        secondary: pack.accentMuted,
-        surface: pack.panelSurface,
-        error: pack.dangerColor,
-      ),
+      colorScheme: scheme,
       useMaterial3: true,
       extensions: [WorldProfileTheme(profile)],
     );
 
-    final textTheme = WorldTypography.apply(base.textTheme, pack);
+    final textTheme = WorldTypography.apply(base.textTheme, pack).apply(
+      bodyColor: pack.textOnPanel,
+      displayColor: pack.textOnPanel,
+    );
 
-    final dialogTextStyle = textTheme.bodyMedium!.copyWith(height: pack.bodyLineHeight);
+    final dialogTextStyle = textTheme.bodyMedium!.copyWith(
+      height: pack.bodyLineHeight,
+      color: pack.textOnPanel,
+    );
     final dialogTitleStyle = textTheme.titleLarge!.copyWith(
       fontWeight: pack.headlineWeight,
       letterSpacing: pack.headlineLetterSpacing,
+      color: pack.textOnPanel,
     );
 
     return base.copyWith(
@@ -47,7 +61,7 @@ abstract final class AppThemeFactory {
         behavior: SnackBarBehavior.floating,
         backgroundColor: pack.panelSurface,
         contentTextStyle: textTheme.bodyMedium?.copyWith(
-          color: pack.onAccent,
+          color: pack.textOnPanel,
         ),
       ),
       cardTheme: base.cardTheme.copyWith(
@@ -70,7 +84,7 @@ abstract final class AppThemeFactory {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: pack.accent,
-          foregroundColor: pack.onAccent,
+          foregroundColor: pack.buttonLabelOnAccent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(pack.buttonShape.borderRadius),
           ),
@@ -79,7 +93,12 @@ abstract final class AppThemeFactory {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: pack.accent,
-          side: BorderSide(color: pack.accent, width: pack.buttonShape.borderWidth > 0 ? pack.buttonShape.borderWidth : 1.5),
+          side: BorderSide(
+            color: pack.accent,
+            width: pack.buttonShape.borderWidth > 0
+                ? pack.buttonShape.borderWidth
+                : 1.5,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(pack.buttonShape.borderRadius),
           ),
@@ -90,6 +109,7 @@ abstract final class AppThemeFactory {
           borderRadius: BorderRadius.circular(pack.chipBorderRadius),
           side: BorderSide(color: pack.panelBorder),
         ),
+        labelStyle: textTheme.labelSmall?.copyWith(color: pack.textOnPanel),
       ),
       dividerColor: pack.panelBorder,
     );

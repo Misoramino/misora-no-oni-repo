@@ -51,6 +51,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.76,
     countdownSilenceMs: 200,
     matchAmbientOneShotsEnabled: true,
+    replayMusic: BgmId.astroDeepUnderscore,
+    replayAmbientGain: 0.12,
     layers: WorldMusicLayers(
       titleBase: LayerTrackRef.bgm(BgmId.urbanSilentTension),
       base: LayerTrackRef.bgm(BgmId.urbanSilentPursuit),
@@ -78,6 +80,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.92,
     countdownSilenceMs: 80,
     matchAmbientOneShotsEnabled: true,
+    replayMusic: BgmId.pop2,
+    replayGain: 0.36,
     layers: WorldMusicLayers(
       base: LayerTrackRef.bgm(BgmId.pop),
       matchBase: LayerTrackRef.bgm(BgmId.pop2),
@@ -104,6 +108,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.84,
     countdownSilenceMs: 60,
     matchAmbientOneShotsEnabled: false,
+    replayMusic: BgmId.cyber,
+    replayGain: 0.34,
     layers: WorldMusicLayers(
       titleBase: LayerTrackRef.bgm(BgmId.cyber, gain: 0.7),
       base: LayerTrackRef.bgm(BgmId.cyberSuspense),
@@ -130,6 +136,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.78,
     countdownSilenceMs: 140,
     matchAmbientOneShotsEnabled: false,
+    replayMusic: BgmId.tactical,
+    replayGain: 0.32,
     layers: WorldMusicLayers(
       base: LayerTrackRef.bgm(BgmId.tactical),
       matchBase: LayerTrackRef.bgm(BgmId.horror, gain: 0.75),
@@ -156,6 +164,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.68,
     countdownSilenceMs: 220,
     matchAmbientOneShotsEnabled: false,
+    replayMusic: BgmId.magicalEthereal,
+    replayGain: 0.38,
     layers: WorldMusicLayers(
       titleBase: LayerTrackRef.bgm(BgmId.magicalEthereal, gain: 0.66),
       base: LayerTrackRef.bgm(BgmId.magicalOrchestra, gain: 0.58),
@@ -184,8 +194,9 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.74,
     countdownSilenceMs: 280,
     matchAmbientOneShotsEnabled: true,
+    replayMusic: BgmId.astroAloneMoon,
+    replayGain: 0.36,
     layers: WorldMusicLayers(
-      titleBase: LayerTrackRef.bgm(BgmId.astroAloneMoon),
       base: LayerTrackRef.bgm(BgmId.astroAloneMoon, gain: 0.86),
       matchBase: astronomyUseLegacySpaceBgm
           ? LayerTrackRef.bgm(BgmId.space)
@@ -213,6 +224,8 @@ abstract final class WorldMusicProfileCatalog {
     finalFiveMinTensionGain: 0.18,
     finalMinuteTensionGain: 0.26,
     matchAmbientOneShotsEnabled: false,
+    replayMusic: BgmId.zenTsukiyomi,
+    replayGain: 0.34,
     layers: WorldMusicLayers(
       titleBase: LayerTrackRef.bgm(BgmId.zenTsukiyomi, gain: 0.5),
       base: LayerTrackRef.bgm(BgmId.zenTsukiyomi, gain: 0.44),
@@ -240,6 +253,8 @@ abstract final class WorldMusicProfileCatalog {
     matchBaseGain: 0.36,
     countdownSilenceMs: 200,
     matchAmbientOneShotsEnabled: true,
+    replayMusic: BgmId.royalLarghetto,
+    replayGain: 0.38,
     layers: WorldMusicLayers(
       titleBase: LayerTrackRef.bgm(BgmId.royalSarabande),
       base: LayerTrackRef.bgm(BgmId.royalLarghetto, gain: 0.9),

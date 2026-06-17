@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oni_game/game/game_config.dart';
+import 'package:oni_game/sync/host_presence_status.dart';
 import 'package:oni_game/sync/match_elapsed_sync.dart';
 import 'package:oni_game/sync/room_event_deduper.dart';
 import 'package:oni_game/sync/room_match_event.dart';
@@ -113,6 +114,19 @@ void main() {
       expect(rulesText, contains("'lobby_play_area_proposal'"));
     });
 
+    test('match_end_rescue allowed for participants', () {
+      expect(rulesText, contains("'match_end_rescue'"));
+      final participantStart = rulesText.indexOf('participantRoomEventType');
+      final participantBlock =
+          rulesText.substring(participantStart, participantStart + 900);
+      expect(participantBlock, contains("'match_end_rescue'"));
+    });
+
+    test('match end rescue room update allowed for participants', () {
+      expect(rulesText, contains('validMatchEndRescueUpdate'));
+      expect(rulesText, contains("endReason == 'time_up'"));
+    });
+
     test('match_end is host-only', () {
       expect(rulesText, contains("'match_end'"));
       final hostOnlyStart = rulesText.indexOf('hostOnlyRoomEventType');
@@ -148,10 +162,71 @@ void main() {
         RoomMatchEventTypes.lobbyPlayAreaProposal,
         RoomMatchEventTypes.captureZonePlaced,
         RoomMatchEventTypes.accusationAttempt,
+        RoomMatchEventTypes.matchEndRescue,
       };
       for (final t in hostOnly) {
         expect(participant, isNot(contains(t)));
       }
+    });
+  });
+
+  group('HostPresenceStatus — phone play', () {
+    test('90s+ background shows host waiting warning', () {
+      final now = DateTime.utc(2026, 6, 16, 12, 0, 0);
+      final host = RoomMemberView(
+        uid: 'host',
+        nickname: 'Host',
+        role: 'runner',
+        isSelf: false,
+        reportedAtUtc: now.subtract(const Duration(seconds: 20)),
+        appLifecycle: 'background',
+        backgroundSinceUtc: now.subtract(
+          Duration(seconds: GameConfig.hostBackgroundWarningSeconds + 5),
+        ),
+      );
+      expect(HostPresenceStatus.showWaitingWarning(host, now), isTrue);
+    });
+
+    test('background under 90s does not show waiting warning', () {
+      final now = DateTime.utc(2026, 6, 16, 12, 0, 0);
+      final host = RoomMemberView(
+        uid: 'host',
+        nickname: 'Host',
+        role: 'runner',
+        isSelf: false,
+        reportedAtUtc: now.subtract(const Duration(seconds: 10)),
+        appLifecycle: 'background',
+        backgroundSinceUtc: now.subtract(const Duration(seconds: 60)),
+      );
+      expect(HostPresenceStatus.showWaitingWarning(host, now), isFalse);
+    });
+
+    test('background host is unavailable for match end rescue', () {
+      final now = DateTime.utc(2026, 6, 16, 12, 0, 0);
+      final host = RoomMemberView(
+        uid: 'host',
+        nickname: 'Host',
+        role: 'runner',
+        isSelf: false,
+        reportedAtUtc: now.subtract(const Duration(seconds: 10)),
+        appLifecycle: 'background',
+        backgroundSinceUtc: now.subtract(const Duration(minutes: 1)),
+      );
+      expect(HostPresenceStatus.unavailableForMatchEnd(host, now), isTrue);
+      expect(host.isInBackgroundGrace(now), isTrue);
+    });
+
+    test('foreground host with fresh heartbeat is available for match end', () {
+      final now = DateTime.utc(2026, 6, 16, 12, 0, 0);
+      final host = RoomMemberView(
+        uid: 'host',
+        nickname: 'Host',
+        role: 'runner',
+        isSelf: false,
+        reportedAtUtc: now.subtract(const Duration(seconds: 5)),
+        appLifecycle: 'foreground',
+      );
+      expect(HostPresenceStatus.unavailableForMatchEnd(host, now), isFalse);
     });
   });
 

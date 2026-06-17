@@ -260,8 +260,8 @@ class PlayArea {
         return '円 · 半径 ${radiusMeters.toStringAsFixed(0)} m';
       case PlayAreaType.polygon:
         final n = points.length;
-        if (n < 3) return '多角形 · 未確定（${n}点）';
-        return '多角形 · ${n} 頂点';
+        if (n < 3) return '多角形 · 未確定（$n点）';
+        return '多角形 · $n 頂点';
     }
   }
 

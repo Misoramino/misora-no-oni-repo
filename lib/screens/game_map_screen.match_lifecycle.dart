@@ -208,7 +208,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
       _retuneGpsIfNeeded();
       unawaited(_maybeAutoClaimHostIfAbsent());
-      if (_isHost) {
+      if (_isHost && !_appInBackground) {
         _maybeEliminateDisconnectedParticipants();
       }
     });
@@ -259,7 +259,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
 
   /// ホスト不在時に非ホストが時間切れ終了を担う。
   Future<void> _handleMatchTimeUp() async {
-    if (!mounted) return;
+    if (!mounted || _gameState != GameState.running) return;
     if (_isHost) {
       _endGameForTimeUp();
       return;
@@ -267,11 +267,67 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (!_isOnlineFirestore) return;
     final fs = _firestoreSession;
     if (fs == null) return;
-    if (!fs.isHostAbsent(DateTime.now().toUtc())) return;
-    if (_hostAbsentClaimInFlight) return;
-    await _maybeAutoClaimHostIfAbsent();
-    if (mounted && _isHost) {
-      _endGameForTimeUp();
+    final now = DateTime.now().toUtc();
+    final host = fs.hostMember;
+
+    if (fs.isHostAbsent(now)) {
+      if (_hostAbsentClaimInFlight) return;
+      await _maybeAutoClaimHostIfAbsent();
+      if (mounted && _isHost) {
+        _endGameForTimeUp();
+        return;
+      }
+    }
+
+    if (HostPresenceStatus.unavailableForMatchEnd(host, now)) {
+      await _attemptMatchEndRescue();
+    }
+  }
+
+  /// ホストが通話中などで終了できないとき、非ホストが一度だけ時間切れ終了を発行。
+  Future<void> _attemptMatchEndRescue() async {
+    if (_matchEndRescueInFlight || _gameState != GameState.running) return;
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null || fs.isHost) return;
+    if (fs.currentPhase == RoomPhase.ended) return;
+    if (_rt.remainingSeconds > 0) return;
+
+    _matchEndRescueInFlight = true;
+    try {
+      final counts = WerewolfFactionLogic.countAliveFactions(
+        players: _matchParticipants(),
+      );
+      final GameState outcome;
+      final String message;
+      final String endReason;
+      if (counts.humanAlive == 0 && counts.oniAlive > 0) {
+        outcome = GameState.caughtByOni;
+        message = MatchHudCopy.matchEndAllHumansEliminated();
+        endReason = MatchEndReason.allHumansEliminated;
+      } else {
+        outcome = GameState.runnerWin;
+        message = MatchTickEvaluator.endMessageFor(MatchTickAction.endRunnerWin);
+        endReason = MatchEndReason.timeUp;
+      }
+      final err = await fs.publishMatchEndRescue(
+        idempotencyKey: 'time_up_$sk',
+        outcome: outcome,
+        endReason: endReason,
+        message: message,
+        sessionKey: sk,
+      );
+      if (!mounted) return;
+      if (err == null) {
+        _endGame(
+          outcome,
+          message,
+          endReason: endReason,
+          skipFirestoreSync: true,
+        );
+      }
+    } finally {
+      _matchEndRescueInFlight = false;
     }
   }
 
@@ -996,6 +1052,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     HapticFeedback.mediumImpact();
     _logDebug('match_end outcome=${result.name}');
     _retuneGpsIfNeeded();
+    if (!_isRoomInspector) {
+      _emitMatchEvent(
+        type: 'match_end',
+        message: message,
+        position: _currentPosition,
+        syncFirestore: false,
+      );
+    }
     if (_isRoomInspector) {
       unawaited(() async {
         await _finalizeSpectatorRecording(outcome);
@@ -1081,6 +1145,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     }
     if (_gameState != GameState.running) return;
     if (_appInBackground && _isOnlineFirestore) return;
+    if (_inResumeCatchUpGrace && _isOnlineFirestore) return;
 
     _advanceFakePositionDrift();
     _maybePeriodicAnonymousReveal();

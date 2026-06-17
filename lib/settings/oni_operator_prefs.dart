@@ -1,8 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 試合中の通知設定（旧鬼設定を含む。端末ローカル保存）。
+/// 試合中の通知設定（端末ローカル保存）。
 abstract final class OniOperatorPrefs {
-  static const roleEnabledKey = 'oni_role_enabled_v1';
   static const notifyVibrationKey = 'oni_notify_vibration_v1';
   static const notifySoundKey = 'oni_notify_sound_v1';
   static const notifyAggressiveKey = 'oni_notify_aggressive_v1';
@@ -11,7 +10,6 @@ abstract final class OniOperatorPrefs {
 
   static OniOperatorSnapshot fromPrefs(SharedPreferences prefs) {
     return OniOperatorSnapshot(
-      roleEnabled: prefs.getBool(roleEnabledKey) ?? true,
       notifyVibration: prefs.getBool(notifyVibrationKey) ?? true,
       notifySound: prefs.getBool(notifySoundKey) ?? true,
       notifyAggressive: prefs.getBool(notifyAggressiveKey) ?? false,
@@ -24,7 +22,6 @@ abstract final class OniOperatorPrefs {
     SharedPreferences prefs,
     OniOperatorSnapshot s,
   ) async {
-    await prefs.setBool(roleEnabledKey, s.roleEnabled);
     await prefs.setBool(notifyVibrationKey, s.notifyVibration);
     await prefs.setBool(notifySoundKey, s.notifySound);
     await prefs.setBool(notifyAggressiveKey, s.notifyAggressive);
@@ -35,7 +32,6 @@ abstract final class OniOperatorPrefs {
 
 class OniOperatorSnapshot {
   const OniOperatorSnapshot({
-    required this.roleEnabled,
     required this.notifyVibration,
     required this.notifySound,
     required this.notifyAggressive,
@@ -44,7 +40,6 @@ class OniOperatorSnapshot {
   });
 
   /// 接近・拘束中の詳細フィードバック（振動／音の個別制御）。
-  final bool roleEnabled;
   final bool notifyVibration;
   final bool notifySound;
   final bool notifyAggressive;

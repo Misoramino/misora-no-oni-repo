@@ -81,7 +81,7 @@ class _PhaseFlashDialogState extends State<_PhaseFlashDialog>
         opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
         child: AnimatedBuilder(
           animation: _controller,
-          builder: (_, __) => WorldFlashOverlay(
+          builder: (context, child) => WorldFlashOverlay(
             pack: pack,
             progress: _controller.value,
             headline: isEnd ? '試合終了' : null,

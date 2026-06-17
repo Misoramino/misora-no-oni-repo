@@ -16,6 +16,7 @@ enum BackgroundCrisisKind {
   proximityWarning,
   outsideAreaReveal,
   selfNamedReveal,
+  accusationUnlocked,
   eliminated,
   matchEnded,
 }
@@ -25,8 +26,40 @@ abstract final class BackgroundCrisisAlert {
       FlutterLocalNotificationsPlugin();
 
   static bool _initialized = false;
-  static DateTime? _lastAlertAt;
-  static BackgroundCrisisKind? _lastKind;
+  static final Map<String, DateTime> _lastByCategory = {};
+
+  static String _category(BackgroundCrisisKind kind) => switch (kind) {
+        BackgroundCrisisKind.panicWarning ||
+        BackgroundCrisisKind.panicImminent ||
+        BackgroundCrisisKind.panicStarted ||
+        BackgroundCrisisKind.panicTrace ||
+        BackgroundCrisisKind.proximityDanger ||
+        BackgroundCrisisKind.proximityWarning =>
+          'proximity',
+        BackgroundCrisisKind.captureZoneBound ||
+        BackgroundCrisisKind.touchLock ||
+        BackgroundCrisisKind.eliminated =>
+          'capture',
+        BackgroundCrisisKind.outsideAreaReveal ||
+        BackgroundCrisisKind.selfNamedReveal =>
+          'reveal',
+        BackgroundCrisisKind.accusationUnlocked => 'accusation',
+        BackgroundCrisisKind.matchEnded => 'match',
+      };
+
+  static String categoryFor(BackgroundCrisisKind kind) => _category(kind);
+
+  static Duration _debounceFor(BackgroundCrisisKind kind) => switch (kind) {
+        BackgroundCrisisKind.matchEnded => const Duration(seconds: 30),
+        BackgroundCrisisKind.accusationUnlocked => const Duration(seconds: 20),
+        BackgroundCrisisKind.selfNamedReveal ||
+        BackgroundCrisisKind.outsideAreaReveal =>
+          const Duration(seconds: 12),
+        BackgroundCrisisKind.proximityDanger ||
+        BackgroundCrisisKind.panicImminent =>
+          const Duration(seconds: 10),
+        _ => const Duration(seconds: 8),
+      };
 
   static Future<void> init() async {
     if (_initialized || kIsWeb) return;
@@ -71,19 +104,49 @@ abstract final class BackgroundCrisisAlert {
     if (!vibrate && !showNotification) return;
 
     final now = DateTime.now();
-    if (_lastKind == kind &&
-        _lastAlertAt != null &&
-        now.difference(_lastAlertAt!) < const Duration(seconds: 8)) {
+    final category = _category(kind);
+    final last = _lastByCategory[category];
+    final debounce = _debounceFor(kind);
+    if (last != null && now.difference(last) < debounce) {
       return;
     }
-    _lastKind = kind;
-    _lastAlertAt = now;
+    _lastByCategory[category] = now;
 
     if (vibrate) {
       await _vibrate(kind);
     }
     if (showNotification) {
       await _showNotification(kind: kind, title: title, body: body);
+    }
+  }
+
+  /// 復帰後サマリー（1回だけ・SE連打防止）。
+  static Future<void> notifyResumeSummary({
+    required String title,
+    required String body,
+    bool vibrate = true,
+    bool showNotification = true,
+  }) async {
+    if (kIsWeb) return;
+    if (!vibrate && !showNotification) return;
+
+    const category = 'resume_summary';
+    final now = DateTime.now();
+    final last = _lastByCategory[category];
+    if (last != null && now.difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastByCategory[category] = now;
+
+    if (vibrate) {
+      await _vibrate(BackgroundCrisisKind.matchEnded);
+    }
+    if (showNotification) {
+      await _showNotification(
+        kind: BackgroundCrisisKind.matchEnded,
+        title: title,
+        body: body,
+      );
     }
   }
 
@@ -99,14 +162,18 @@ abstract final class BackgroundCrisisAlert {
         [0, 450, 120, 450, 120, 450],
       BackgroundCrisisKind.panicStarted ||
       BackgroundCrisisKind.captureZoneBound ||
-      BackgroundCrisisKind.selfNamedReveal =>
+      BackgroundCrisisKind.selfNamedReveal ||
+      BackgroundCrisisKind.accusationUnlocked =>
         [0, 350, 100, 350],
       _ => [0, 220, 80, 220],
     };
 
     final hasAmplitude = await Vibration.hasAmplitudeControl();
     if (hasAmplitude == true) {
-      await Vibration.vibrate(pattern: pattern, intensities: [0, 200, 0, 255, 0, 255]);
+      await Vibration.vibrate(
+        pattern: pattern,
+        intensities: [0, 200, 0, 255, 0, 255],
+      );
     } else {
       await Vibration.vibrate(pattern: pattern);
     }

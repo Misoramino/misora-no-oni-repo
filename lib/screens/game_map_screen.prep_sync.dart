@@ -10,8 +10,14 @@ extension _GameMapPrepSync on _GameMapScreenState {
     required String title,
     required String body,
   }) {
-    if (!_appInBackground || _suppressMatchFeedback) return;
     if (!_crisisNotifyVibration && !_crisisNotifyLocal) return;
+
+    if (_suppressMatchFeedback) {
+      _resumeCrisisCollector.record(kind: kind, title: title, body: body);
+      return;
+    }
+
+    if (!_appInBackground) return;
     unawaited(
       BackgroundCrisisAlert.notify(
         kind: kind,
@@ -21,6 +27,33 @@ extension _GameMapPrepSync on _GameMapScreenState {
         showNotification: _crisisNotifyLocal,
       ),
     );
+  }
+
+  void _presentResumeCrisisSummary() {
+    if (_resumeCrisisCollector.isEmpty) return;
+    final entries = _resumeCrisisCollector.drainPrioritized();
+    if (entries.isEmpty || !mounted) return;
+
+    final primary = entries.first;
+    _showInlineStatus(
+      primary.summaryLine,
+      duration: const Duration(seconds: 5),
+    );
+    final countLine = entries.length > 1
+        ? '通話中の出来事を反映しました（${entries.length}件）'
+        : '通話中の出来事を反映しました';
+    _toast(countLine);
+
+    if (_crisisNotifyVibration || _crisisNotifyLocal) {
+      unawaited(
+        BackgroundCrisisAlert.notifyResumeSummary(
+          title: '通話中の出来事',
+          body: primary.summaryLine,
+          vibrate: _crisisNotifyVibration,
+          showNotification: _crisisNotifyLocal,
+        ),
+      );
+    }
   }
 
   /// Firestore 上で試合が終了済みならローカル状態を同期（復帰時の取りこぼし対策）。
@@ -192,7 +225,6 @@ extension _GameMapPrepSync on _GameMapScreenState {
 
     if (applied > 0 && mounted) {
       _publishMapOverlay(force: true);
-      _toast('バックグラウンド中の出来事 $applied 件をマップ・ログに反映しました');
     }
   }
 
@@ -227,15 +259,18 @@ extension _GameMapPrepSync on _GameMapScreenState {
   }
 
   Future<void> _catchUpGameStateOnResumeAsync(DateTime? pausedAt) async {
-    if (pausedAt != null) {
+    final resumeFlow = pausedAt != null;
+    if (resumeFlow) {
       _resumeCatchUpUntilUtc = DateTime.now().toUtc().add(
         const Duration(seconds: GameConfig.resumeCatchUpGraceSeconds),
       );
+      _showInlineStatus('同期中…', duration: const Duration(seconds: 8));
     }
     if (_tryApplyRemoteRoomEnded(fromResume: true)) {
       if (mounted && pausedAt != null) {
         _toast('試合は終了していました — 結果を確認してください');
       }
+      _resumeCatchUpUntilUtc = null;
       return;
     }
 
@@ -261,15 +296,42 @@ extension _GameMapPrepSync on _GameMapScreenState {
       }
     }
 
-    if (pausedAt != null) {
+    if (resumeFlow && _isOnlineFirestore) {
+      if (mounted) {
+        _showInlineStatus(
+          '通話中の移動を反映しています',
+          duration: const Duration(seconds: 8),
+        );
+      }
       await _replayMissedMatchEventsOnResume();
-    }
-
-    if (pausedAt != null && !_isOnlineFirestore) {
+      if (mounted) _presentResumeCrisisSummary();
+    } else if (resumeFlow && !_isOnlineFirestore) {
       _catchUpRunningTicksOnResume(pausedAt);
     }
 
+    if (!mounted) return;
     _bindGpsSubscription(force: true);
+
+    if (resumeFlow) {
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+      _showInlineStatus(
+        '最新の状態に追いつきました',
+        duration: const Duration(seconds: 4),
+      );
+    }
+
+    final until = _resumeCatchUpUntilUtc;
+    if (until != null) {
+      final wait = until.difference(DateTime.now().toUtc());
+      if (wait.inMilliseconds > 0) {
+        await Future<void>.delayed(wait);
+      }
+    }
+
+    if (!mounted) return;
+    _resumeCatchUpUntilUtc = null;
+
     if (_gameState == GameState.running) {
       _evaluateGame();
     } else if (_gameState == GameState.caughtByOni && _afterCatchRule != null) {
@@ -278,16 +340,9 @@ extension _GameMapPrepSync on _GameMapScreenState {
 
     if ((_gameState == GameState.running ||
             _gameState == GameState.caughtByOni) &&
-        pausedAt != null) {
+        resumeFlow) {
       unawaited(_syncBleMatchContext(forceAdvertiseRestart: true));
     }
-
-    if (!mounted) return;
-    if (pausedAt != null &&
-        DateTime.now().toUtc().difference(pausedAt).inSeconds >= 8) {
-      _toast('試合に復帰しました — 位置と同期を更新しています');
-    }
-    _resumeCatchUpUntilUtc = null;
   }
 
   void _maybeCatchUpRunningMatch({String? toastMessage}) {

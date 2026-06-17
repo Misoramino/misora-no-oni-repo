@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
+import '../../../presentation/world/world_presentation_catalog.dart';
 import '../../../theme/elimination_role_copy.dart';
 import '../../../theme/world_profile.dart';
 
@@ -40,6 +41,7 @@ class EliminationSupportBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pack = WorldPresentationCatalog.of(worldProfile);
     final copy = EliminationRoleCopy.forProfile(worldProfile, rule);
     final primaryLine = rule.supportsFacilitySabotage
         ? '告発妨害 — 試合 $matchJackUses / $matchJackLimit 回'
@@ -48,8 +50,8 @@ class EliminationSupportBar extends StatelessWidget {
 
     return Material(
       elevation: 4,
-      borderRadius: BorderRadius.circular(12),
-      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.94),
+      borderRadius: BorderRadius.circular(pack.hudCornerRadius + 2),
+      color: pack.panelSurface,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
@@ -64,17 +66,24 @@ class EliminationSupportBar extends StatelessWidget {
                       : rule.supportsCameraJack
                           ? Icons.sensors
                           : Icons.visibility_outlined,
-                  color: theme.colorScheme.primary,
+                  color: pack.accent,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(copy.roleTitle, style: theme.textTheme.titleSmall),
+                      Text(
+                        copy.roleTitle,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: pack.textOnPanel,
+                        ),
+                      ),
                       Text(
                         copy.roleSubtitle,
-                        style: theme.textTheme.bodySmall,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: pack.mutedOnPanel,
+                        ),
                       ),
                     ],
                   ),
@@ -82,26 +91,33 @@ class EliminationSupportBar extends StatelessWidget {
                 if (onOpenTutorial != null)
                   TextButton.icon(
                     onPressed: onOpenTutorial,
-                    icon: const Icon(Icons.school_outlined, size: 18),
-                    label: const Text('操作を練習'),
+                    icon: Icon(Icons.school_outlined, size: 18, color: pack.accent),
+                    label: Text('操作を練習', style: TextStyle(color: pack.accent)),
                   ),
                 if (showResultButton && onOpenResult != null)
                   TextButton(
                     onPressed: onOpenResult,
-                    child: const Text('リザルト'),
+                    child: Text('リザルト', style: TextStyle(color: pack.accent)),
                   ),
               ],
             ),
             if (rule.supportsCameraJack || rule.supportsFacilitySabotage) ...[
               const SizedBox(height: 8),
-              Text(primaryLine, style: theme.textTheme.labelMedium),
+              Text(
+                primaryLine,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: pack.textOnPanel,
+                ),
+              ),
               if (secondaryActionLine != null &&
                   secondaryActionLine!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     secondaryActionLine!,
-                    style: theme.textTheme.labelMedium,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: pack.mutedOnPanel,
+                    ),
                   ),
                 ),
               if (chargeActive && chargeProgress != null) ...[
@@ -109,18 +125,27 @@ class EliminationSupportBar extends StatelessWidget {
                 LinearProgressIndicator(value: chargeProgress),
                 Text(
                   '$chargeLabel… ${(chargeProgress! * 100).round()}%',
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: pack.mutedOnPanel,
+                  ),
                 ),
               ] else if (personalCooldownSeconds != null &&
                   personalCooldownSeconds! > 0)
                 Text(
                   '個人CD: あと ${personalCooldownSeconds}s',
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: pack.mutedOnPanel,
+                  ),
                 ),
             ],
             if (statusLine != null && statusLine!.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(statusLine!, style: theme.textTheme.bodySmall),
+              Text(
+                statusLine!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: pack.mutedOnPanel,
+                ),
+              ),
             ],
           ],
         ),

@@ -136,6 +136,7 @@ import '../proximity/idle_proximity_service.dart';
 import '../proximity/proximity_service.dart';
 import '../proximity/proximity_signal.dart';
 import '../sync/firestore_room_session.dart';
+import '../sync/host_presence_status.dart';
 import '../sync/match_elapsed_sync.dart';
 import '../sync/room_event_deduper.dart';
 import '../sync/inspector_feed_snapshot.dart';
@@ -147,8 +148,11 @@ import '../sync/remote_member_snapshot.dart';
 import '../sync/room_member_view.dart';
 import '../services/location_service.dart';
 import '../services/background_crisis_alert.dart';
+import '../services/resume_crisis_summary.dart';
 import '../services/battery_power_mode.dart';
 import '../services/match_archive_store.dart';
+import '../services/match_archive_merger.dart';
+import '../services/match_replay_latest_fetch.dart';
 import '../services/match_recorder.dart';
 import '../services/spectator_match_recorder.dart';
 import '../services/play_area_slot_store.dart';
@@ -308,6 +312,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   MatchRecorder? _matchRecorder;
   SpectatorMatchRecorder? _spectatorMatchRecorder;
   SavedMatchRecord? _lastSpectatorRecord;
+  SavedMatchRecord? _lastSavedMatchRecord;
+  SavedMatchRecord? _lastMergedMatchRecord;
+  int? _lastMatchSessionKey;
   Future<void>? _finalizeRecordingFuture;
   bool _trajectoryConsent = true;
   late WorldProfile _activeProfile;
@@ -363,6 +370,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   DateTime? _abortProposalExpiresAt;
   Timer? _abortProposalTimer;
   bool _hostAbsentClaimInFlight = false;
+  bool _matchEndRescueInFlight = false;
+  final ResumeCrisisSummaryCollector _resumeCrisisCollector =
+      ResumeCrisisSummaryCollector();
   final Map<String, Set<String>> _captureAcksByPlace = {};
   DateTime? _lastBodyThrowAreaToastAt;
   DateTime? _lastHunterPositionPublishAt;
@@ -507,12 +517,14 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (!mounted || _gameState != GameState.waiting) return;
 
     if (!await OnboardingPrefs.welcomeSeen()) {
+      if (!mounted || _gameState != GameState.waiting) return;
       await showWelcomeFlow(context, offerTutorial: false);
       await OnboardingPrefs.markWelcomeSeen();
       if (!mounted || _gameState != GameState.waiting) return;
     }
 
     if (!await OnboardingPrefs.structureGuideSeen()) {
+      if (!mounted || _gameState != GameState.waiting) return;
       await showMatchStructureGuide(context);
       await OnboardingPrefs.markStructureGuideSeen();
       if (!mounted || _gameState != GameState.waiting) return;
@@ -523,6 +535,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       return;
     }
 
+    if (!mounted || _gameState != GameState.waiting) return;
     final seeGuide = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -1741,9 +1754,9 @@ class _GameMapScreenState extends State<GameMapScreen>
       _mapController?.animateCamera(CameraUpdate.newLatLng(next));
     }
 
-    final skipLocalEvaluate = _inResumeCatchUpGrace &&
+    final skipLocalEvaluate = _gameState == GameState.running &&
         _isOnlineFirestore &&
-        _gameState == GameState.running;
+        (_appInBackground || _inResumeCatchUpGrace);
     if (!skipLocalEvaluate) {
       _evaluateGame();
     }
@@ -1776,6 +1789,8 @@ class _GameMapScreenState extends State<GameMapScreen>
         );
         _maybePublishInspectorFeed();
       }
+    } else if (_gameState == GameState.caughtByOni && _afterCatchRule != null) {
+      _matchRecorder?.tryAppendSecondGame(next);
     }
     if (overlayOnly) {
       _scheduleMapOverlayPublish();
@@ -1842,9 +1857,15 @@ class _GameMapScreenState extends State<GameMapScreen>
       endReason: endReason,
       winningFaction: winningFaction,
       gimmickLayout: _currentGimmickLayout(),
+      worldProfile: _activeProfile.name,
+      onlineRoomId: _firestoreSession?.roomId,
+      onlineSessionKey: _firestoreSession?.currentMatchStart?.gimmickSeed,
     );
     _matchRecorder = null;
     if (rec == null) return;
+    _lastSavedMatchRecord = rec;
+    _lastMergedMatchRecord = null;
+    _lastMatchSessionKey = _firestoreSession?.currentMatchStart?.gimmickSeed;
     try {
       await _matchArchive.save(rec);
       unawaited(_uploadOnlineMatchArchive(rec));
@@ -1901,6 +1922,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     );
     _spectatorMatchRecorder = null;
     _lastSpectatorRecord = rec;
+    _lastMatchSessionKey = _firestoreSession?.currentMatchStart?.gimmickSeed;
     if (rec == null) return;
     try {
       await _matchArchive.save(rec);
@@ -2278,6 +2300,12 @@ class _GameMapScreenState extends State<GameMapScreen>
             Navigator.of(context).pop();
             await _openMatchGallery();
           },
+          onOpenReplay: _lastSavedMatchRecord != null
+              ? () => _openMatchReplay()
+              : null,
+          replayTrackCount: (_lastMergedMatchRecord ?? _lastSavedMatchRecord)
+              ?.tracks
+              .length,
         ),
         direction: SceneTransitionDirection.up,
         worldProfile: _activeProfile,
@@ -2307,13 +2335,8 @@ class _GameMapScreenState extends State<GameMapScreen>
           spectatorRecord: spectatorRecord,
           onOpenReplay: spectatorRecord == null
               ? null
-              : () {
-                  AppNav.push<void>(
-                    context,
-                    (_) => MatchReplayScreen(record: spectatorRecord),
-                    worldProfile: _activeProfile,
-                  );
-                },
+              : () => _openMatchReplay(prefer: spectatorRecord),
+          replayTrackCount: spectatorRecord?.tracks.length,
           onPrepareNext: () {
             Navigator.of(context).pop();
             _resetGame();
@@ -3062,6 +3085,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     final bool isOutBeyondGrace =
         overflowMeters > GameConfig.outsideAreaGraceMeters;
     final running = _gameState == GameState.running;
+    final showHostWaitingBanner = running &&
+        _isOnlineFirestore &&
+        !_isHost &&
+        HostPresenceStatus.showWaitingWarning(
+          _firestoreSession?.hostMember,
+          DateTime.now().toUtc(),
+        );
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
     final ended =
@@ -3784,11 +3814,20 @@ class _GameMapScreenState extends State<GameMapScreen>
                             _enterPrepMapMode(PrepMapMode.browse),
                       ),
               ),
+            if (showHostWaitingBanner)
+              Positioned(
+                top: showHudPanel ? 88 : 12,
+                left: 16,
+                right: 16,
+                child: const _HostWaitingBanner(),
+              ),
             if (running &&
                 isOutBeyondGrace &&
                 _rt.outsideAreaSince != null)
               Positioned(
-                top: showHudPanel ? 88 : 12,
+                top: showHostWaitingBanner
+                    ? (showHudPanel ? 148 : 72)
+                    : (showHudPanel ? 88 : 12),
                 left: 16,
                 right: 16,
                 child: _OutsideAreaWarningBanner(
@@ -3839,8 +3878,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                 ),
               ),
-            if (_gameState == GameState.waiting &&
-                _inlineStatusMessage != null)
+            if (_inlineStatusMessage != null &&
+                (_gameState == GameState.waiting ||
+                    running ||
+                    _inResumeCatchUpGrace))
               Positioned(
                 top: 8,
                 left: 16,
@@ -3901,6 +3942,38 @@ class _OutsideAreaWarningBanner extends StatelessWidget {
                     ? '${MatchHudCopy.outsideAreaCountdownPrefix} $remain '
                         '${MatchHudCopy.outsideAreaCountdownSuffix}'
                     : MatchHudCopy.outsideAreaBorderHint,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HostWaitingBanner extends StatelessWidget {
+  const _HostWaitingBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.blueGrey.shade900.withValues(alpha: 0.9),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.hourglass_top, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'ホストが一時的に離れています。復帰またはホスト引継ぎを待っています',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,

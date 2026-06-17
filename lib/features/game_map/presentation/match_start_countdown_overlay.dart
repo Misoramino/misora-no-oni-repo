@@ -32,7 +32,7 @@ Future<void> showMatchStartCountdown({
     barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.62),
     transitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (_, __, ___) => _MatchStartCountdownOverlay(
+    pageBuilder: (context, animation, secondaryAnimation) => _MatchStartCountdownOverlay(
       profile: profile,
       pack: pack,
     ),
@@ -123,7 +123,7 @@ class _MatchStartCountdownOverlayState extends State<_MatchStartCountdownOverlay
         children: [
           AnimatedBuilder(
             animation: _pulse,
-            builder: (_, __) => LaunchEffectOverlay(
+            builder: (context, child) => LaunchEffectOverlay(
               branding: _branding,
               progress: _pulse.value,
             ),

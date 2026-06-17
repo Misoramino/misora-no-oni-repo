@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../audio/game_audio.dart';
 import '../audio/sfx_id.dart';
+import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/world_studio_identity_catalog.dart';
 import '../presentation/world/world_ui_layout.dart';
@@ -23,22 +24,28 @@ Future<T?> showAppDialog<T>({
     barrierDismissible: barrierDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: Colors.black.withValues(alpha: 0.72),
-    transitionDuration: studio.motion.dialog,
-    pageBuilder: (ctx, animation, secondary) => builder(ctx),
-    transitionBuilder: (ctx, animation, secondary, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: studio.motion.emphasisCurve,
-        reverseCurve: studio.motion.exitCurve,
-      );
-      return FadeTransition(
+  transitionDuration: const Duration(milliseconds: 220),
+  pageBuilder: (ctx, animation, secondary) => builder(ctx),
+  transitionBuilder: (ctx, animation, secondary, child) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutBack,
+      reverseCurve: studio.motion.exitCurve,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(curved),
+      child: FadeTransition(
         opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.88, end: 1).animate(curved),
+          scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
           child: child,
         ),
-      );
-    },
+      ),
+    );
+  },
   );
 }
 
@@ -68,6 +75,7 @@ class AppDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final color = accent ?? scheme.primary;
+    final pack = WorldPresentationCatalog.of(context.worldProfile);
     final maxHeight = MediaQuery.sizeOf(context).height * maxHeightFraction;
 
     return Dialog(
@@ -113,6 +121,7 @@ class AppDialog extends StatelessWidget {
                       title,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: pack.textOnPanel,
                       ),
                     ),
                   ),

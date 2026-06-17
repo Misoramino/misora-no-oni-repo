@@ -43,7 +43,7 @@ Future<void> runPlayAreaOrbitCinema({
     barrierDismissible: false,
     barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (_, __, ___) => _OrbitCinemaMapDialog(
+    pageBuilder: (context, animation, secondaryAnimation) => _OrbitCinemaMapDialog(
       area: area,
       profile: profile,
       mapStyleJson: mapStyleJson,
@@ -207,11 +207,6 @@ class _OrbitCinemaMapDialogState extends State<_OrbitCinemaMapDialog> {
 
   Future<void> _onMapCreated(GoogleMapController c) async {
     _controller = c;
-    if (widget.mapStyleJson != null) {
-      try {
-        await c.setMapStyle(widget.mapStyleJson);
-      } catch (_) {}
-    }
     if (_started || !mounted) return;
     _started = true;
     await _playOrbitSequence(c, widget.area, widget.profile);
@@ -266,6 +261,7 @@ class _OrbitCinemaMapDialogState extends State<_OrbitCinemaMapDialog> {
         fit: StackFit.expand,
         children: [
           GoogleMap(
+            style: widget.mapStyleJson,
             initialCameraPosition: CameraPosition(
               target: widget.area.anchorCenter,
               zoom: _zoomForArea(widget.area),

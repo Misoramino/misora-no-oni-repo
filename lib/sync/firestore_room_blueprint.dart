@@ -32,11 +32,21 @@ abstract final class MatchArchiveFields {
   static const nickname = 'nickname';
   static const role = 'role';
   static const samples = 'samples';
+  static const events = 'events';
+  static const reveals = 'reveals';
+  static const endReason = 'endReason';
+  static const winningFaction = 'winningFaction';
+  static const gimmickLayout = 'gimmickLayout';
+  static const worldProfile = 'worldProfile';
+  static const onlineRoomId = 'onlineRoomId';
+  static const onlineSessionKey = 'onlineSessionKey';
+  static const trackKinds = 'trackKinds';
 }
 
 abstract final class MatchArchiveKind {
   static const full = 'full';
   static const chunk = 'chunk';
+  static const meta = 'meta';
 }
 
 /// メインのルーム文書フィールドを表す名前（バックエンド実装時の契約）。

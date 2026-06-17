@@ -10,12 +10,16 @@ class MatchFlowTimeline extends StatelessWidget {
     required this.reveals,
     required this.events,
     this.maxItems = 20,
+    this.onSeekTo,
     super.key,
   });
 
   final List<LocationRevealEvent> reveals;
   final List<MatchEvent> events;
   final int maxItems;
+
+  /// 行タップでその時刻へジャンプ（リプレイ用）。
+  final void Function(DateTime atUtc)? onSeekTo;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +70,7 @@ class MatchFlowTimeline extends StatelessWidget {
               height: 12,
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
             ),
-          _TimelineRow(item: shown[i]),
+          _TimelineRow(item: shown[i], onSeekTo: onSeekTo),
         ],
       ],
     );
@@ -88,9 +92,10 @@ class _FlowItem {
 }
 
 class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({required this.item});
+  const _TimelineRow({required this.item, this.onSeekTo});
 
   final _FlowItem item;
+  final void Function(DateTime atUtc)? onSeekTo;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +104,7 @@ class _TimelineRow extends StatelessWidget {
         '${item.at.toLocal().hour.toString().padLeft(2, '0')}:'
         '${item.at.toLocal().minute.toString().padLeft(2, '0')}:'
         '${item.at.toLocal().second.toString().padLeft(2, '0')}';
-    return Row(
+    final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(item.icon, size: 18, color: theme.colorScheme.primary),
@@ -131,6 +136,18 @@ class _TimelineRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (onSeekTo == null) return content;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onSeekTo!(item.at),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: content,
+        ),
+      ),
     );
   }
 }

@@ -2,6 +2,33 @@
 
 > **引き継ぎの入口:** [HANDBOOK.md](./HANDBOOK.md) → 変更の当たり付けは [CHANGE_MAP.md](./CHANGE_MAP.md)
 
+## 30 分で把握する全体像
+
+```
+Presentation (WorldPresentationPack, WorldScaffold, morph)
+        ↓
+Screens / GameMapScreen (状態機械・地図)
+        ↓
+Game (rules, MatchRecorder, play area)
+        ↓
+Sync (FirestoreRoomSession, RoomMatchEvent)
+        ↓
+Firestore (rooms / events / matchArchives)  ← firestore.rules
+        ↓
+Replay (ReplayDirector, enricher, gallery fetch)
+        ↓
+Gallery (MatchArchiveStore, 端末保存)
+        ↓
+Audio (WorldAudioDirector → GameAudio)
+        ↓
+Storage (SharedPreferences, 軌跡ファイル)
+        ↓
+Settings (個人設定・世界観・通知)
+```
+
+詳細パイプライン: [event_pipeline.md](./event_pipeline.md)  
+同期 API 一覧: [sync.md](./sync.md)
+
 ## ディレクトリ概要
 
 | パス | 役割 |

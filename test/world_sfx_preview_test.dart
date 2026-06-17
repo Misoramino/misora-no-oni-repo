@@ -27,7 +27,7 @@ void main() {
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.horror).captureVolume,
-      0.78,
+      0.74,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.horror).uiTapVolume,

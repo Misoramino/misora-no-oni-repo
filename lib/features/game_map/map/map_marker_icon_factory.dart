@@ -89,7 +89,6 @@ abstract final class MapMarkerIconFactory {
       MapMarkerKind.bodyThrow ||
       MapMarkerKind.fakePosition =>
         m.capture,
-      _ => t.markerAccent.withValues(alpha: 0.85),
     };
   }
 

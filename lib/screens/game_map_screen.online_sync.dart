@@ -34,6 +34,30 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       case RoomMatchEventTypes.matchStart:
       case RoomMatchEventTypes.matchEnd:
         return;
+      case RoomMatchEventTypes.matchEndRescue:
+        final outcomeRaw = ev.payload['outcome'] as String?;
+        if (outcomeRaw == null) return;
+        final outcome = GameState.values.firstWhere(
+          (s) => s.name == outcomeRaw,
+          orElse: () => GameState.waiting,
+        );
+        if (outcome == GameState.waiting) return;
+        final message =
+            ev.payload['message'] as String? ?? MatchHudCopy.matchEndTimeUp();
+        final endReason =
+            ev.payload['endReason'] as String? ?? MatchEndReason.timeUp;
+        _maybeBackgroundCrisisAlert(
+          kind: BackgroundCrisisKind.matchEnded,
+          title: '試合終了',
+          body: message,
+        );
+        _endGame(
+          outcome,
+          message,
+          endReason: endReason,
+          skipFirestoreSync: true,
+        );
+        return;
       case RoomMatchEventTypes.reveal:
         if (ev.actorUid == fs.myUid) return;
         _applyRemoteReveal(ev);

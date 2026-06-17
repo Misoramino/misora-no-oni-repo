@@ -67,7 +67,6 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
   late final List<_Step> _steps = _buildSteps(widget.kind);
   int _index = 0;
   bool _stepDone = false;
-  double _stepElapsed = 0;
   bool _finished = false;
   bool _charging = false;
   double _chargeProgress = 0;
@@ -152,7 +151,6 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     _lastTick = elapsed;
     if (_finished) return;
 
-    _stepElapsed += dt;
     var dirty = false;
 
     final target = _moveTarget;
@@ -202,7 +200,6 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     setState(() {
       _index++;
       _stepDone = false;
-      _stepElapsed = 0;
       _charging = false;
       _chargeProgress = 0;
       _flashMessage = null;
@@ -221,7 +218,6 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     setState(() {
       _index = 0;
       _stepDone = false;
-      _stepElapsed = 0;
       _charging = false;
       _chargeProgress = 0;
       _flashMessage = null;

@@ -224,21 +224,158 @@ extension _GameMapPresentation on _GameMapScreenState {
         if (err != null && mounted) {
           _toast('観戦記録の共有に失敗: $err');
         }
+        await _fetchAndSaveMergedArchive(rec, sessionKey);
         return;
       }
 
-      if (!rec.consentedToTrajectory) return;
-      final samples = rec.tracks[MatchTrackIds.runnerLocal] ?? const [];
-      if (samples.length < 2) return;
-      final err = await fs.publishMatchTrackChunk(
+      if (!rec.consentedToTrajectory) {
+        await _fetchAndSaveMergedArchive(rec, sessionKey);
+        return;
+      }
+
+      final samples = _trackSamplesForArchiveUpload(rec);
+      if (samples.length >= 2) {
+        final err = await fs.publishMatchTrackChunk(
+          sessionKey: sessionKey,
+          nickname: _localPlayerLabel,
+          role: _localRole,
+          samples: samples,
+        );
+        if (err != null && mounted) {
+          _toast('軌跡の共有に失敗: $err');
+        }
+      }
+
+      final metaErr = await fs.publishMatchArchiveMeta(
         sessionKey: sessionKey,
-        nickname: _localPlayerLabel,
-        role: _localRole,
-        samples: samples,
+        record: rec,
       );
-      if (err != null && mounted) {
-        _toast('軌跡の共有に失敗: $err');
+      if (metaErr != null && mounted) {
+        _toast('試合ログの共有に失敗: $metaErr');
+      }
+
+      await _fetchAndSaveMergedArchive(rec, sessionKey);
+    } catch (_) {}
+  }
+
+  List<TrajectorySample> _trackSamplesForArchiveUpload(SavedMatchRecord rec) {
+    if (_localRole == PlayerRole.hunter) {
+      return rec.tracks[MatchTrackIds.oniLocal] ??
+          rec.tracks[MatchTrackIds.runnerLocal] ??
+          const [];
+    }
+    return rec.tracks[MatchTrackIds.runnerLocal] ?? const [];
+  }
+
+  Future<void> _fetchAndSaveMergedArchive(
+    SavedMatchRecord local,
+    int sessionKey,
+  ) async {
+    final fs = _firestoreSession;
+    if (fs == null || !_isOnlineFirestore) return;
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    try {
+      final remote = await fs.fetchMergedMatchArchive(
+        sessionKey,
+        localFallback: local,
+      );
+      if (remote == null || !mounted) return;
+      final merged = MatchArchiveMerger.merge(local: local, remote: remote);
+      _lastMergedMatchRecord = merged;
+      await _matchArchive.save(merged);
+      if (mounted && merged.tracks.length > local.tracks.length) {
+        _toast('全員の軌跡を取得しました（ギャラリーで再生）');
       }
     } catch (_) {}
+  }
+
+  Future<void> _openMatchReplay({SavedMatchRecord? prefer}) async {
+    final local = prefer ?? _lastMergedMatchRecord ?? _lastSavedMatchRecord;
+    if (local == null) {
+      if (mounted) _toast('再生できる軌跡がありません');
+      return;
+    }
+
+    final fs = _firestoreSession;
+    final sessionKey =
+        fs?.currentMatchStart?.gimmickSeed ?? _lastMatchSessionKey;
+    final attemptRemote =
+        fs != null && sessionKey != null && _isOnlineFirestore;
+
+    var loadingShown = false;
+    if (attemptRemote && mounted) {
+      loadingShown = true;
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => PopScope(
+            canPop: false,
+            child: AlertDialog(
+              content: Row(
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Text(
+                      '試合記録を更新しています…',
+                      style: Theme.of(ctx).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final firestore = fs;
+    final key = sessionKey;
+
+    MatchReplayResolveResult resolved;
+    try {
+      resolved = await MatchReplayLatestFetch.resolveForResultReplay(
+        local: local,
+        attemptRemote: attemptRemote,
+        fetchRemote: attemptRemote && firestore != null && key != null
+            ? () => firestore.fetchMergedMatchArchive(
+                  key,
+                  localFallback: local,
+                )
+            : null,
+      );
+    } finally {
+      if (loadingShown && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+
+    if (!mounted) return;
+
+    final toast = MatchReplayLatestFetch.toastAfterResolve(
+      resolved,
+      attemptedRemote: attemptRemote,
+    );
+    if (toast != null) _toast(toast);
+
+    final rec = resolved.record;
+    if (rec == null) {
+      _toast('再生できる軌跡がありません');
+      return;
+    }
+
+    if (resolved.source == MatchReplayFetchSource.remoteMerged) {
+      _lastMergedMatchRecord = rec;
+      await _matchArchive.save(rec);
+    }
+
+    if (!mounted) return;
+    await AppNav.push<void>(
+      context,
+      (_) => MatchReplayScreen(record: rec),
+      worldProfile: rec.effectiveWorldProfile,
+    );
   }
 }

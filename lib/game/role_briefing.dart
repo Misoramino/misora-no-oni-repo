@@ -81,7 +81,7 @@ abstract final class RoleBriefingCatalog {
         '安全地帯 … 未来の安全を買う（一定時間、追跡されにくくなる）。',
         '鬼に近づきすぎると危ない（${GuideTerms.panic}は脱落しません）。',
         '他役職: 鬼は痕跡で追う／人狼は人数で味方が変わる。',
-        if (extra != null) extra,
+        ?extra,
       ],
     );
   }

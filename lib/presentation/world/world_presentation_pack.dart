@@ -160,15 +160,47 @@ class WorldPresentationPack {
   bool get isLightScaffold => scaffoldTop.computeLuminance() > 0.45;
 
   /// スキャフォールド上の本文色（パネル外テキスト）。
-  Color get textOnScaffold =>
-      isLightScaffold ? const Color(0xFF1A1A2E) : onAccent;
+  Color get textOnScaffold {
+    if (isLightScaffold) return const Color(0xFF1A1A2E);
+    return onAccent.computeLuminance() > 0.45
+        ? onAccent
+        : const Color(0xFFE8E4DC);
+  }
 
   /// スキャフォールド上の補助テキスト色。
-  Color get mutedOnScaffold => isLightScaffold
-      ? const Color(0xFF424242)
-      : onAccent.withValues(alpha: 0.85);
+  Color get mutedOnScaffold {
+    if (isLightScaffold) return const Color(0xFF424242);
+    final base = textOnScaffold;
+    return base.withValues(alpha: 0.85);
+  }
+
+  /// 明るいパネル（和・洋館など）かどうか。
+  bool get isLightPanel => panelSurface.computeLuminance() > 0.55;
+
+  /// パネル / Card / Dialog 上の本文色。
+  Color get textOnPanel {
+    if (isLightPanel) return const Color(0xFF1A1A2E);
+    return onAccent.computeLuminance() > 0.45
+        ? onAccent
+        : const Color(0xFFE8E4DC);
+  }
+
+  /// パネル上の補助テキスト色。
+  Color get mutedOnPanel {
+    if (isLightPanel) return const Color(0xFF424242);
+    final base = textOnPanel;
+    return base.withValues(alpha: 0.85);
+  }
 
   /// フィルドボタン上のラベル色（アクセント上は常に高コントラスト）。
   Color get buttonLabelOnAccent =>
       accent.computeLuminance() > 0.55 ? const Color(0xFF1A1A2E) : Colors.white;
+
+  /// 暗いスキャフォールド上で薄いアクセントを読みやすくする。
+  Color readableOnScaffold(Color color) {
+    if (!isLightScaffold && color.computeLuminance() < 0.42) {
+      return textOnScaffold;
+    }
+    return color;
+  }
 }

@@ -76,6 +76,9 @@ class WorldMusicProfile {
     this.captureDuckHoldMs = 480,
     this.accusationSilenceMs = 220,
     this.matchAmbientOneShotsEnabled = true,
+    this.replayMusic,
+    this.replayGain = 0.4,
+    this.replayAmbientGain = 0.14,
   });
 
   final BgmId introMusic;
@@ -117,4 +120,11 @@ class WorldMusicProfile {
   ///
   /// 常時 Ambient レイヤーがある世界観は `false` にして二重再生を防ぐ。
   final bool matchAmbientOneShotsEnabled;
+
+  /// リプレイ専用（未指定時は [galleryPreviewMusic]）。
+  final BgmId? replayMusic;
+  final double replayGain;
+  final double replayAmbientGain;
+
+  BgmId get effectiveReplayMusic => replayMusic ?? galleryPreviewMusic;
 }

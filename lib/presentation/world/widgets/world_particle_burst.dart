@@ -47,7 +47,7 @@ class _WorldParticleBurstState extends State<WorldParticleBurst>
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _c,
-        builder: (_, __) {
+        builder: (context, child) {
           if (_c.value == 0 && !_c.isAnimating) {
             return const SizedBox.shrink();
           }
