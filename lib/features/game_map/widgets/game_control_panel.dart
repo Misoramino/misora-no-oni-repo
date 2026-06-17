@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../game/game_config.dart';
 import '../../../game/skill_ids.dart';
 import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/world_profile.dart';
@@ -49,6 +50,9 @@ class GameControlPanel extends StatelessWidget {
     required this.fakeIntelCooldownSeconds,
     required this.captureCooldownSeconds,
     required this.bodyThrowCooldownSeconds,
+    this.bodyThrowPuppetActive = false,
+    this.bodyThrowRecoverInRange = false,
+    this.skillsLockedByBodyThrow = false,
     this.werewolfOniActive = false,
     required this.werewolfCooldownSeconds,
     required this.prepLobbyMapHidden,
@@ -99,6 +103,9 @@ class GameControlPanel extends StatelessWidget {
   final int fakeIntelCooldownSeconds;
   final int captureCooldownSeconds;
   final int bodyThrowCooldownSeconds;
+  final bool bodyThrowPuppetActive;
+  final bool bodyThrowRecoverInRange;
+  final bool skillsLockedByBodyThrow;
   final bool werewolfOniActive;
   final int werewolfCooldownSeconds;
   final bool prepLobbyMapHidden;
@@ -119,6 +126,7 @@ class GameControlPanel extends StatelessWidget {
   final String? playAreaSummary;
 
   Widget _buildSkillRow({required bool compact}) {
+    final locked = skillsLockedByBodyThrow;
     final skills = <Widget>[
       if (canFakeSkill)
         SkillActionButton(
@@ -128,7 +136,8 @@ class GameControlPanel extends StatelessWidget {
           buffSeconds: fakeActiveSeconds > 0 ? fakeActiveSeconds : null,
           cooldownSeconds: fakeCooldownSeconds,
           compact: compact,
-          onPressed: isEditing ? null : onFakeSkill,
+          blocked: locked,
+          onPressed: isEditing || locked ? null : onFakeSkill,
         ),
       if (canFakeIntelReveal)
         SkillActionButton(
@@ -136,7 +145,8 @@ class GameControlPanel extends StatelessWidget {
           icon: Icons.report,
           cooldownSeconds: fakeIntelCooldownSeconds,
           compact: compact,
-          onPressed: isEditing ? null : onFakeIntelReveal,
+          blocked: locked,
+          onPressed: isEditing || locked ? null : onFakeIntelReveal,
         ),
       if (canWerewolfHunter)
         SkillActionButton(
@@ -145,7 +155,8 @@ class GameControlPanel extends StatelessWidget {
           active: werewolfOniActive,
           cooldownSeconds: werewolfCooldownSeconds,
           compact: compact,
-          onPressed: isEditing ? null : onWerewolfHunter,
+          blocked: locked,
+          onPressed: isEditing || locked ? null : onWerewolfHunter,
         ),
       if (canCaptureZone)
         SkillActionButton(
@@ -153,15 +164,23 @@ class GameControlPanel extends StatelessWidget {
           icon: Icons.trip_origin,
           cooldownSeconds: captureCooldownSeconds,
           compact: compact,
-          onPressed: isEditing ? null : onCaptureZone,
+          blocked: locked,
+          onPressed: isEditing || locked ? null : onCaptureZone,
         ),
       if (canBodyThrow)
         SkillActionButton(
-          label: skillShortLabel(SkillIds.bodyThrow),
+          label: bodyThrowPuppetActive ? '回収' : skillShortLabel(SkillIds.bodyThrow),
           icon: Icons.near_me,
-          cooldownSeconds: bodyThrowCooldownSeconds,
+          active: bodyThrowPuppetActive && bodyThrowRecoverInRange,
+          auxLine: bodyThrowPuppetActive && !bodyThrowRecoverInRange
+              ? '約${GameConfig.bodyThrowRecoveryDistanceMeters.toStringAsFixed(0)}m以内'
+              : null,
+          cooldownSeconds: bodyThrowPuppetActive ? 0 : bodyThrowCooldownSeconds,
           compact: compact,
-          onPressed: isEditing ? null : onBodyThrow,
+          onPressed: isEditing ||
+                  (bodyThrowPuppetActive && !bodyThrowRecoverInRange)
+              ? null
+              : onBodyThrow,
         ),
     ];
     if (skills.isEmpty) {

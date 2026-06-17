@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../game/skill_ids.dart';
+import '../../game/skill_reference.dart';
 import 'guide_diagram_type.dart';
 import 'guide_models.dart';
 import 'guide_terms.dart';
@@ -46,6 +48,33 @@ Iterable<String> get guideSpecCardIds sync* {
   }
 }
 
+/// 全章のカード ID（チュートリアル等のジャンプ先検証用）。
+Iterable<String> get guideCardIds sync* {
+  for (final s in howToPlaySections) {
+    for (final c in s.cards) {
+      yield c.id;
+    }
+  }
+}
+
+GuideCardData? guideCardById(String id) {
+  for (final s in howToPlaySections) {
+    for (final c in s.cards) {
+      if (c.id == id) return c;
+    }
+  }
+  return null;
+}
+
+String? guideSectionIdForCard(String cardId) {
+  for (final s in howToPlaySections) {
+    for (final c in s.cards) {
+      if (c.id == cardId) return s.id;
+    }
+  }
+  return null;
+}
+
 // --- helpers ---
 
 GuideCardData _card({
@@ -87,6 +116,29 @@ GuideDetailData _detail({
   String? specCardId,
 }) =>
     GuideDetailData(title: title, body: body, specCardId: specCardId);
+
+GuideCardData _skillGuideCard(SkillSpec spec, IconData icon) => _card(
+      id: spec.guideCardId,
+      title: spec.shortTitle,
+      icon: icon,
+      oneLine: spec.oneLine,
+      body: spec.guideBody,
+      details: [
+        _detail(title: '操作', body: spec.operation),
+        for (final d in spec.guideDetails)
+          _detail(title: d.title, body: d.body, specCardId: 'spec_skills'),
+      ],
+      footnote: '数値一覧 → 詳細ルール「スキル」',
+    );
+
+IconData _skillIcon(SkillSpec spec) => switch (spec.id) {
+      SkillIds.fakePosition => Icons.scatter_plot_outlined,
+      SkillIds.fakeIntelReveal => Icons.psychology_alt_outlined,
+      SkillIds.bodyThrow => Icons.near_me_outlined,
+      SkillIds.captureZone => Icons.trip_origin,
+      SkillIds.werewolfTransform => Icons.auto_fix_high_outlined,
+      _ => Icons.bolt_outlined,
+    };
 
 GuideCardData _specCard({
   required String id,
@@ -555,6 +607,15 @@ final _rolesSection = GuideSectionData(
       icon: Icons.directions_run_rounded,
       oneLine: '逃げて、手がかりを読み、鬼を当てる。',
       body: '人陣営の基本。告発が解禁されたら${GuideTerms.realOni}を指名できます。',
+      details: [
+        _detail(
+          title: '装備スキル（候補から1つ）',
+          body:
+              '・${SkillReference.fakePosition.shortTitle} — ${SkillReference.fakePosition.oneLine}\n'
+              '・${SkillReference.captureZone.shortTitle} — ${SkillReference.captureZone.oneLine}',
+          specCardId: 'spec_skills',
+        ),
+      ],
     ),
     _card(
       id: 'true_oni',
@@ -562,13 +623,25 @@ final _rolesSection = GuideSectionData(
       icon: Icons.nightlight_round,
       oneLine: '追って、捕まえる。鬼陣営の中心。',
       body: '逃走者を全員捕まえれば鬼側の勝ち。手がかりを読んで追い詰めます。',
+      details: [
+        _detail(
+          title: '装備スキル（候補から2つ）',
+          body:
+              '・${SkillReference.fakeIntelReveal.shortTitle} — ${SkillReference.fakeIntelReveal.oneLine}\n'
+              '・${SkillReference.bodyThrow.shortTitle} — ${SkillReference.bodyThrow.oneLine}\n'
+              '・${SkillReference.captureZone.shortTitle} — ${SkillReference.captureZone.oneLine}',
+          specCardId: 'spec_skills',
+        ),
+      ],
     ),
     _card(
       id: 'werewolf',
       title: GuideTerms.werewolf,
       icon: Icons.psychology_alt_rounded,
       oneLine: '鬼のようには動けるが、${GuideTerms.realOni}ではない。',
-      body: '「鬼化」中だけ追跡・拘束可能。告発の正解にはなりません。',
+      body:
+          '「鬼化・人化」で姿を切り替え。鬼化中だけ追跡・拘束可能。告発の正解にはなりません。\n'
+          '${SkillReference.werewolfTransform.effect}',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.werewolfNotOni,
         title: '${GuideTerms.werewolf} ≠ ${GuideTerms.realOni}',
@@ -586,6 +659,12 @@ final _rolesSection = GuideSectionData(
               '試合が進むと人は捕まって減っていきます。'
               'だから多くの試合では前半は鬼側・後半は人側の味方になりやすい、'
               'と覚えるとラクです。',
+        ),
+        _detail(
+          title: '装備スキル',
+          body:
+              '・${SkillReference.werewolfTransform.shortTitle} — ${SkillReference.werewolfTransform.oneLine}',
+          specCardId: 'spec_skills',
         ),
       ],
     ),
@@ -625,27 +704,46 @@ final _skillsSection = GuideSectionData(
   ),
   cards: [
     _card(
+      id: 'skill_roster',
+      title: 'スキル一覧',
+      icon: Icons.list_alt_outlined,
+      oneLine: '役職ごとに装備できるスキル。',
+      body:
+          '逃走者：${SkillReference.fakePosition.shortTitle} / ${SkillReference.captureZone.shortTitle} から1つ\n'
+          '鬼：${SkillReference.fakeIntelReveal.shortTitle} / ${SkillReference.bodyThrow.shortTitle} / ${SkillReference.captureZone.shortTitle} から2つ\n'
+          '人狼：${SkillReference.werewolfTransform.shortTitle}',
+      bullets: [
+        for (final s in SkillReference.all) '【${s.shortTitle}】${s.oneLine}',
+      ],
+      details: [
+        _detail(
+          title: '数値・射程・CD',
+          body: '各スキルカードの「操作」か、詳細ルール章の「スキル」表を見てください。',
+          specCardId: 'spec_skills',
+        ),
+      ],
+    ),
+    _card(
       id: 'skill_basic',
       title: '基本',
       icon: Icons.info_outline,
       oneLine: '役職ごとに1〜2個。目的を決めてから使う。',
       body:
-          '逃走者：候補から1つ／鬼：候補から2つ／人狼：鬼化。\n'
+          '逃走者：候補から1つ／鬼：候補から2つ／人狼：${SkillReference.werewolfTransform.shortTitle}。\n'
           '「1分チュートリアル」で操作の感覚を体験できます。',
       details: [
         _detail(
           title: '即時 vs 地図設置',
           body:
-              '鬼化・偽位置はボタン1回。\n'
-              '捕獲結界・体投げは\n'
-              '①ボタン\n'
-              '②地図を長押し\n'
-              '③離して設置',
+              '即時：${SkillReference.fakePosition.shortTitle}・${SkillReference.werewolfTransform.shortTitle}\n'
+              '地図設置：${SkillReference.captureZone.shortTitle}・${SkillReference.bodyThrow.shortTitle}\n'
+              '選択→設置：${SkillReference.fakeIntelReveal.shortTitle}',
         ),
         _detail(
-          title: '数値を見る',
-          body: '各スキルの持続・射程・クールダウンは詳細ルールに一覧があります。',
-          specCardId: 'spec_skills',
+          title: '体投げの優先',
+          body:
+              '鬼の体投げ人形が稼働中は、他のスキルは使えません。'
+              '暴露の基準も人形側が優先されます。',
         ),
       ],
     ),
@@ -654,50 +752,20 @@ final _skillsSection = GuideSectionData(
       title: '地図に置く',
       icon: Icons.touch_app_outlined,
       oneLine: 'ボタン／長押し／離して設置。',
-      body: '捕獲結界・体投げなど。キャンセルは画面右上の×。',
+      body:
+          '${SkillReference.captureZone.shortTitle}・${SkillReference.bodyThrow.shortTitle}・'
+          '${SkillReference.fakeIntelReveal.shortTitle} は地図操作が必要です。'
+          'キャンセルは画面右上の×。',
       diagram: const GuideDiagramData(
         type: GuideDiagramType.skillPlacement,
         title: '設置の流れ',
         caption: '長押しで範囲確認',
       ),
     ),
-    _card(
-      id: 'fake_position',
-      title: '偽位置',
-      icon: Icons.scatter_plot_outlined,
-      oneLine: '暴露位置をずらす（逃走者）。',
-      body: '鬼の読みを乱します。定期匿名は止まりません。',
-    ),
-    _card(
-      id: 'capture_zone_skill',
-      title: '捕獲結界',
-      icon: Icons.trip_origin,
-      oneLine: '地図に危険エリアを置く（人・鬼どちらも可）。',
-      body: '範囲内の相手を拘束。逃げ切れなければ捕獲につながります。',
-    ),
-    _card(
-      id: 'fake_intel',
-      title: '偽情報暴露',
-      icon: Icons.psychology_alt_outlined,
-      oneLine: '本物っぽい偽の暴露（鬼）。',
-      body: '相手の判断を迷わせます。',
-    ),
-    _card(
-      id: 'body_throw',
-      title: '体投げ',
-      icon: Icons.near_me_outlined,
-      oneLine: '離れた場所に人形を置く（鬼）。',
-      body: '置けない・時間切れだと自分がバレることがあります。',
-    ),
-    _card(
-      id: 'werewolf_transform',
-      title: '鬼化',
-      icon: Icons.auto_fix_high_outlined,
-      oneLine: '一時的に鬼のように追える（人狼）。',
-      body: '${GuideTerms.realOni}ではなく、告発の正解にもなりません。見た目の切替・自動切替は詳細ルールを参照。',
-    ),
+    for (final spec in SkillReference.all)
+      _skillGuideCard(spec, _skillIcon(spec)),
   ],
-  relatedSectionIds: ['combat', 'roles'],
+  relatedSectionIds: ['combat', 'roles', 'spec'],
 );
 
 final _secondGameSection = GuideSectionData(
@@ -830,7 +898,7 @@ final _specSection = GuideSectionData(
         const GuideSpecRow('痕跡', '約7秒ごと'),
         const GuideSpecRow('種別', GuideTerms.anonTrace),
         const GuideSpecRow('脱落', 'しない'),
-        const GuideSpecRow('偽位置中', 'デコイ側に出ることがある'),
+        const GuideSpecRow('偽位置中', '名前付き・匿名・定期暴露はデコイ近傍'),
       ],
     ),
     _specCard(
@@ -853,12 +921,7 @@ final _specSection = GuideSectionData(
       title: '捕獲結界',
       icon: Icons.trip_origin,
       oneLine: 'スキルで置く拘束エリア',
-      rows: const [
-        GuideSpecRow('半径', '約55m'),
-        GuideSpecRow('持続', '約24秒'),
-        GuideSpecRow('クールダウン', '約80秒'),
-        GuideSpecRow('円外猶予', '約10秒'),
-      ],
+      rows: SkillReference.captureZone.specRows,
     ),
     _specCard(
       id: 'spec_info',
@@ -920,35 +983,8 @@ final _specSection = GuideSectionData(
       id: 'spec_skills',
       title: 'スキル',
       icon: Icons.bolt_outlined,
-      oneLine: '装備スキルの数値',
-      groups: const [
-        GuideSpecGroup(
-          title: '偽位置（逃走者）',
-          rows: [
-            GuideSpecRow('持続', '約20秒'),
-            GuideSpecRow('CD', '約72秒'),
-          ],
-        ),
-        GuideSpecGroup(
-          title: '偽情報暴露（鬼）',
-          rows: [GuideSpecRow('CD', '約75秒')],
-        ),
-        GuideSpecGroup(
-          title: '体投げ（鬼）',
-          rows: [
-            GuideSpecRow('射程', '約90m'),
-            GuideSpecRow('人形', '約12秒'),
-            GuideSpecRow('設置猶予', '約22秒'),
-            GuideSpecRow('CD', '約75秒'),
-          ],
-        ),
-        GuideSpecGroup(
-          title: '鬼化（人狼）',
-          rows: [
-            GuideSpecRow('強制切替', '試合時間÷3（最大約10分）'),
-          ],
-        ),
-      ],
+      oneLine: '装備スキルの数値（一次ソース: コードと同期）',
+      groups: SkillReference.specSkillGroups(),
     ),
   ],
   relatedSectionIds: ['outside', 'combat', 'accusation'],

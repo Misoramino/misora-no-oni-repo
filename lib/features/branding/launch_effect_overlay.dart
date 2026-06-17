@@ -465,7 +465,7 @@ class _LaunchEffectPainter extends CustomPainter {
       const [0.0, 1.0],
     );
 
-    _hyperspaceStreaks(canvas, size, cx, cy);
+    _hyperspaceStreaks(canvas, size, cx, cy, subtle: true);
 
     final nebulae = [
       (Offset(size.width * 0.2, size.height * 0.3), 90.0, branding.secondaryAccent),
@@ -773,7 +773,17 @@ class _LaunchEffectPainter extends CustomPainter {
     }
   }
 
-  void _hyperspaceStreaks(Canvas canvas, Size size, double cx, double cy) {
+  void _hyperspaceStreaks(
+    Canvas canvas,
+    Size size,
+    double cx,
+    double cy, {
+    bool subtle = false,
+  }) {
+    if (subtle) {
+      // 試合開始カウント等では中心集中線を出さず、星屑だけにする。
+      return;
+    }
     final warp = (progress * 2.2) % 1.0;
     for (var i = 0; i < 36; i++) {
       final ang = i * 0.42 + warp * 0.3;
@@ -820,16 +830,17 @@ class _LaunchEffectPainter extends CustomPainter {
       ],
       const [0.0, 0.5, 1.0],
     );
-    final line = Paint()
-      ..color = branding.particleColor.withValues(alpha: 0.08)
-      ..strokeWidth = 0.7;
-    for (var x = size.width * 0.08; x < size.width * 0.92; x += 36) {
-      canvas.drawLine(
-        Offset(x, size.height * 0.12),
-        Offset(x, size.height * 0.88),
-        line,
-      );
-    }
+    final ink = Paint()
+      ..color = branding.accent.withValues(alpha: 0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    final w = size.width * (0.18 + progress * 0.55);
+    canvas.drawLine(
+      Offset(size.width * 0.12, size.height * 0.58),
+      Offset(size.width * 0.12 + w, size.height * 0.56),
+      ink,
+    );
     for (var i = 0; i < 8; i++) {
       final t = (progress + i * 0.11) % 1.0;
       canvas.drawCircle(

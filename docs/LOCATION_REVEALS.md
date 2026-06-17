@@ -1,86 +1,86 @@
-# Location reveals (design)
+# 位置暴露（Location Reveals）
 
-## Goals
+> **一次ソース:** `lib/game/skill_reference.dart`, `lib/screens/game_map_screen.reveals_gimmicks.dart`, `docs/PLAYER_REFERENCE.md`  
+> **玩家向け名称:** パニック（コード: infection）、匿名痕跡、名前付き暴露
 
-- Mix **identified** reveals (name + map pin) with **anonymous** clues (position or text only) so players deduce who is where.
-- Fake tools must look like ordinary leaks, not labeled “decoy” on the opponent’s UI.
+## 目的
 
-## Reveal tiers
+- **名前付き暴露**と**匿名痕跡**を混ぜ、相手の位置を断片情報から推理させる。
+- 偽スキルは本物の漏洩と同じ見え方にする（相手の UI に「偽」とは出さない）。
 
-| Tier | Examples | Opponent sees |
-|------|----------|----------------|
-| Identified | Area overflow, infection pulse, body throw, fake intel reveal, **oni info broker** | Player label + violet reveal pin |
-| Text-only | Info broker (runner: direction / distance / fragments) | HUD + clue note at broker pickup |
-| Anonymous | Periodic floor (40s), surveillance camera pass | Pin without a name (“不明な痕跡”) |
+## 暴露の種類
 
-## Skills (intended play)
+| 種類 | 例 | 相手に見えるもの |
+|------|-----|------------------|
+| **名前付き暴露** | エリア外、偽情報暴露、体投げ未回収、結界離脱、鬼の情報屋 | プレイヤー名 + 位置ピン |
+| **匿名痕跡** | パニック中の脈動、監視カメラ、定期匿名 | 「?」痕跡（名前なし） |
+| **テキストのみ** | 逃走者の情報屋 | HUD + 地点メモ（座標ピンなし） |
 
-### Fake position (`fake_position`)
+## 装備スキルと暴露
 
-Runner skill: while active, **location reveals point at a wrong place** (decoy ahead on bearing, drifts ~3.4 m/s per `GameConfig.fakePositionDriftSpeedMps`). Identified reveals during the effect use decoy coordinates. No “偽位置” map marker for others.
+### 偽位置（逃走者）
 
-### Fake intel reveal (`fake_intel_reveal`) — **oni (hunter) skill only**
+- 約20秒。進行方向先にデコイ（約38m）。
+- 効果中の**名前付き・匿名・定期暴露はすべてデコイ近傍**。
+- 体投げ人形稼働中は人形側が優先。
 
-Oni misdirection: frame self or a runner at a false coordinate with a **cover story** from `RevealReasonPool` (same summaries as real leaks).
+### 偽情報暴露（鬼）
 
-### Body double (planned)
+- 自分 or ランダム逃走者の**名前付き暴露**を地図に設置（理由タグなし）。
+- 匿名痕跡ではない。
 
-Alternative to pure fake position: one activation leaks **both** real and decoy positions. Not implemented yet.
+### 体投げ（鬼）
 
-### Infection
+- 人形の位置が捕獲・暴露の基準。約12秒未回収で人形位置が**名前付き暴露**。
+- 地図設置に時間制限なし（×でキャンセル）。
 
-Runner within ~`infectionTriggerDistanceMeters` of the oni for ~`infectionExposureSeconds`, then periodic **identified** reveals every `infectionRevealIntervalSeconds` (uses fake-position decoy if active). Pre-infection warnings for runners.
+## パニック（感染 / infection）
 
-**Not** the same as touch-lock bind or the **capture zone skill** — see `docs/GAME_DESIGN_SPEC.md` §接近・捕獲.
+- 接触圏より外側の環に約6秒 → 約22秒のパニック状態。
+- 約7秒ごとに**匿名痕跡**（`infectionRevealIntervalSeconds`）。**名前付き暴露ではない。**
+- 脱落なし。偽位置中は痕跡もデコイ近傍。
 
-## Anonymous reveals (implemented)
+接触拘束・スキル捕獲結界とは**別タイマー**。詳細は `docs/GAME_DESIGN_SPEC.md`。
 
-### Periodic (40s)
+## 匿名痕跡（実装済み）
 
-- Bucket per `elapsedSeconds ~/ 40`
-- All clients derive the same target UID (`gimmickSeed` + sorted assignment keys)
-- **Only the selected client** publishes Firestore `anonymous_reveal`
-- Map layer “痕跡”: cyan `不明な痕跡` markers
-- Hunters and runners can be selected
+### 定期匿名
 
-### Surveillance camera
+- 間隔: 試合時間の約4%（**75〜180秒**、45分試合で約108秒）。
+- `gimmickSeed` + 参加者から1人を決定的に選択。
+- ホストが Firestore `anonymous_reveal` を publish（オンライン）。
+- 地図: 匿名痕跡マーカー（名前なし）。
 
-- Runner enters camera radius → anonymous reveal with camera reason from pool
-- No player name on the pin
+※ 旧ドキュメントの「40秒固定」は廃止。
 
-## Info broker (implemented)
+### 監視カメラ
 
-### Runner
+- 感知圏通過 → 匿名痕跡（理由: 監視カメラ）。
+- 再検知まで約90秒。
 
-- Text intel: oni direction, distance band, fragment lines
-- Clue memo at pickup point (~10 min), not live oni GPS
-- Personal cooldown: `infoBrokerCooldownSeconds` (35s)
-- Shared gimmick respawn: `infoBrokerRespawnSeconds` (45s)
+## 情報屋
 
-### Oni (hunter) — P3
+### 逃走者
 
-- Same map gimmick; **hunter role only** (not werewolf in runner form)
-- On use: random **one runner** from match assignments
-- Firestore event `oni_info_broker` with `targetUid` → **target runner device** publishes a normal `reveal` at their GPS (or fake-position decoy if active)
-- No constant live location stream; one identified pin per use
-- Hunter cooldown: `oniInfoBrokerCooldownSeconds` (90s), longer than runner
-- Requires online Firestore match
+- 鬼の方角・距離帯・断片テキスト。座標ピンは出さない。
+- 再使用まで約120秒。
 
-## Accusation failure reveal
+### 鬼
 
-- Wrong accuse at the accusation facility → accuser gets one **identified** reveal (`accusation_failed`)
+- 同じマーカー。使用時ランダム逃走者1人の端末から**名前付き暴露**が1回（偽位置中はデコイ）。
+- 再使用まで約90秒。オンライン試合のみ。
 
-## Not implemented yet
+## 告発失敗
 
-- “10 minutes ago” oni path from `hunter_position` history
-- `trace_drop` sync to other devices
-- Polyline reveal trails
-- Photo pins for remote players (local-only MVP elsewhere)
+- 誤った告発 → 告発者の**名前付き暴露**（`accusation_failed`）。
 
-## Code pointers
+## コード索引
 
-- `lib/features/game_map/logic/reveal_reason_pool.dart`
-- `lib/game/anonymous_reveal_trace.dart`
-- `lib/game/oni_info_broker.dart`
-- `lib/screens/game_map_screen.dart` — broker + reveal handlers
-- `firestore.rules` — `reveal`, `anonymous_reveal`, `info_broker`, `oni_info_broker`
+| 領域 | ファイル |
+|------|----------|
+| 装備スキル文案 | `lib/game/skill_reference.dart` |
+| 暴露発火 | `lib/screens/game_map_screen.reveals_gimmicks.dart` |
+| パニック判定 | `lib/features/game_map/match/match_skill_tick_evaluator.dart` |
+| 理由プール | `lib/features/game_map/logic/reveal_reason_pool.dart` |
+| 匿名痕跡型 | `lib/game/anonymous_reveal_trace.dart` |
+| 定期間隔 | `lib/game/match_duration_scaling.dart` |

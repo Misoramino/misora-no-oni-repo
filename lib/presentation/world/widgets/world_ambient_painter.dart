@@ -45,8 +45,9 @@ class WorldAmbientPainter extends CustomPainter {
     final paint = Paint()..color = pack.accent.withValues(alpha: 0.04);
     for (var i = 0; i < 6; i++) {
       final x = size.width * (0.1 + i * 0.15);
+      final y = (t * 40 + i * 80) % size.height;
       canvas.drawRect(
-        Rect.fromLTWH(x, (t * 40 + i * 80) % size.height, 1.5, 24),
+        Rect.fromLTWH(x, y, 1.5, 24),
         paint,
       );
     }
@@ -148,16 +149,15 @@ class WorldAmbientPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: c, radius: size.shortestSide * 0.22));
       canvas.drawCircle(c, size.shortestSide * 0.22, paint);
     }
-    for (var i = 0; i < 24; i++) {
-      final a = (i / 24) * math.pi * 2 + t * 0.25;
-      final r = size.shortestSide * (0.12 + (i % 6) * 0.035);
+    final rng = math.Random(31);
+    for (var i = 0; i < 18; i++) {
+      final x = rng.nextDouble() * size.width;
+      final y = (rng.nextDouble() * size.height + t * 8) % size.height;
+      final tw = 0.5 + 0.5 * math.sin(t * 1.4 + i);
       canvas.drawCircle(
-        Offset(
-          size.width / 2 + math.cos(a) * r,
-          size.height * 0.38 + math.sin(a) * r * 0.45,
-        ),
-        0.8 + (i % 3) * 0.4,
-        Paint()..color = pack.accent.withValues(alpha: 0.16 + (i % 4) * 0.03),
+        Offset(x, y),
+        0.6 + (i % 3) * 0.25,
+        Paint()..color = pack.accent.withValues(alpha: 0.08 + tw * 0.06),
       );
     }
   }

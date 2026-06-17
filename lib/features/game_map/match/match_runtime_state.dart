@@ -98,6 +98,8 @@ class MatchRuntimeState {
   DateTime? bodyThrowTapDeadline;
   /// 体投げ発動時のプレイヤー位置（配置猶予切れの暴露座標）。
   LatLng? bodyThrowSkillOriginLatLng;
+  /// 回収期限切れで人形位置の名前付き暴露を済ませたか。
+  bool bodyThrowOverdueRevealed;
 
   bool fakeIntelAwaitingMapTap;
   DateTime? fakeIntelTapDeadline;
@@ -192,6 +194,7 @@ class MatchRuntimeState {
     this.bodyThrowAwaitingMapTap = false,
     this.bodyThrowTapDeadline,
     this.bodyThrowSkillOriginLatLng,
+    this.bodyThrowOverdueRevealed = false,
     this.fakeIntelAwaitingMapTap = false,
     this.fakeIntelTapDeadline,
     this.fakeIntelPickedSelf = false,
@@ -252,6 +255,7 @@ class MatchRuntimeState {
     fakePositionLatLng = null;
     bodyThrowAwaitingMapTap = false;
     bodyThrowTapDeadline = null;
+    bodyThrowOverdueRevealed = false;
     fakeIntelAwaitingMapTap = false;
     fakeIntelTapDeadline = null;
     fakeIntelTargetLabel = '';
@@ -314,6 +318,7 @@ class MatchRuntimeState {
     bodyThrowAwaitingMapTap = false;
     bodyThrowTapDeadline = null;
     bodyThrowSkillOriginLatLng = null;
+    bodyThrowOverdueRevealed = false;
     fakeIntelAwaitingMapTap = false;
     fakeIntelTapDeadline = null;
     fakeIntelTargetLabel = '';

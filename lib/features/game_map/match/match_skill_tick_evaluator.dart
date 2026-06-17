@@ -159,15 +159,12 @@ abstract final class MatchSkillTickEvaluator {
       }
     }
 
-    if (runtime.bodyThrowEndsAt != null &&
-        now.isAfter(runtime.bodyThrowEndsAt!)) {
-      final puppet = runtime.bodyThrowPosition;
-      runtime.bodyThrowPosition = null;
-      runtime.bodyThrowEndsAt = null;
-      runtime.bodyThrowSkillOriginLatLng = null;
-      if (puppet != null) {
-        out.add(SkillTickBodyThrowMiss(puppet));
-      }
+    if (runtime.bodyThrowPosition != null &&
+        runtime.bodyThrowEndsAt != null &&
+        now.isAfter(runtime.bodyThrowEndsAt!) &&
+        !runtime.bodyThrowOverdueRevealed) {
+      runtime.bodyThrowOverdueRevealed = true;
+      out.add(SkillTickBodyThrowMiss(runtime.bodyThrowPosition!));
     }
 
     if (runtime.fakeIntelAwaitingMapTap &&
@@ -178,18 +175,6 @@ abstract final class MatchSkillTickEvaluator {
       runtime.fakeIntelTargetLabel = '';
       runtime.fakeIntelTargetUid = null;
       out.add(const SkillTickFakeIntelPlacementCancelled());
-    }
-
-    if (runtime.bodyThrowAwaitingMapTap &&
-        runtime.bodyThrowTapDeadline != null &&
-        now.isAfter(runtime.bodyThrowTapDeadline!)) {
-      final anchor = runtime.bodyThrowSkillOriginLatLng;
-      runtime.bodyThrowAwaitingMapTap = false;
-      runtime.bodyThrowTapDeadline = null;
-      runtime.bodyThrowSkillOriginLatLng = null;
-      if (anchor != null) {
-        out.add(SkillTickBodyThrowPlacementTimeout(anchor));
-      }
     }
 
     return out;

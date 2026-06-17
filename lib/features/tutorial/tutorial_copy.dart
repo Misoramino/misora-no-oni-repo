@@ -33,6 +33,7 @@ class TutorialStepCopy {
     this.showOni = false,
     this.showRunner = false,
     this.guideSectionId,
+    this.guideCardId,
   });
 
   final String text;
@@ -42,8 +43,11 @@ class TutorialStepCopy {
   final bool showOni;
   final bool showRunner;
 
-  /// 指定時、ステップ中に「遊び方」へジャンプできる。
+  /// 指定時、ステップ中に「遊び方」へジャンプできる（章単位）。
   final String? guideSectionId;
+
+  /// 指定時、[guideCardId] のカードへ直接ジャンプ（[guideSectionId] より優先）。
+  final String? guideCardId;
 }
 
 /// チュートリアル完了画面の文案。
@@ -57,8 +61,9 @@ class TutorialFinishCopy {
   final String title;
   final String body;
 
-  /// 遊び方の章 ID と表示名。
-  final List<({String sectionId, String title})> relatedGuides;
+  /// 遊び方の章 ID・表示名。`guideCardId` 指定時はカードへ直接ジャンプ。
+  final List<({String sectionId, String title, String? guideCardId})>
+      relatedGuides;
 }
 
 /// 脱落後チュートリアル1ステップ分の文案。
@@ -88,33 +93,34 @@ abstract final class TutorialCopyCatalog {
         PlayerRole.runner => const TutorialFinishCopy(
             title: '逃走者チュートリアル完了',
             body: '生き残るか、手がかりから鬼を当てるか — どちらも勝ち筋です。\nくわしくは「遊び方」を見てください。',
-            relatedGuides: [
-              (sectionId: 'info', title: '情報戦'),
-              (sectionId: 'combat', title: '鬼との距離'),
-              (sectionId: 'accusation', title: '告発'),
+            relatedGuides: const [
+              (sectionId: 'info', title: '情報戦', guideCardId: null),
+              (sectionId: 'skills', title: 'スキル', guideCardId: 'fake_position'),
+              (sectionId: 'combat', title: '鬼との距離', guideCardId: null),
+              (sectionId: 'accusation', title: '告発', guideCardId: null),
             ],
           ),
-        PlayerRole.hunter => TutorialFinishCopy(
+        PlayerRole.hunter => const TutorialFinishCopy(
             title: '${GuideTerms.trueOni}チュートリアル完了',
             body:
                 '追うのは痕跡と暴露です。\n'
                 '点は「いまここ」ではなく、動いた手がかりと読みましょう。',
             relatedGuides: const [
-              (sectionId: 'info', title: '情報戦'),
-              (sectionId: 'combat', title: '鬼との距離'),
-              (sectionId: 'accusation', title: '告発'),
+              (sectionId: 'info', title: '情報戦', guideCardId: null),
+              (sectionId: 'skills', title: 'スキル', guideCardId: 'capture_zone_skill'),
+              (sectionId: 'combat', title: '鬼との距離', guideCardId: null),
+              (sectionId: 'accusation', title: '告発', guideCardId: null),
             ],
           ),
-        PlayerRole.werewolf => TutorialFinishCopy(
+        PlayerRole.werewolf => const TutorialFinishCopy(
             title: '${GuideTerms.werewolf}チュートリアル完了',
             body:
                 '${GuideTerms.werewolf}は${GuideTerms.realOni}ではありません。\n'
-                '人数で味方が決まり、試合の流れで前半鬼側・後半人側になりやすいです。\n'
-                '見た目の切替や自動切替は「遊び方」の${GuideTerms.werewolf}を参照。',
+                '人数比で陣営が決まります。HUDの「強制まで」と「切替CD」は別タイマーです。',
             relatedGuides: const [
-              (sectionId: 'roles', title: '役職'),
-              (sectionId: 'skills', title: 'スキル'),
-              (sectionId: 'online', title: 'オンライン'),
+              (sectionId: 'skills', title: '鬼化・人化', guideCardId: 'werewolf_transform'),
+              (sectionId: 'roles', title: '役職', guideCardId: null),
+              (sectionId: 'online', title: 'オンライン', guideCardId: null),
             ],
           ),
       };
@@ -132,9 +138,9 @@ abstract final class TutorialCopyCatalog {
       };
 
   static const secondGameRelatedGuides = [
-    (sectionId: 'second_game', title: GuideTerms.secondGame),
-    (sectionId: 'accusation', title: '告発'),
-    (sectionId: 'facilities', title: 'マップ施設'),
+    (sectionId: 'second_game', title: GuideTerms.secondGame, guideCardId: null),
+    (sectionId: 'accusation', title: '告発', guideCardId: null),
+    (sectionId: 'facilities', title: 'マップ施設', guideCardId: null),
   ];
 
   static String secondGameTutorialTitle(SecondGameTutorialKind kind) =>
@@ -240,9 +246,11 @@ abstract final class TutorialCopyCatalog {
     TutorialStepCopy(
       text:
           '「偽位置」で、他人に見える位置をずらせます。\n'
+          '発動中は名前付き・匿名・定期の暴露がすべてデコイの近くに出ます。\n'
           '下のボタンを押して、もう一つの点を確認しましょう。',
       interaction: TutorialStepInteraction.skillInstant,
       guideSectionId: 'skills',
+      guideCardId: 'fake_position',
     ),
     TutorialStepCopy(
       text:
@@ -288,12 +296,14 @@ abstract final class TutorialCopyCatalog {
     ),
     TutorialStepCopy(
       text:
-          '捕獲結界で、逃走者をその場に留められます。\n'
+          '「捕獲結界」で、範囲内の全員をその場に留められます。\n'
+          '効果中に円の外へ出ると名前付き暴露のリスクがあります。\n'
           '①下のボタンを押す\n'
           '②地図を長押し\n'
           '③離して設置',
       interaction: TutorialStepInteraction.skillMapPlace,
       guideSectionId: 'skills',
+      guideCardId: 'capture_zone_skill',
     ),
     TutorialStepCopy(
       text:
@@ -319,9 +329,11 @@ abstract final class TutorialCopyCatalog {
     TutorialStepCopy(
       text:
           '「鬼化」で見た目を鬼に近づけられます（ボタン1回）。\n'
-          '地図に置くスキルとは別です。下のボタンを試しましょう。',
+          '陣営によって捕獲できるかが変わります。長く放置すると強制切替もあります。\n'
+          '下のボタンを試しましょう。',
       interaction: TutorialStepInteraction.skillInstant,
       guideSectionId: 'skills',
+      guideCardId: 'werewolf_transform',
     ),
     TutorialStepCopy(
       text:

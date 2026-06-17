@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../game/player_role.dart';
 import '../guide_sections.dart';
@@ -12,8 +13,8 @@ const guideIndexSectionIds = [
   'win',
   'info',
   'combat',
+  'skills',
   'roles',
-  'online',
   'spec',
 ];
 
@@ -24,6 +25,7 @@ class HowToPlayGuideBody extends StatefulWidget {
     this.yourRole,
     this.initialSectionId,
     this.initialSpecCardId,
+    this.initialGuideCardId,
     super.key,
   });
 
@@ -35,6 +37,9 @@ class HowToPlayGuideBody extends StatefulWidget {
 
   /// 指定時、詳細ルールの該当カードへジャンプする。
   final String? initialSpecCardId;
+
+  /// 指定時、任意の章内カード（スキル章など）へジャンプする。
+  final String? initialGuideCardId;
 
   @override
   State<HowToPlayGuideBody> createState() => _HowToPlayGuideBodyState();
@@ -48,7 +53,7 @@ class _HowToPlayGuideBodyState extends State<HowToPlayGuideBody> {
   };
 
   final _cardKeys = <String, GlobalKey>{
-    for (final id in guideSpecCardIds) id: GlobalKey(),
+    for (final id in guideCardIds) id: GlobalKey(),
   };
 
   @override
@@ -57,71 +62,94 @@ class _HowToPlayGuideBodyState extends State<HowToPlayGuideBody> {
     _expanded = {
       for (final s in howToPlaySections) s.id: s.initiallyExpanded,
     };
+    final guideCard = widget.initialGuideCardId;
+    final specCard = widget.initialSpecCardId;
     final jump = widget.initialSectionId;
-    if (jump != null && howToPlaySections.any((s) => s.id == jump)) {
+    if (guideCard != null && _cardKeys.containsKey(guideCard)) {
+      final sectionId = guideSectionIdForCard(guideCard);
+      if (sectionId != null) {
+        _expanded[sectionId] = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _openGuideCard(guideCard);
+        });
+      }
+    } else if (specCard != null && _cardKeys.containsKey(specCard)) {
+      _expanded['spec'] = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openGuideCard(specCard);
+      });
+    } else if (jump != null && howToPlaySections.any((s) => s.id == jump)) {
       _expanded[jump] = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _openSection(jump, scrollOnly: false);
       });
     }
-    final specCard = widget.initialSpecCardId;
-    if (specCard != null && _cardKeys.containsKey(specCard)) {
-      _expanded['spec'] = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openSpecCard(specCard);
-      });
-    }
   }
 
-  void _openSpecCard(String cardId) {
+  void _afterLayout(VoidCallback action, {int frames = 2}) {
+    void tick(int left) {
+      if (!mounted) return;
+      if (left <= 0) {
+        action();
+        return;
+      }
+      SchedulerBinding.instance.addPostFrameCallback((_) => tick(left - 1));
+    }
+
+    tick(frames);
+  }
+
+  void _openGuideCard(String cardId) {
     if (!_cardKeys.containsKey(cardId)) return;
-    setState(() => _expanded['spec'] = true);
-    _scrollToKey(_sectionKeys['spec'], attempt: 0, then: () {
-      _scrollToKey(_cardKeys[cardId], attempt: 0);
-    });
+    final sectionId = guideSectionIdForCard(cardId) ?? 'spec';
+    setState(() => _expanded[sectionId] = true);
+    _afterLayout(() {
+      _scrollToKey(_sectionKeys[sectionId], attempt: 0, then: () {
+        _afterLayout(() {
+          _scrollToKey(_cardKeys[cardId], attempt: 0);
+        });
+      });
+    }, frames: 3);
   }
 
   void _scrollToKey(GlobalKey? key, {required int attempt, VoidCallback? then}) {
-    if (attempt > 10 || !mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final ctx = key?.currentContext;
-      if (ctx == null) {
-        _scrollToKey(key, attempt: attempt + 1, then: then);
-        return;
-      }
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-        alignment: 0.06,
-      ).then((_) => then?.call());
-    });
+    if (attempt > 24 || !mounted) return;
+    final ctx = key?.currentContext;
+    if (ctx == null) {
+      _afterLayout(
+        () => _scrollToKey(key, attempt: attempt + 1, then: then),
+        frames: 1,
+      );
+      return;
+    }
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      alignment: 0.04,
+    ).then((_) => then?.call());
   }
 
   void _openSection(String id, {bool scrollOnly = false}) {
     if (!scrollOnly) {
       setState(() => _expanded[id] = true);
     }
-    _scrollToSection(id, attempt: 0);
+    _afterLayout(() => _scrollToSection(id, attempt: 0), frames: 2);
   }
 
   void _scrollToSection(String id, {required int attempt}) {
-    if (attempt > 8 || !mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final ctx = _sectionKeys[id]?.currentContext;
-      if (ctx == null) {
-        _scrollToSection(id, attempt: attempt + 1);
-        return;
-      }
-      Scrollable.ensureVisible(
-        ctx,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-        alignment: 0.02,
-      );
-    });
+    if (attempt > 24 || !mounted) return;
+    final ctx = _sectionKeys[id]?.currentContext;
+    if (ctx == null) {
+      _afterLayout(() => _scrollToSection(id, attempt: attempt + 1), frames: 1);
+      return;
+    }
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      alignment: 0.02,
+    );
   }
 
   @override
@@ -164,8 +192,8 @@ class _HowToPlayGuideBodyState extends State<HowToPlayGuideBody> {
                     onExpansionChanged: (v) =>
                         setState(() => _expanded[section.id] = v),
                     onRelatedSectionTap: _openSection,
-                    onOpenSpecCard: _openSpecCard,
-                    cardKeys: section.id == 'spec' ? _cardKeys : null,
+                    onOpenSpecCard: _openGuideCard,
+                    cardKeys: _cardKeys,
                     yourRole: widget.yourRole,
                   ),
                 );

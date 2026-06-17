@@ -36,6 +36,7 @@ class GameInfoPanel extends StatelessWidget {
     this.werewolfOniActive = false,
     this.werewolfHudSummary,
     required this.werewolfCooldownSeconds,
+    this.werewolfForcedSeconds = 0,
     required this.fakeCooldownSeconds,
     required this.fakeIntelRevealCooldownSeconds,
     required this.mapWorldProfile,
@@ -70,6 +71,7 @@ class GameInfoPanel extends StatelessWidget {
   final bool werewolfOniActive;
   final String? werewolfHudSummary;
   final int werewolfCooldownSeconds;
+  final int werewolfForcedSeconds;
   final int fakeCooldownSeconds;
   final int fakeIntelRevealCooldownSeconds;
   final WorldProfile mapWorldProfile;
@@ -128,6 +130,7 @@ class GameInfoPanel extends StatelessWidget {
     final inArea = areaColor == tokens.safeColor;
 
     if (!expanded) {
+      final werewolfChips = _werewolfChipRow();
       return Padding(
         padding: EdgeInsets.all(hudInset),
         child: Material(
@@ -136,7 +139,11 @@ class GameInfoPanel extends StatelessWidget {
         elevation: 1,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
             children: [
               WorldTimerChip(
                 profile: mapWorldProfile,
@@ -216,6 +223,12 @@ class GameInfoPanel extends StatelessWidget {
                 onPressed: onToggleExpanded,
                 icon: const Icon(Icons.expand_more, size: 20),
               ),
+            ],
+              ),
+              if (werewolfChips != null) ...[
+                const SizedBox(height: 4),
+                werewolfChips,
+              ],
             ],
           ),
         ),
@@ -330,6 +343,7 @@ class GameInfoPanel extends StatelessWidget {
           if (werewolfHudSummary != null ||
               werewolfOniActive ||
               werewolfCooldownSeconds > 0 ||
+              werewolfForcedSeconds > 0 ||
               fakeCooldownSeconds > 0 ||
               fakeIntelRevealCooldownSeconds > 0) ...[
             const SizedBox(height: 4),
@@ -337,15 +351,7 @@ class GameInfoPanel extends StatelessWidget {
               spacing: 6,
               runSpacing: 4,
               children: [
-                if (werewolfHudSummary != null)
-                  CooldownChip(label: werewolfHudSummary!, seconds: 0),
-                if (werewolfOniActive && werewolfHudSummary == null)
-                  const CooldownChip(label: '鬼化中', seconds: 0),
-                if (werewolfCooldownSeconds > 0)
-                  CooldownChip(
-                    label: '切替CD',
-                    seconds: werewolfCooldownSeconds,
-                  ),
+                if (_showWerewolfChips) ..._werewolfChipChildren(),
                 if (fakeCooldownSeconds > 0)
                   CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
                 if (fakeIntelRevealCooldownSeconds > 0)
@@ -416,6 +422,32 @@ class GameInfoPanel extends StatelessWidget {
         ],
       ),
     ),
+    );
+  }
+
+  bool get _showWerewolfChips =>
+      werewolfHudSummary != null ||
+      werewolfOniActive ||
+      werewolfCooldownSeconds > 0 ||
+      werewolfForcedSeconds > 0;
+
+  List<Widget> _werewolfChipChildren() => [
+        if (werewolfHudSummary != null)
+          CooldownChip(label: werewolfHudSummary!, seconds: 0),
+        if (werewolfOniActive && werewolfHudSummary == null)
+          const CooldownChip(label: '鬼化中', seconds: 0),
+        if (werewolfForcedSeconds > 0)
+          CooldownChip(label: '強制まで', seconds: werewolfForcedSeconds),
+        if (werewolfCooldownSeconds > 0)
+          CooldownChip(label: '切替CD', seconds: werewolfCooldownSeconds),
+      ];
+
+  Widget? _werewolfChipRow() {
+    if (!_showWerewolfChips) return null;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: _werewolfChipChildren(),
     );
   }
 }

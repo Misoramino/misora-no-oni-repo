@@ -88,7 +88,9 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
     if (!widget.active) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final topInset = MediaQuery.paddingOf(context).top;
+    const appBarHeight = kToolbarHeight;
 
     return Stack(
       fit: StackFit.expand,
@@ -108,43 +110,52 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
           onPointerUp: (_) => _finishPointer(),
           onPointerCancel: (_) => _finishPointer(),
         ),
-        IgnorePointer(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: EdgeInsets.only(top: topInset + 72, left: 16, right: 16),
-              child: Material(
-                color: Colors.black.withValues(alpha: 0.78),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Text(
-                    '${widget.hint}\n指を離すと設置',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ),
+        Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: topInset + appBarHeight + 10,
+              left: 16,
+              right: 16,
             ),
-          ),
-        ),
-        Positioned(
-          top: topInset + 12,
-          right: 12,
-          child: Material(
-            color: Colors.black.withValues(alpha: 0.72),
-            shape: const CircleBorder(),
-            elevation: 6,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: _cancelPlacement,
-              child: const Padding(
-                padding: EdgeInsets.all(12),
-                child: Icon(Icons.close_rounded, color: Colors.white, size: 28),
+            child: Material(
+              color: scheme.surface.withValues(alpha: 0.96),
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${widget.hint}\n指を離すと設置',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: scheme.surfaceContainerHighest,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _cancelPlacement,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: scheme.onSurface,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

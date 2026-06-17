@@ -64,6 +64,7 @@ extension _GameMapPresentation on _GameMapScreenState {
     await showRoleBriefingDialog(
       context,
       role: _localRole,
+      worldProfile: _activeProfile,
       skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
       werewolfCurrentFaction: _localRole == PlayerRole.werewolf
           ? _localFactionNow()
@@ -251,7 +252,12 @@ extension _GameMapPresentation on _GameMapScreenState {
         record: rec,
       );
       if (metaErr != null && mounted) {
-        _toast('試合ログの共有に失敗: $metaErr');
+        final solo = _lobbyParticipantCount() <= 1;
+        _toast(
+          solo
+              ? 'この端末には記録を保存しました。オンライン共有はできませんでした（$metaErr）'
+              : '試合ログの共有に失敗: $metaErr',
+        );
       }
 
       await _fetchAndSaveMergedArchive(rec, sessionKey);

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../game_map/widgets/how_to_play_diagrams.dart';
 import '../guide_diagram_type.dart';
+import '../../../game/player_role.dart';
+import '../../../game/skill_reference.dart';
 import '../guide_terms.dart';
 
 /// [GuideDiagramType] に応じた図解 Widget を返す。
@@ -1073,21 +1075,30 @@ class SkillOverviewDiagram extends StatelessWidget {
           icon: Icons.directions_run_rounded,
           iconColor: const Color(0xFF1FA98A),
           title: GuideTerms.runner,
-          lines: const ['偽位置', '捕獲結界'],
+          lines: [
+            for (final s in SkillReference.forRole(PlayerRole.runner))
+              s.shortTitle,
+          ],
         ),
         const SizedBox(height: 8),
         _DiagramMiniCard(
           icon: Icons.nightlight_round,
           iconColor: const Color(0xFFD64545),
           title: GuideTerms.trueOni,
-          lines: const ['偽情報暴露', '捕獲結界', '体投げ'],
+          lines: [
+            for (final s in SkillReference.forRole(PlayerRole.hunter))
+              s.shortTitle,
+          ],
         ),
         const SizedBox(height: 8),
         _DiagramMiniCard(
           icon: Icons.psychology_alt_rounded,
           iconColor: const Color(0xFF8E5BD8),
           title: GuideTerms.werewolf,
-          lines: const ['鬼化'],
+          lines: [
+            for (final s in SkillReference.forRole(PlayerRole.werewolf))
+              s.shortTitle,
+          ],
         ),
       ],
     );

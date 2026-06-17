@@ -67,17 +67,20 @@ extension _GameMapSkills on _GameMapScreenState {
     if (_skillLoadout.contains(SkillIds.fakePosition)) {
       _rt.lastFakeSkillAt = null;
     }
-    if (_skillLoadout.contains(SkillIds.werewolfTransform)) {
-      _rt.lastWerewolfTransformAt = null;
-      _rt.lastWerewolfTransformCooldownSec = null;
-    }
     if (_skillLoadout.contains(SkillIds.captureZone)) {
       _rt.lastSkillLockPlacementAt = null;
     }
     if (_skillLoadout.contains(SkillIds.bodyThrow)) {
-      _rt.lastBodyThrowAt = null;
+      if (_rt.bodyThrowPosition == null) {
+        _rt.lastBodyThrowAt = null;
+      }
     }
   }
+
+  bool get _bodyThrowPuppetActive => _rt.bodyThrowPosition != null;
+
+  bool get _bodyThrowBlocksOtherSkills =>
+      _rt.bodyThrowAwaitingMapTap || _bodyThrowPuppetActive;
 
   double _distanceToOni() => MatchGeoHelpers.distanceToOni(
     player: _currentPosition,
@@ -91,11 +94,28 @@ extension _GameMapSkills on _GameMapScreenState {
       _gameState == GameState.running ||
       (_gameState == GameState.caughtByOni && _afterCatchRule != null);
 
-  bool get _showOniMarker => _testMode || _remoteOniKnown;
+  bool get _showOniMarker =>
+      (_testMode || _remoteOniKnown) && _activeMatchPlayerCount > 1;
+
+  bool get _bodyThrowRecoverInRange {
+    final puppet = _rt.bodyThrowPosition;
+    if (puppet == null) return false;
+    final d = Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      puppet.latitude,
+      puppet.longitude,
+    );
+    return d <= GameConfig.bodyThrowRecoveryDistanceMeters;
+  }
 
   void _activateFakeSkill() {
     if (_gameState != GameState.running) {
       _toast('ゲーム中のみ使えます', denied: true);
+      return;
+    }
+    if (_bodyThrowBlocksOtherSkills) {
+      _toast('体投げの設置・回収が終わるまで使えません', denied: true);
       return;
     }
     if (!_skillLoadout.contains(SkillIds.fakePosition)) return;
@@ -150,8 +170,23 @@ extension _GameMapSkills on _GameMapScreenState {
         _matchDurationSeconds,
       );
 
+  int _werewolfSecondsUntilForcedForUi() {
+    if (_localRole != PlayerRole.werewolf || _gameState != GameState.running) {
+      return 0;
+    }
+    return WerewolfForcedSchedule.secondsUntilForcedToggle(
+      lastTransformAt: _rt.lastWerewolfTransformAt,
+      now: DateTime.now(),
+      matchDurationSeconds: _matchDurationSeconds,
+    );
+  }
+
   void _activateWerewolfHunter() {
     if (_gameState != GameState.running || _localRole != PlayerRole.werewolf) {
+      return;
+    }
+    if (_bodyThrowBlocksOtherSkills) {
+      _toast('体投げの設置・回収が終わるまで使えません', denied: true);
       return;
     }
     final target = !_rt.werewolfInOniForm;
@@ -197,10 +232,13 @@ extension _GameMapSkills on _GameMapScreenState {
   void _setWerewolfOniForm(bool inOniForm, {required bool voluntary}) {
     final now = DateTime.now();
     _rt.lastWerewolfTransformAt = now;
-    _rt.lastWerewolfTransformCooldownSec =
-        WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
-      _matchDurationSeconds,
-    );
+    _rt.lastWerewolfTransformCooldownSec = voluntary
+        ? WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(
+            _matchDurationSeconds,
+          )
+        : WerewolfForcedSchedule.voluntaryTransformCooldownAfterForcedSeconds(
+            _matchDurationSeconds,
+          );
     _rt.werewolfInOniForm = inOniForm;
     if (inOniForm) {
       _emitMatchEvent(
@@ -307,6 +345,10 @@ extension _GameMapSkills on _GameMapScreenState {
   Future<void> _activateFakeIntelReveal() async {
     if (_gameState != GameState.running) {
       _toast('ゲーム中のみ使えます');
+      return;
+    }
+    if (_bodyThrowBlocksOtherSkills) {
+      _toast('体投げの設置・回収が終わるまで使えません', denied: true);
       return;
     }
     if (_localRole != PlayerRole.hunter) {
@@ -548,8 +590,7 @@ extension _GameMapSkills on _GameMapScreenState {
   /// 配信座標を人形にすることで“一時的に判定の中心をそこへ移す”挙動になる。
   LatLng _effectiveHunterBroadcastPos(LatLng real) {
     final puppet = _rt.bodyThrowPosition;
-    final ends = _rt.bodyThrowEndsAt;
-    if (puppet != null && ends != null && DateTime.now().isBefore(ends)) {
+    if (puppet != null) {
       return puppet;
     }
     return real;
@@ -558,10 +599,7 @@ extension _GameMapSkills on _GameMapScreenState {
   /// 体投げの開始/終了の瞬間に、鬼の配信位置を即時に切り替える（実位置⇄人形）。
   void _syncHunterBroadcastForBodyThrow() {
     if (!_isOnlineFirestore || _localRole != PlayerRole.hunter) return;
-    final ends = _rt.bodyThrowEndsAt;
-    final active = _rt.bodyThrowPosition != null &&
-        ends != null &&
-        DateTime.now().isBefore(ends);
+    final active = _bodyThrowPuppetActive;
     if (active == _bodyThrowBroadcastActive) return;
     _bodyThrowBroadcastActive = active;
     _maybePublishHunterPosition(_currentPosition, force: true);
@@ -611,6 +649,10 @@ extension _GameMapSkills on _GameMapScreenState {
   void _activateCaptureZone() {
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.captureZone)) return;
+    if (_bodyThrowBlocksOtherSkills) {
+      _toast('体投げの設置・回収が終わるまで使えません', denied: true);
+      return;
+    }
     if (_rt.waitingSkillLockMapTap) {
       _toast('地図を押し続けて範囲を確認し、離して設置');
       return;
@@ -633,15 +675,14 @@ extension _GameMapSkills on _GameMapScreenState {
   void _activateBodyThrow() {
     if (_gameState != GameState.running) return;
     if (!_skillLoadout.contains(SkillIds.bodyThrow)) return;
+    if (_bodyThrowPuppetActive) {
+      _tryRecoverBodyThrow();
+      return;
+    }
     if (_rt.bodyThrowAwaitingMapTap) {
       _toast('地図を押し続けて位置を決め、離して設置');
       return;
     }
-    if (_rt.bodyThrowPosition != null || _rt.bodyThrowEndsAt != null) {
-      _toast('体投げは展開中です');
-      return;
-    }
-    final now = DateTime.now();
     final remain = _cooldownRemainingSeconds(
       _rt.lastBodyThrowAt,
       GameConfig.bodyThrowCooldownSeconds,
@@ -652,16 +693,48 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     _syncSetState(() {
       _rt.bodyThrowAwaitingMapTap = true;
-      _rt.bodyThrowTapDeadline = now.add(
-        const Duration(seconds: GameConfig.bodyThrowMapTapWindowSeconds),
-      );
-      _rt.bodyThrowSkillOriginLatLng = LatLng(
-        _currentPosition.latitude,
-        _currentPosition.longitude,
-      );
       _statusMessage =
-          '地図を押し続けて人形の位置を決め、指を離して設置（${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内）';
+          '地図を押し続けて人形の位置を決め、指を離して設置（${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)} m 以内・右上×でキャンセル）';
     });
+  }
+
+  void _tryRecoverBodyThrow() {
+    final puppet = _rt.bodyThrowPosition;
+    if (puppet == null) return;
+    final d = Geolocator.distanceBetween(
+      _currentPosition.latitude,
+      _currentPosition.longitude,
+      puppet.latitude,
+      puppet.longitude,
+    );
+    if (d > GameConfig.bodyThrowRecoveryDistanceMeters) {
+      final need = (d - GameConfig.bodyThrowRecoveryDistanceMeters).round();
+      _toast('人形の位置まであと約$need m');
+      return;
+    }
+    _finishBodyThrowRecovery();
+  }
+
+  void _finishBodyThrowRecovery() {
+    final now = DateTime.now();
+    final puppet = _rt.bodyThrowPosition;
+    _syncSetState(() {
+      _rt.bodyThrowPosition = null;
+      _rt.bodyThrowEndsAt = null;
+      _rt.bodyThrowOverdueRevealed = false;
+      _rt.bodyThrowSkillOriginLatLng = null;
+      _rt.lastBodyThrowAt = now;
+      _statusMessage = '体投げを回収しました';
+    });
+    if (puppet != null) {
+      _emitMatchEvent(
+        type: 'body_throw_end',
+        message: '体投げ回収',
+        position: puppet,
+      );
+    }
+    _syncHunterBroadcastForBodyThrow();
+    GameAudio.instance.playSfx(SfxId.uiTap);
   }
 
   bool get _skillMapPlacementActive =>
@@ -721,13 +794,14 @@ extension _GameMapSkills on _GameMapScreenState {
       _rt.bodyThrowAwaitingMapTap = false;
       _rt.bodyThrowTapDeadline = null;
       _rt.bodyThrowSkillOriginLatLng = null;
-      _rt.lastBodyThrowAt = now;
+      _rt.bodyThrowOverdueRevealed = false;
       _rt.bodyThrowPosition = pos;
       _rt.bodyThrowEndsAt = now.add(
         const Duration(seconds: GameConfig.bodyThrowDurationSeconds),
       );
       _skillPlacementPreviewLatLng = null;
-      _statusMessage = '人形稼働中（回収まで ${GameConfig.bodyThrowDurationSeconds} 秒）';
+      _statusMessage =
+          '人形稼働中 — 人形の位置へ近づき、体投げボタンで回収（約${GameConfig.bodyThrowDurationSeconds}秒以内に回収しないと人形の位置が暴露）';
     });
     _emitMatchEvent(
       type: 'body_throw_start',
@@ -956,8 +1030,8 @@ extension _GameMapSkills on _GameMapScreenState {
     final myUid = _firestoreSession?.myUid ?? 'solo';
     if (target != myUid) return;
     _emitAnonymousReveal(
-      position: _currentPosition,
-      pick: _reasonPickAt(_currentPosition, periodic: true),
+      position: _positionForReveal,
+      pick: _reasonPickAt(_positionForReveal, periodic: true),
       source: 'periodic',
     );
   }
@@ -967,12 +1041,7 @@ extension _GameMapSkills on _GameMapScreenState {
     required RevealReasonPick pick,
     required String source,
   }) {
-    final shown = source == 'periodic'
-        ? MapGeoUtils.jitterRevealPosition(
-            raw: position,
-            seed: _positionSeedForReveal(position),
-          )
-        : _displayRevealPosition(position);
+    final shown = _mapRevealPosition(position, periodic: source == 'periodic');
     final errorMeters = Geolocator.distanceBetween(
       position.latitude,
       position.longitude,
@@ -1284,12 +1353,24 @@ extension _GameMapSkills on _GameMapScreenState {
     if (cLat is! num || cLng is! num) return;
     final center = LatLng(cLat.toDouble(), cLng.toDouble());
     final now = DateTime.now();
+    final fs = _firestoreSession;
+    final myUid = fs?.myUid;
+    final targetRaw = ev.payload['targetUids'];
+    var boundSelf = false;
+    if (myUid != null && targetRaw is List) {
+      for (final t in targetRaw) {
+        if (t.toString() == myUid) {
+          boundSelf = true;
+          break;
+        }
+      }
+    }
     if (!mounted) return;
     _syncSetState(() {
       _rt.waitingSkillLockMapTap = false;
       _rt.lockZoneCenter = center;
       _rt.lockZoneFromSkill = CaptureZoneEventPayload.fromSkill(ev.payload);
-      _rt.lockZoneBoundIds = {};
+      _rt.lockZoneBoundIds = boundSelf ? const {'self'} : const {};
       _rt.lockZoneTargetLeftAt = null;
       _rt.lockZoneEscapeRevealed = false;
       _rt.lockZoneCapturePermitted =
@@ -1309,10 +1390,24 @@ extension _GameMapSkills on _GameMapScreenState {
     final targets = raw.map((e) => e.toString()).toSet();
     _recordGloballyBoundTargets(raw);
     final myUid = fs.myUid;
+    final cLat = ev.payload['centerLat'];
+    final cLng = ev.payload['centerLng'];
+    final dur =
+        (ev.payload['durationSec'] as num?)?.toInt() ??
+        GameConfig.captureZoneDurationSeconds;
+    final now = DateTime.now();
     if (!mounted) return;
     _syncSetState(() {
+      if (cLat is num && cLng is num) {
+        _rt.lockZoneCenter = LatLng(cLat.toDouble(), cLng.toDouble());
+        _rt.lockZoneEndsAt = now.add(Duration(seconds: dur));
+        _rt.lockZoneFromSkill = true;
+        _rt.lockZoneCapturePermitted = _captureZoneLethalForLocal;
+      }
       if (myUid != null && targets.contains(myUid)) {
         _rt.lockZoneBoundIds = const {'self'};
+        _rt.lockZoneTargetLeftAt = null;
+        _rt.lockZoneEscapeRevealed = false;
       }
     });
     if (myUid != null && targets.contains(myUid)) {
@@ -1507,7 +1602,12 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     if (_rt.fakePositionActive) {
       final left = _secondsUntil(_rt.fakePositionEndsAt);
-      return '偽位置展開中 残り$left秒 — 露出は偽座標（進行方向へ移動）';
+      return '偽位置展開中 残り$left秒 — 暴露はデコイ近傍（名前付き・匿名・定期）';
+    }
+    if (_rt.bodyThrowPosition != null) {
+      return _rt.bodyThrowOverdueRevealed
+          ? '体投げ — 人形未回収（暴露済み・回収まで他スキル不可）'
+          : '体投げ — 人形稼働中（回収まで他スキル不可）';
     }
     return '異常なし';
   }

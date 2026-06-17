@@ -168,9 +168,20 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           label: '環境音',
                           icon: Icons.air_rounded,
                           value: s.ambientVolume,
-                          enabled: !s.muted,
+                          enabled: !s.muted && s.ambientEnabled,
                           onChanged: (v) =>
                               audio.updateSettings(s.copyWith(ambientVolume: v)),
+                        ),
+                        const SizedBox(height: 14),
+                        Text('環境音プリセット', style: theme.textTheme.labelLarge),
+                        const SizedBox(height: 8),
+                        _AmbientChoicePicker(
+                          current: s.ambientChoice,
+                          worldProfile: _worldProfile,
+                          onPick: (choice) {
+                            audio.updateSettings(s.copyWith(ambientChoice: choice));
+                            audio.playSfx(SfxId.uiTap);
+                          },
                         ),
                         const SizedBox(height: 12),
                         SwitchListTile(
@@ -318,6 +329,71 @@ class _WorldSfxPreviewSection extends StatelessWidget {
         WorldSfxPreviewKind.reveal => Icons.visibility_outlined,
         WorldSfxPreviewKind.transition => Icons.swap_horiz_rounded,
       };
+}
+
+class _AmbientChoicePicker extends StatelessWidget {
+  const _AmbientChoicePicker({
+    required this.current,
+    required this.worldProfile,
+    required this.onPick,
+  });
+
+  final String current;
+  final WorldProfile? worldProfile;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final profile = worldProfile;
+    final pool = profile == null
+        ? <AmbientId>[]
+        : WorldAudio.ambientPool(profile);
+
+    Widget chip(String value, String label, IconData? icon) {
+      final selected = current == value;
+      return ChoiceChip(
+        selected: selected,
+        showCheckmark: false,
+        avatar: icon == null
+            ? null
+            : Icon(
+                icon,
+                size: 18,
+                color: selected
+                    ? theme.colorScheme.onSecondaryContainer
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+        label: Text(label),
+        onSelected: (_) => onPick(value),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        chip(
+          AudioSettings.ambientWorldDefault,
+          'おまかせ（世界観）',
+          Icons.auto_awesome_rounded,
+        ),
+        chip(AudioSettings.ambientOff, 'OFF', Icons.volume_off_outlined),
+        for (final id in AmbientId.values) chip(id.name, id.label, null),
+        if (profile != null && pool.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '「おまかせ」は ${profile.label} のプール（${pool.map((a) => a.label).join(' / ')}）から選びます。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _BgmChoicePicker extends StatelessWidget {

@@ -60,6 +60,12 @@ Future<void> _orbitOnController({
 }) async {
   final branding = WorldLaunchBranding.of(profile);
   final overlay = Overlay.of(context);
+  final blockEntry = OverlayEntry(
+    builder: (_) => const ModalBarrier(
+      dismissible: false,
+      color: Colors.transparent,
+    ),
+  );
   final entry = OverlayEntry(
     builder: (_) => _OrbitCinemaHud(
       branding: branding,
@@ -67,12 +73,14 @@ Future<void> _orbitOnController({
       areaLabel: area.shapeSummary(),
     ),
   );
+  overlay.insert(blockEntry);
   overlay.insert(entry);
 
   try {
     await _playOrbitSequence(controller, area, profile);
   } finally {
     entry.remove();
+    blockEntry.remove();
   }
 }
 

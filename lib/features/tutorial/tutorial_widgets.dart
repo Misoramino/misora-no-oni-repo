@@ -104,7 +104,7 @@ class TutorialFinishPanel extends StatelessWidget {
   final Color accent;
   final VoidCallback onClose;
   final VoidCallback onRetry;
-  final void Function(String sectionId) onOpenGuide;
+  final void Function(String sectionId, {String? guideCardId}) onOpenGuide;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +140,8 @@ class TutorialFinishPanel extends StatelessWidget {
                   ActionChip(
                     avatar: const Icon(Icons.menu_book_outlined, size: 16),
                     label: Text(g.title),
-                    onPressed: () => onOpenGuide(g.sectionId),
+                    onPressed: () =>
+                        onOpenGuide(g.sectionId, guideCardId: g.guideCardId),
                   ),
               ],
             ),

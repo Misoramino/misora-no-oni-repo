@@ -379,7 +379,7 @@ abstract final class WorldFxCatalog {
       namedRevealFlashOpacity: 0.46,
       anonRevealFlashOpacity: 0.24,
       captureFlashOpacity: 0.52,
-      uiTapVolume: 0.30,
+      uiTapVolume: 0.22,
       revealVolume: 0.58,
       transitionVolume: 0.55,
       anonRevealVolume: 0.44,

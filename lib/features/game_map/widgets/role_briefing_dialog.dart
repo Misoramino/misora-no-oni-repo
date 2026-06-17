@@ -6,6 +6,9 @@ import '../../../game/runner_modifier.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 import '../../how_to_play/guide_text.dart';
+import '../../../presentation/world/world_presentation_catalog.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../theme/world_profile.dart';
 import '../../../widgets/app_dialog.dart';
 import '../../tutorial/tutorial_entry.dart';
 import 'how_to_play_sheet.dart';
@@ -15,6 +18,7 @@ Future<void> showRoleBriefingDialog(
   BuildContext context, {
   required PlayerRole role,
   required List<String> skillLabels,
+  WorldProfile? worldProfile,
   FactionSide? werewolfCurrentFaction,
   RunnerModifier runnerModifier = RunnerModifier.none,
 }) {
@@ -23,7 +27,12 @@ Future<void> showRoleBriefingDialog(
     werewolfFaction: werewolfCurrentFaction,
     runnerModifier: runnerModifier,
   );
-  final accent = roleAccentColor(role);
+  final roleAccent = roleAccentColor(role);
+  final profile = worldProfile ?? context.worldProfile;
+  final pack = WorldPresentationCatalog.of(profile);
+  final accent = Color.lerp(pack.accent, roleAccent, 0.45)!;
+  final bodyColor = pack.textOnPanel;
+  final mutedBody = bodyColor.withValues(alpha: 0.72);
   return showAppDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -71,6 +80,7 @@ Future<void> showRoleBriefingDialog(
                       start.winLine,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: bodyColor,
                       ),
                     ),
                   ),
@@ -78,7 +88,10 @@ Future<void> showRoleBriefingDialog(
               ),
             ),
             const SizedBox(height: 14),
-            Text('まず意識すること', style: theme.textTheme.labelLarge),
+            Text(
+              'まず意識すること',
+              style: theme.textTheme.labelLarge?.copyWith(color: bodyColor),
+            ),
             const SizedBox(height: 6),
             for (final item in start.mustKnow)
               Padding(
@@ -89,14 +102,22 @@ Future<void> showRoleBriefingDialog(
                     Icon(Icons.chevron_right_rounded,
                         size: 18, color: accent),
                     Expanded(
-                      child: Text(item, style: theme.textTheme.bodyMedium),
+                      child: Text(
+                        item,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: bodyColor,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             if (skillLabels.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('使えるスキル', style: theme.textTheme.labelLarge),
+              Text(
+                '使えるスキル',
+                style: theme.textTheme.labelLarge?.copyWith(color: bodyColor),
+              ),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -132,7 +153,7 @@ Future<void> showRoleBriefingDialog(
             Text(
               'スキル操作はチュートリアルで本番と同じ流れを体験できます。',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: mutedBody,
               ),
             ),
             const SizedBox(height: 8),
@@ -155,7 +176,7 @@ Future<void> showRoleBriefingDialog(
             Text(
               GuideText.forDisplay(start.learnMoreHint),
               style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: mutedBody,
               ),
             ),
           ],

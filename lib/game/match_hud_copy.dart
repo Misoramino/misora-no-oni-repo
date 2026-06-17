@@ -145,9 +145,8 @@ abstract final class MatchHudCopy {
       '攪乱結界を設置（近づきすぎ・止めのみ・捕獲不可）';
   static const captureZoneEnded = '捕獲結界が終了';
   static const touchRestraintReleased = '止められ状態が解除';
-  static const bodyThrowMissReveal = '体投げに失敗 — ${MatchUiTerms.namedReveal}';
-  static const bodyThrowTimeoutReveal =
-      '体投げ: 時間切れで${MatchUiTerms.namedReveal}';
+  static const bodyThrowMissReveal =
+      '体投げ未回収 — ${MatchUiTerms.namedReveal}（人形の位置）';
 
   // --- 施設・その他 ---
   static const safeZoneRespawned = '安全地帯が再出現しました';

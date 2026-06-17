@@ -1,5 +1,7 @@
 # 04_GuideBook.md
 
+> **2026-06 統合済み:** 本文の一次ソースはアプリ内 `lib/features/how_to_play/guide_sections.dart` と `lib/game/skill_reference.dart` です。プレイヤー向けの現行仕様は [PLAYER_REFERENCE.md](../PLAYER_REFERENCE.md) を参照してください。以下は設計メモとして残しますが、数値・効果の矛盾がある場合はコードを優先してください。
+>
 > この文書は「ONI PIN HowToPlay Ver2」設計書の一部です。
 > 実装前に `00_MasterIndex.md` から順番に、同フォルダ内の全ファイルを読んでください。
 > 途中のファイルだけを読んで実装しないでください。

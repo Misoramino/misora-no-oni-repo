@@ -1,4 +1,5 @@
 import '../../../game/elimination_aftermath_rule.dart';
+import '../../../features/how_to_play/guide_terms.dart';
 import '../../../services/match_recorder.dart';
 
 /// リプレイ軌跡の表示種別（ゲームロジック非依存）。
@@ -86,5 +87,51 @@ abstract final class ReplayTrackStyle {
   static double dimmedOpacity(ReplayTrackKind kind, {required bool emphasized}) {
     if (emphasized) return lineOpacity(kind, emphasized: true);
     return (lineOpacity(kind, emphasized: false) * 0.55).clamp(0.12, 0.75);
+  }
+
+  /// リプレイの軌跡チップ・凡例向けの既定ラベル。
+  static String defaultTrackLabel(
+    String id, {
+    Map<String, String>? trackLabels,
+    Map<String, String>? trackKinds,
+  }) {
+    final custom = trackLabels?[id];
+    if (custom != null && custom.isNotEmpty) return custom;
+    final kind = kindForTrackId(id, trackKinds: trackKinds);
+    return switch (kind) {
+      ReplayTrackKind.oni => GuideTerms.trueOni,
+      ReplayTrackKind.spectral => '残響体',
+      ReplayTrackKind.revengeOni => '復讐の鬼影',
+      ReplayTrackKind.ghostSpectator => '幽霊（観戦）',
+      ReplayTrackKind.secondGame => '第二ゲーム',
+      ReplayTrackKind.spectator => '観戦',
+      ReplayTrackKind.survivor =>
+        id == MatchTrackIds.runnerLocal ? '自分' : _playerIdLabel(id),
+    };
+  }
+
+  static String defaultTrackTitle(
+    String id, {
+    Map<String, String>? trackLabels,
+    Map<String, String>? trackKinds,
+  }) {
+    final custom = trackLabels?[id];
+    if (custom != null && custom.isNotEmpty) return custom;
+    final kind = kindForTrackId(id, trackKinds: trackKinds);
+    return switch (kind) {
+      ReplayTrackKind.oni => '${GuideTerms.trueOni}（再生）',
+      ReplayTrackKind.survivor =>
+        id == MatchTrackIds.runnerLocal ? '自分（再生）' : '${_playerIdLabel(id)}（再生）',
+      _ => defaultTrackLabel(
+          id,
+          trackLabels: trackLabels,
+          trackKinds: trackKinds,
+        ),
+    };
+  }
+
+  static String _playerIdLabel(String id) {
+    if (id.startsWith('player_')) return id.substring(7);
+    return id;
   }
 }

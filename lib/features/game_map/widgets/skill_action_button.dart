@@ -9,6 +9,8 @@ class SkillActionButton extends StatefulWidget {
     this.cooldownSeconds = 0,
     this.buffSeconds,
     this.compact = false,
+    this.blocked = false,
+    this.auxLine,
     super.key,
   });
 
@@ -19,6 +21,8 @@ class SkillActionButton extends StatefulWidget {
   final int cooldownSeconds;
   final int? buffSeconds;
   final bool compact;
+  final bool blocked;
+  final String? auxLine;
 
   @override
   State<SkillActionButton> createState() => _SkillActionButtonState();
@@ -32,7 +36,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
     final scheme = Theme.of(context).colorScheme;
     final onCd = widget.cooldownSeconds > 0;
     final onBuff = widget.buffSeconds != null && widget.buffSeconds! > 0;
-    final enabled = widget.onPressed != null && !onCd;
+    final enabled = widget.onPressed != null && !onCd && !widget.blocked;
     final showPinnedCd = _pinCd && onCd;
     final semanticLabel = _semanticLabel(
       onCd: onCd,
@@ -98,6 +102,20 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: TextStyle(fontSize: 11, color: scheme.primary),
                 ),
               )
+            else if (widget.blocked)
+              ExcludeSemantics(
+                child: Text(
+                  '待機',
+                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+              )
+            else if (widget.auxLine != null)
+              ExcludeSemantics(
+                child: Text(
+                  widget.auxLine!,
+                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+              )
             else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
@@ -142,6 +160,20 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: const TextStyle(fontSize: 11),
                 ),
               )
+            else if (widget.blocked)
+              ExcludeSemantics(
+                child: Text(
+                  '待機',
+                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+              )
+            else if (widget.auxLine != null)
+              ExcludeSemantics(
+                child: Text(
+                  widget.auxLine!,
+                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                ),
+              )
             else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
@@ -169,6 +201,9 @@ class _SkillActionButtonState extends State<SkillActionButton> {
     required bool onCd,
     required bool onBuff,
   }) {
+    if (widget.blocked) {
+      return '${widget.label}、体投げの回収待ち';
+    }
     if (onBuff) {
       return '${widget.label}、効果残り${widget.buffSeconds}秒';
     }

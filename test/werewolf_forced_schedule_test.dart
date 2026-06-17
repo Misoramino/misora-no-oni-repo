@@ -38,6 +38,17 @@ void main() {
     );
   });
 
+  test('forced toggle uses longer voluntary cooldown than voluntary toggle', () {
+    for (final d in [180, 600, 900]) {
+      final voluntary =
+          WerewolfForcedSchedule.voluntaryTransformCooldownSeconds(d);
+      final afterForced =
+          WerewolfForcedSchedule.voluntaryTransformCooldownAfterForcedSeconds(d);
+      expect(afterForced, greaterThan(voluntary));
+      expect(afterForced, voluntary + voluntary ~/ 2);
+    }
+  });
+
   test('voluntary cooldown is shorter than forced interval', () {
     for (final d in [180, 600, 900]) {
       final voluntary =

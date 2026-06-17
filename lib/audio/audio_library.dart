@@ -4,40 +4,42 @@ import '../theme/world_profile.dart';
 ///
 /// 音量は ffmpeg の loudnorm で概ね揃えてあるため、再生時の追加ゲインは不要。
 enum BgmId {
-  horror('horror', 'ホラー（緊迫）'),
-  pop('pop', 'ポップ（軽快）'),
-  pop2('pop2', 'ポップ＋（賑やか）'),
-  cyber('cyber', 'サイバー（シンセ）'),
-  tactical('tactical', 'タクティカル（スパイ）'),
-  space('space', 'アストロ（壮大）'),
-  magical('magical', 'マジカル（古楽器）'),
-  funky('funky', 'ファンキー'),
-  /// Royal Classic — Handel Water Music: Sarabande（Title/Gallery/Final tension）
-  royalSarabande('royal_sarabande', 'Royal — Sarabande'),
-  /// Royal Classic — Dvořák Serenade Op.22: IV. Larghetto（Lobby/Match/Lose）
-  royalLarghetto('royal_larghetto', 'Royal — Larghetto'),
-  /// Royal Classic — Handel Arrival of the Queen of Sheba（Victory）
-  royalQueenOfSheba('royal_queen_of_sheba', 'Royal — Queen of Sheba'),
-  /// Zen Kyoto — Tsukiyomi calm zen piano（Title / Gallery / Lobby のみ）
-  zenTsukiyomi('zen_tsukiyomi', 'Zen — Tsukiyomi'),
-  /// Cyber Night — suspense cyberpunk（Lobby / Match）
-  cyberSuspense('cyber_suspense', 'Cyber — Suspense'),
-  /// Astronomy — alone on the moon（Title / Gallery / Lobby）
-  astroAloneMoon('astro_alone_moon', 'Astro — Alone on Moon'),
-  /// Astronomy — deep space underscore（Match / Danger）
-  astroDeepUnderscore('astro_deep_underscore', 'Astro — Deep Underscore'),
-  /// Urban Horror — silent tension（Title）
+  // --- Urban Horror ---
   urbanSilentTension('urban_silent_tension', 'Urban — Silent Tension'),
-  /// Urban Horror — silent pursuit（Lobby / Match）
   urbanSilentPursuit('urban_silent_pursuit', 'Urban — Silent Pursuit'),
-  /// Urban Horror — silent shot（Moment / Capture）
   urbanSilentShot('urban_silent_shot', 'Urban — Silent Shot'),
-  /// Magical World — ethereal magic（Title / Gallery）
+  horror('horror', 'Urban — Horror (Legacy)'),
+
+  // --- Pop City ---
+  pop('pop', 'Pop City — Light'),
+  pop2('pop2', 'Pop City — Bustle'),
+  funky('funky', 'Pop City — Funky'),
+
+  // --- Cyber Night ---
+  cyber('cyber', 'Cyber — Synth'),
+  cyberSuspense('cyber_suspense', 'Cyber — Suspense'),
+
+  // --- Stealth Tactical ---
+  tactical('tactical', 'Stealth — Tactical'),
+
+  // --- Magical World ---
   magicalEthereal('magical_ethereal', 'Magical — Ethereal'),
-  /// Magical World — orchestra（Lobby / Match）
   magicalOrchestra('magical_orchestra', 'Magical — Orchestra'),
-  /// Magical World — victory orchestra
-  magicalVictory('magical_victory', 'Magical — Victory');
+  magicalVictory('magical_victory', 'Magical — Victory'),
+  magical('magical', 'Magical — Legacy'),
+
+  // --- Astronomy ---
+  astroAloneMoon('astro_alone_moon', 'Astro — Alone on Moon'),
+  astroDeepUnderscore('astro_deep_underscore', 'Astro — Deep Underscore'),
+  space('space', 'Astro — Space (Legacy)'),
+
+  // --- Zen Kyoto ---
+  zenTsukiyomi('zen_tsukiyomi', 'Zen — Tsukiyomi'),
+
+  // --- Royal Classic ---
+  royalSarabande('royal_sarabande', 'Royal — Sarabande'),
+  royalLarghetto('royal_larghetto', 'Royal — Larghetto'),
+  royalQueenOfSheba('royal_queen_of_sheba', 'Royal — Queen of Sheba');
 
   const BgmId(this.asset, this.label);
 
@@ -58,25 +60,34 @@ enum BgmId {
 
 /// 対戦中に「たまに」鳴らす環境音／効果音。`assets/audio/ambient/<asset>.mp3`。
 enum AmbientId {
-  wind('wind'),
-  forest('forest'),
-  comms('comms'),
-  sonar('sonar'),
-  popCity('pop_city'),
-  beep('beep'),
-  zenWoodJungle('zen_wood_jungle'),
-  zenWindLeaves('zen_wind_leaves'),
-  zenBirdSubtle('zen_bird_subtle'),
-  royalBellIndoor('royal_bell_indoor'),
-  royalFireplace('royal_fireplace'),
-  cyberAmbientDeep('cyber_ambient_deep'),
-  urbanRainCity('urban_rain_city'),
-  magicalFireplace('magical_fireplace'),
-  argBadRadio('arg_bad_radio');
+  wind('wind', 'Wind — Breeze'),
+  forest('forest', 'Forest — Woodland'),
+  comms('comms', 'Radio — Comms'),
+  sonar('sonar', 'Sonar — Ping'),
+  popCity('pop_city', 'City — Pop'),
+  beep('beep', 'Telemetry — Beep'),
+  zenWoodJungle('zen_wood_jungle', 'Zen — Wood & Jungle'),
+  zenWindLeaves('zen_wind_leaves', 'Zen — Wind & Leaves'),
+  zenBirdSubtle('zen_bird_subtle', 'Zen — Birds (Subtle)'),
+  royalBellIndoor('royal_bell_indoor', 'Royal — Indoor Bell'),
+  royalFireplace('royal_fireplace', 'Royal — Fireplace'),
+  cyberAmbientDeep('cyber_ambient_deep', 'Cyber — Deep Ambient'),
+  urbanRainCity('urban_rain_city', 'Urban — Rain'),
+  magicalFireplace('magical_fireplace', 'Magical — Fireplace'),
+  argBadRadio('arg_bad_radio', 'ARG — Bad Radio');
 
-  const AmbientId(this.asset);
+  const AmbientId(this.asset, this.label);
 
   final String asset;
+  final String label;
+
+  static AmbientId? fromName(String? raw) {
+    if (raw == null) return null;
+    for (final a in values) {
+      if (a.name == raw) return a;
+    }
+    return null;
+  }
 }
 
 /// 世界観ごとの既定サウンド（タイトル/ロビーのBGM・対戦中の環境音）。

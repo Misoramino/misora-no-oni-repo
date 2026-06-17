@@ -35,6 +35,7 @@ void main() {
     for (final id in guideIndexSectionIds) {
       expect(guideSectionById(id), isNotNull, reason: id);
     }
+    expect(guideIndexSectionIds, contains('skills'));
   });
 
   test('runner tutorial has accusation lead-in before facility step', () {
@@ -58,10 +59,36 @@ void main() {
     expect(steps[2].interaction, TutorialStepInteraction.skillInstant);
   });
 
+  test('tutorial skill steps link to guide skill cards', () {
+    expect(
+      TutorialCopyCatalog.stepsFor(PlayerRole.runner)[3].guideCardId,
+      'fake_position',
+    );
+    expect(
+      TutorialCopyCatalog.stepsFor(PlayerRole.hunter)[4].guideCardId,
+      'capture_zone_skill',
+    );
+    expect(
+      TutorialCopyCatalog.stepsFor(PlayerRole.werewolf)[2].guideCardId,
+      'werewolf_transform',
+    );
+    for (final role in PlayerRole.values) {
+      for (final step in TutorialCopyCatalog.stepsFor(role)) {
+        final cardId = step.guideCardId;
+        if (cardId == null) continue;
+        expect(guideCardById(cardId), isNotNull, reason: '$role → $cardId');
+      }
+    }
+  });
+
   test('werewolf tutorial finish points to guide for transform details', () {
     final finish = TutorialCopyCatalog.finishFor(PlayerRole.werewolf);
-    expect(finish.body, contains('自動切替'));
+    expect(finish.body, contains('強制まで'));
     expect(finish.body, contains(GuideTerms.werewolf));
+    expect(
+      finish.relatedGuides.any((g) => g.guideCardId == 'werewolf_transform'),
+      isTrue,
+    );
   });
 
   test('guide spec card ids are unique', () {

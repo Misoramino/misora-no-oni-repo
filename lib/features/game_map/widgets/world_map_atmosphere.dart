@@ -19,6 +19,7 @@ class WorldMapAtmosphere extends StatelessWidget {
     this.momentKind,
     this.flashOpacityOverride,
     this.subduedOverlay = false,
+    this.hideThemeOverlay = false,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class WorldMapAtmosphere extends StatelessWidget {
   final WorldMomentKind? momentKind;
   final double? flashOpacityOverride;
   final bool subduedOverlay;
+  final bool hideThemeOverlay;
 
   WorldFxProfile get _fx => WorldFxCatalog.forProfile(pack.profile);
 
@@ -65,7 +67,9 @@ class WorldMapAtmosphere extends StatelessWidget {
     final useNoise = pack.useRevealNoise ||
         momentKind == WorldMomentKind.namedReveal &&
             _fx.revealFlashStyle == WorldRevealFlashStyle.horrorVhs;
-    final overlayStrength = subduedOverlay ? 0.28 : 1.0;
+    final overlayStrength = hideThemeOverlay
+        ? 0.0
+        : (subduedOverlay ? 0.28 : 1.0);
 
     return IgnorePointer(
       child: Stack(

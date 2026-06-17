@@ -134,11 +134,11 @@ class _StarStreakPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final paint = Paint()
-      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.22)
-      ..strokeWidth = 1.2;
-    for (var i = 0; i < 12; i++) {
-      final angle = i * 0.52 + progress * 2;
-      final len = size.shortestSide * (0.2 + progress * 0.35);
+      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.1)
+      ..strokeWidth = 0.8;
+    for (var i = 0; i < 6; i++) {
+      final angle = i * 1.05 + progress * 1.2;
+      final len = size.shortestSide * (0.08 + progress * 0.12);
       final end = center + Offset(math.cos(angle), math.sin(angle)) * len;
       canvas.drawLine(center, end, paint);
     }

@@ -5,13 +5,14 @@ import '../../how_to_play/how_to_play_screen.dart';
 import '../../how_to_play/widgets/how_to_play_guide_body.dart';
 
 /// 作戦マニュアル（試合中など手早く開くボトムシート）。
-void showHowToPlaySheet(
+Future<void> showHowToPlaySheet(
   BuildContext context, {
   PlayerRole? yourRole,
   String? initialSectionId,
   String? initialSpecCardId,
+  String? initialGuideCardId,
 }) {
-  showModalBottomSheet<void>(
+  return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -25,6 +26,7 @@ void showHowToPlaySheet(
         yourRole: yourRole,
         initialSectionId: initialSectionId,
         initialSpecCardId: initialSpecCardId,
+        initialGuideCardId: initialGuideCardId,
       ),
     ),
   );
@@ -36,6 +38,7 @@ void openHowToPlayManual(
   PlayerRole? yourRole,
   String? initialSectionId,
   String? initialSpecCardId,
+  String? initialGuideCardId,
   bool fullScreen = true,
 }) {
   if (fullScreen) {
@@ -44,6 +47,7 @@ void openHowToPlayManual(
       yourRole: yourRole,
       initialSectionId: initialSectionId,
       initialSpecCardId: initialSpecCardId,
+      initialGuideCardId: initialGuideCardId,
     );
   } else {
     showHowToPlaySheet(
@@ -51,6 +55,7 @@ void openHowToPlayManual(
       yourRole: yourRole,
       initialSectionId: initialSectionId,
       initialSpecCardId: initialSpecCardId,
+      initialGuideCardId: initialGuideCardId,
     );
   }
 }

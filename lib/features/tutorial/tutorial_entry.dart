@@ -103,7 +103,6 @@ Future<void> openTutorialPicker(BuildContext context) async {
 
 /// 役職チュートリアル（サンドボックス）を開く。
 Future<void> openRoleTutorial(BuildContext context, PlayerRole role) {
-  unawaited(GameAudio.instance.stopMusic());
   return AppNav.push<void>(
     context,
     (_) => TutorialSandboxScreen(role: role),

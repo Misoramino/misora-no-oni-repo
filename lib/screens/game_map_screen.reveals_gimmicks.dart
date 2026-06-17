@@ -144,7 +144,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     String? subjectUid,
     bool attachAvatarOnReveal = true,
   }) {
-    final shown = _displayRevealPosition(position);
+    final shown = _mapRevealPosition(position);
     final resolvedSubjectUid = attachAvatarOnReveal
         ? (subjectUid ?? _firestoreSession?.myUid ?? 'local')
         : null;

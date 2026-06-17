@@ -31,7 +31,7 @@ class GameConfig {
   static const double outsideAreaGraceMeters = 25;
   /// エリア外に留まり続ける場合の追加暴露間隔（秒）。
   static const int outsideAreaRepeatRevealSeconds = 25;
-  /// エリア外に留まり続けた場合の脱落（秒）。捕獲結界（約18秒）より長い猶予。
+  /// エリア外に留まり続けた場合の脱落（秒）。スキル捕獲結界（約24秒）より長い猶予。
   static const int outsideAreaEliminationSeconds = 90;
 
   static const double gpsJumpIgnoreMeters = 120;
@@ -100,9 +100,11 @@ class GameConfig {
   static const int captureZoneDurationSeconds = 24;
   static const int captureZoneCooldownSeconds = 80;
   static const double bodyThrowDistanceMeters = 90;
+  /// 人形を回収できる距離（GPS）。
+  static const double bodyThrowRecoveryDistanceMeters = 15;
+  /// この時間内に回収しないと人形の位置が名前付き暴露される（人形は残る）。
   static const int bodyThrowDurationSeconds = 12;
   static const int bodyThrowCooldownSeconds = 75;
-  static const int bodyThrowMapTapWindowSeconds = 22;
 
   /// 体投げなどの短い操作ヒント（SnackBar）表示時間。
   static const int shortToastSeconds = 2;

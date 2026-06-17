@@ -19,9 +19,18 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _toast('試合の開始はホストのみできます');
         return;
       }
+      if (_isOnlineFirestore && _isHost && !_isLobbyPlayAreaAppliedForStart()) {
+        await _showPlayAreaNotAppliedDialog();
+        return;
+      }
 
       final relocateOk = await _maybeWarnPlayAreaFarOnMatchStart();
-      if (!relocateOk || !mounted) return;
+      if (!relocateOk || !mounted) {
+        if (mounted && !relocateOk) {
+          _toast('試合開始をキャンセルしました');
+        }
+        return;
+      }
 
       if (_isOnlineFirestore && _isHost) {
         final count = _lobbyParticipantCount();
@@ -176,7 +185,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _matchTimer?.cancel();
     _matchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !_isMatchStillActiveForLocalPlayer) return;
-      if (_gameState == GameState.running) {
+      if (_gameState == GameState.running && _activeMatchPlayerCount > 1) {
         _matchRecorder?.tryAppendOni(_oniPosition);
       }
       _syncSetState(() {
@@ -1156,6 +1165,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     }
     if (_gameState != GameState.running) return;
     if (_appInBackground && _isOnlineFirestore) {
+      _maybeWerewolfForcedTransform();
       _evaluateProximityWhileBackground();
       return;
     }
@@ -1369,7 +1379,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             context,
           ).showSnackBar(SnackBar(content: Text(message)));
           _emitAnonymousReveal(
-            position: _currentPosition,
+            position: _positionForReveal,
             pick: RevealReasonPool.cameraPick(),
             source: 'camera',
           );

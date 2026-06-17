@@ -9,12 +9,14 @@ class HowToPlayScreen extends StatefulWidget {
     this.yourRole,
     this.initialSectionId,
     this.initialSpecCardId,
+    this.initialGuideCardId,
     super.key,
   });
 
   final PlayerRole? yourRole;
   final String? initialSectionId;
   final String? initialSpecCardId;
+  final String? initialGuideCardId;
 
   @override
   State<HowToPlayScreen> createState() => _HowToPlayScreenState();
@@ -46,6 +48,7 @@ class _HowToPlayScreenState extends State<HowToPlayScreen> {
         yourRole: widget.yourRole,
         initialSectionId: widget.initialSectionId,
         initialSpecCardId: widget.initialSpecCardId,
+        initialGuideCardId: widget.initialGuideCardId,
       ),
     );
   }
@@ -57,6 +60,7 @@ void openHowToPlayScreen(
   PlayerRole? yourRole,
   String? initialSectionId,
   String? initialSpecCardId,
+  String? initialGuideCardId,
 }) {
   Navigator.of(context).push<void>(
     MaterialPageRoute<void>(
@@ -64,6 +68,7 @@ void openHowToPlayScreen(
         yourRole: yourRole,
         initialSectionId: initialSectionId,
         initialSpecCardId: initialSpecCardId,
+        initialGuideCardId: initialGuideCardId,
       ),
     ),
   );

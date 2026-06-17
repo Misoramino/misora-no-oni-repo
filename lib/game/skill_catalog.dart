@@ -2,8 +2,11 @@ import '../features/how_to_play/guide_terms.dart';
 import 'match_ui_terms.dart';
 import 'player_role.dart';
 import 'skill_ids.dart';
+import 'skill_reference.dart';
 
-/// 遊び方シート・設計ドキュメント用のスキル説明（一次ソースは [SkillIds] / [GameConfig]）。
+/// 遊び方シート・設計ドキュメント用のスキル説明。
+///
+/// 装備スキルの一次ソースは [SkillReference]（数値は [GameConfig]）。
 abstract final class SkillCatalog {
   static const matchFlow =
       'タイトル → ルーム参加 → 準備（時間・エリア・ルール）→ 試合開始 → 結果。'
@@ -12,7 +15,7 @@ abstract final class SkillCatalog {
   static const mapSkillPlacementGuide =
       '捕獲結界・体投げなど「地図に置く」スキルは、ボタンを押したあと'
       '地図を長押しして範囲を確認し、指を離して設置します。'
-      'キャンセルは画面右上の×です。'
+      '設置中はバナー右上の×でキャンセルできます（時間制限はありません）。'
       '偽情報暴露など選択画面があるスキルは、キャンセルで取り消せます。';
 
   /// 遊び方シート・エリア編集の共通文案。
@@ -27,87 +30,7 @@ abstract final class SkillCatalog {
       '脱落と陣営の勝敗は別で、脱落後も${GuideTerms.secondGame}に参加できます。';
 
   static List<SkillHelpEntry> entriesForRole(PlayerRole role) =>
-      switch (role) {
-        PlayerRole.runner => runnerSkills,
-        PlayerRole.hunter => hunterSkills,
-        PlayerRole.werewolf => werewolfSkills,
-      };
-
-  static const runnerSkills = [
-    SkillHelpEntry(
-      id: SkillIds.fakePosition,
-      title: '偽位置（逃走者）',
-      iconName: 'scatter_plot',
-      body:
-          '【できること】約20秒、進行方向の先にデコイ位置を出し、ゆっくり移動させます。'
-          '発動中は${MatchUiTerms.namedReveal}がデコイ座標に差し替わることがあります。\n'
-          '【いつ使う】追われているとき、痕跡を残したくないとき。\n'
-          '【リスク】露出が起きない間は効果が限定的。相手の地図に「デコイ」とは表示されません。',
-    ),
-    SkillHelpEntry(
-      id: SkillIds.captureZone,
-      title: '捕獲結界（逃走者）',
-      iconName: 'trip_origin',
-      body:
-          '【できること】スキルで地図に拘束エリア（半径約55m）を置き、範囲内の相手をロックします。'
-          '至近またはBLEで捕獲しやすくなります。\n'
-          '【いつ使う】通路を塞ぐ、逆転のトラップを仕掛けるとき。'
-          '地図を長押し→離して設置（右上×でキャンセル）。\n'
-          '【リスク】約24秒で消えます。再使用まで約80秒。',
-    ),
-  ];
-
-  static const hunterSkills = [
-    SkillHelpEntry(
-      id: SkillIds.fakeIntelReveal,
-      title: '偽情報暴露（鬼）',
-      iconName: 'psychology_alt',
-      body:
-          '【できること】「自分を暴露」か「逃走者をランダム暴露」を選び、'
-          '${MatchUiTerms.namedReveal}のような偽情報を地図に出します（${GuideTerms.anonTrace}ではありません）。'
-          '相手からは偽とは分かりません。\n'
-          '【いつ使う】アリバイ・囮・読みのずらしに。選択画面はキャンセル可。\n'
-          '【リスク】地点はプレイエリア内の別座標。再使用まで約75秒。',
-    ),
-    SkillHelpEntry(
-      id: SkillIds.bodyThrow,
-      title: '体投げ（鬼）',
-      iconName: 'near_me',
-      body:
-          '【できること】自分から約90m以内の地点に人形を置き、短時間そこを捕獲判定の中心にします。'
-          '逃走者から見た鬼の位置が人形へ移る「瞬間的な寄せ」です。\n'
-          '【いつ使う】離れた相手を一気に追い詰めたいとき。'
-          '地図を長押し→離して設置（右上×でキャンセル）。\n'
-          '【リスク】未回収・期限切れで${MatchUiTerms.namedReveal}されることがあります。',
-    ),
-    SkillHelpEntry(
-      id: SkillIds.captureZone,
-      title: '捕獲結界（鬼）',
-      iconName: 'trip_origin',
-      body:
-          '【できること】スキルで地図に拘束エリア（半径約55m）を置き、範囲内の逃走者をロックします。'
-          '至近またはBLEで捕獲しやすくなります。\n'
-          '【いつ使う】複数方向から圧をかけたいとき。'
-          '地図を長押し→離して設置（右上×でキャンセル）。\n'
-          '【リスク】約24秒。範囲外に10秒出ると相手に脱落リスク。再使用まで約80秒。',
-    ),
-  ];
-
-  static const werewolfSkills = [
-    SkillHelpEntry(
-      id: SkillIds.werewolfTransform,
-      title: '鬼化⇄人化（人狼）',
-      iconName: 'nightlight',
-      body:
-          '【できること】「人の姿」と「鬼化中の姿」を切り替えます（ボタン表示は現在の姿に応じて「鬼化」「人化」）。'
-          '鬼化中は鬼のように追跡・拘束できますが、${GuideTerms.werewolf}は${GuideTerms.trueOni}ではありません。\n'
-          '【いつ使う】陣営（${GuideTerms.humanFaction}/${GuideTerms.oniFaction}）に応じて立ち回るとき。'
-          '人数比で陣営が決まり、見た目とは別です（同数なら${GuideTerms.humanFaction}）。'
-          '人陣営＋鬼化は捕獲可、鬼陣営＋鬼化は${GuideTerms.panic}・拘束のみ。\n'
-          '【リスク】最長15分ごとに強制切替（通知なし）。'
-          '自発切替CD=間隔÷3（初回も同じ）。HUDで「切替CD」と「強制まで」を別表示。告発不可。脱落時の陣営は固定。',
-    ),
-  ];
+      SkillReference.forRole(role).map((s) => s.toHelpEntry()).toList();
 
   static const gimmicks = [
     SkillHelpEntry(
@@ -155,6 +78,7 @@ abstract final class SkillCatalog {
       body:
           '【できること】試合時間に連動した間隔（おおよそ75〜180秒）で参加者から1人が選ばれ、'
           '${GuideTerms.anonPositionReveal}され${GuideTerms.anonTrace}が出ます（${MatchUiTerms.namedReveal}ではありません）。\n'
+          '【偽位置との関係】逃走者の偽位置スキル発動中は、名前付き・匿名・定期暴露すべてデコイ近傍に出ます。\n'
           '【いつ使う】情報の床として、偽情報と区別しにくい手がかりになります。\n'
           '【リスク】理由は通信混線・傍受・監視カメラなど共通プールから。',
     ),
@@ -166,7 +90,7 @@ abstract final class SkillCatalog {
           '【できること】鬼からの距離が${MatchUiTerms.panicRing}（接触圏より外側になりやすい）に'
           '約6秒 → 約22秒の${GuideTerms.panic}状態。約7秒ごとに${GuideTerms.anonTrace}。\n'
           '【いつ使う】鬼が近いときの警戒サイン。\n'
-          '【リスク】脱落はしません。痕跡が残りやすくなります。',
+          '【リスク】脱落はしません。痕跡が残りやすくなります。偽位置中は痕跡もデコイ近傍。',
     ),
     SkillHelpEntry(
       id: 'capture',
@@ -215,7 +139,7 @@ abstract final class SkillCatalog {
       body:
           '【できること】${GuideTerms.anonTrace}に時間帯・観測源・位置誤差（信頼度）の読み取り補助。\n'
           '【いつ使う】痕跡をつなげて${GuideTerms.trueOni}の動きを推理するとき。\n'
-          '【リスク】対象者の名前は出しません。',
+          '【リスク】対象者の名前は出しません。名前付き暴露・偽情報暴露には適用されません。',
     ),
     SkillHelpEntry(
       id: 'runner_hacker',
@@ -227,18 +151,4 @@ abstract final class SkillCatalog {
           '【リスク】鬼の座標ピンは出しません。',
     ),
   ];
-}
-
-final class SkillHelpEntry {
-  const SkillHelpEntry({
-    required this.id,
-    required this.title,
-    required this.iconName,
-    required this.body,
-  });
-
-  final String id;
-  final String title;
-  final String iconName;
-  final String body;
 }

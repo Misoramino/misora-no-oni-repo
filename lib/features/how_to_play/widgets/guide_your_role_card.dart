@@ -63,7 +63,7 @@ class GuideYourRoleCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '操作・スキル・ギミックは下の「役職」「マップ施設」章で確認できます。',
+              '装備スキルは「スキル」章、役職の要点は「役職」章、数値は「詳細ルール」章で確認できます。',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
                 height: 1.4,

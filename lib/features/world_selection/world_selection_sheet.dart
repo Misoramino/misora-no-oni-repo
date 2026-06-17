@@ -167,19 +167,32 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
                           icon: Icon(Icons.arrow_back, color: _pack.accent),
-                          tooltip: _studio.microcopy.back,
+                          tooltip: '戻る',
                         ),
                         Expanded(
-                          child: Text(
-                            'WORLD GALLERY',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: _pack.accent,
-                                  letterSpacing: _pack.headlineLetterSpacing,
-                                ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'WORLD GALLERY',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: _pack.accent,
+                                      letterSpacing:
+                                          _pack.headlineLetterSpacing,
+                                    ),
+                              ),
+                              Text(
+                                '世界観とサウンドを選ぶ',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(color: _pack.mutedOnScaffold),
+                              ),
+                            ],
                           ),
                         ),
                         if (widget.current == _preview)
@@ -228,6 +241,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                     SizedBox(height: WorldUILayout.cardGap * 0.5),
                     Text(
                       _studio.galleryBlurb ?? _pack.shortIntro,
+                      textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: _pack.mutedOnScaffold,
                             height: _pack.bodyLineHeight,
@@ -240,6 +254,12 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                             color: _pack.accentMuted,
                           ),
                     ),
+                    Text(
+                      'タップでサウンドを確認',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _pack.mutedOnScaffold,
+                          ),
+                    ),
                     SizedBox(height: WorldUILayout.cardGap),
                     Wrap(
                       spacing: 8,
@@ -247,7 +267,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       children: [
                         ActionChip(
                           label: Text(
-                            'UI',
+                            '操作音',
                             style: TextStyle(color: _pack.textOnPanel),
                           ),
                           backgroundColor: _pack.panelSurface,
@@ -256,7 +276,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                         ),
                         ActionChip(
                           label: Text(
-                            'Reveal',
+                            '暴露音',
                             style: TextStyle(color: _pack.textOnPanel),
                           ),
                           backgroundColor: _pack.panelSurface,
@@ -265,7 +285,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                         ),
                         ActionChip(
                           label: Text(
-                            'Capture',
+                            '捕獲音',
                             style: TextStyle(color: _pack.textOnPanel),
                           ),
                           backgroundColor: _pack.panelSurface,
@@ -289,6 +309,13 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       icon: Icons.check_rounded,
                       label: _studio.microcopy.gallerySelect,
                       onPressed: _confirm,
+                    ),
+                    Text(
+                      '選んだ世界を試合に適用',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _pack.mutedOnScaffold,
+                          ),
                     ),
                     SizedBox(height: WorldUILayout.cardGap),
                   ],

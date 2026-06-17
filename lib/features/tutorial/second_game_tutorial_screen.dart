@@ -228,8 +228,12 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     });
   }
 
-  void _openGuideSection(String sectionId) {
-    showHowToPlaySheet(context, initialSectionId: sectionId);
+  void _openGuideSection(String sectionId, {String? guideCardId}) {
+    showHowToPlaySheet(
+      context,
+      initialSectionId: guideCardId == null ? sectionId : null,
+      initialGuideCardId: guideCardId,
+    );
   }
 
   Offset _clampToArea(Offset p) {

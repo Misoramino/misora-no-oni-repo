@@ -14,7 +14,7 @@ abstract final class WorldStudioIdentityCatalog {
     WorldProfile.horror: WorldStudioIdentity(
       profile: WorldProfile.horror,
       recommended: false,
-      galleryBlurb: '静かな深夜都市。調査と監視のスタイリッシュホラー。',
+      galleryBlurb: '深夜都市の調査劇。監視と恐怖が交わるスタイリッシュホラー。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 22,
         screenPaddingV: 20,
@@ -135,7 +135,7 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.sciFi: WorldStudioIdentity(
       profile: WorldProfile.sciFi,
-      galleryBlurb: '電子都市への侵入。UI が世界そのもの。',
+      galleryBlurb: '電子都市へ侵入する、UIそのものが世界のサイバー体験。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 14,
         screenPaddingV: 12,

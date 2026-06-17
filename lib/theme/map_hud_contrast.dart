@@ -50,10 +50,12 @@ class MapHudPrepLegibility {
 
     final tileDark =
         ThemeData.estimateBrightnessForColor(tileSurface) == Brightness.dark;
-    final tileStrong = tileDark ? const Color(0xFFF2F2F7) : pack.textOnScaffold;
-    final tileSoft = tileDark
-        ? const Color(0xFFC7C7CC)
-        : pack.mutedOnScaffold;
+    final tileStrong = pack.isLightPanel
+        ? pack.textOnPanel
+        : (tileDark ? const Color(0xFFF2F2F7) : pack.textOnScaffold);
+    final tileSoft = pack.isLightPanel
+        ? pack.mutedOnPanel
+        : (tileDark ? const Color(0xFFC7C7CC) : pack.mutedOnScaffold);
 
     final primary = scheme.primary;
     final link = pack.isLightScaffold

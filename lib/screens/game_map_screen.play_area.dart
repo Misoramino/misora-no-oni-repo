@@ -636,4 +636,32 @@ extension _GameMapPlayArea on _GameMapScreenState {
     });
     return !matchStart;
   }
+
+  bool _isLobbyPlayAreaAppliedForStart() {
+    if (!_isOnlineFirestore || !_isHost) return true;
+    return _lobbyHostAreaSlotName != null;
+  }
+
+  Future<void> _showPlayAreaNotAppliedDialog() async {
+    if (!mounted) return;
+    await showAppDialog<void>(
+      context: context,
+      builder: (ctx) => AppDialog(
+        title: 'プレイエリアを適用してください',
+        icon: Icons.map_outlined,
+        actions: [
+          AppDialogAction(
+            label: '了解',
+            filled: true,
+            onPressed: () => Navigator.pop(ctx),
+          ),
+        ],
+        child: const Text(
+          '保存したエリアを選んだあと、'
+          '「選択エリアを適用」を押してから試合を開始できます。\n\n'
+          '適用しないと、前回のエリアのままになることがあります。',
+        ),
+      ),
+    );
+  }
 }

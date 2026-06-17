@@ -448,7 +448,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                             if (!context.mounted || !ok) {
                                               return;
                                             }
-                                            AppNav.push<void>(
+                                            await AppNav.push<void>(
                                               context,
                                               (_) => GameMapScreen(
                                                 profile: _profile,
@@ -458,6 +458,9 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                               worldProfile: _profile,
                                               routeName: GameMapScreen.routeName,
                                             );
+                                            if (mounted) {
+                                              await _reloadProfileFromPrefs();
+                                            }
                                           },
                                         ),
                                         const SizedBox(height: 12),

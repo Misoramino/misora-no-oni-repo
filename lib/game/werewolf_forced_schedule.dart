@@ -18,6 +18,14 @@ abstract final class WerewolfForcedSchedule {
     return interval ~/ 3;
   }
 
+  /// 強制切替直後の任意切替CD（通常よりやや長い: 基準 + 基準÷2）。
+  static int voluntaryTransformCooldownAfterForcedSeconds(
+    int matchDurationSeconds,
+  ) {
+    final base = voluntaryTransformCooldownSeconds(matchDurationSeconds);
+    return base + base ~/ 2;
+  }
+
   static int secondsSinceLastTransform(
     DateTime? lastTransformAt,
     DateTime now,

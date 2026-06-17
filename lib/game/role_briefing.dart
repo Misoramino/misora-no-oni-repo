@@ -88,29 +88,37 @@ abstract final class RoleBriefingCatalog {
 
   static const _hunterStart = MatchStartBriefing(
     role: PlayerRole.hunter,
-    tagline: '痕跡と暴露から読み、作戦を立てて追う${GuideTerms.trueOni}です。',
-    winLine: '逃走者を全員捕まえれば勝ちです。',
+    tagline: 'あなたは${GuideTerms.trueOni}。逃走者の「いまここ」は見えません。',
+    winLine: '逃走者を全員捕獲すれば勝ちです。',
     mustKnow: [
-      '逃走者の今いる場所は見えません。${GuideTerms.anonTrace}・${MatchUiTerms.namedReveal}・カメラをつなげる。',
-      'スキル（偽情報・体投げ・捕獲結界）で読みをずらし、要所へ移動。',
-      '告発施設の近くにいると、そこでの逃走者の告発を止められます。',
-      '他役職: 逃走者は情報屋・安全地帯・通信障害を使う／人狼は前半協力・後半翻る。',
+      '見えるのは痕跡（?）・名前付き暴露・カメラだけ。',
+      '点をつないで、どこへ逃げたかを読みます。',
+      '至近まで近づくと捕獲。結界や体投げで追い詰められます。',
+      '告発施設のそばにいると、味方の告発を止められます。',
     ],
   );
 
   static MatchStartBriefing _werewolfStart(FactionSide? faction) {
+    final factionLine = switch (faction) {
+      FactionSide.humanTeam =>
+        'いまは${GuideTerms.humanFaction}。鬼化すると逃走者を捕獲できます。',
+      FactionSide.oniTeam =>
+        'いまは${GuideTerms.oniFaction}。鬼化は追跡・拘束向き（捕獲は不可）。',
+      null =>
+        '人数比で陣営が決まります（3人戦は人側・5〜6人は鬼側になりやすい）。',
+    };
     return MatchStartBriefing(
       role: PlayerRole.werewolf,
       tagline:
           '${GuideTerms.werewolf}は人数で味方が決まる二面役。見た目と陣営は別です。',
       winLine: '人数が少ない方の陣営が味方。そちらが勝てばあなたの勝ちです。',
       mustKnow: [
-        '前半（人が多い）: 鬼と協力し、逃走者を追い込む（鬼化しても人は捕獲できない）。',
-        '後半（人が減る）: 人側と協力し、鬼を追い詰める（鬼化すると捕獲できる）。',
-        '「人化」「鬼化」で姿を切り替え。告発はできません。',
+        factionLine,
+        '「人化」「鬼化」で姿を切り替え。HUDに「強制まで」と「切替CD」が別表示。',
+        '強制切替直後は切替CDがやや長くなります。告発はできません。',
         faction == null
             ? 'いまの陣営は HUD で確認できます。'
-            : 'いまの人数比では${faction.label}（HUD・脱落後は固定）。',
+            : '脱落後の第二ゲームもこの陣営で固定です。',
         '他役職: 鬼は手がかりで追う／逃走者はギミック3択で生き延びる。',
       ],
     );
@@ -151,14 +159,15 @@ abstract final class RoleBriefingCatalog {
       '告発施設の近くで告発を阻止',
     ],
     notes: [
-      '鬼化中の${GuideTerms.werewolf}とは${GuideTerms.panic}・捕獲が起きない',
+      '人陣営＋鬼化の人狼は通常どおり追跡・捕獲可能',
+      '鬼陣営＋鬼化の人狼とは本鬼同士と同様、互いにパニック・捕獲しない',
       '脱落後は${GuideTerms.vengefulShadow}として妨害可能（既定）',
     ],
   );
 
   static const _werewolf = RoleBriefing(
     role: PlayerRole.werewolf,
-    headline: '${GuideTerms.werewolf} — 前半協力・後半翻る',
+    headline: '${GuideTerms.werewolf} — 陣営に応じて立ち回る',
     factionLine:
         '${GuideTerms.realOni}でも${GuideTerms.runner}でもない。陣営は人数比で決まる',
     goals: [
@@ -166,15 +175,15 @@ abstract final class RoleBriefingCatalog {
       '告発の正解は${GuideTerms.realOni}だけと覚える',
     ],
     actions: [
-      '前半: 鬼側の味方として人を追い込む（鬼化でも人は襲えない）',
-      '後半: 人側の味方として鬼を追い詰める（鬼化で捕獲可）',
-      '「人化」「鬼化」で姿を切り替え',
+      '${GuideTerms.humanFaction}: 鬼化で逃走者を捕獲できる',
+      '${GuideTerms.oniFaction}: 鬼化は追跡・拘束向き（捕獲不可・攪乱）',
+      '「人化」「鬼化」で姿を切り替え（強制まで／切替CDは別表示）',
       '告発はできない',
     ],
     notes: [
       '3人戦は人側寄り、5〜6人は鬼側寄りになりやすい',
-      '人数比＝厳密なルール。前半鬼側・後半人側はその直感的な見え方',
-      '6人以上で人狼2人のことも。脱落時の陣営は固定',
+      '脱落時の陣営は固定（途中で人数が変わっても切り替わらない）',
+      '6人以上で人狼2人のことも',
     ],
   );
 

@@ -118,6 +118,7 @@ class GameAudio {
   }
 
   Future<void> updateSettings(AudioSettings next) async {
+    final prev = settings.value;
     settings.value = next;
     await AudioPrefs.save(next);
     _layerEngine.setMasterBgm(next.effectiveBgm);
@@ -142,6 +143,15 @@ class GameAudio {
     if (_mode == _MusicMode.match) {
       final profile = _profile;
       if (profile == null) return;
+      if (prev.ambientChoice != next.ambientChoice ||
+          prev.ambientVolume != next.ambientVolume ||
+          prev.muted != next.muted) {
+        if (next.ambientEnabled && next.effectiveAmbient > 0) {
+          _startAmbientSchedule();
+        } else {
+          _stopAmbientSchedule();
+        }
+      }
       if (next.bgmEnabled) {
         await _playMatchBgm(profile, next);
       } else {
@@ -635,7 +645,9 @@ class GameAudio {
     if (_mode != _MusicMode.match) return;
     final profile = _profile;
     if (profile == null) return;
-    final vol = settings.value.effectiveAmbient;
+    final s = settings.value;
+    if (!s.ambientEnabled) return;
+    final vol = s.effectiveAmbient;
     if (vol <= 0) return;
     final id = _pickAmbientId(profile);
     final assetPath = _resolveAsset('audio/ambient', id.asset, _musicExts);
@@ -698,6 +710,12 @@ class GameAudio {
   }
 
   AmbientId _pickAmbientId(WorldProfile profile) {
+    final choice = settings.value.ambientChoice;
+    if (choice != AudioSettings.ambientWorldDefault &&
+        choice != AudioSettings.ambientOff) {
+      return AmbientId.fromName(choice) ??
+          WorldAudio.ambientPool(profile).first;
+    }
     final pool = WorldAudio.ambientPool(profile);
     if (pool.length == 1) return pool.first;
     if (_rand.nextDouble() >= _ambientRareChance) return pool.first;

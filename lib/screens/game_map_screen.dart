@@ -12,6 +12,8 @@ import '../audio/game_audio.dart';
 import '../audio/world_audio_director.dart';
 import '../audio/world_audio_state.dart';
 import '../audio/sfx_id.dart';
+import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_presentation_context.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../progression/progress_store.dart';
@@ -70,6 +72,7 @@ import '../features/game_map/map/reveal_avatar_icon_cache.dart';
 import '../session/session_prefs.dart';
 import '../features/game_map/widgets/diagnostics_card.dart';
 import '../features/game_map/widgets/game_control_panel.dart';
+import '../features/game_map/widgets/skill_timer_hud.dart';
 import '../features/game_map/hud/hud_compact_line.dart';
 import '../features/game_map/hud/match_phase.dart';
 import '../features/game_map/hud/second_game_intro_overlay.dart';
@@ -165,6 +168,7 @@ import '../features/game_map/visual/world_moment_flash_controller.dart';
 import '../theme/world_fx_profile.dart';
 import '../features/game_map/widgets/world_map_atmosphere.dart';
 import '../theme/elimination_role_copy.dart';
+import '../theme/map_hud_contrast.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
 import '../widgets/confirm_dialog.dart';
@@ -446,6 +450,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _matchRoleBriefingShown = false;
   bool _rejoinRestoringEvents = false;
   bool _matchPresentationActive = false;
+  bool _howToPlaySheetOpen = false;
   bool _matchStartInFlight = false;
   bool _wasActiveInCurrentOnlineMatch = false;
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
@@ -1284,11 +1289,18 @@ class _GameMapScreenState extends State<GameMapScreen>
     await WorldProfilePrefs.save(profile);
     await _mapVisual.reloadForProfile(profile);
     await _refreshPlayerAvatarIcon();
+    if (_mapController != null) {
+      try {
+        // ignore: deprecated_member_use
+        await _mapController!.setMapStyle(_mapVisual.mapStyleJson);
+      } catch (_) {}
+    }
     if (!mounted) return;
     setState(() {
       _activeProfile = profile;
       _mapLayerToggles = _mapVisual.pack.layerDefaults;
     });
+    _publishMapOverlay(force: true);
     GameAudio.instance.setActiveWorldProfile(profile);
     unawaited(WorldAudioDirector.instance.onProfileChanged(profile));
     widget.onProfileChanged?.call(profile);
@@ -1343,6 +1355,25 @@ class _GameMapScreenState extends State<GameMapScreen>
         viewerPosition: _currentPosition,
         jammingZoneCenters: _rt.commJammingZonePositions,
       );
+
+  /// 地図に出す暴露座標。偽位置発動中はデコイ近傍へ差し替え（体投げ人形は別経路）。
+  LatLng _mapRevealPosition(LatLng logical, {bool periodic = false}) {
+    if (_rt.fakePositionActive &&
+        _rt.fakePositionLatLng != null &&
+        _rt.bodyThrowPosition == null) {
+      return MapGeoUtils.jitterRevealPosition(
+        raw: _rt.fakePositionLatLng!,
+        seed: _positionSeedForReveal(_rt.fakePositionLatLng!),
+      );
+    }
+    if (periodic) {
+      return MapGeoUtils.jitterRevealPosition(
+        raw: logical,
+        seed: _positionSeedForReveal(logical),
+      );
+    }
+    return _displayRevealPosition(logical);
+  }
 
   int _positionSeedForReveal(LatLng raw) =>
       (raw.latitude * 100000).round() ^
@@ -1461,11 +1492,17 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   /// マーカー平滑化用。試合中のみ高頻度、それ以外は省電力寄り。
   void _startRenderPump() {
+    if (_howToPlaySheetOpen) return;
     _renderPump?.cancel();
     _renderPump = Timer.periodic(
       Duration(milliseconds: _renderPumpIntervalMs),
       (_) => _pulseVisualSmoothing(),
     );
+  }
+
+  void _stopRenderPump() {
+    _renderPump?.cancel();
+    _renderPump = null;
   }
 
   int get _renderPumpIntervalMs {
@@ -1479,6 +1516,10 @@ class _GameMapScreenState extends State<GameMapScreen>
       _mapLowSpecMode ? 1.5 : 0.75;
 
   void _retuneRenderPump() {
+    if (_howToPlaySheetOpen) {
+      _stopRenderPump();
+      return;
+    }
     final interval = _renderPumpIntervalMs;
     if (_renderPump == null) {
       _startRenderPump();
@@ -1493,7 +1534,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _pulseVisualSmoothing() {
-    if (!mounted || _editingArea) return;
+    if (!mounted || _editingArea || _howToPlaySheetOpen) return;
     final running = _gameState == GameState.running;
     var overlayDirty = false;
 
@@ -1525,8 +1566,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
 
     if (running &&
-        (_rt.bodyThrowAwaitingMapTap ||
-            (_rt.bodyThrowPosition != null && _rt.bodyThrowEndsAt != null))) {
+        (_rt.bodyThrowAwaitingMapTap || _rt.bodyThrowPosition != null)) {
       overlayDirty = true;
     }
 
@@ -1562,27 +1602,33 @@ class _GameMapScreenState extends State<GameMapScreen>
           ? _rt.fakePositionLatLng!
           : _currentPosition);
 
-  /// 体投げの配置猶予 / 回収までの残り秒（なければ null）。
-  int? _bodyThrowHudSeconds() {
-    final now = DateTime.now();
-    if (_rt.bodyThrowAwaitingMapTap && _rt.bodyThrowTapDeadline != null) {
-      final left = _rt.bodyThrowTapDeadline!.difference(now).inSeconds;
-      return left.clamp(0, GameConfig.bodyThrowMapTapWindowSeconds);
-    }
-    if (_rt.bodyThrowPosition != null && _rt.bodyThrowEndsAt != null) {
-      final left = _rt.bodyThrowEndsAt!.difference(now).inSeconds;
-      return left.clamp(0, GameConfig.bodyThrowDurationSeconds);
+  /// 体投げの設置中 / 人形稼働中バナー用ラベル。
+  String? _bodyThrowHudPhaseLabel() {
+    if (_rt.bodyThrowAwaitingMapTap) return '人形の位置を決める';
+    if (_rt.bodyThrowPosition != null) {
+      return _rt.bodyThrowOverdueRevealed
+          ? '人形を回収する'
+          : '人形の位置へ近づいて回収';
     }
     return null;
   }
 
-  String? _bodyThrowHudPhaseLabel() {
-    if (_rt.bodyThrowAwaitingMapTap) return '人形を置くまで';
-    if (_rt.bodyThrowPosition != null && _rt.bodyThrowEndsAt != null) {
-      return '体を回収するまで';
+  String? _bodyThrowHudHint() {
+    if (_rt.bodyThrowAwaitingMapTap) {
+      return '地図を長押し → 離して設置（右上×でキャンセル）';
+    }
+    if (_rt.bodyThrowPosition != null) {
+      if (_rt.bodyThrowOverdueRevealed) {
+        return '未回収のため人形の位置は暴露済み — 体投げボタンで回収';
+      }
+      return '約${GameConfig.bodyThrowDurationSeconds}秒以内に回収しないと人形の位置が暴露されます';
     }
     return null;
   }
+
+  bool get _bodyThrowHudVisible =>
+      _gameState == GameState.running &&
+      (_rt.bodyThrowAwaitingMapTap || _rt.bodyThrowPosition != null);
 
   int? _gimmickRelocateHintSeconds() {
     final until = _localGimmickRelocateHintUntil;
@@ -1708,6 +1754,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ' / ${faction.label}$frozen / ${perceived.label}${capture.isEmpty ? "" : "・$capture"}';
   }
 
+  bool _playAreaRelocatePromptShown = false;
+
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
     final now = DateTime.now();
@@ -1757,6 +1805,17 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (animateCamera) {
       _runnerSmooth!.snapDisplayToTarget();
       _mapController?.animateCamera(CameraUpdate.newLatLng(next));
+    }
+
+    if (!_playAreaRelocatePromptShown &&
+        _gameState == GameState.waiting &&
+        !_matchPresentationActive &&
+        !_editingArea &&
+        _gpsPositionReady &&
+        _usesDefaultTokyoPlayArea() &&
+        _playAreaFarFromCurrentLocation()) {
+      _playAreaRelocatePromptShown = true;
+      unawaited(_maybeSuggestPlayAreaAtCurrentLocation());
     }
 
     final skipLocalEvaluate = _gameState == GameState.running &&
@@ -1825,8 +1884,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     }
     if (_matchRecorder != null && !discardExisting) return;
     _matchRecorder?.discard();
-    final recordOniTrack =
-        _localRole == PlayerRole.hunter || _remoteOniKnown;
+    final recordOniTrack = _activeMatchPlayerCount > 1 &&
+        (_localRole == PlayerRole.hunter || _remoteOniKnown);
     _matchRecorder = MatchRecorder(
       playAreaSnapshot: _playArea,
       consentedToTrajectory: true,
@@ -2312,9 +2371,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           onOpenReplay: _lastSavedMatchRecord != null
               ? () => _openMatchReplay()
               : null,
-          replayTrackCount: (_lastMergedMatchRecord ?? _lastSavedMatchRecord)
-              ?.tracks
-              .length,
+          replayTrackCount: _activeMatchPlayerCount > 1
+              ? _activeMatchPlayerCount
+              : null,
         ),
         direction: SceneTransitionDirection.up,
         worldProfile: _activeProfile,
@@ -2758,7 +2817,13 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _showHowToPlaySheet() {
-    showHowToPlaySheet(context, yourRole: _localRole);
+    _howToPlaySheetOpen = true;
+    _stopRenderPump();
+    showHowToPlaySheet(context, yourRole: _localRole).whenComplete(() {
+      if (!mounted) return;
+      _howToPlaySheetOpen = false;
+      _startRenderPump();
+    });
   }
 
   String? _bleIssueFromProximitySource(String source) {
@@ -3003,6 +3068,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         await showRoleBriefingDialog(
           context,
           role: _localRole,
+          worldProfile: _activeProfile,
           skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
           werewolfCurrentFaction: _localRole == PlayerRole.werewolf
               ? _localFactionNow()
@@ -3157,8 +3223,17 @@ class _GameMapScreenState extends State<GameMapScreen>
           };
 
     final blockSystemBack = running || _matchPresentationActive;
+    final themed = Theme.of(context).copyWith(
+      extensions: [
+        for (final e in Theme.of(context).extensions.values)
+          if (e is! WorldProfileTheme) e,
+        WorldProfileTheme(_activeProfile),
+      ],
+    );
 
-    return PopScope(
+    return Theme(
+      data: themed,
+      child: PopScope(
       canPop: !blockSystemBack,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && blockSystemBack) {
@@ -3187,20 +3262,21 @@ class _GameMapScreenState extends State<GameMapScreen>
                 ),
           title: Text(appTitle),
           actions: [
-            if (!running) ...[
+            if (!running && !_matchPresentationActive) ...[
               TextButton.icon(
                 onPressed: _openRoomLobby,
                 icon: const Icon(Icons.groups_outlined, size: 18),
                 label: const Text('ルーム'),
               ),
             ],
-            GameMapOverflowMenu(
-              menuKey: _matchOverflowKey,
-              gameState: _gameState,
-              editingArea: _editingArea,
-              testMode: _testMode,
-              onSelected: (value) => unawaited(_onOverflowMenuSelected(value)),
-            ),
+            if (!_matchPresentationActive)
+              GameMapOverflowMenu(
+                menuKey: _matchOverflowKey,
+                gameState: _gameState,
+                editingArea: _editingArea,
+                testMode: _testMode,
+                onSelected: (value) => unawaited(_onOverflowMenuSelected(value)),
+              ),
           ],
         ),
         body: Stack(
@@ -3248,7 +3324,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                         _enterPrepMapMode(PrepMapMode.browse),
                   onOpenAreaGallery: _openAreaGallery,
                   onStart: _startGame,
-                  canStart: !_editingArea && _isHost,
+                  canStart: !_editingArea &&
+                      _isHost &&
+                      (!_isOnlineFirestore || _lobbyHostAreaSlotName != null),
                   onOpenCustomSettings: _openCustomMenu,
                   onOpenPersonalSettings: _openPersonalSettings,
                   displayName: _localPlayerLabel,
@@ -3310,6 +3388,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                                 flashOpacityOverride: _momentFlash.flashOpacity,
                                 subduedOverlay:
                                     running || _matchPresentationActive,
+                                hideThemeOverlay: _matchPresentationActive,
                               );
                             },
                           ),
@@ -3510,6 +3589,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     _rt.lastWerewolfTransformAt,
                     _werewolfTransformCooldownSeconds,
                   ),
+                  werewolfForcedSeconds: _werewolfSecondsUntilForcedForUi(),
                   fakeCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastFakeSkillAt,
                     GameConfig.fakeSkillCooldownSeconds,
@@ -3552,50 +3632,21 @@ class _GameMapScreenState extends State<GameMapScreen>
                   ),
                 ),
               ),
-            if (running && _bodyThrowHudSeconds() != null)
+            if (_bodyThrowHudVisible)
               Positioned(
                 top: (running && _rt.remainingSeconds <= 10) ? 188 : 110,
                 left: 12,
                 right: 12,
                 child: Center(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.deepOrange.shade900.withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _bodyThrowHudPhaseLabel() ?? '',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            '${_bodyThrowHudSeconds()}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Text(
-                            '秒',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
+                  child: SkillTimerHud(
+                    phaseLabel: _bodyThrowHudPhaseLabel() ?? '',
+                    hint: _bodyThrowHudHint(),
+                    worldProfile: _mapVisual.pack.profile,
+                    accent: WorldPresentationCatalog.of(_mapVisual.pack.profile)
+                        .accent,
+                    surfaceColor: MapHudContrast.runningControlPanelBg(
+                      Theme.of(context).colorScheme,
+                      _mapVisual.pack.profile,
                     ),
                   ),
                 ),
@@ -3683,10 +3734,15 @@ class _GameMapScreenState extends State<GameMapScreen>
                     _rt.lastSkillLockPlacementAt,
                     GameConfig.captureZoneCooldownSeconds,
                   ),
-                  bodyThrowCooldownSeconds: _cooldownRemainingSeconds(
-                    _rt.lastBodyThrowAt,
-                    GameConfig.bodyThrowCooldownSeconds,
-                  ),
+                  bodyThrowCooldownSeconds: _rt.bodyThrowPosition != null
+                      ? 0
+                      : _cooldownRemainingSeconds(
+                          _rt.lastBodyThrowAt,
+                          GameConfig.bodyThrowCooldownSeconds,
+                        ),
+                  bodyThrowPuppetActive: _rt.bodyThrowPosition != null,
+                  bodyThrowRecoverInRange: _bodyThrowRecoverInRange,
+                  skillsLockedByBodyThrow: _bodyThrowBlocksOtherSkills,
                   werewolfOniActive: _rt.werewolfInOniForm,
                   werewolfCooldownSeconds: _cooldownRemainingSeconds(
                     _rt.lastWerewolfTransformAt,
@@ -3912,6 +3968,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -44,6 +44,7 @@ class _Step {
     this.showAnonMarker = false,
     this.showAccusationMarker = false,
     this.guideSectionId,
+    this.guideCardId,
   });
 
   final String text;
@@ -53,6 +54,7 @@ class _Step {
   final bool showAnonMarker;
   final bool showAccusationMarker;
   final String? guideSectionId;
+  final String? guideCardId;
 
   static _Act _actFrom(TutorialStepInteraction i) => switch (i) {
         TutorialStepInteraction.tapNext => _Act.tapNext,
@@ -121,6 +123,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
           showAnonMarker: copy.showAnonMarker,
           showAccusationMarker: copy.showAccusationMarker,
           guideSectionId: copy.guideSectionId,
+          guideCardId: copy.guideCardId,
         ),
     ];
   }
@@ -139,7 +142,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
   String get _skillLabel => switch (widget.role) {
         PlayerRole.runner => '偽位置',
         PlayerRole.hunter => '捕獲結界',
-        PlayerRole.werewolf => '鬼化',
+        PlayerRole.werewolf => '鬼化・人化',
       };
 
   void _onTick(Duration elapsed) {
@@ -172,24 +175,11 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     // ダミーの挙動。
     switch (_step.act) {
       case _Act.flee:
-        // 鬼がゆっくり追う。
-        final nextOni = _moveToward(_oni, _player, 0.16 * dt);
-        if ((nextOni - _oni).distance > 0.0005) {
-          _oni = nextOni;
-          dirty = true;
-        }
+        // チュートリアル: 鬼は追わず、プレイヤーの移動だけ練習する。
+        break;
       case _Act.chase:
-        // 逃走者が逃げる。
-        final away = _runner - _player;
-        if (away.distance < 0.34) {
-          final nextRunner = _clampToArea(
-            _moveToward(_runner, _runner + away, 0.22 * dt),
-          );
-          if ((nextRunner - _runner).distance > 0.0005) {
-            _runner = nextRunner;
-            dirty = true;
-          }
-        }
+        // チュートリアル: 逃走者は動かず、近づき操作だけ練習する。
+        break;
       case _Act.tapNext:
       case _Act.move:
       case _Act.skillInstant:
@@ -221,9 +211,9 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
       _Act.skillInstant => _skillPressed && _stepElapsed >= 0.8,
       _Act.skillMapPlace =>
         _placedZoneCenter != null && _stepElapsed >= 1.0,
-      _Act.flee => _travel >= 0.15 && _stepElapsed >= 5.5,
+      _Act.flee => _travel >= 0.12 && _stepElapsed >= 3.5,
       _Act.chase =>
-        (_runner - _player).distance <= 0.07 && _stepElapsed >= 3.5,
+        (_runner - _player).distance <= 0.14 && _stepElapsed >= 1.5,
     };
     if (done) _completeStep();
   }
@@ -273,20 +263,13 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     });
   }
 
-  void _openGuideSection(String sectionId) {
+  void _openGuide({String? sectionId, String? cardId}) {
     showHowToPlaySheet(
       context,
       yourRole: widget.role,
-      initialSectionId: sectionId,
+      initialSectionId: cardId == null ? sectionId : null,
+      initialGuideCardId: cardId,
     );
-  }
-
-  Offset _moveToward(Offset from, Offset to, double maxStep) {
-    final delta = to - from;
-    final dist = delta.distance;
-    if (dist <= 0.0001) return from;
-    final step = math.min(dist, maxStep);
-    return from + delta / dist * step;
   }
 
   Offset _clampToArea(Offset p) {
@@ -397,7 +380,8 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
               accent: _accent,
               onClose: () => Navigator.of(context).pop(),
               onRetry: _restart,
-              onOpenGuide: _openGuideSection,
+              onOpenGuide: (id, {guideCardId}) =>
+                  _openGuide(sectionId: id, cardId: guideCardId),
             )
           : Column(
               children: [
@@ -406,9 +390,11 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                   accent: _accent,
                   missionLabel: 'ミッション ${_index + 1}/${_steps.length}',
                   done: _stepDone,
-                  onOpenGuide: _step.guideSectionId == null
-                      ? null
-                      : () => _openGuideSection(_step.guideSectionId!),
+                  onOpenGuide: _step.guideCardId != null
+                      ? () => _openGuide(cardId: _step.guideCardId)
+                      : _step.guideSectionId == null
+                          ? null
+                          : () => _openGuide(sectionId: _step.guideSectionId),
                 ),
                 Expanded(
                   child: Padding(
@@ -465,6 +451,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                                       }
                                     },
                                     child: CustomPaint(
+                                      size: Size(side, side),
                                       painter: _ArenaPainter(
                                         player: _player,
                                         oni: _step.showOni ? _oni : null,

@@ -31,6 +31,7 @@ import '../services/match_recorder.dart';
 import '../session/world_profile_prefs.dart';
 import '../theme/world_profile.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_presentation_pack.dart';
 import '../presentation/world/world_presentation_context.dart';
 
 /// タイムラプス風に軌跡を再生する画面。
@@ -493,53 +494,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
               ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: _showEventMarkers ? 'イベントを隠す' : 'イベントを表示',
-            onPressed: () => setState(() => _showEventMarkers = !_showEventMarkers),
-            icon: Icon(
-              _showEventMarkers ? Icons.flag : Icons.flag_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: _showRevealMarkers ? '暴露を隠す' : '暴露を表示',
-            onPressed: () =>
-                setState(() => _showRevealMarkers = !_showRevealMarkers),
-            icon: Icon(
-              _showRevealMarkers ? Icons.campaign : Icons.campaign_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: _followCamera ? 'カメラ追従ON' : 'カメラ追従OFF',
-            onPressed: () => setState(() => _followCamera = !_followCamera),
-            icon: Icon(
-              _followCamera ? Icons.gps_fixed : Icons.gps_not_fixed,
-            ),
-          ),
-          if (_record.gimmickLayout != null)
-            IconButton(
-              tooltip: _showGimmickMarkers ? 'ギミックを隠す' : 'ギミックを表示',
-              onPressed: () =>
-                  setState(() => _showGimmickMarkers = !_showGimmickMarkers),
-              icon: Icon(
-                _showGimmickMarkers
-                    ? Icons.scatter_plot
-                    : Icons.scatter_plot_outlined,
-              ),
-            ),
-          IconButton(
-            tooltip: _showPlayArea ? 'エリアを隠す' : 'エリアを表示',
-            onPressed: () => setState(() => _showPlayArea = !_showPlayArea),
-            icon: Icon(
-              _showPlayArea ? Icons.crop_free : Icons.crop_free_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: '全体を表示（ピンチでも拡大縮小できます）',
-            onPressed: () => unawaited(_fitMapToContent()),
-            icon: const Icon(Icons.fit_screen),
-          ),
-        ],
+        actions: const [],
       ),
       body: !_visualReady
           ? const Center(child: CircularProgressIndicator())
@@ -636,6 +591,31 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
               ),
             ),
           Positioned(
+            top: 8,
+            left: 8,
+            right: 8,
+            child: _ReplayLayerToolbar(
+              pack: uiPack,
+              showGimmicks: _record.gimmickLayout != null,
+              showEventMarkers: _showEventMarkers,
+              showRevealMarkers: _showRevealMarkers,
+              followCamera: _followCamera,
+              showGimmickMarkers: _showGimmickMarkers,
+              showPlayArea: _showPlayArea,
+              onToggleEvents: () =>
+                  setState(() => _showEventMarkers = !_showEventMarkers),
+              onToggleReveals: () =>
+                  setState(() => _showRevealMarkers = !_showRevealMarkers),
+              onToggleFollow: () =>
+                  setState(() => _followCamera = !_followCamera),
+              onToggleGimmicks: () =>
+                  setState(() => _showGimmickMarkers = !_showGimmickMarkers),
+              onTogglePlayArea: () =>
+                  setState(() => _showPlayArea = !_showPlayArea),
+              onFitAll: () => unawaited(_fitMapToContent()),
+            ),
+          ),
+          Positioned(
             left: 0,
             right: 0,
             bottom: 0,
@@ -690,6 +670,13 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                                 ? Icons.expand_more
                                 : Icons.expand_less,
                           ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '詳細',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: uiPack.textOnPanel.withValues(alpha: 0.75),
+                                ),
+                          ),
                         ],
                       ),
                     ),
@@ -705,6 +692,13 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          Text(
+                            '軌跡の表示',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: uiPack.textOnPanel,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
@@ -723,7 +717,14 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
+                          Text(
+                            '再生速度',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: uiPack.textOnPanel,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
@@ -737,12 +738,19 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
+                          Text(
+                            'カメラ視点',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: uiPack.textOnPanel,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
                           SegmentedButton<ReplayPerspective>(
                             segments: const [
                               ButtonSegment(
                                 value: ReplayPerspective.god,
-                                label: Text('神'),
+                                label: Text('俯瞰'),
                                 icon: Icon(Icons.public, size: 16),
                               ),
                               ButtonSegment(
@@ -757,7 +765,7 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                               ),
                               ButtonSegment(
                                 value: ReplayPerspective.follow,
-                                label: Text('追跡'),
+                                label: Text('追尾'),
                                 icon: Icon(Icons.person_pin_circle, size: 16),
                               ),
                             ],
@@ -768,6 +776,13 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
                           ),
                           if (_perspective == ReplayPerspective.follow) ...[
                             const SizedBox(height: 6),
+                            Text(
+                              '追尾する参加者',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: uiPack.textOnPanel.withValues(alpha: 0.8),
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
@@ -1128,24 +1143,19 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
   }
 
   String _trackLabel(String id) {
-    final custom = _record.trackLabels[id];
-    if (custom != null && custom.isNotEmpty) return custom;
-    if (id == MatchTrackIds.runnerLocal) return '自分（逃走側）';
-    if (id == MatchTrackIds.oniLocal) return '鬼（ローカル）';
-    if (id == MatchTrackIds.spectralLocal) return '残響体';
-    if (id == MatchTrackIds.revengeOniLocal) return '復讐の鬼影';
-    if (id == MatchTrackIds.ghostSpectatorLocal) return '幽霊（観戦）';
-    if (id.startsWith('player_')) return id.substring(7);
-    return id;
+    return ReplayTrackStyle.defaultTrackLabel(
+      id,
+      trackLabels: _record.trackLabels,
+      trackKinds: _record.trackKinds,
+    );
   }
 
   String _trackTitle(String id) {
-    final custom = _record.trackLabels[id];
-    if (custom != null && custom.isNotEmpty) return custom;
-    if (id == MatchTrackIds.runnerLocal) return '逃走者（再生）';
-    if (id == MatchTrackIds.oniLocal) return '鬼（再生）';
-    if (id.startsWith('player_')) return id.substring(7);
-    return id;
+    return ReplayTrackStyle.defaultTrackTitle(
+      id,
+      trackLabels: _record.trackLabels,
+      trackKinds: _record.trackKinds,
+    );
   }
 
   /// 既知キー以外は色相をずらして区別。
@@ -1160,6 +1170,156 @@ class _MatchReplayScreenState extends State<MatchReplayScreen> {
       BitmapDescriptor.hueCyan,
     ];
     return hues[fallbackIndex % hues.length];
+  }
+}
+
+class _ReplayLayerToolbar extends StatelessWidget {
+  const _ReplayLayerToolbar({
+    required this.pack,
+    required this.showGimmicks,
+    required this.showEventMarkers,
+    required this.showRevealMarkers,
+    required this.followCamera,
+    required this.showGimmickMarkers,
+    required this.showPlayArea,
+    required this.onToggleEvents,
+    required this.onToggleReveals,
+    required this.onToggleFollow,
+    required this.onToggleGimmicks,
+    required this.onTogglePlayArea,
+    required this.onFitAll,
+  });
+
+  final WorldPresentationPack pack;
+  final bool showGimmicks;
+  final bool showEventMarkers;
+  final bool showRevealMarkers;
+  final bool followCamera;
+  final bool showGimmickMarkers;
+  final bool showPlayArea;
+  final VoidCallback onToggleEvents;
+  final VoidCallback onToggleReveals;
+  final VoidCallback onToggleFollow;
+  final VoidCallback onToggleGimmicks;
+  final VoidCallback onTogglePlayArea;
+  final VoidCallback onFitAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 3,
+      color: pack.panelSurface.withValues(alpha: 0.94),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _ReplayLayerToggle(
+                pack: pack,
+                label: 'イベント',
+                icon: Icons.flag_outlined,
+                active: showEventMarkers,
+                onPressed: onToggleEvents,
+              ),
+              _ReplayLayerToggle(
+                pack: pack,
+                label: '暴露',
+                icon: Icons.campaign_outlined,
+                active: showRevealMarkers,
+                onPressed: onToggleReveals,
+              ),
+              _ReplayLayerToggle(
+                pack: pack,
+                label: '追従',
+                icon: Icons.gps_fixed,
+                active: followCamera,
+                onPressed: onToggleFollow,
+              ),
+              if (showGimmicks)
+                _ReplayLayerToggle(
+                  pack: pack,
+                  label: 'ギミック',
+                  icon: Icons.scatter_plot_outlined,
+                  active: showGimmickMarkers,
+                  onPressed: onToggleGimmicks,
+                ),
+              _ReplayLayerToggle(
+                pack: pack,
+                label: 'エリア',
+                icon: Icons.crop_free,
+                active: showPlayArea,
+                onPressed: onTogglePlayArea,
+              ),
+              _ReplayLayerToggle(
+                pack: pack,
+                label: '全体',
+                icon: Icons.fit_screen,
+                active: true,
+                onPressed: onFitAll,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReplayLayerToggle extends StatelessWidget {
+  const _ReplayLayerToggle({
+    required this.pack,
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.onPressed,
+  });
+
+  final WorldPresentationPack pack;
+  final String label;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? pack.accent : pack.textOnPanel.withValues(alpha: 0.72);
+    final bg = active
+        ? pack.accent.withValues(alpha: 0.16)
+        : Colors.transparent;
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active ? pack.accent.withValues(alpha: 0.55) : pack.panelBorder,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: fg),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

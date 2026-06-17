@@ -335,13 +335,7 @@ class GameMapMatchController {
           position: puppetPosition,
         ),
       ],
-      SkillTickBodyThrowPlacementTimeout(:final playerPositionAtCast) => [
-        MatchLocationRevealEmitEffect(
-          type: 'body_throw_placement_timeout',
-          message: MatchHudCopy.bodyThrowTimeoutReveal,
-          position: playerPositionAtCast,
-        ),
-      ],
+      SkillTickBodyThrowPlacementTimeout() => const [],
       SkillTickFakeIntelPlacementCancelled() => const [
         MatchStatusMessageEffect('偽情報暴露の配置をキャンセルしました'),
       ],

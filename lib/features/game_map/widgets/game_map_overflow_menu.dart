@@ -26,8 +26,19 @@ class GameMapOverflowMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final running = gameState == GameState.running;
+    final menuTheme = Theme.of(context).copyWith(
+      popupMenuTheme: PopupMenuThemeData(
+        color: const Color(0xFFFAFAFA),
+        surfaceTintColor: Colors.transparent,
+        textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF1A1A1A),
+            ),
+      ),
+    );
 
-    return PopupMenuButton<String>(
+    return Theme(
+      data: menuTheme,
+      child: PopupMenuButton<String>(
       key: menuKey,
       tooltip: 'その他',
       onSelected: onSelected,
@@ -136,6 +147,7 @@ class GameMapOverflowMenu extends StatelessWidget {
           ),
         ],
       ],
+      ),
     );
   }
 }
