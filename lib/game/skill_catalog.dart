@@ -1,8 +1,9 @@
 import '../features/how_to_play/guide_terms.dart';
 import 'match_ui_terms.dart';
 import 'player_role.dart';
-import 'skill_ids.dart';
 import 'skill_reference.dart';
+
+export 'skill_reference.dart' show SkillHelpEntry;
 
 /// 遊び方シート・設計ドキュメント用のスキル説明。
 ///
