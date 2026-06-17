@@ -125,6 +125,18 @@ void main() {
     test('match end rescue room update allowed for participants', () {
       expect(rulesText, contains('validMatchEndRescueUpdate'));
       expect(rulesText, contains("endReason == 'time_up'"));
+      expect(rulesText, contains("endReason == 'oni_eliminated'"));
+    });
+
+    test('host-light rescue events allowed for participants', () {
+      expect(rulesText, contains("'accusation_unlocked_rescue'"));
+      expect(rulesText, contains("'capture_zone_bound_rescue'"));
+      expect(rulesText, contains("'player_eliminated_rescue'"));
+      expect(rulesText, contains("'oni_capture_elimination'"));
+    });
+
+    test('oni_capture_elimination cannot target self', () {
+      expect(rulesText, contains("d.type != 'oni_capture_elimination'"));
     });
 
     test('match_end is host-only', () {

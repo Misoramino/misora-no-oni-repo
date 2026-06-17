@@ -110,7 +110,8 @@ service cloud.firestore {
           'endMessage',
         ])
         && (request.resource.data.endReason == 'time_up'
-            || request.resource.data.endReason == 'all_humans_eliminated');
+            || request.resource.data.endReason == 'all_humans_eliminated'
+            || request.resource.data.endReason == 'oni_eliminated');
     }
 
     match /rooms/{roomId} {
@@ -175,7 +176,11 @@ service cloud.firestore {
         || t == 'safe_zone_pickup'
         || t == 'accusation_point_scored'
         || t == 'lobby_play_area_proposal'
-        || t == 'match_end_rescue';
+        || t == 'match_end_rescue'
+        || t == 'accusation_unlocked_rescue'
+        || t == 'capture_zone_bound_rescue'
+        || t == 'player_eliminated_rescue'
+        || t == 'oni_capture_elimination';
     }
 
     function hostOnlyRoomEventType(t) {
@@ -212,7 +217,11 @@ service cloud.firestore {
         && allowedRoomEventType(roomId, d.type)
         && (d.type != 'player_eliminated'
             || isEventRoomHost(roomId)
-            || (d.payload.uid is string && d.payload.uid == request.auth.uid));
+            || (d.payload.uid is string && d.payload.uid == request.auth.uid))
+        && (d.type != 'player_eliminated_rescue'
+            || (d.payload.uid is string && d.payload.uid != request.auth.uid))
+        && (d.type != 'oni_capture_elimination'
+            || (d.payload.uid is string && d.payload.uid != request.auth.uid));
     }
 
     match /rooms/{roomId}/events/{eventId} {

@@ -24,6 +24,7 @@ import 'room_match_event.dart';
 import 'room_phase.dart';
 import 'room_session_port.dart';
 import 'shared_match_snapshot.dart';
+import 'host_light_rescue.dart';
 
 String _describeFirebaseException(FirebaseException e) {
   final code = e.code;
@@ -603,6 +604,58 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
   }
 
+  /// ホスト救済用の共有イベント（冪等キー付き・既存チェックあり）。
+  Future<String?> publishHostLightRescueEvent({
+    required String type,
+    required String idempotencyKey,
+    required Map<String, dynamic> payload,
+    required int sessionKey,
+  }) async {
+    if (_roomId == null || _uid == null) return 'ルームに参加していません';
+    if (isHost) return 'ホストは通常イベントを使ってください';
+    final already = await hasRescueIdempotencyKey(
+      sessionKey: sessionKey,
+      idempotencyKey: idempotencyKey,
+    );
+    if (already) return null;
+    return publishRoomEvent(
+      type: type,
+      payload: {
+        ...payload,
+        kHostLightIdempotencyPayloadKey: idempotencyKey,
+      },
+      sessionKey: sessionKey,
+    );
+  }
+
+  /// 同一 session の救済イベントに同じ冪等キーが無いか（直近 200 件）。
+  Future<bool> hasRescueIdempotencyKey({
+    required int sessionKey,
+    required String idempotencyKey,
+  }) async {
+    if (_roomId == null) return false;
+    try {
+      final snap = await _db
+          .collection('rooms')
+          .doc(_roomId!)
+          .collection('events')
+          .where(RoomEventsFields.sessionKey, isEqualTo: sessionKey)
+          .orderBy(RoomEventsFields.emittedAtMs, descending: true)
+          .limit(200)
+          .get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final payload = data[RoomEventsFields.payload];
+        if (payload is! Map) continue;
+        final key = payload[kHostLightIdempotencyPayloadKey];
+        if (key == idempotencyKey) return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// ホストのみの共有イベント（中身は [publishRoomEvent] と同じ）。
   Future<String?> publishHostRoomEvent({
     required String type,
@@ -900,6 +953,11 @@ class FirestoreRoomSession implements RoomSessionPort {
   }) async {
     if (_roomId == null || _uid == null) return 'ルームに参加していません';
     if (isHost) return 'ホストは通常終了を使ってください';
+    final already = await hasRescueIdempotencyKey(
+      sessionKey: sessionKey,
+      idempotencyKey: idempotencyKey,
+    );
+    if (already) return null;
     final roomRef = _db.collection('rooms').doc(_roomId!);
     try {
       final endedAt = DateTime.now().toUtc().toIso8601String();

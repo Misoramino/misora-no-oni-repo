@@ -742,6 +742,20 @@ final _onlineSection = GuideSectionData(
   ),
   cards: [
     _card(
+      id: 'call_play',
+      title: '通話しながら遊ぶ',
+      icon: Icons.phone_in_talk_outlined,
+      oneLine: 'Discord / LINE 通話はそのまま。スキルだけ前面に。',
+      body: 'ゲーム内通話はありません。通話アプリを前面にしたままでも、'
+          '位置情報の許可があれば近接・捕獲・パニックの判定と危機通知は継続します。'
+          'スキルや告発の操作は ONI PIN を前面に戻してから行ってください。',
+      bullets: const [
+        '試合前に一度 ONI PIN を開いて位置・通知の許可を確認',
+        'iPhone は位置情報「常に」を推奨（ロック中も判定が安定）',
+        '復帰時に通話中の出来事（捕獲・暴露など）をまとめて反映',
+      ],
+    ),
+    _card(
       id: 'sync',
       title: '同期',
       icon: Icons.sync_outlined,

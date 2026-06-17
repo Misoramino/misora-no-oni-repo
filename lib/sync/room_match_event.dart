@@ -98,6 +98,12 @@ abstract final class RoomMatchEventTypes {
   static const abortMajority = 'abort_majority';
   static const playerEliminated = 'player_eliminated';
   static const accusationUnlocked = 'accusation_unlocked';
+
+  /// ホスト不通時の非ホスト救済（[HostLightRescueEventTypes] と同型）。
+  static const accusationUnlockedRescue = 'accusation_unlocked_rescue';
+  static const captureZoneBoundRescue = 'capture_zone_bound_rescue';
+  static const playerEliminatedRescue = 'player_eliminated_rescue';
+  static const oniCaptureElimination = 'oni_capture_elimination';
   static const accusationAttempt = 'accusation_attempt';
   static const accusationFailed = 'accusation_failed';
   static const accusationPointScored = 'accusation_point_scored';

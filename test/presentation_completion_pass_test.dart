@@ -127,17 +127,21 @@ void main() {
   });
 
   test('help copy mentions sync and resume events', () {
+    final lines = matchPlayabilityHintLinesForTest();
     expect(
-      matchPlayabilityHintLinesForTest(),
+      lines,
       contains(
-        '通話や一時離脱中も、可能な範囲で位置と状態を同期します。復帰時には試合中に起きた出来事を反映します。',
+        '通話や一時離脱中も、近接・捕獲の判定と危機通知は可能な範囲で継続します。復帰時には試合中に起きた出来事を反映します。',
       ),
     );
+    expect(lines, contains('スキル操作だけは、アプリを前面に戻してから'));
   });
 }
 
 /// テスト用に [showMatchPlayabilityHintsIfNeeded] と同じ先頭行を返す。
 List<String> matchPlayabilityHintLinesForTest() => [
-      '通話や一時離脱中も、可能な範囲で位置と状態を同期します。復帰時には試合中に起きた出来事を反映します。',
+      '通話しながら遊ぶときは、通話を開始したあと一度 ONI PIN を開いて準備してください。',
+      '通知を見てスリープのまま走るときも、位置情報の許可（iPhoneは「常に」）をオンにしてください。',
+      '通話や一時離脱中も、近接・捕獲の判定と危機通知は可能な範囲で継続します。復帰時には試合中に起きた出来事を反映します。',
       'スキル操作だけは、アプリを前面に戻してから',
     ];

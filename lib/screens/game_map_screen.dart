@@ -137,6 +137,7 @@ import '../proximity/proximity_service.dart';
 import '../proximity/proximity_signal.dart';
 import '../sync/firestore_room_session.dart';
 import '../sync/host_presence_status.dart';
+import '../sync/host_light_rescue.dart';
 import '../sync/match_elapsed_sync.dart';
 import '../sync/room_event_deduper.dart';
 import '../sync/inspector_feed_snapshot.dart';
@@ -210,6 +211,7 @@ part 'game_map_screen.overlay.dart';
 part 'game_map_screen.rejoin.dart';
 part 'game_map_screen.presentation.dart';
 part 'game_map_screen.prep_sync.dart';
+part 'game_map_screen.host_light.dart';
 
 class GameMapScreen extends StatefulWidget {
   const GameMapScreen({
@@ -381,6 +383,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   LatLng? _prevOniSampleForHeading;
   RunnerModifier _localRunnerModifier = RunnerModifier.none;
   bool _hostAccusationUnlockSent = false;
+  bool _participantAccusationUnlockSent = false;
+  final Set<String> _hostLightRescueEmittedKeys = {};
+  final Set<String> _globallyBoundRunnerUids = {};
   bool _accusationPromptOpen = false;
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
@@ -1757,7 +1762,11 @@ class _GameMapScreenState extends State<GameMapScreen>
     final skipLocalEvaluate = _gameState == GameState.running &&
         _isOnlineFirestore &&
         (_appInBackground || _inResumeCatchUpGrace);
-    if (!skipLocalEvaluate) {
+    if (skipLocalEvaluate) {
+      if (_gameState == GameState.running && _appInBackground) {
+        _evaluateProximityWhileBackground();
+      }
+    } else {
       _evaluateGame();
     }
 

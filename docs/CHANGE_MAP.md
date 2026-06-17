@@ -141,7 +141,7 @@
 | `game_map_screen.skills.dart` | スキル |
 | `game_map_screen.overlay.dart` | 地図オーバーレイ |
 | `lib/screens/app_launch_shell.dart` | 起動演出 → タイトル遷移 |
-| `lib/screens/title_screen.dart` | 入口・Firebase 表示・**v2.0.0** |
+| `lib/screens/title_screen.dart` | 入口・Firebase 表示・**v3.0.0** |
 | `lib/screens/room_lobby_screen.dart` | ロビー（非ホスト向けルール概要） |
 | `lib/features/game_map/prep/prep_lobby_panel.dart` | 準備 UI（設定サマリ一行） |
 | `lib/features/game_map/widgets/game_info_panel.dart` | HUD（フェーズ・イベント履歴） |

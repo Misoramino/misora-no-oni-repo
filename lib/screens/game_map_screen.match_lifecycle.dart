@@ -204,12 +204,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _evaluateGame();
       } else {
         _evaluateEliminationAftermathCharges();
-        _maybeHostPublishAccusationUnlock();
+        _maybePublishAccusationUnlock();
       }
       _retuneGpsIfNeeded();
       unawaited(_maybeAutoClaimHostIfAbsent());
       if (_isHost && !_appInBackground) {
         _maybeEliminateDisconnectedParticipants();
+      } else if (!_isHost) {
+        _maybeParticipantEliminateDisconnectedParticipants();
       }
     });
   }
@@ -311,7 +313,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         endReason = MatchEndReason.timeUp;
       }
       final err = await fs.publishMatchEndRescue(
-        idempotencyKey: 'time_up_$sk',
+        idempotencyKey: HostLightRescueKeys.timeUp(sk),
         outcome: outcome,
         endReason: endReason,
         message: message,
@@ -520,6 +522,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _localRunnerModifier = mine.modifier;
     }
     _hostAccusationUnlockSent = false;
+    _participantAccusationUnlockSent = false;
+    _hostLightRescueEmittedKeys.clear();
+    _globallyBoundRunnerUids.clear();
     final gimmicks = await _gimmicksFromSnapshot(snapshot);
     _rt.applyStartGimmicks(
       gimmicks: gimmicks,
@@ -542,6 +547,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _cancelCaptureBoundTimers();
     _roomEventDeduper.clear();
     _hostAccusationUnlockSent = false;
+    _participantAccusationUnlockSent = false;
+    _hostLightRescueEmittedKeys.clear();
+    _globallyBoundRunnerUids.clear();
     _accusationPromptOpen = false;
     _matchRecorder?.discard();
     _matchRecorder = null;
@@ -944,7 +952,6 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   void _maybeEndMatchForFactionElimination() {
-    if (!_isHost) return;
     if (_gameState != GameState.running &&
         !(_gameState == GameState.caughtByOni && _afterCatchRule != null)) {
       return;
@@ -952,23 +959,27 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     final counts = WerewolfFactionLogic.countAliveFactions(
       players: _matchParticipants(),
     );
-    if (counts.humanAlive == 0) {
-      _endGame(
-        GameState.caughtByOni,
-        counts.oniAlive > 0
-            ? MatchHudCopy.matchEndAllHumansEliminated()
-            : MatchHudCopy.matchEndAllHumansEliminated(),
-        endReason: MatchEndReason.allHumansEliminated,
-      );
+    if (_isHost) {
+      if (counts.humanAlive == 0) {
+        _endGame(
+          GameState.caughtByOni,
+          counts.oniAlive > 0
+              ? MatchHudCopy.matchEndAllHumansEliminated()
+              : MatchHudCopy.matchEndAllHumansEliminated(),
+          endReason: MatchEndReason.allHumansEliminated,
+        );
+        return;
+      }
+      if (counts.oniAlive == 0 && counts.humanAlive > 0) {
+        _endGame(
+          GameState.runnerWin,
+          MatchHudCopy.matchEndOniEliminated(),
+          endReason: MatchEndReason.oniEliminated,
+        );
+      }
       return;
     }
-    if (counts.oniAlive == 0 && counts.humanAlive > 0) {
-      _endGame(
-        GameState.runnerWin,
-        MatchHudCopy.matchEndOniEliminated(),
-        endReason: MatchEndReason.oniEliminated,
-      );
-    }
+    unawaited(_maybeParticipantFactionEndRescue());
   }
 
   void _abortMatch(String message) {
@@ -1144,7 +1155,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       return;
     }
     if (_gameState != GameState.running) return;
-    if (_appInBackground && _isOnlineFirestore) return;
+    if (_appInBackground && _isOnlineFirestore) {
+      _evaluateProximityWhileBackground();
+      return;
+    }
     if (_inResumeCatchUpGrace && _isOnlineFirestore) return;
 
     _advanceFakePositionDrift();
@@ -1154,9 +1168,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _proximityService.ingestGpsDistanceMeters(distance);
     _evaluateSafeZone();
     _evaluateInfoBroker(distance);
-    _maybeHostPublishAccusationUnlock();
+    _maybePublishAccusationUnlock();
     _evaluateAccusationFacility();
     _maybeWerewolfForcedTransform();
+    _maybeOniPublishProximityCaptures();
 
     final now = DateTime.now();
     _applyDueGimmickRelocates(now);
@@ -1181,6 +1196,36 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _syncHunterBroadcastForBodyThrow();
     _updateDangerPulse();
     _maybeRefreshBleAdvertiseOnRoleChange();
+  }
+
+  /// 通話アプリ前面・画面ロック中でも近接・捕獲・パニックと危機通知だけ継続する。
+  ///
+  /// スキル操作・告発 UI・ホスト専用処理は前面復帰まで待つ（[ _evaluateGame ] 側）。
+  void _evaluateProximityWhileBackground() {
+    if (_isRoomInspector) return;
+    if (_gameState != GameState.running) return;
+    if (!_isOnlineFirestore || !_appInBackground) return;
+    if (_inResumeCatchUpGrace) return;
+
+    final distance = _distanceToOni();
+    _proximityService.ingestGpsDistanceMeters(distance);
+
+    final effects = _matchCtrl.evaluateRunningTick(
+      playArea: _playArea,
+      playerPosition: _currentPosition,
+      oniPosition: _oniPosition,
+      testMode: _testMode,
+      oniKnown: _remoteOniKnown,
+      isHunterNow: _isPerceivedOniNow,
+      runnerProximityActive:
+          _chaseTargetsPresent && !_isPerceivedOniNow,
+      applyOutsideAreaRules: true,
+      oniOutsideEndsMatch: _isPerceivedOniNow,
+      proximityBand: _latestProximityBand,
+      proximityCapturePermitted: _proximityCapturePermittedForRunner(),
+      now: DateTime.now(),
+    );
+    _applyMatchTickEffects(effects);
   }
 
   void _applyMatchTickEffects(List<MatchTickEffect> effects) {

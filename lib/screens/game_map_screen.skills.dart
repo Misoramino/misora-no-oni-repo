@@ -779,14 +779,12 @@ extension _GameMapSkills on _GameMapScreenState {
       position: pos,
       syncFirestore: !_isOnlineFirestore,
     );
-    if (_isOnlineFirestore) {
+      if (_isOnlineFirestore) {
       unawaited(
         _publishCaptureZonePlaced(placeId, pos, rawTargets, fromSkill: true),
       );
-      if (_isHost) {
-        _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
-        _scheduleHostCaptureBoundOnce(placeId: placeId, center: pos);
-      }
+      _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
+      _scheduleCaptureBoundOnce(placeId: placeId, center: pos);
     }
   }
 
@@ -815,28 +813,51 @@ extension _GameMapSkills on _GameMapScreenState {
     required String placeId,
     required LatLng center,
   }) {
-    if (!_isHost) return;
+    _scheduleCaptureBoundOnce(placeId: placeId, center: center);
+  }
+
+  void _scheduleCaptureBoundOnce({
+    required String placeId,
+    required LatLng center,
+  }) {
     if (_captureBoundTimers.containsKey(placeId)) return;
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
+    final hostPath = _isHost;
+    final rescuePath = !_isHost && _hostUnavailableForRescue();
+    if (!hostPath && !rescuePath) return;
     _captureBoundTimers[placeId] = Timer(
       const Duration(milliseconds: 6000),
       () async {
         _captureBoundTimers.remove(placeId);
         if (!mounted || _gameState != GameState.running) return;
         final acked = _captureAcksByPlace.remove(placeId)?.toList() ?? [];
-        final err = await fs.publishHostRoomEvent(
-          type: RoomMatchEventTypes.captureZoneBound,
-          payload: {
-            'placeId': placeId,
-            'targetUids': acked,
-            'centerLat': center.latitude,
-            'centerLng': center.longitude,
-            'durationSec': GameConfig.captureZoneDurationSeconds,
-          },
-          sessionKey: sk,
-        );
+        final payload = {
+          'placeId': placeId,
+          'targetUids': acked,
+          'centerLat': center.latitude,
+          'centerLng': center.longitude,
+          'durationSec': GameConfig.captureZoneDurationSeconds,
+        };
+        final String? err;
+        if (_isHost) {
+          err = await fs.publishHostRoomEvent(
+            type: RoomMatchEventTypes.captureZoneBound,
+            payload: payload,
+            sessionKey: sk,
+          );
+        } else {
+          final key = HostLightRescueKeys.captureBound(sk, placeId);
+          if (_hostLightRescueEmittedKeys.contains(key)) return;
+          err = await fs.publishHostLightRescueEvent(
+            type: HostLightRescueEventTypes.captureZoneBoundRescue,
+            idempotencyKey: key,
+            payload: payload,
+            sessionKey: sk,
+          );
+          if (err == null) _rememberHostLightRescueKey(key);
+        }
         if (err != null && mounted) {
           _toast(err);
         }
@@ -1286,6 +1307,7 @@ extension _GameMapSkills on _GameMapScreenState {
     final raw = ev.payload['targetUids'];
     if (raw is! List) return;
     final targets = raw.map((e) => e.toString()).toSet();
+    _recordGloballyBoundTargets(raw);
     final myUid = fs.myUid;
     if (!mounted) return;
     _syncSetState(() {

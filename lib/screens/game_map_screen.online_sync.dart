@@ -101,7 +101,17 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
           final cLng = ev.payload['centerLng'];
           if (cLat is num && cLng is num) {
             _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
-            _scheduleHostCaptureBoundOnce(
+            _scheduleCaptureBoundOnce(
+              placeId: placeId,
+              center: LatLng(cLat.toDouble(), cLng.toDouble()),
+            );
+          }
+        } else if (!_isHost) {
+          final cLat = ev.payload['centerLat'];
+          final cLng = ev.payload['centerLng'];
+          if (cLat is num && cLng is num) {
+            _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
+            _maybeScheduleCaptureBoundRescue(
               placeId: placeId,
               center: LatLng(cLat.toDouble(), cLng.toDouble()),
             );
@@ -109,17 +119,17 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         }
         return;
       case RoomMatchEventTypes.captureZoneBound:
+      case HostLightRescueEventTypes.captureZoneBoundRescue:
         // 束縛→捕獲は生存者のみ（ゴーストは対象外）。
         if (running) _applyRemoteCaptureZoneBound(ev, fs);
         return;
       case RoomMatchEventTypes.captureZoneAck:
-        if (_isHost) {
-          final placeId = ev.payload['placeId'] as String?;
-          if (placeId != null) {
-            _captureAcksByPlace
-                .putIfAbsent(placeId, () => <String>{})
-                .add(ev.actorUid);
-          }
+        final placeId = ev.payload['placeId'] as String?;
+        if (placeId != null &&
+            (_isHost || (!_isHost && _hostUnavailableForRescue()))) {
+          _captureAcksByPlace
+              .putIfAbsent(placeId, () => <String>{})
+              .add(ev.actorUid);
         }
         return;
       case RoomMatchEventTypes.abortProposal:
@@ -138,9 +148,12 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         );
         return;
       case RoomMatchEventTypes.playerEliminated:
+      case HostLightRescueEventTypes.playerEliminatedRescue:
+      case HostLightRescueEventTypes.oniCaptureElimination:
         _applyRemotePlayerEliminated(ev);
         return;
       case RoomMatchEventTypes.accusationUnlocked:
+      case HostLightRescueEventTypes.accusationUnlockedRescue:
         _applyAccusationUnlocked(ev);
         return;
       case RoomMatchEventTypes.accusationAttempt:
@@ -203,7 +216,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       _eliminatedUids.add(uid);
     });
     _recordMatchFeed(MatchHudCopy.eliminatedFeed);
-    _maybeHostPublishAccusationUnlock();
+    _maybePublishAccusationUnlock();
     _maybeEndMatchForFactionElimination();
   }
 
