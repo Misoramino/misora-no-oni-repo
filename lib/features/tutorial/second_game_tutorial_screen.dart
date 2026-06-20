@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../widgets/juicy_tap.dart';
@@ -272,8 +274,10 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
     final title = TutorialCopyCatalog.secondGameTutorialTitle(widget.kind);
     final showAction = _step.act == _Act.chargeAtMarker && !_stepDone;
     final showNext = _step.act == _Act.tapNext;
+    final profile = context.worldProfile;
 
-    return Scaffold(
+    return WorldScaffold(
+      profile: profile,
       appBar: AppBar(
         title: Text('脱落後チュートリアル — $title'),
         actions: [

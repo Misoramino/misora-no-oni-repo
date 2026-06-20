@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../presentation/world/world_legibility.dart';
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../game/player_role.dart';
@@ -360,8 +363,10 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
     final mapPlaceActive = _step.act == _Act.skillMapPlace && !_stepDone;
 
     final finishCopy = TutorialCopyCatalog.finishFor(widget.role);
+    final profile = context.worldProfile;
 
-    return Scaffold(
+    return WorldScaffold(
+      profile: profile,
       appBar: AppBar(
         title: Text(
           'チュートリアル — ${TutorialCopyCatalog.roleTutorialTitle(widget.role)}',
@@ -481,7 +486,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                                       top: 8,
                                       right: 8,
                                       child: Material(
-                                        color: theme.colorScheme.surface
+                                        color: context.worldPanelBg
                                             .withValues(alpha: 0.92),
                                         borderRadius: BorderRadius.circular(20),
                                         child: IconButton(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_models.dart';
 
 class GuideHeaderCard extends StatelessWidget {
@@ -13,10 +14,9 @@ class GuideHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: scheme.primaryContainer.withValues(alpha: 0.35),
+      color: context.worldPanelBg,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -26,26 +26,30 @@ class GuideHeaderCard extends StatelessWidget {
               data.title,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
+                color: context.worldBody,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               data.subtitle,
               style: theme.textTheme.titleSmall?.copyWith(
-                color: scheme.primary,
+                color: context.worldAccentReadable,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               data.body,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.55,
+                color: context.worldBody,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
               data.hint,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: context.worldMuted,
                 height: 1.45,
               ),
             ),

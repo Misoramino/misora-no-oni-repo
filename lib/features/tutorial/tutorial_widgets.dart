@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_legibility.dart';
 import '../../audio/sfx_id.dart';
 import '../../widgets/juicy_tap.dart';
 import '../how_to_play/guide_text.dart';
@@ -56,7 +57,7 @@ class TutorialInstructionBanner extends StatelessWidget {
                 Text(
                   missionLabel!,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMuted,
                   ),
                 ),
               ],
@@ -153,6 +154,7 @@ class TutorialFinishPanel extends StatelessWidget {
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: accent,
+                    foregroundColor: context.worldButtonLabel,
                     minimumSize: const Size.fromHeight(48),
                   ),
                   onPressed: () {},

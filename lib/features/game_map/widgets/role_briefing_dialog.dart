@@ -6,6 +6,7 @@ import '../../../game/runner_modifier.dart';
 import '../../../game/skill_catalog.dart';
 import '../../../game/werewolf_faction_logic.dart';
 import '../../how_to_play/guide_text.dart';
+import '../../../presentation/world/world_legibility.dart';
 import '../../../presentation/world/world_presentation_catalog.dart';
 import '../../../presentation/world/world_presentation_context.dart';
 import '../../../theme/world_profile.dart';
@@ -208,7 +209,7 @@ Widget roleBriefingBlock(
 }) {
   final briefing = RoleBriefingCatalog.forRole(role);
   final theme = Theme.of(ctx);
-  final scheme = theme.colorScheme;
+  final accent = roleAccentColor(role);
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -224,7 +225,7 @@ Widget roleBriefingBlock(
         ),
       if (emphasized)
         Material(
-          color: scheme.primaryContainer.withValues(alpha: 0.35),
+          color: accent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
           child: Padding(
             padding: const EdgeInsets.all(10),
@@ -235,14 +236,14 @@ Widget roleBriefingBlock(
                   role.displayName,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: scheme.onPrimaryContainer,
+                    color: accent,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'この試合のあなた向け。くわしい操作・スキルは下にまとめています。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: ctx.worldMuted,
                   ),
                 ),
               ],
@@ -253,7 +254,7 @@ Widget roleBriefingBlock(
       Text(
         briefing.headline,
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.primary,
+          color: ctx.worldAccentReadable,
           fontWeight: FontWeight.w600,
         ),
       ),

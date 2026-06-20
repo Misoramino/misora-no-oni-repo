@@ -168,6 +168,7 @@ import '../features/game_map/visual/world_moment_flash_controller.dart';
 import '../theme/world_fx_profile.dart';
 import '../features/game_map/widgets/world_map_atmosphere.dart';
 import '../theme/elimination_role_copy.dart';
+import '../theme/app_theme_factory.dart';
 import '../theme/map_hud_contrast.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_profile_tokens.dart';
@@ -3225,7 +3226,7 @@ class _GameMapScreenState extends State<GameMapScreen>
           };
 
     final blockSystemBack = running || _matchPresentationActive;
-    final themed = Theme.of(context).copyWith(
+    final themed = AppThemeFactory.create(_activeProfile).copyWith(
       extensions: [
         for (final e in Theme.of(context).extensions.values)
           if (e is! WorldProfileTheme) e,

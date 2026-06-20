@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
 import '../../../game/role_briefing.dart';
+import '../../../presentation/world/world_legibility.dart';
 import '../../game_map/widgets/role_briefing_dialog.dart';
 import '../guide_terms.dart';
 
@@ -17,7 +18,6 @@ class GuideYourRoleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final accent = roleAccentColor(role);
     final start = RoleBriefingCatalog.matchStartBriefing(role);
     final roleLabel = switch (role) {
@@ -65,7 +65,7 @@ class GuideYourRoleCard extends StatelessWidget {
             Text(
               '装備スキルは「スキル」章、役職の要点は「役職」章、数値は「詳細ルール」章で確認できます。',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: context.worldMuted,
                 height: 1.4,
               ),
             ),

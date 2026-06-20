@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme_factory.dart';
 import '../../theme/world_profile.dart';
 import 'world_presentation_catalog.dart';
 import 'world_presentation_context.dart';
@@ -19,10 +20,10 @@ void showWorldSnackBar(
     SnackBar(
       content: Text(
         message,
-        style: TextStyle(color: pack.textOnScaffold),
+        style: TextStyle(color: pack.textOnPanelOverScaffold),
       ),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: pack.panelSurface,
+      backgroundColor: pack.panelOnScaffold,
       duration: duration ?? const Duration(seconds: 3),
       margin: WorldUILayout.dialogInsets(context),
       shape: RoundedRectangleBorder(
@@ -31,6 +32,26 @@ void showWorldSnackBar(
       ),
     ),
   );
+}
+
+/// 世界観テーマを適用した子ウィジェット（シート・ガイド用）。
+class WorldThemed extends StatelessWidget {
+  const WorldThemed({
+    required this.profile,
+    required this.child,
+    super.key,
+  });
+
+  final WorldProfile profile;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: AppThemeFactory.create(profile),
+      child: child,
+    );
+  }
 }
 
 /// 世界観別ボトムシート（グラデーション枠）。

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/player_role.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../../how_to_play/how_to_play_screen.dart';
 import '../../how_to_play/widgets/how_to_play_guide_body.dart';
 
@@ -12,21 +14,24 @@ Future<void> showHowToPlaySheet(
   String? initialSpecCardId,
   String? initialGuideCardId,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (sheetCtx) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      minChildSize: 0.45,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) => HowToPlayGuideBody(
-        scrollController: scrollController,
-        yourRole: yourRole,
-        initialSectionId: initialSectionId,
-        initialSpecCardId: initialSpecCardId,
-        initialGuideCardId: initialGuideCardId,
+  final profile = context.worldProfile;
+  return showWorldSheet<void>(
+    context,
+    profile: profile,
+    builder: (sheetCtx) => WorldThemed(
+      profile: profile,
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.45,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => HowToPlayGuideBody(
+          scrollController: scrollController,
+          yourRole: yourRole,
+          initialSectionId: initialSectionId,
+          initialSpecCardId: initialSpecCardId,
+          initialGuideCardId: initialGuideCardId,
+        ),
       ),
     ),
   );

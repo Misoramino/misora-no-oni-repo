@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../game_map/widgets/how_to_play_sheet.dart';
 import '../onboarding/onboarding_replay_sheet.dart';
 import '../tutorial/tutorial_entry.dart';
@@ -12,12 +14,13 @@ Future<void> showGuideHubSheet(
   Future<void> Function()? showPrepCoachMarksNow,
   Future<void> Function()? showMatchCoachMarksNow,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) {
-      final theme = Theme.of(ctx);
-      return SafeArea(
+  final profile = context.worldProfile;
+  return showWorldSheet<void>(
+    context,
+    profile: profile,
+    builder: (ctx) => WorldThemed(
+      profile: profile,
+      child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
           child: Column(
@@ -26,10 +29,18 @@ Future<void> showGuideHubSheet(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                child: Text('ガイド・遊び方', style: theme.textTheme.titleLarge),
+                child: Text(
+                  'ガイド・遊び方',
+                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                        color: ctx.worldPresentation.textOnScaffold,
+                      ),
+                ),
               ),
               ListTile(
-                leading: const Icon(Icons.auto_awesome_rounded),
+                leading: Icon(
+                  Icons.auto_awesome_rounded,
+                  color: ctx.worldPresentation.accentOnScaffold,
+                ),
                 title: const Text('かんたんガイド'),
                 subtitle: const Text('基本スライド・コーチマーク・初回リセット'),
                 onTap: () {
@@ -42,7 +53,10 @@ Future<void> showGuideHubSheet(
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.menu_book_outlined),
+                leading: Icon(
+                  Icons.menu_book_outlined,
+                  color: ctx.worldPresentation.accentOnScaffold,
+                ),
                 title: const Text('遊び方'),
                 subtitle: const Text('勝ち方・情報戦・告発・詳細ルール'),
                 onTap: () {
@@ -51,7 +65,10 @@ Future<void> showGuideHubSheet(
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.view_agenda_outlined),
+                leading: Icon(
+                  Icons.view_agenda_outlined,
+                  color: ctx.worldPresentation.accentOnScaffold,
+                ),
                 title: const Text('遊び方（シート）'),
                 subtitle: const Text('試合中と同じボトムシート表示'),
                 onTap: () {
@@ -64,7 +81,10 @@ Future<void> showGuideHubSheet(
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.school_rounded),
+                leading: Icon(
+                  Icons.school_rounded,
+                  color: ctx.worldPresentation.accentOnScaffold,
+                ),
                 title: const Text('チュートリアル'),
                 subtitle: const Text('GPS不要・1〜2分で基本操作を体験'),
                 onTap: () {
@@ -75,7 +95,7 @@ Future<void> showGuideHubSheet(
             ],
           ),
         ),
-      );
-    },
+      ),
+    ),
   );
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_legibility.dart';
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../session/onboarding_prefs.dart';
 import '../../widgets/app_dialog.dart';
 import 'match_structure_guide.dart';
@@ -11,18 +14,19 @@ Future<void> showOnboardingReplaySheet(
   Future<void> Function()? showPrepCoachMarksNow,
   Future<void> Function()? showMatchCoachMarksNow,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    builder: (ctx) {
-      final theme = Theme.of(ctx);
-      return DraggableScrollableSheet(
+  final profile = context.worldProfile;
+  return showWorldSheet<void>(
+    context,
+    profile: profile,
+    builder: (ctx) => WorldThemed(
+      profile: profile,
+      child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,
         minChildSize: 0.35,
         maxChildSize: 0.92,
         builder: (context, scrollController) {
+          final theme = Theme.of(context);
           return SafeArea(
             top: false,
             child: ListView(
@@ -34,7 +38,7 @@ Future<void> showOnboardingReplaySheet(
                 Text(
                   '基本ルールのスライドと、画面ごとの案内（コーチマーク）を再表示できます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMuted,
                     height: 1.4,
                   ),
                 ),
@@ -171,7 +175,7 @@ Future<void> showOnboardingReplaySheet(
             ),
           );
         },
-      );
-    },
+      ),
+    ),
   );
 }

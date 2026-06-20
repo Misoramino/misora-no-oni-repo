@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_legibility.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../game/elimination_aftermath_rule.dart';
@@ -34,7 +35,7 @@ Future<void> openTutorialPicker(BuildContext context) async {
               Text(
                 'GPS不要・各約1分。終了後は遊び方を見られます。',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: ctx.worldMuted,
                   height: 1.45,
                 ),
               ),
@@ -64,7 +65,7 @@ Future<void> openTutorialPicker(BuildContext context) async {
               Text(
                 '脱落しても${GuideTerms.secondGame}で勝敗に関われます。',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: ctx.worldMuted,
                   height: 1.4,
                 ),
               ),
@@ -219,7 +220,7 @@ class _RolePickTile extends StatelessWidget {
               ),
               const Spacer(),
               Icon(Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurfaceVariant),
+                  color: context.worldMuted),
             ],
           ),
         ),
@@ -273,14 +274,14 @@ class _SecondGamePickTile extends StatelessWidget {
                           ? '人側脱落後'
                           : '鬼側脱落後',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: context.worldMuted,
                       ),
                     ),
                   ],
                 ),
               ),
               Icon(Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurfaceVariant),
+                  color: context.worldMuted),
             ],
           ),
         ),

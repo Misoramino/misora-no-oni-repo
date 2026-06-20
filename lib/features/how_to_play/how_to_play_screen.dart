@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../game/player_role.dart';
 import 'widgets/how_to_play_guide_body.dart';
 
@@ -39,7 +41,9 @@ class _HowToPlayScreenState extends State<HowToPlayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final profile = context.worldProfile;
+    return WorldScaffold(
+      profile: profile,
       appBar: AppBar(
         title: const Text('遊び方'),
       ),

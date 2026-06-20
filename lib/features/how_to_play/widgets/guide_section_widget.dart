@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_text.dart';
 import '../../../game/player_role.dart';
 import '../../game_map/widgets/role_briefing_dialog.dart';
@@ -33,7 +34,6 @@ class GuideSectionWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
@@ -47,7 +47,7 @@ class GuideSectionWidget extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(section.icon, color: scheme.primary),
+                  Icon(section.icon, color: context.worldAccentReadable),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -63,7 +63,7 @@ class GuideSectionWidget extends StatelessWidget {
                         Text(
                           GuideText.forDisplay(section.oneLine),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                            color: context.worldMuted,
                             height: 1.35,
                           ),
                         ),
@@ -72,7 +72,7 @@ class GuideSectionWidget extends StatelessWidget {
                   ),
                   Icon(
                     expanded ? Icons.expand_less : Icons.expand_more,
-                    color: scheme.onSurfaceVariant,
+                    color: context.worldMuted,
                   ),
                 ],
               ),

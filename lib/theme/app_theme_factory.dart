@@ -54,26 +54,26 @@ abstract final class AppThemeFactory {
       appBarTheme: base.appBarTheme.copyWith(
         centerTitle: false,
         backgroundColor: pack.scaffoldTop.withValues(alpha: 0.92),
-        foregroundColor: pack.accent,
+        foregroundColor: pack.accentOnScaffold,
         elevation: 0,
       ),
       snackBarTheme: base.snackBarTheme.copyWith(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: pack.panelSurface,
+        backgroundColor: pack.panelOnScaffold,
         contentTextStyle: textTheme.bodyMedium?.copyWith(
-          color: pack.textOnPanel,
+          color: pack.textOnPanelOverScaffold,
         ),
       ),
       cardTheme: base.cardTheme.copyWith(
         elevation: profile == WorldProfile.sport ? 2 : 0,
-        color: pack.panelSurface,
+        color: pack.panelSurfaceOpaque,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(pack.hudCornerRadius + 4),
           side: BorderSide(color: pack.panelBorder),
         ),
       ),
       dialogTheme: base.dialogTheme.copyWith(
-        backgroundColor: pack.panelSurface,
+        backgroundColor: pack.panelSurfaceOpaque,
         titleTextStyle: dialogTitleStyle,
         contentTextStyle: dialogTextStyle,
         shape: RoundedRectangleBorder(

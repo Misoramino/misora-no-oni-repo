@@ -84,7 +84,7 @@ class WorldPanel extends StatelessWidget {
     final pack = WorldPresentationCatalog.of(profile);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: pack.panelSurface,
+        color: pack.panelSurfaceOpaque,
         borderRadius: BorderRadius.circular(pack.hudCornerRadius + 4),
         border: Border.all(color: pack.panelBorder, width: 1),
       ),

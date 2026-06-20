@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_text.dart';
 import '../guide_models.dart';
 import 'guide_detail_expansion.dart';
@@ -20,7 +21,6 @@ class GuideCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
@@ -32,7 +32,7 @@ class GuideCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(data.icon, size: 20, color: scheme.primary),
+                Icon(data.icon, size: 20, color: context.worldAccentReadable),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -48,7 +48,7 @@ class GuideCard extends StatelessWidget {
                       Text(
                         GuideText.forDisplay(data.oneLine),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.primary,
+                          color: context.worldAccentReadable,
                           fontWeight: FontWeight.w600,
                           height: 1.35,
                         ),
@@ -98,7 +98,7 @@ class GuideCard extends StatelessWidget {
               Text(
                 GuideText.forDisplay(data.footnote!),
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                  color: context.worldMuted,
                   fontStyle: FontStyle.italic,
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../guide_text.dart';
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_models.dart';
 import 'guide_diagram_views.dart';
 
@@ -15,11 +16,10 @@ class GuideDiagramSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+      color: context.worldPanelBg.withValues(alpha: 0.55),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -27,7 +27,7 @@ class GuideDiagramSlot extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.image_outlined, size: 18, color: scheme.primary),
+                Icon(Icons.image_outlined, size: 18, color: context.worldAccentReadable),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -46,7 +46,7 @@ class GuideDiagramSlot extends StatelessWidget {
               Text(
                 GuideText.forDisplay(data.caption!),
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                  color: context.worldMuted,
                   height: 1.4,
                 ),
               ),

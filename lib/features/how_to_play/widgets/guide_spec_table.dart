@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_models.dart';
 
 /// 詳細ルール章向けのラベル／値テーブル。
@@ -16,7 +17,6 @@ class GuideSpecTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -26,7 +26,7 @@ class GuideSpecTable extends StatelessWidget {
           Text(
             g.title,
             style: theme.textTheme.labelLarge?.copyWith(
-              color: scheme.primary,
+              color: context.worldAccentReadable,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -49,7 +49,7 @@ class _TableBlock extends StatelessWidget {
     final scheme = theme.colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: context.worldPanelBg.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
       ),
@@ -72,7 +72,7 @@ class _TableBlock extends StatelessWidget {
                     child: Text(
                       rows[i].label,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        color: context.worldMuted,
                         fontWeight: FontWeight.w600,
                         height: 1.35,
                       ),

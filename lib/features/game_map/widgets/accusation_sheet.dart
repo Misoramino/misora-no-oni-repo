@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../audio/sfx_id.dart';
 import '../../../features/how_to_play/guide_terms.dart';
 import '../../../game/accusation_weight.dart';
+import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../../../theme/accusation_facility_copy.dart';
 import '../../../widgets/app_dialog.dart';
 
@@ -18,68 +21,73 @@ Future<String?> showAccusationPlayerSheet({
       ? '外すと即脱落し、残響体として監視網を操作できます。'
       : '外しても脱落しませんが、この試合では告発権を失います。';
 
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
+  return showWorldSheet<String>(
+    context,
     builder: (ctx) {
-      return DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.9,
-        builder: (sheetCtx, scrollController) {
-          final theme = Theme.of(sheetCtx);
-          return SafeArea(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              children: [
-                Text(
-                  copy.facilityName,
-                  style: theme.textTheme.titleLarge,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  copy.accuseActionLabel,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  AccusationFacilityCopy.accuseTargetLine,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+      final profile = context.worldProfile;
+      return WorldThemed(
+        profile: profile,
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.9,
+          builder: (sheetCtx, scrollController) {
+            return SafeArea(
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                children: [
+                  Text(
+                    copy.facilityName,
+                    style: Theme.of(sheetCtx).textTheme.titleLarge?.copyWith(
+                          color: sheetCtx.worldBodyOnScaffold,
+                        ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  failHint,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: accusationWeight.eliminatesAccuserOnFailure
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 4),
+                  Text(
+                    copy.accuseActionLabel,
+                    style: Theme.of(sheetCtx).textTheme.titleMedium?.copyWith(
+                          color: sheetCtx.worldBodyOnScaffold,
+                        ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                for (final c in candidates)
-                  ListTile(
-                    enabled: c.selectable,
-                    title: Text(c.label),
-                    subtitle: c.disabledReason != null
-                        ? Text(c.disabledReason!)
-                        : null,
-                    trailing: c.selectable
-                        ? const Icon(Icons.chevron_right)
-                        : null,
-                    onTap: c.selectable
-                        ? () => Navigator.pop(ctx, c.uid)
-                        : null,
+                  const SizedBox(height: 6),
+                  Text(
+                    AccusationFacilityCopy.accuseTargetLine,
+                    style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                          color: sheetCtx.worldMutedOnScaffold,
+                        ),
                   ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 8),
+                  Text(
+                    failHint,
+                    style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                          color: accusationWeight.eliminatesAccuserOnFailure
+                              ? Theme.of(sheetCtx).colorScheme.error
+                              : sheetCtx.worldMutedOnScaffold,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final c in candidates)
+                    ListTile(
+                      enabled: c.selectable,
+                      title: Text(c.label),
+                      subtitle: c.disabledReason != null
+                          ? Text(c.disabledReason!)
+                          : null,
+                      trailing: c.selectable
+                          ? const Icon(Icons.chevron_right)
+                          : null,
+                      onTap: c.selectable
+                          ? () => Navigator.pop(ctx, c.uid)
+                          : null,
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       );
     },
   );

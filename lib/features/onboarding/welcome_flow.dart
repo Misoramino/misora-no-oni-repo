@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_legibility.dart';
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../features/how_to_play/guide_diagram_type.dart';
@@ -118,11 +121,11 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final page = _pages[_index];
+    final profile = context.worldProfile;
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+    return WorldScaffold(
+      profile: profile,
       body: SafeArea(
         child: Column(
           children: [
@@ -167,6 +170,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
                             backgroundColor: page.color,
+                            foregroundColor: context.worldButtonLabel,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: _next,

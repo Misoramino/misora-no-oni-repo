@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../guide_models.dart';
 
 /// 章一覧（タップで該当章を展開）。
@@ -34,7 +35,7 @@ class GuideSectionIndex extends StatelessWidget {
           Text(
             footer!,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.worldMuted,
             ),
           ),
         ],
