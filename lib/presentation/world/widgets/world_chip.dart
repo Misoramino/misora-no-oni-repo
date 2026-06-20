@@ -25,8 +25,8 @@ class WorldChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pack = WorldPresentationCatalog.of(profile);
-    final bg = backgroundColor ?? pack.panelSurface;
-    final fg = foregroundColor ?? pack.textOnPanel;
+    final bg = backgroundColor ?? pack.panelOnScaffold;
+    final fg = foregroundColor ?? pack.textOnPanelOverScaffold;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bg,
@@ -79,6 +79,9 @@ class WorldTimerChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final pack = WorldPresentationCatalog.of(profile);
     final bg = isAlert ? pack.dangerColor : pack.successColor;
+    final fg = bg.computeLuminance() > 0.55
+        ? const Color(0xFF1A1A2E)
+        : Colors.white.withValues(alpha: 0.95);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: bg,
@@ -93,7 +96,7 @@ class WorldTimerChip extends StatelessWidget {
         child: Text(
           text,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Colors.white.withValues(alpha: 0.95),
+                color: fg,
                 fontWeight: FontWeight.w700,
                 fontFeatures: profile == WorldProfile.sciFi
                     ? const [FontFeature.tabularFigures()]

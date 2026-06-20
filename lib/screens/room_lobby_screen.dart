@@ -28,10 +28,15 @@ import '../widgets/scene_transitions.dart';
 
 /// ルーム参加・メンバー一覧・ゲーム画面への遷移。
 class RoomLobbyScreen extends StatefulWidget {
-  const RoomLobbyScreen({this.existingSession, super.key});
+  const RoomLobbyScreen({
+    this.existingSession,
+    this.onProfileChanged,
+    super.key,
+  });
 
   /// マップ画面から戻ったときなど、既に参加済みのセッションを渡せる。
   final FirestoreRoomSession? existingSession;
+  final ValueChanged<WorldProfile>? onProfileChanged;
 
   @override
   State<RoomLobbyScreen> createState() => _RoomLobbyScreenState();
@@ -113,6 +118,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     setState(() => _worldProfile = next);
     unawaited(WorldAudioDirector.instance.onProfileChanged(next));
+    widget.onProfileChanged?.call(next);
   }
 
   Future<void> _join() async {
@@ -257,7 +263,11 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
     if (!mounted) return;
     await AppNav.push<void>(
       context,
-      (_) => GameMapScreen(profile: profile, onlineSession: fs),
+      (_) => GameMapScreen(
+        profile: profile,
+        onlineSession: fs,
+        onProfileChanged: widget.onProfileChanged,
+      ),
       worldProfile: profile,
       routeName: GameMapScreen.routeName,
     );
@@ -307,7 +317,15 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
             IconButton(
               tooltip: '設定',
               icon: const Icon(Icons.settings_outlined),
-              onPressed: () => showSettingsHubSheet(context),
+              onPressed: () => showSettingsHubSheet(
+                context,
+                onWorldProfileChanged: (p) async {
+                  await _onProfileSelected(p);
+                },
+                onPersonalSettingsApplied: (result) async {
+                  await _onProfileSelected(result.profile);
+                },
+              ),
             ),
           ],
         ),

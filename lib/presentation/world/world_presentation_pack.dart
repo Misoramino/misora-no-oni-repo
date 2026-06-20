@@ -203,4 +203,25 @@ class WorldPresentationPack {
     }
     return color;
   }
+
+  /// 半透明パネルをスキャフォールド上に載せたときの実効背景色。
+  Color get panelOnScaffold =>
+      Color.alphaBlend(panelSurface, scaffoldBottom);
+
+  /// チップ等・半透明パネルをスキャフォールド上に置いたときの文字色。
+  Color get textOnPanelOverScaffold {
+    final lum = panelOnScaffold.computeLuminance();
+    if (lum > 0.55) return const Color(0xFF1A1A2E);
+    return const Color(0xFFE8E4DC);
+  }
+
+  /// [textOnPanelOverScaffold] の補助色。
+  Color get mutedOnPanelOverScaffold =>
+      textOnPanelOverScaffold.withValues(alpha: 0.85);
+
+  /// ダイアログ等の不透明パネル背景。
+  Color get panelSurfaceOpaque => panelOnScaffold;
+
+  /// スキャフォールド上の見出し・アクセント文字色。
+  Color get accentOnScaffold => readableOnScaffold(accent);
 }

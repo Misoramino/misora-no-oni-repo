@@ -93,6 +93,11 @@ void main() {
                 pack.accent.computeLuminance())
             .abs();
         expect(labelContrast, greaterThan(0.25));
+        final panelOverScaffoldContrast =
+            (pack.textOnPanelOverScaffold.computeLuminance() -
+                    pack.panelOnScaffold.computeLuminance())
+                .abs();
+        expect(panelOverScaffoldContrast, greaterThan(0.25));
         if (pack.loseAccent.computeLuminance() < 0.35 && !pack.isLightScaffold) {
           expect(
             pack.readableOnScaffold(pack.loseAccent),

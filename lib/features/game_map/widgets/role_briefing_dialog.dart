@@ -139,7 +139,7 @@ Future<void> showRoleBriefingDialog(
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: accent,
-                  foregroundColor: Colors.white,
+                  foregroundColor: pack.buttonLabelOnAccent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 onPressed: () async {

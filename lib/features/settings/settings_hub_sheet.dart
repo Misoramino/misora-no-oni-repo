@@ -5,12 +5,14 @@ import '../../features/game_map/settings/player_personal_settings_models.dart';
 import '../../screens/data_management_screen.dart';
 import '../../screens/personal_settings_screen.dart';
 import '../../session/world_profile_prefs.dart';
+import '../../theme/world_profile.dart';
 import '../../widgets/scene_transitions.dart';
 
 /// 個人設定・サウンド・データ管理をまとめた設定ハブ。
 Future<void> showSettingsHubSheet(
   BuildContext context, {
   void Function(PlayerPersonalSettingsResult result)? onPersonalSettingsApplied,
+  ValueChanged<WorldProfile>? onWorldProfileChanged,
   VoidCallback? onOpenDisplaySettings,
 }) {
   return showModalBottomSheet<void>(
@@ -40,7 +42,9 @@ Future<void> showSettingsHubSheet(
                   final applied =
                       await AppNav.push<PlayerPersonalSettingsResult?>(
                     context,
-                    (_) => const PersonalSettingsScreen(),
+                    (_) => PersonalSettingsScreen(
+                      onWorldProfileChanged: onWorldProfileChanged,
+                    ),
                     worldProfile: profile,
                   );
                   if (applied != null) {

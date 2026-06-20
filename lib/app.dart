@@ -84,6 +84,11 @@ class _OniGameAppState extends State<OniGameApp> with WidgetsBindingObserver {
         settings: settings,
         builder: (_) => RoomLobbyScreen(
           existingSession: args?.existingSession,
+          onProfileChanged: (p) async {
+            await WorldProfilePrefs.save(p);
+            if (mounted) setState(() => _profile = p);
+            unawaited(WorldAudioDirector.instance.onProfileChanged(p));
+          },
         ),
         worldProfile: args?.worldProfile ?? _profile,
       );

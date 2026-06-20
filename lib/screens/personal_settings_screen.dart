@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
 import '../features/world_selection/world_selection_sheet.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_presentation_context.dart';
 import '../session/avatar_image_store.dart';
 import '../session/game_map_prefs.dart';
 import '../session/session_prefs.dart';
@@ -19,7 +20,13 @@ import '../theme/world_visual_pack_factory.dart';
 
 /// プロフィール・鬼設定・位置プライバシーを1画面にまとめた個人設定。
 class PersonalSettingsScreen extends StatefulWidget {
-  const PersonalSettingsScreen({super.key});
+  const PersonalSettingsScreen({
+    super.key,
+    this.onWorldProfileChanged,
+  });
+
+  /// 世界観を選んだ直後に呼ぶ（保存ボタンを待たない）。
+  final ValueChanged<WorldProfile>? onWorldProfileChanged;
 
   @override
   State<PersonalSettingsScreen> createState() => _PersonalSettingsScreenState();
@@ -95,6 +102,13 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
     setState(() => _avatarPath = stored);
   }
 
+  Future<void> _applyWorldProfileSelection(WorldProfile next) async {
+    if (next == _profile) return;
+    setState(() => _profile = next);
+    await WorldProfilePrefs.save(next);
+    widget.onWorldProfileChanged?.call(next);
+  }
+
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -148,7 +162,16 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
+    final themed = theme.copyWith(
+      extensions: [
+        for (final e in theme.extensions.values)
+          if (e is! WorldProfileTheme) e,
+        WorldProfileTheme(_profile),
+      ],
+    );
+    return Theme(
+      data: themed,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('個人設定'),
         actions: [
@@ -222,7 +245,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                       context,
                       current: _profile,
                     );
-                    if (next != null) setState(() => _profile = next);
+                    if (next != null) await _applyWorldProfileSelection(next);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -329,6 +352,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 ),
               ],
             ),
+      ),
     );
   }
 

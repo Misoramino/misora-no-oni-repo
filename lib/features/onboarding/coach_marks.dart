@@ -219,7 +219,7 @@ class _CoachCard extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
       child: Material(
-        color: pack.panelSurface,
+        color: pack.panelSurfaceOpaque,
         borderRadius: BorderRadius.circular(pack.hudCornerRadius + 8),
         elevation: 8,
         shadowColor: pack.accent.withValues(alpha: 0.3),
@@ -238,14 +238,14 @@ class _CoachCard extends StatelessWidget {
                       step.title,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: pack.onAccent,
+                        color: pack.textOnPanel,
                       ),
                     ),
                   ),
                   Text(
                     '${index + 1}/$total',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: pack.onAccent.withValues(alpha: 0.65),
+                      color: pack.mutedOnPanel,
                     ),
                   ),
                 ],
@@ -254,7 +254,7 @@ class _CoachCard extends StatelessWidget {
               Text(
                 step.body,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: pack.onAccent.withValues(alpha: 0.9),
+                  color: pack.textOnPanel,
                 ),
               ),
               const SizedBox(height: 12),
@@ -266,7 +266,7 @@ class _CoachCard extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       backgroundColor: pack.accent,
-                      foregroundColor: pack.onAccent,
+                      foregroundColor: pack.buttonLabelOnAccent,
                     ),
                     child: Text(isLast ? studio.microcopy.coachDone : studio.microcopy.coachNext),
                   ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../../game/player_role.dart';
 import '../../../session/avatar_thumb_codec.dart';
+import '../../../presentation/world/world_presentation_catalog.dart';
 import '../../../theme/world_launch_branding.dart';
 import '../../../theme/world_profile.dart';
 
@@ -92,8 +93,15 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = _branding.accent;
+    final pack = WorldPresentationCatalog.of(widget.profile);
+    final accent = pack.accentOnScaffold;
     final count = widget.entries.length;
+    final headlineColor = pack.isLightScaffold
+        ? Colors.white.withValues(alpha: 0.92)
+        : pack.textOnScaffold;
+    final subtitleColor = pack.isLightScaffold
+        ? Colors.white.withValues(alpha: 0.78)
+        : pack.mutedOnScaffold;
 
     return Material(
       color: Colors.transparent,
@@ -115,7 +123,7 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
               Text(
                 '$count 人が参加',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.92),
+                  color: headlineColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -139,8 +147,10 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
                   child: OutlinedButton(
                     onPressed: _close,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+                      foregroundColor: subtitleColor,
+                      side: BorderSide(
+                        color: headlineColor.withValues(alpha: 0.35),
+                      ),
                     ),
                     child: const Text('スキップ'),
                   ),

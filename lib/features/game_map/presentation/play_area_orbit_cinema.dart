@@ -9,6 +9,7 @@ import '../../../config/google_maps_config.dart';
 import '../../../game/play_area.dart';
 import '../../../presentation/world/world_studio_identity.dart';
 import '../../../presentation/world/world_studio_identity_catalog.dart';
+import '../../../theme/map_style_loader.dart';
 import '../../../theme/world_launch_branding.dart';
 import '../../../theme/world_profile.dart';
 import '../../../theme/world_profile_tokens.dart';
@@ -32,6 +33,7 @@ Future<void> runPlayAreaOrbitCinema({
       controller: mapController,
       area: area,
       profile: profile,
+      mapStyleJson: mapStyleJson,
     );
     return;
   }
@@ -57,6 +59,7 @@ Future<void> _orbitOnController({
   required GoogleMapController controller,
   required PlayArea area,
   required WorldProfile profile,
+  required String? mapStyleJson,
 }) async {
   final branding = WorldLaunchBranding.of(profile);
   final overlay = Overlay.of(context);
@@ -76,9 +79,20 @@ Future<void> _orbitOnController({
   overlay.insert(blockEntry);
   overlay.insert(entry);
 
+  final labelsHidden = MapStyleLoader.withLabelsHidden(mapStyleJson);
   try {
+    if (labelsHidden != null) {
+      try {
+        await controller.setMapStyle(labelsHidden);
+      } catch (_) {}
+    }
     await _playOrbitSequence(controller, area, profile);
   } finally {
+    if (mapStyleJson != null) {
+      try {
+        await controller.setMapStyle(mapStyleJson);
+      } catch (_) {}
+    }
     entry.remove();
     blockEntry.remove();
   }
@@ -269,7 +283,8 @@ class _OrbitCinemaMapDialogState extends State<_OrbitCinemaMapDialog> {
         fit: StackFit.expand,
         children: [
           GoogleMap(
-            style: widget.mapStyleJson,
+            style: MapStyleLoader.withLabelsHidden(widget.mapStyleJson) ??
+                widget.mapStyleJson,
             initialCameraPosition: CameraPosition(
               target: widget.area.anchorCenter,
               zoom: _zoomForArea(widget.area),

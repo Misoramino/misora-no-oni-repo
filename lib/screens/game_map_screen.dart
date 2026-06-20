@@ -1812,7 +1812,6 @@ class _GameMapScreenState extends State<GameMapScreen>
         !_matchPresentationActive &&
         !_editingArea &&
         _gpsPositionReady &&
-        _usesDefaultTokyoPlayArea() &&
         _playAreaFarFromCurrentLocation()) {
       _playAreaRelocatePromptShown = true;
       unawaited(_maybeSuggestPlayAreaAtCurrentLocation());
@@ -2458,7 +2457,9 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _openPersonalSettings() async {
     final result = await AppNav.push<PlayerPersonalSettingsResult?>(
       context,
-      (_) => const PersonalSettingsScreen(),
+      (_) => PersonalSettingsScreen(
+        onWorldProfileChanged: _applyWorldProfile,
+      ),
       worldProfile: _activeProfile,
     );
     if (!mounted || result == null) return;
@@ -2840,6 +2841,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   Future<void> _openSettingsHub() async {
     await showSettingsHubSheet(
       context,
+      onWorldProfileChanged: _applyWorldProfile,
       onPersonalSettingsApplied: (result) async {
         await _applyPersonalSettingsResult(result);
         await _loadTrajectoryConsent();

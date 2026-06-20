@@ -429,7 +429,10 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           onPressed: () {
                                             AppNav.push<void>(
                                               context,
-                                              (_) => const RoomLobbyScreen(),
+                                              (_) => RoomLobbyScreen(
+                                                onProfileChanged:
+                                                    widget.onProfileChanged,
+                                              ),
                                               worldProfile: _profile,
                                             );
                                           },

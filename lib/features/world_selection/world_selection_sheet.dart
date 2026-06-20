@@ -166,7 +166,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       children: [
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: Icon(Icons.arrow_back, color: _pack.accent),
+                          icon: Icon(Icons.arrow_back, color: _pack.accentOnScaffold),
                           tooltip: '戻る',
                         ),
                         Expanded(
@@ -179,7 +179,7 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                                     .textTheme
                                     .titleMedium
                                     ?.copyWith(
-                                      color: _pack.accent,
+                                      color: _pack.accentOnScaffold,
                                       letterSpacing:
                                           _pack.headlineLetterSpacing,
                                     ),
@@ -268,36 +268,36 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                         ActionChip(
                           label: Text(
                             '操作音',
-                            style: TextStyle(color: _pack.textOnPanel),
+                            style: TextStyle(color: _pack.textOnPanelOverScaffold),
                           ),
-                          backgroundColor: _pack.panelSurface,
+                          backgroundColor: _pack.panelOnScaffold,
                           side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.uiTap),
                         ),
                         ActionChip(
                           label: Text(
                             '暴露音',
-                            style: TextStyle(color: _pack.textOnPanel),
+                            style: TextStyle(color: _pack.textOnPanelOverScaffold),
                           ),
-                          backgroundColor: _pack.panelSurface,
+                          backgroundColor: _pack.panelOnScaffold,
                           side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.reveal),
                         ),
                         ActionChip(
                           label: Text(
                             '捕獲音',
-                            style: TextStyle(color: _pack.textOnPanel),
+                            style: TextStyle(color: _pack.textOnPanelOverScaffold),
                           ),
-                          backgroundColor: _pack.panelSurface,
+                          backgroundColor: _pack.panelOnScaffold,
                           side: BorderSide(color: _pack.panelBorder),
                           onPressed: () => _previewSe(SfxId.capture),
                         ),
                         ActionChip(
                           label: Text(
                             'BGM',
-                            style: TextStyle(color: _pack.textOnPanel),
+                            style: TextStyle(color: _pack.textOnPanelOverScaffold),
                           ),
-                          backgroundColor: _pack.panelSurface,
+                          backgroundColor: _pack.panelOnScaffold,
                           side: BorderSide(color: _pack.panelBorder),
                           onPressed: _previewBgm,
                         ),

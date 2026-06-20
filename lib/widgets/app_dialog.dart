@@ -80,7 +80,7 @@ class AppDialog extends StatelessWidget {
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
-      backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.98),
+      backgroundColor: pack.panelSurfaceOpaque,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(WorldUILayout.dialogBorderRadius),
       ),
