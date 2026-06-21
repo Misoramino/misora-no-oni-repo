@@ -19,18 +19,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _toast('試合の開始はホストのみできます');
         return;
       }
-      if (_isOnlineFirestore && _isHost && !_isLobbyPlayAreaAppliedForStart()) {
-        await _showPlayAreaNotAppliedDialog();
-        return;
-      }
 
-      final relocateOk = await _maybeWarnPlayAreaFarOnMatchStart();
-      if (!relocateOk || !mounted) {
-        if (mounted && !relocateOk) {
-          _toast('試合開始をキャンセルしました');
-        }
-        return;
-      }
+      final playAreaOk = await _validatePlayAreaForMatchStart();
+      if (!playAreaOk || !mounted) return;
 
       if (_isOnlineFirestore && _isHost) {
         final count = _lobbyParticipantCount();

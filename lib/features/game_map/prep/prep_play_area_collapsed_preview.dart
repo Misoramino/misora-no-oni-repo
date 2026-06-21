@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/play_area.dart';
+import '../../../presentation/world/world_legibility.dart';
 import '../../../theme/map_hud_contrast.dart';
 import '../../../widgets/play_area_shape_preview.dart';
 
@@ -51,7 +52,7 @@ class PrepPlayAreaCollapsedPreview extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: leg?.muted ?? theme.colorScheme.onSurfaceVariant,
+                  color: leg?.muted ?? context.worldMutedOnScaffold,
                   height: 1.25,
                 ),
               ),

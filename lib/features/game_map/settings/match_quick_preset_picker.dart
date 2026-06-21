@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../audio/game_audio.dart';
 import '../../../audio/sfx_id.dart';
+import '../../../presentation/world/world_legibility.dart';
 import '../../../game/match_quick_preset.dart';
 import '../../../game/match_setup_summary.dart';
 import '../../../widgets/juicy_tap.dart';
@@ -32,7 +33,7 @@ Future<MatchQuickPreset?> showMatchQuickPresetPicker(BuildContext context) {
               Text(
                 '詳細（告発の重み・ギミック等）は後から「ルール・役職」で変更できます。',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: ctx.worldMuted,
                 ),
               ),
               const SizedBox(height: 8),
@@ -105,7 +106,7 @@ class _PresetTile extends StatelessWidget {
                       Text(
                         preset.subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: context.worldMuted,
                         ),
                       ),
                     ],

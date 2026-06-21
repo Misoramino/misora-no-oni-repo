@@ -19,16 +19,16 @@ class MatchEventFeedBanner extends StatelessWidget {
     if (message.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final hud = MapHudRunningLegibility.resolve(scheme, worldProfile);
     return Material(
       elevation: 1,
       borderRadius: BorderRadius.circular(8),
-      color: MapHudContrast.infoPanelSurface(scheme, worldProfile)
-          .withValues(alpha: 0.92),
+      color: hud.infoPanelBg.withValues(alpha: 0.92),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           children: [
-            Icon(Icons.history, size: 16, color: scheme.primary),
+            Icon(Icons.history, size: 16, color: hud.icon),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -37,6 +37,7 @@ class MatchEventFeedBanner extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: hud.body,
                 ),
               ),
             ),

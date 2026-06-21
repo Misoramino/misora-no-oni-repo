@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../progression/progress_store.dart';
+import '../presentation/world/world_legibility.dart';
 import '../widgets/responsive_page.dart';
 
 /// 累積戦績と称号コレクションを表示する画面。
@@ -97,7 +98,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       Text(
                         '$earned / ${PlayerTitles.all.length}',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: context.worldMutedOnScaffold,
                         ),
                       ),
                     ],
@@ -119,7 +120,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             fontWeight: FontWeight.w600,
                             color: got
                                 ? null
-                                : theme.colorScheme.onSurfaceVariant,
+                                : context.worldMutedOnScaffold,
                           ),
                         ),
                         subtitle: Text(t.description),

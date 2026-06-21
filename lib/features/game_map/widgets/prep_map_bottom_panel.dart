@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
+import '../../../theme/world_profile.dart';
 import 'area_editor_card.dart';
 import 'prep_map_tools_panel.dart';
 
@@ -30,6 +32,7 @@ class PrepMapBottomPanel extends StatelessWidget {
     required this.onClearTraces,
     required this.onOpenHelp,
     required this.onDismissPrepSheet,
+    required this.worldProfile,
     this.onCreateNewArea,
     this.playAreaSummary,
     super.key,
@@ -59,6 +62,7 @@ class PrepMapBottomPanel extends StatelessWidget {
   final VoidCallback onClearTraces;
   final VoidCallback onOpenHelp;
   final VoidCallback onDismissPrepSheet;
+  final WorldProfile worldProfile;
   final VoidCallback? onCreateNewArea;
   final String? playAreaSummary;
 
@@ -97,7 +101,7 @@ class PrepMapBottomPanel extends StatelessWidget {
                               Icon(
                                 Icons.edit_location_alt,
                                 size: 20,
-                                color: Theme.of(context).colorScheme.primary,
+                                color: context.mapPanelLegibility(worldProfile).accent,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -146,6 +150,7 @@ class PrepMapBottomPanel extends StatelessWidget {
               PrepMapToolsPanel(
                 isEditing: isEditing,
                 playAreaSummary: playAreaSummary,
+                worldProfile: worldProfile,
                 onToggleAreaEdit: onToggleAreaEdit,
                 onRecenterGps: onRecenterGps,
                 onRefreshGps: onRefreshGps,

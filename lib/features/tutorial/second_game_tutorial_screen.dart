@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
+import '../../theme/map_hud_contrast.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -342,6 +344,7 @@ class _SecondGameTutorialScreenState extends State<SecondGameTutorialScreen>
                                   chargeProgress: _chargeProgress,
                                   accent: _accent,
                                   scheme: theme.colorScheme,
+                                  diagram: context.diagramLegibility(),
                                 ),
                               ),
                             ),
@@ -430,6 +433,7 @@ class _ArenaPainter extends CustomPainter {
     required this.chargeProgress,
     required this.accent,
     required this.scheme,
+    required this.diagram,
   });
 
   final Offset player;
@@ -444,6 +448,7 @@ class _ArenaPainter extends CustomPainter {
   final double chargeProgress;
   final Color accent;
   final ColorScheme scheme;
+  final WorldDiagramLegibility diagram;
 
   static const _terminalPos = Offset(0.34, 0.36);
   static const _accusationPos = Offset(0.70, 0.50);
@@ -454,7 +459,7 @@ class _ArenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = scheme.surfaceContainerHighest;
+    final bg = Paint()..color = diagram.background;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
       bg,
@@ -466,14 +471,14 @@ class _ArenaPainter extends CustomPainter {
       areaC,
       areaR,
       Paint()
-        ..color = const Color(0xFFFFC107).withValues(alpha: 0.12)
+        ..color = diagram.stroke.withValues(alpha: 0.12)
         ..style = PaintingStyle.fill,
     );
     canvas.drawCircle(
       areaC,
       areaR,
       Paint()
-        ..color = const Color(0xFFFFC107).withValues(alpha: 0.7)
+        ..color = diagram.stroke.withValues(alpha: 0.82)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );

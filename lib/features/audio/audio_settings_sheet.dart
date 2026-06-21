@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/world/world_legibility.dart';
 import '../../audio/audio_library.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -109,7 +110,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                 child: Text(
                   '変更はすぐに反映され、自動で保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMuted,
                   ),
                 ),
               ),
@@ -249,7 +250,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           '対戦中は既定で環境音のみ。ここで曲を選ぶと試合中もBGMを流せます。\n'
                           'OFFにすると効果音と環境音だけになり、好きな音楽を裏で流せます。',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: context.worldMuted,
                             height: 1.45,
                           ),
                         ),
@@ -292,7 +293,7 @@ class _WorldSfxPreviewSection extends StatelessWidget {
           Text(
             '現在の世界観: $profileLabel',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.worldMuted,
             ),
           ),
           const SizedBox(height: 10),
@@ -315,7 +316,7 @@ class _WorldSfxPreviewSection extends StatelessWidget {
             'UI音・暴露音・遷移音をその場で試聴できます。'
             'ファイルが無い場合は合成音にフォールバックします。',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: context.worldMuted,
               height: 1.4,
             ),
           ),
@@ -362,7 +363,7 @@ class _AmbientChoicePicker extends StatelessWidget {
                 size: 18,
                 color: selected
                     ? theme.colorScheme.onSecondaryContainer
-                    : theme.colorScheme.onSurfaceVariant,
+                    : context.worldMuted,
               ),
         label: Text(label),
         onSelected: (_) => onPick(value),
@@ -386,7 +387,7 @@ class _AmbientChoicePicker extends StatelessWidget {
             child: Text(
               '「おまかせ」は ${profile.label} のプール（${pool.map((a) => a.label).join(' / ')}）から選びます。',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.worldMuted,
                 height: 1.4,
               ),
             ),
@@ -418,7 +419,7 @@ class _BgmChoicePicker extends StatelessWidget {
                 size: 18,
                 color: selected
                     ? theme.colorScheme.onSecondaryContainer
-                    : theme.colorScheme.onSurfaceVariant,
+                    : context.worldMuted,
               ),
         label: Text(label),
         onSelected: (_) => onPick(value),
@@ -461,7 +462,7 @@ class _VolumeRow extends StatelessWidget {
       opacity: enabled ? 1 : 0.5,
       child: Row(
         children: [
-          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icon, size: 20, color: context.worldMuted),
           const SizedBox(width: 10),
           SizedBox(
             width: 56,

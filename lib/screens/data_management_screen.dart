@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../presentation/world/world_legibility.dart';
 import '../services/match_archive_store.dart';
 import '../session/game_map_prefs.dart';
 import '../session/world_profile_prefs.dart';
@@ -72,7 +73,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                 Text(
                   'この端末に保存される試合データです。オンライン試合の同期とは別で、個人の軌跡・戦績用です。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMutedOnScaffold,
                   ),
                 ),
                 const SizedBox(height: 16),

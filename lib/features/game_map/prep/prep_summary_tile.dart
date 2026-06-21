@@ -43,8 +43,7 @@ class PrepSummaryTile extends StatelessWidget {
       color: pl?.tileValue,
     );
     final iconColor = pl?.tileIcon ?? theme.colorScheme.primary;
-    final chevronColor =
-        pl?.tileMutedIcon ?? theme.colorScheme.onSurfaceVariant;
+    final chevronColor = pl?.tileMutedIcon ?? theme.colorScheme.onSurface.withValues(alpha: 0.72);
 
     return Material(
       color: surfaceColor,
@@ -75,7 +74,9 @@ class PrepSummaryTile extends StatelessWidget {
                           Text(
                             subtitle!,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: pl?.muted ?? theme.colorScheme.onSurfaceVariant,
+                              color: pl?.muted ??
+                                  theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.78),
                               height: 1.3,
                             ),
                           ),

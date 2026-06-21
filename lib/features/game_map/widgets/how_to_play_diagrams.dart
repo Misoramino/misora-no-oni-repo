@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../how_to_play/guide_text.dart';
+import '../../../presentation/world/world_legibility.dart';
+import '../../../theme/map_hud_contrast.dart';
 
 /// 作戦マニュアル／旧遊び方シート用の簡易図解。
 ///
@@ -17,7 +19,7 @@ class HelpFlowDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final diag = context.diagramLegibility();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Wrap(
@@ -30,11 +32,12 @@ class HelpFlowDiagram extends StatelessWidget {
             _DiagramNode(
               icon: steps[i].icon,
               label: steps[i].label,
-              color: steps[i].color ?? scheme.primary,
+              color: steps[i].color ?? diag.stroke,
+              labelColor: diag.label,
             ),
             if (i < steps.length - 1)
               Icon(Icons.arrow_forward_rounded,
-                  size: 18, color: scheme.outline),
+                  size: 18, color: diag.mutedStroke),
           ],
         ],
       ),
@@ -47,7 +50,7 @@ class HelpFactionDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final diag = context.diagramLegibility();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -58,18 +61,25 @@ class HelpFactionDiagram extends StatelessWidget {
               icon: Icons.directions_run_rounded,
               title: '人陣営',
               lines: const ['逃走者', '人狼（人側）', '制限時間まで生き残る'],
+              textColor: diag.label,
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text('VS', style: Theme.of(context).textTheme.labelLarge),
+            child: Text(
+              'VS',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: diag.label,
+                  ),
+            ),
           ),
           Expanded(
             child: _DiagramPanel(
-              color: scheme.error,
+              color: const Color(0xFFE53935),
               icon: Icons.nightlight_round,
               title: '鬼陣営',
               lines: const ['鬼', '人狼（鬼側）', '逃走者を捕らえる'],
+              textColor: diag.label,
             ),
           ),
         ],
@@ -83,20 +93,23 @@ class HelpMapConceptDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final diag = context.diagramLegibility();
     return AspectRatio(
       aspectRatio: 1.6,
       child: CustomPaint(
-        painter: _MapConceptPainter(scheme.primary, scheme.tertiary),
+        painter: _MapConceptPainter(diag),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _legendRow(Icons.crop_free, 'プレイエリア', scheme.primary),
-              _legendRow(Icons.nightlight_round, '鬼の手がかり', scheme.error),
-              _legendRow(Icons.shield_outlined, '安全地帯', Colors.green.shade600),
-              _legendRow(Icons.storefront_outlined, '情報屋', scheme.tertiary),
+              _legendRow(Icons.crop_free, 'プレイエリア', diag.stroke, diag.label),
+              _legendRow(Icons.nightlight_round, '鬼の手がかり',
+                  const Color(0xFFE53935), diag.label),
+              _legendRow(Icons.shield_outlined, '安全地帯',
+                  const Color(0xFF43A047), diag.label),
+              _legendRow(Icons.storefront_outlined, '情報屋', diag.mutedStroke,
+                  diag.label),
             ],
           ),
         ),
@@ -104,14 +117,15 @@ class HelpMapConceptDiagram extends StatelessWidget {
     );
   }
 
-  Widget _legendRow(IconData icon, String label, Color color) {
+  Widget _legendRow(IconData icon, String label, Color color, Color textColor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
           Icon(icon, size: 16, color: color),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 11)),
+          Text(label,
+              style: TextStyle(fontSize: 11, color: textColor)),
         ],
       ),
     );
@@ -123,11 +137,13 @@ class _DiagramNode extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.color,
+    required this.labelColor,
   });
 
   final IconData icon;
   final String label;
   final Color color;
+  final Color labelColor;
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +160,9 @@ class _DiagramNode extends StatelessWidget {
           Text(
             GuideText.forDisplay(label),
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelSmall,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: labelColor,
+                ),
           ),
         ],
       ),
@@ -158,12 +176,14 @@ class _DiagramPanel extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.lines,
+    required this.textColor,
   });
 
   final Color color;
   final IconData icon;
   final String title;
   final List<String> lines;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context) {
@@ -179,12 +199,17 @@ class _DiagramPanel extends StatelessWidget {
           Icon(icon, color: color, size: 28),
           const SizedBox(height: 4),
           Text(title,
-              style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+              )),
           const SizedBox(height: 4),
           for (final line in lines)
             Text(line,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: textColor,
+                    )),
         ],
       ),
     );
@@ -192,10 +217,9 @@ class _DiagramPanel extends StatelessWidget {
 }
 
 class _MapConceptPainter extends CustomPainter {
-  _MapConceptPainter(this.primary, this.tertiary);
+  _MapConceptPainter(this.diag);
 
-  final Color primary;
-  final Color tertiary;
+  final WorldDiagramLegibility diag;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -206,33 +230,34 @@ class _MapConceptPainter extends CustomPainter {
     canvas.drawRRect(
       area,
       Paint()
-        ..color = primary.withValues(alpha: 0.08)
+        ..color = diag.fill
         ..style = PaintingStyle.fill,
     );
     canvas.drawRRect(
       area,
       Paint()
-        ..color = primary.withValues(alpha: 0.35)
+        ..color = diag.stroke.withValues(alpha: 0.75)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
     canvas.drawCircle(
       Offset(size.width * 0.72, size.height * 0.35),
       10,
-      Paint()..color = Colors.red.shade400,
+      Paint()..color = const Color(0xFFE53935),
     );
     canvas.drawCircle(
       Offset(size.width * 0.35, size.height * 0.62),
       8,
-      Paint()..color = Colors.green.shade500,
+      Paint()..color = const Color(0xFF43A047),
     );
     canvas.drawCircle(
       Offset(size.width * 0.55, size.height * 0.72),
       7,
-      Paint()..color = tertiary,
+      Paint()..color = diag.mutedStroke,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MapConceptPainter oldDelegate) =>
+      oldDelegate.diag != diag;
 }

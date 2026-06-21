@@ -15,6 +15,7 @@ import '../features/game_map/widgets/match_flow_timeline.dart';
 import '../features/match/match_result_copy.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
+import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/world_studio_identity.dart';
@@ -327,7 +328,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                       : '観戦モード — 個人の勝敗・戦績は記録されません',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: pack.mutedOnScaffold,
                   ),
                 ),
               ],
@@ -414,8 +415,9 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   widget.contextualHint!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Card(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.45,
+                  color: Color.alphaBlend(
+                    pack.accent.withValues(alpha: 0.12),
+                    pack.panelSurface,
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
@@ -424,7 +426,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                       children: [
                         Icon(
                           Icons.tips_and_updates_outlined,
-                          color: theme.colorScheme.onPrimaryContainer,
+                          color: pack.accentOnScaffold,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -432,7 +434,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                             widget.contextualHint!,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               height: 1.4,
-                              color: theme.colorScheme.onPrimaryContainer,
+                              color: pack.textOnPanel,
                             ),
                           ),
                         ),
@@ -445,7 +447,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   widget.afterCatchRule != null) ...[
                 const SizedBox(height: 12),
                 Card(
-                  color: theme.colorScheme.surfaceContainerHighest,
+                  color: pack.panelSurface,
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(
@@ -455,18 +457,26 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                           children: [
                             Icon(
                               Icons.visibility_outlined,
-                              color: theme.colorScheme.primary,
+                              color: pack.accentOnScaffold,
                             ),
                             const SizedBox(width: 8),
-                            Text('第二ゲーム', style: theme.textTheme.titleSmall),
+                            Text('第二ゲーム',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: pack.textOnPanel,
+                                )),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(widget.afterCatchRule!.label),
+                        Text(
+                          widget.afterCatchRule!.label,
+                          style: TextStyle(color: pack.textOnPanel),
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           _afterCatchBlurb(widget.afterCatchRule!),
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: pack.mutedOnPanel,
+                          ),
                         ),
                       ],
                     ),
@@ -657,8 +667,12 @@ class _NewTitlesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pack = context.worldPresentation;
     return Card(
-      color: theme.colorScheme.primaryContainer,
+      color: Color.alphaBlend(
+        pack.accent.withValues(alpha: 0.16),
+        pack.panelSurface,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -667,12 +681,12 @@ class _NewTitlesCard extends StatelessWidget {
             Row(
               children: [
                 Icon(Icons.workspace_premium_rounded,
-                    color: theme.colorScheme.onPrimaryContainer),
+                    color: pack.accentOnScaffold),
                 const SizedBox(width: 8),
                 Text(
                   '称号を獲得！',
                   style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
+                    color: pack.textOnPanel,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -687,13 +701,13 @@ class _NewTitlesCard extends StatelessWidget {
                     Icon(
                       t.iconData,
                       size: 20,
-                      color: theme.colorScheme.onPrimaryContainer,
+                      color: pack.accentOnScaffold,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       t.label,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
+                        color: pack.textOnPanel,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -702,8 +716,7 @@ class _NewTitlesCard extends StatelessWidget {
                       child: Text(
                         t.description,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer
-                              .withValues(alpha: 0.8),
+                          color: pack.mutedOnPanel,
                         ),
                       ),
                     ),

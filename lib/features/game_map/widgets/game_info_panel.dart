@@ -128,13 +128,14 @@ class GameInfoPanel extends StatelessWidget {
 
     final tokens = WorldProfileTokenFactory.of(mapWorldProfile);
     final inArea = areaColor == tokens.safeColor;
+    final hud = MapHudRunningLegibility.resolve(scheme, mapWorldProfile);
 
     if (!expanded) {
       final werewolfChips = _werewolfChipRow();
       return Padding(
         padding: EdgeInsets.all(hudInset),
         child: Material(
-        color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
+        color: hud.infoPanelBg,
         borderRadius: BorderRadius.circular(10),
         elevation: 1,
         child: Padding(
@@ -157,8 +158,8 @@ class GameInfoPanel extends StatelessWidget {
                     profile: mapWorldProfile,
                     label: phaseLabel!,
                     dense: true,
-                    backgroundColor: scheme.primaryContainer.withValues(alpha: 0.85),
-                    foregroundColor: scheme.onPrimaryContainer,
+                    backgroundColor: hud.chipBg,
+                    foregroundColor: hud.chipFg,
                   ),
                 ),
               if (phaseLabel != null && phaseLabel!.isNotEmpty)
@@ -171,14 +172,11 @@ class GameInfoPanel extends StatelessWidget {
                     label: Text(connectionChipLabel!),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .errorContainer
-                        .withValues(alpha: 0.85),
+                    backgroundColor: hud.warningBg,
                     labelStyle: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onErrorContainer,
+                      color: hud.warningFg,
                     ),
                   ),
                 ),
@@ -190,7 +188,7 @@ class GameInfoPanel extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: HudMarqueeText(
                       text: compactLineText,
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.bodySmall?.copyWith(color: hud.body),
                     ),
                   ),
                 ),
@@ -203,7 +201,7 @@ class GameInfoPanel extends StatelessWidget {
                 constraints:
                     const BoxConstraints(minWidth: 32, minHeight: 32),
                 onPressed: onOpenDisplaySettings,
-                icon: Icon(Icons.tune, size: 20, color: scheme.primary),
+                icon: Icon(Icons.tune, size: 20, color: hud.icon),
               ),
               IconButton(
                 tooltip: '位置情報・鬼の手がかりログ',
@@ -212,7 +210,7 @@ class GameInfoPanel extends StatelessWidget {
                 constraints:
                     const BoxConstraints(minWidth: 32, minHeight: 32),
                 onPressed: onOpenIntelLog,
-                icon: Icon(Icons.radar, size: 20, color: scheme.primary),
+                icon: Icon(Icons.radar, size: 20, color: hud.icon),
               ),
               IconButton(
                 tooltip: 'HUDを展開',
@@ -221,7 +219,7 @@ class GameInfoPanel extends StatelessWidget {
                 constraints:
                     const BoxConstraints(minWidth: 28, minHeight: 28),
                 onPressed: onToggleExpanded,
-                icon: const Icon(Icons.expand_more, size: 20),
+                icon: Icon(Icons.expand_more, size: 20, color: hud.muted),
               ),
             ],
               ),
@@ -241,7 +239,7 @@ class GameInfoPanel extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
       decoration: BoxDecoration(
-        color: MapHudContrast.infoPanelSurface(scheme, mapWorldProfile),
+        color: hud.infoPanelBg,
         borderRadius: BorderRadius.circular(10),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
@@ -255,20 +253,12 @@ class GameInfoPanel extends StatelessWidget {
             children: [
               if (phaseLabel != null && phaseLabel!.isNotEmpty) ...[
                 Flexible(
-                  child: Chip(
-                    label: Text(
-                      phaseLabel!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    backgroundColor: scheme.primaryContainer,
-                    labelStyle: TextStyle(
-                      color: scheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
+                  child: WorldChip(
+                    profile: mapWorldProfile,
+                    label: phaseLabel!,
+                    dense: true,
+                    backgroundColor: hud.chipBg,
+                    foregroundColor: hud.chipFg,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -281,13 +271,11 @@ class GameInfoPanel extends StatelessWidget {
                     label: Text(connectionChipLabel!),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    backgroundColor: scheme.errorContainer.withValues(
-                      alpha: 0.85,
-                    ),
+                    backgroundColor: hud.warningBg,
                     labelStyle: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: scheme.onErrorContainer,
+                      color: hud.warningFg,
                     ),
                   ),
                 ),
@@ -295,6 +283,7 @@ class GameInfoPanel extends StatelessWidget {
                 timerText,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: hud.title,
                 ),
               ),
               const Spacer(),
@@ -305,7 +294,7 @@ class GameInfoPanel extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 onPressed: onOpenDisplaySettings,
-                icon: Icon(Icons.tune, size: 20, color: scheme.primary),
+                icon: Icon(Icons.tune, size: 20, color: hud.icon),
               ),
               IconButton(
                 tooltip: 'HUDを折りたたむ',
@@ -313,7 +302,7 @@ class GameInfoPanel extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 onPressed: onToggleExpanded,
-                icon: const Icon(Icons.expand_less, size: 20),
+                icon: Icon(Icons.expand_less, size: 20, color: hud.muted),
               ),
             ],
           ),
@@ -321,7 +310,7 @@ class GameInfoPanel extends StatelessWidget {
             children: [
               Text(
                 '暴露$revealCount · ステルス$safeZoneCharges',
-                style: theme.textTheme.labelSmall,
+                style: theme.textTheme.labelSmall?.copyWith(color: hud.muted),
               ),
               const Spacer(),
               TextButton(
@@ -329,14 +318,17 @@ class GameInfoPanel extends StatelessWidget {
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 6),
+                  foregroundColor: hud.accent,
                 ),
                 child: const Text('ログ', style: TextStyle(fontSize: 11)),
               ),
               if (editing)
-                Chip(
-                  label: const Text('編集中'),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
+                WorldChip(
+                  profile: mapWorldProfile,
+                  label: '編集中',
+                  dense: true,
+                  backgroundColor: hud.chipBg,
+                  foregroundColor: hud.chipFg,
                 ),
             ],
           ),
@@ -353,11 +345,16 @@ class GameInfoPanel extends StatelessWidget {
               children: [
                 if (_showWerewolfChips) ..._werewolfChipChildren(),
                 if (fakeCooldownSeconds > 0)
-                  CooldownChip(label: '偽位置CD', seconds: fakeCooldownSeconds),
+                  CooldownChip(
+                    label: '偽位置CD',
+                    seconds: fakeCooldownSeconds,
+                    worldProfile: mapWorldProfile,
+                  ),
                 if (fakeIntelRevealCooldownSeconds > 0)
                   CooldownChip(
                     label: '偽情報CD',
                     seconds: fakeIntelRevealCooldownSeconds,
+                    worldProfile: mapWorldProfile,
                   ),
               ],
             ),
@@ -370,7 +367,7 @@ class GameInfoPanel extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: scheme.primary,
+                color: hud.accent,
               ),
             ),
           ],
@@ -380,6 +377,7 @@ class GameInfoPanel extends StatelessWidget {
               intelLine,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: hud.body,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -390,7 +388,7 @@ class GameInfoPanel extends StatelessWidget {
               conditionText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(color: hud.muted),
             ),
           ],
           const SizedBox(height: 4),
@@ -416,7 +414,7 @@ class GameInfoPanel extends StatelessWidget {
               statusText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall,
+              style: theme.textTheme.labelSmall?.copyWith(color: hud.muted),
             ),
           ],
         ],
@@ -433,13 +431,29 @@ class GameInfoPanel extends StatelessWidget {
 
   List<Widget> _werewolfChipChildren() => [
         if (werewolfHudSummary != null)
-          CooldownChip(label: werewolfHudSummary!, seconds: 0),
+          CooldownChip(
+            label: werewolfHudSummary!,
+            seconds: 0,
+            worldProfile: mapWorldProfile,
+          ),
         if (werewolfOniActive && werewolfHudSummary == null)
-          const CooldownChip(label: '鬼化中', seconds: 0),
+          CooldownChip(
+            label: '鬼化中',
+            seconds: 0,
+            worldProfile: mapWorldProfile,
+          ),
         if (werewolfForcedSeconds > 0)
-          CooldownChip(label: '強制まで', seconds: werewolfForcedSeconds),
+          CooldownChip(
+            label: '強制まで',
+            seconds: werewolfForcedSeconds,
+            worldProfile: mapWorldProfile,
+          ),
         if (werewolfCooldownSeconds > 0)
-          CooldownChip(label: '切替CD', seconds: werewolfCooldownSeconds),
+          CooldownChip(
+            label: '切替CD',
+            seconds: werewolfCooldownSeconds,
+            worldProfile: mapWorldProfile,
+          ),
       ];
 
   Widget? _werewolfChipRow() {

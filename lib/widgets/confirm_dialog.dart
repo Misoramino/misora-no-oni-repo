@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../presentation/world/world_ui_layout.dart';
+import '../presentation/world/world_legibility.dart';
 
 /// 確認ダイアログ。確定で `true`、キャンセルで `false`。
 Future<bool> showConfirmDialog(
@@ -24,7 +25,10 @@ Future<bool> showConfirmDialog(
           child: SingleChildScrollView(
             child: Text(
               message,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.45,
+                color: ctx.worldBody,
+              ),
             ),
           ),
         ),

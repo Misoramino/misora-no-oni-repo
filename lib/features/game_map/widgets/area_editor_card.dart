@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
+
 class AreaEditorCard extends StatelessWidget {
   const AreaEditorCard({
     required this.editCircleMode,
@@ -52,7 +54,7 @@ class AreaEditorCard extends StatelessWidget {
             Text(
               'ここが試合の舞台です。枠の内側だけが有効範囲になります。',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: context.worldMuted,
                     height: 1.35,
                   ),
             ),

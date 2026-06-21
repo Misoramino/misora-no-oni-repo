@@ -502,153 +502,43 @@ extension _GameMapPlayArea on _GameMapScreenState {
         PrepMapMode.hidden => '準備',
       };
 
-  static const _defaultTokyoCenter = LatLng(35.681236, 139.767125);
+  /// 試合開始ボタン押下時のみ — プレイエリア適用・現在地を検証する。
+  Future<bool> _validatePlayAreaForMatchStart() async {
+    if (!_isHost) return true;
 
-  /// ホスト向け「現在地を中心に」案内の本文（条件ごとに意味が通るよう分岐）。
-  List<String> _playAreaRelocateHintLines({
-    required bool stillDefault,
-    required bool farFromHere,
-  }) {
-    if (stillDefault && farFromHere) {
-      return const [
-        'プレイエリアが初期の東京付近のままです。',
-        '今いる場所はそのエリアの外にいます。',
-        'このままだと、試合開始直後からエリア外になります。',
-        '現在地を中心に円エリアを作りますか？',
-      ];
-    }
-    if (stillDefault) {
-      return const [
-        'プレイエリアが初期の東京付近のままです。',
-        '現在地が離れていると、開始直後からエリア外になります。',
-        '現在地を中心に円エリアを作りますか？',
-      ];
-    }
-    // カスタムエリアだが現在地がエリア外＋中心から離れている。
-    return const [
-      '設定したプレイエリアが現在地から離れています。',
-      '今いる場所はそのエリアの外にいます。',
-      'このままだと、試合開始直後からエリア外になります。',
-      '現在地を中心に円エリアを作りますか？',
-    ];
-  }
-
-  bool _usesDefaultTokyoPlayArea() {
-    if (_playArea.type != PlayAreaType.circle) return false;
-    final d = Geolocator.distanceBetween(
-      _playArea.center.latitude,
-      _playArea.center.longitude,
-      _defaultTokyoCenter.latitude,
-      _defaultTokyoCenter.longitude,
-    );
-    return d < 150;
-  }
-
-  bool _playAreaFarFromCurrentLocation() {
-    if (_playArea.contains(_currentPosition)) return false;
-    final center = GeneratedGimmicks.centerOf(_playArea);
-    final d = Geolocator.distanceBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      center.latitude,
-      center.longitude,
-    );
-    return d > 600;
-  }
-
-  Future<void> _maybeSuggestPlayAreaAtCurrentLocation() async {
-    await _showPlayAreaRelocateDialog(
-      stillDefault: _usesDefaultTokyoPlayArea(),
-      farFromHere: _playAreaFarFromCurrentLocation(),
-    );
-  }
-
-  /// 試合開始時のみ — 適用エリアから現在地が大きく離れているとき警告する。
-  Future<bool> _maybeWarnPlayAreaFarOnMatchStart() async {
-    if (!_isHost || !_gpsPositionReady) return true;
-    if (_playArea.contains(_currentPosition)) return true;
-    if (!_playAreaFarFromCurrentLocation()) return true;
-    return _showPlayAreaRelocateDialog(
-      stillDefault: false,
-      farFromHere: true,
-      matchStart: true,
-    );
-  }
-
-  Future<bool> _showPlayAreaRelocateDialog({
-    required bool stillDefault,
-    required bool farFromHere,
-    bool matchStart = false,
-  }) async {
-    if (!stillDefault && !farFromHere) return true;
-    if (!mounted) return false;
-
-    final lines = _playAreaRelocateHintLines(
-      stillDefault: stillDefault,
-      farFromHere: farFromHere,
-    );
-    if (matchStart) {
-      lines.insert(
-        0,
-        '現在地がプレイエリアから大きく離れています。'
-        'エリアを現在地に合わせてから、もう一度「試合を開始」を押してください。',
+    if (_isOnlineFirestore && !_isLobbyPlayAreaAppliedForStart()) {
+      await _showMatchStartPlayAreaBlockDialog(
+        'プレイエリアが適用されていません。',
       );
+      return false;
     }
 
-    final choice = await showAppDialog<int>(
-      context: context,
-      builder: (ctx) => AppDialog(
-        title: matchStart ? '現在地がプレイエリア外です' : 'プレイエリアを現在地に',
-        icon: Icons.my_location_rounded,
-        actions: [
-          AppDialogAction(
-            label: matchStart ? 'キャンセル' : 'あとで',
-            filled: false,
-            onPressed: () => Navigator.pop(ctx, 0),
-          ),
-          AppDialogAction(
-            label: '現在地を中心に',
-            onPressed: () => Navigator.pop(ctx, 1),
-          ),
-        ],
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < lines.length; i++) ...[
-              Text(lines[i]),
-              if (i < lines.length - 1) const SizedBox(height: 8),
-            ],
-          ],
-        ),
-      ),
-    );
-    if (!mounted) return false;
-    if (choice == null || choice == 0) return !matchStart;
-    _syncSetState(() {
-      _playArea = PlayArea.circle(
-        center: _currentPosition,
-        radiusMeters: _playArea.radiusMeters,
+    if (!_gpsPositionReady) {
+      await _showMatchStartPlayAreaBlockDialog(
+        '現在地を取得できません。位置情報の許可と GPS を確認してください。',
       );
-      _circleDraftCenter = _currentPosition;
-      _circleDraftRadiusMeters = _playArea.radiusMeters;
-      _statusMessage = 'プレイエリアを現在地中心に変更しました';
-    });
-    return !matchStart;
+      return false;
+    }
+
+    if (!_playArea.contains(_currentPosition)) {
+      final meters =
+          _playArea.overflowDistanceMeters(_currentPosition).ceil();
+      await _showMatchStartPlayAreaBlockDialog(
+        '現在地がプレイエリアから${meters}m離れています。',
+      );
+      return false;
+    }
+
+    return true;
   }
 
-  bool _isLobbyPlayAreaAppliedForStart() {
-    if (!_isOnlineFirestore || !_isHost) return true;
-    return _lobbyHostAreaSlotName != null;
-  }
-
-  Future<void> _showPlayAreaNotAppliedDialog() async {
+  Future<void> _showMatchStartPlayAreaBlockDialog(String reason) async {
     if (!mounted) return;
     await showAppDialog<void>(
       context: context,
       builder: (ctx) => AppDialog(
-        title: 'プレイエリアを適用してください',
-        icon: Icons.map_outlined,
+        title: '試合を開始できません',
+        icon: Icons.location_off_outlined,
         actions: [
           AppDialogAction(
             label: '了解',
@@ -656,12 +546,16 @@ extension _GameMapPlayArea on _GameMapScreenState {
             onPressed: () => Navigator.pop(ctx),
           ),
         ],
-        child: const Text(
-          '保存したエリアを選んだあと、'
-          '「選択エリアを適用」を押してから試合を開始できます。\n\n'
-          '適用しないと、前回のエリアのままになることがあります。',
+        child: Text(
+          reason,
+          style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.5),
         ),
       ),
     );
+  }
+
+  bool _isLobbyPlayAreaAppliedForStart() {
+    if (!_isOnlineFirestore || !_isHost) return true;
+    return _lobbyHostAreaSlotName != null;
   }
 }

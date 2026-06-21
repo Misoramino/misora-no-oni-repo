@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../game/location_reveal_event.dart';
 import '../../../game/match_ui_terms.dart';
 import '../../../game/match_event.dart';
+import '../../../presentation/world/world_legibility.dart';
 
 /// 暴露・試合イベントを時系列で並べた簡易タイムライン。
 class MatchFlowTimeline extends StatelessWidget {
@@ -24,6 +25,7 @@ class MatchFlowTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = context.worldMuted;
     final items = <_FlowItem>[];
     for (final r in reveals) {
       items.add(
@@ -56,7 +58,7 @@ class MatchFlowTimeline extends StatelessWidget {
       return Text(
         '記録されたイベントはまだありません',
         style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
+          color: muted,
         ),
       );
     }
@@ -68,7 +70,7 @@ class MatchFlowTimeline extends StatelessWidget {
           if (i > 0)
             Divider(
               height: 12,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: context.worldPanelBg.withValues(alpha: 0.35),
             ),
           _TimelineRow(item: shown[i], onSeekTo: onSeekTo),
         ],
@@ -100,6 +102,8 @@ class _TimelineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = context.worldMuted;
+    final accent = context.worldAccentReadable;
     final time =
         '${item.at.toLocal().hour.toString().padLeft(2, '0')}:'
         '${item.at.toLocal().minute.toString().padLeft(2, '0')}:'
@@ -107,7 +111,7 @@ class _TimelineRow extends StatelessWidget {
     final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(item.icon, size: 18, color: theme.colorScheme.primary),
+        Icon(item.icon, size: 18, color: accent),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -117,13 +121,14 @@ class _TimelineRow extends StatelessWidget {
                 item.title,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: context.worldBody,
                 ),
               ),
               if (item.subtitle.isNotEmpty)
                 Text(
                   item.subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: muted,
                   ),
                 ),
             ],
@@ -132,7 +137,7 @@ class _TimelineRow extends StatelessWidget {
         Text(
           time,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: muted,
           ),
         ),
       ],

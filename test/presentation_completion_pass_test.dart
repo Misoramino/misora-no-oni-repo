@@ -74,15 +74,7 @@ void main() {
   });
 
   group('readable contrast', () {
-    final profiles = [
-      WorldProfile.japaneseLuxury,
-      WorldProfile.westernLuxury,
-      WorldProfile.sport,
-      WorldProfile.arg,
-      WorldProfile.magical,
-    ];
-
-    for (final profile in profiles) {
+    for (final profile in WorldProfile.values) {
       test('${profile.name} panel text readable on panel', () {
         final pack = WorldPresentationCatalog.of(profile);
         final contrast = (pack.textOnPanel.computeLuminance() -

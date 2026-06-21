@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
+import '../../../theme/map_hud_contrast.dart';
 import '../../../services/play_area_slot_store.dart';
+import '../../../theme/world_profile.dart';
 
 /// プレビューモードの地図下パネル。
 class PrepMapPreviewPanel extends StatelessWidget {
@@ -11,6 +14,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
     required this.isHost,
     required this.onFocusSlot,
     required this.onApplyFocused,
+    required this.worldProfile,
     this.onProposeFocused,
     required this.onOpenGallery,
     required this.onRecenterGps,
@@ -30,6 +34,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
   final VoidCallback onRecenterGps;
   final VoidCallback onDismiss;
   final VoidCallback? onCreateNew;
+  final WorldProfile worldProfile;
 
   SavedPlayArea? get _focused {
     if (focusSlotId == null) return null;
@@ -42,11 +47,11 @@ class PrepMapPreviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final leg = context.mapPanelLegibility(worldProfile);
     final focused = _focused;
 
     return Material(
-      color: scheme.surfaceContainerHigh.withValues(alpha: 0.97),
+      color: leg.panelBg,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
       elevation: 8,
       child: Padding(
@@ -61,13 +66,14 @@ class PrepMapPreviewPanel extends StatelessWidget {
                   'エリアプレビュー',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
+                    color: leg.title,
                   ),
                 ),
                 const Spacer(),
                 IconButton(
                   tooltip: 'パネルを閉じる',
                   onPressed: onDismiss,
-                  icon: const Icon(Icons.expand_more),
+                  icon: Icon(Icons.expand_more, color: leg.muted),
                 ),
               ],
             ),
@@ -76,7 +82,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
                   ? '適用中: $activePlayAreaLabel'
                   : '${focused.name} — ${focused.area.coarseLocationLabel()}',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: leg.muted,
               ),
             ),
             const SizedBox(height: 10),
@@ -88,6 +94,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
                   _SlotChip(
                     label: '適用中',
                     selected: focusSlotId == null,
+                    leg: leg,
                     onTap: () => onFocusSlot(null),
                   ),
                   for (final slot in savedAreas) ...[
@@ -95,6 +102,7 @@ class PrepMapPreviewPanel extends StatelessWidget {
                     _SlotChip(
                       label: slot.name,
                       selected: focusSlotId == slot.id,
+                      leg: leg,
                       onTap: () => onFocusSlot(slot.id),
                     ),
                   ],
@@ -156,23 +164,36 @@ class _SlotChip extends StatelessWidget {
   const _SlotChip({
     required this.label,
     required this.selected,
+    required this.leg,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
+  final MapHudMapPanelLegibility leg;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      visualDensity: VisualDensity.compact,
-      selectedColor: scheme.primaryContainer,
-      checkmarkColor: scheme.onPrimaryContainer,
+    final fg = selected ? leg.accent : leg.muted;
+    return Material(
+      color: selected ? leg.highlightBg : leg.tileBg,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: fg,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

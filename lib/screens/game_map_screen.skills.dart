@@ -393,7 +393,7 @@ extension _GameMapSkills on _GameMapScreenState {
                 '次の画面で地図を長押しし、指を離して位置を確定します。\n'
                 '相手からは偽情報とは分かりません。',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: ctx.worldMuted,
                 ),
               ),
               const SizedBox(height: 14),

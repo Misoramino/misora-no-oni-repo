@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'world_launch_branding.dart';
 import 'world_profile.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_presentation_pack.dart';
 
 /// 準備画面（地図オフ）の背景に対して読みやすい前景色セット。
 @immutable
@@ -57,10 +58,7 @@ class MapHudPrepLegibility {
         ? pack.mutedOnPanel
         : (tileDark ? const Color(0xFFC7C7CC) : pack.mutedOnScaffold);
 
-    final primary = scheme.primary;
-    final link = pack.isLightScaffold
-        ? Color.alphaBlend(primary.withValues(alpha: 0.88), Colors.black)
-        : Color.alphaBlend(primary.withValues(alpha: 0.85), Colors.white);
+    final link = pack.accentOnScaffold;
 
     return MapHudPrepLegibility(
       background: background,
@@ -70,10 +68,176 @@ class MapHudPrepLegibility {
       tileSurface: tileSurface,
       tileTitle: tileSoft,
       tileValue: tileStrong,
-      tileIcon: primary,
+      tileIcon: pack.accentOnScaffold,
       tileMutedIcon: tileSoft,
       link: link,
       decorativeIcon: muted.withValues(alpha: 0.72),
+    );
+  }
+}
+
+/// 試合中 HUD（地図上オーバーレイ）の前景色セット。
+@immutable
+class MapHudRunningLegibility {
+  const MapHudRunningLegibility({
+    required this.controlPanelBg,
+    required this.infoPanelBg,
+    required this.title,
+    required this.body,
+    required this.muted,
+    required this.icon,
+    required this.accent,
+    required this.border,
+    required this.chipBg,
+    required this.chipFg,
+    required this.skillButtonBg,
+    required this.skillButtonFg,
+    required this.skillButtonMuted,
+    required this.warningBg,
+    required this.warningFg,
+    required this.cdChipBg,
+    required this.cdChipFg,
+  });
+
+  final Color controlPanelBg;
+  final Color infoPanelBg;
+  final Color title;
+  final Color body;
+  final Color muted;
+  final Color icon;
+  final Color accent;
+  final Color border;
+  final Color chipBg;
+  final Color chipFg;
+  final Color skillButtonBg;
+  final Color skillButtonFg;
+  final Color skillButtonMuted;
+  final Color warningBg;
+  final Color warningFg;
+  final Color cdChipBg;
+  final Color cdChipFg;
+
+  static MapHudRunningLegibility resolve(
+    ColorScheme scheme,
+    WorldProfile profile,
+  ) {
+    final pack = WorldPresentationCatalog.of(profile);
+    final controlPanelBg =
+        MapHudContrast.runningControlPanelBg(scheme, profile);
+    final infoPanelBg = MapHudContrast.infoPanelSurface(scheme, profile);
+    final titleOnInfo = MapHudContrast._textOnSurface(infoPanelBg, pack);
+    final mutedOnInfo = MapHudContrast._mutedOnSurface(infoPanelBg, pack);
+    final accent = pack.readableOnScaffold(pack.accentOnScaffold);
+    final titleOnControl = MapHudContrast._textOnSurface(controlPanelBg, pack);
+    final mutedOnControl =
+        MapHudContrast._mutedOnSurface(controlPanelBg, pack);
+
+    return MapHudRunningLegibility(
+      controlPanelBg: controlPanelBg,
+      infoPanelBg: infoPanelBg,
+      title: titleOnInfo,
+      body: titleOnInfo,
+      muted: mutedOnInfo,
+      icon: accent,
+      accent: accent,
+      border: pack.panelBorder.withValues(alpha: 0.55),
+      chipBg: Color.alphaBlend(
+        pack.accent.withValues(alpha: 0.22),
+        infoPanelBg,
+      ),
+      chipFg: titleOnInfo,
+      skillButtonBg: Color.alphaBlend(
+        Colors.white.withValues(alpha: 0.12),
+        controlPanelBg,
+      ),
+      skillButtonFg: titleOnControl,
+      skillButtonMuted: mutedOnControl,
+      warningBg: pack.dangerColor.withValues(alpha: 0.92),
+      warningFg: Colors.white.withValues(alpha: 0.96),
+      cdChipBg: Color.alphaBlend(
+        Colors.black.withValues(alpha: 0.18),
+        infoPanelBg,
+      ),
+      cdChipFg: titleOnInfo,
+    );
+  }
+}
+
+/// 準備中マップパネル（FAB 展開・ツール列）の色セット。
+@immutable
+class MapHudMapPanelLegibility {
+  const MapHudMapPanelLegibility({
+    required this.panelBg,
+    required this.title,
+    required this.body,
+    required this.muted,
+    required this.accent,
+    required this.tileBg,
+    required this.border,
+    required this.highlightBg,
+  });
+
+  final Color panelBg;
+  final Color title;
+  final Color body;
+  final Color muted;
+  final Color accent;
+  final Color tileBg;
+  final Color border;
+  final Color highlightBg;
+
+  static MapHudMapPanelLegibility resolve(
+    ColorScheme scheme,
+    WorldProfile profile,
+  ) {
+    final pack = WorldPresentationCatalog.of(profile);
+    final prep = MapHudPrepLegibility.resolve(scheme, profile);
+    final panelBg = pack.panelSurfaceOpaque;
+    return MapHudMapPanelLegibility(
+      panelBg: panelBg,
+      title: prep.title,
+      body: prep.body,
+      muted: prep.muted,
+      accent: pack.accentOnScaffold,
+      tileBg: prep.tileSurface,
+      border: pack.panelBorder,
+      highlightBg: Color.alphaBlend(
+        pack.accent.withValues(alpha: 0.14),
+        panelBg,
+      ),
+    );
+  }
+}
+
+/// 図解・CustomPaint 向けの線/塗り色。
+@immutable
+class WorldDiagramLegibility {
+  const WorldDiagramLegibility({
+    required this.stroke,
+    required this.fill,
+    required this.mutedStroke,
+    required this.label,
+    required this.mutedLabel,
+    required this.background,
+  });
+
+  final Color stroke;
+  final Color fill;
+  final Color mutedStroke;
+  final Color label;
+  final Color mutedLabel;
+  final Color background;
+
+  static WorldDiagramLegibility resolve(WorldProfile profile) {
+    final pack = WorldPresentationCatalog.of(profile);
+    final stroke = pack.accentOnScaffold;
+    return WorldDiagramLegibility(
+      stroke: stroke,
+      fill: stroke.withValues(alpha: 0.18),
+      mutedStroke: pack.mutedOnPanel,
+      label: pack.textOnPanel,
+      mutedLabel: pack.mutedOnPanel,
+      background: pack.panelSurfaceOpaque.withValues(alpha: 0.55),
     );
   }
 }
@@ -167,4 +331,28 @@ abstract final class MapHudContrast {
     WorldProfile profile,
   ) =>
       MapHudPrepLegibility.resolve(scheme, profile);
+
+  static MapHudRunningLegibility runningLegibility(
+    ColorScheme scheme,
+    WorldProfile profile,
+  ) =>
+      MapHudRunningLegibility.resolve(scheme, profile);
+
+  static MapHudMapPanelLegibility mapPanelLegibility(
+    ColorScheme scheme,
+    WorldProfile profile,
+  ) =>
+      MapHudMapPanelLegibility.resolve(scheme, profile);
+
+  static Color _textOnSurface(Color surface, WorldPresentationPack pack) {
+    if (surface.computeLuminance() > 0.52) {
+      return const Color(0xFF1A1A2E);
+    }
+    return pack.textOnPanel;
+  }
+
+  static Color _mutedOnSurface(Color surface, WorldPresentationPack pack) {
+    final base = _textOnSurface(surface, pack);
+    return base.withValues(alpha: 0.78);
+  }
 }

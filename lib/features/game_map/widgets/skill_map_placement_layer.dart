@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../presentation/world/world_legibility.dart';
+
 /// 地図タップスキル（捕獲結界・体投げ）の長押し→離して設置／×でキャンセル。
 class SkillMapPlacementLayer extends StatefulWidget {
   const SkillMapPlacementLayer({
@@ -88,7 +90,7 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
     if (!widget.active) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final leg = context.runningHudLegibility();
     final topInset = MediaQuery.paddingOf(context).top;
     const appBarHeight = kToolbarHeight;
 
@@ -119,7 +121,7 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
               right: 16,
             ),
             child: Material(
-              color: scheme.surface.withValues(alpha: 0.96),
+              color: leg.infoPanelBg,
               elevation: 6,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
@@ -132,14 +134,14 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
                       child: Text(
                         '${widget.hint}\n指を離すと設置',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurface,
+                          color: leg.body,
                           height: 1.4,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Material(
-                      color: scheme.surfaceContainerHighest,
+                      color: leg.skillButtonBg,
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
@@ -148,7 +150,7 @@ class _SkillMapPlacementLayerState extends State<SkillMapPlacementLayer> {
                           padding: const EdgeInsets.all(8),
                           child: Icon(
                             Icons.close_rounded,
-                            color: scheme.onSurface,
+                            color: leg.skillButtonFg,
                             size: 22,
                           ),
                         ),

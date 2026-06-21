@@ -12,6 +12,7 @@ import '../../../game/player_role.dart';
 import '../../../game/skill_ids.dart';
 import '../../../session/game_map_prefs.dart';
 import '../../../sync/firebase_bootstrap.dart';
+import '../../../presentation/world/world_legibility.dart';
 import 'game_custom_settings_models.dart';
 
 Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
@@ -79,7 +80,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           child: Text(
                             'ホストが編集。開放中は一部変更できます。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              color: ctx.worldMuted,
                             ),
                           ),
                         )
@@ -242,9 +243,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                             child: Text(
                               '残りのメンバーは逃走者になります。人数がメンバー数を超える場合は自動で調整されます。',
                               style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(ctx)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: ctx.worldMuted,
                                   ),
                             ),
                           ),
@@ -263,7 +262,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                       Text(
                         '準備画面と同期されます',
                         style: Theme.of(ctx).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              color: ctx.worldMuted,
                             ),
                       ),
                       Slider(
@@ -327,9 +326,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           child: Text(
                             selectedAccusationWeight.helperText,
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(ctx)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: ctx.worldMuted,
                                 ),
                           ),
                         ),

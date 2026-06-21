@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../presentation/world/world_legibility.dart';
+import '../presentation/world/world_presentation_context.dart';
 import '../game/play_area.dart';
 import '../services/play_area_slot_store.dart';
 import '../features/game_map/prep/area_gallery_pick.dart';
@@ -222,7 +224,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                     child: Text(
                       'この端末に保存したエリアです。試合への反映はホストが行います。',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: context.worldMutedOnScaffold,
                       ),
                     ),
                   ),
@@ -247,7 +249,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                           '右上から地図データを読み込めます。',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: context.worldMutedOnScaffold,
                           ),
                         ),
                         if (widget.canEdit) ...[
@@ -274,11 +276,14 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                   itemBuilder: (context, index) {
                     final slot = _areas[index];
                     final selected = slot.id == widget.selectedId;
+                    final pack = context.worldPresentation;
                     return Card(
                       elevation: selected ? 2 : 0,
                       color: selected
-                          ? theme.colorScheme.primaryContainer
-                              .withValues(alpha: 0.35)
+                          ? Color.alphaBlend(
+                              pack.accent.withValues(alpha: 0.14),
+                              pack.panelSurface,
+                            )
                           : null,
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
@@ -324,8 +329,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                                           overflow: TextOverflow.ellipsis,
                                           style: theme.textTheme.labelSmall
                                               ?.copyWith(
-                                            color: theme
-                                                .colorScheme.onSurfaceVariant,
+                                            color: context.worldMutedOnScaffold,
                                           ),
                                         ),
                                       ],

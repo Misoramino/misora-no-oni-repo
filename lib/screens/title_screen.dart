@@ -19,6 +19,7 @@ import '../session/onboarding_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../sync/firebase_bootstrap.dart';
 import '../features/world_selection/world_selection_sheet.dart';
+import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_ui_layout.dart';
 import '../presentation/world/widgets/world_button.dart';
@@ -276,7 +277,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                     ? branding.subtitleColor
                     : Color.lerp(
                         branding.subtitleColor,
-                        theme.colorScheme.onSurfaceVariant,
+                        context.worldMutedOnScaffold,
                         layoutT,
                       )!;
                 final titleStyle = theme.textTheme.headlineMedium?.copyWith(
@@ -383,8 +384,8 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                 style: theme
                                                     .textTheme.bodyLarge
                                                     ?.copyWith(
-                                                  color: theme.colorScheme
-                                                      .onSurfaceVariant,
+                                                  color: context
+                                                      .worldMutedOnScaffold,
                                                   fontSize: narrow ? 14 : null,
                                                 ),
                                               ),

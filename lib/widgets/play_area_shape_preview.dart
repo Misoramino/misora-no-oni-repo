@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../presentation/world/world_presentation_context.dart';
+import '../theme/map_hud_contrast.dart';
+import '../theme/world_profile.dart';
 import '../game/play_area.dart';
 
 /// 保存済みプレイエリアのざっくり形状プレビュー。
@@ -24,16 +27,17 @@ class PlayAreaShapePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final profile = context.worldProfile;
+    final diagram = WorldDiagramLegibility.resolve(profile);
     return SizedBox(
       width: width,
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHigh,
+          color: diagram.background,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+            color: diagram.mutedStroke.withValues(alpha: 0.65),
           ),
         ),
         child: ClipRRect(
@@ -41,8 +45,8 @@ class PlayAreaShapePreview extends StatelessWidget {
           child: CustomPaint(
             painter: _PlayAreaShapePainter(
               area: area,
-              fill: theme.colorScheme.primary.withValues(alpha: 0.22),
-              stroke: theme.colorScheme.primary,
+              fill: diagram.fill,
+              stroke: diagram.stroke,
               preserveAspect: preserveAspect,
             ),
             child: const SizedBox.expand(),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/elimination_aftermath_rule.dart';
+import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/elimination_role_copy.dart';
 import '../../../theme/world_profile.dart';
 
@@ -49,10 +50,12 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final copy = EliminationRoleCopy.forProfile(
       widget.worldProfile,
       widget.rule,
     );
+    final leg = MapHudMapPanelLegibility.resolve(scheme, widget.worldProfile);
     final tips = _tipsForRule(widget.rule, copy);
 
     return SafeArea(
@@ -62,7 +65,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
           child: Material(
             elevation: 8,
             borderRadius: BorderRadius.circular(16),
-            color: theme.colorScheme.surfaceContainerHighest,
+            color: leg.panelBg,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
               child: Column(
@@ -73,7 +76,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                     '第二ゲームへ',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.primary,
+                      color: leg.accent,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -83,6 +86,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: leg.title,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -90,7 +94,7 @@ class _SecondGameIntroOverlayState extends State<_SecondGameIntroOverlay> {
                     copy.roleSubtitle,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: leg.muted,
                     ),
                   ),
                   const SizedBox(height: 14),

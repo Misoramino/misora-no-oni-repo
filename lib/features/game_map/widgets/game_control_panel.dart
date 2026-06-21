@@ -137,6 +137,7 @@ class GameControlPanel extends StatelessWidget {
           cooldownSeconds: fakeCooldownSeconds,
           compact: compact,
           blocked: locked,
+          worldProfile: mapWorldProfile,
           onPressed: isEditing || locked ? null : onFakeSkill,
         ),
       if (canFakeIntelReveal)
@@ -146,6 +147,7 @@ class GameControlPanel extends StatelessWidget {
           cooldownSeconds: fakeIntelCooldownSeconds,
           compact: compact,
           blocked: locked,
+          worldProfile: mapWorldProfile,
           onPressed: isEditing || locked ? null : onFakeIntelReveal,
         ),
       if (canWerewolfHunter)
@@ -156,6 +158,7 @@ class GameControlPanel extends StatelessWidget {
           cooldownSeconds: werewolfCooldownSeconds,
           compact: compact,
           blocked: locked,
+          worldProfile: mapWorldProfile,
           onPressed: isEditing || locked ? null : onWerewolfHunter,
         ),
       if (canCaptureZone)
@@ -165,6 +168,7 @@ class GameControlPanel extends StatelessWidget {
           cooldownSeconds: captureCooldownSeconds,
           compact: compact,
           blocked: locked,
+          worldProfile: mapWorldProfile,
           onPressed: isEditing || locked ? null : onCaptureZone,
         ),
       if (canBodyThrow)
@@ -177,6 +181,7 @@ class GameControlPanel extends StatelessWidget {
               : null,
           cooldownSeconds: bodyThrowPuppetActive ? 0 : bodyThrowCooldownSeconds,
           compact: compact,
+          worldProfile: mapWorldProfile,
           onPressed: isEditing ||
                   (bodyThrowPuppetActive && !bodyThrowRecoverInRange)
               ? null
@@ -184,12 +189,22 @@ class GameControlPanel extends StatelessWidget {
         ),
     ];
     if (skills.isEmpty) {
-      return Text(
-        '装備スキルなし',
-        style: TextStyle(
-          fontSize: compact ? 11 : 12,
-          color: isRunning ? Colors.white70 : null,
-        ),
+      return Builder(
+        builder: (context) {
+          final leg = isRunning
+              ? MapHudRunningLegibility.resolve(
+                  Theme.of(context).colorScheme,
+                  mapWorldProfile,
+                )
+              : null;
+          return Text(
+            '装備スキルなし',
+            style: TextStyle(
+              fontSize: compact ? 11 : 12,
+              color: leg?.muted,
+            ),
+          );
+        },
       );
     }
     if (compact) {
@@ -215,6 +230,7 @@ class GameControlPanel extends StatelessWidget {
       return PrepMapToolsPanel(
         isEditing: isEditing,
         playAreaSummary: playAreaSummary,
+        worldProfile: mapWorldProfile,
         onToggleAreaEdit: onToggleAreaEdit,
         onRecenterGps: onRecenterGps,
         onRefreshGps: onRefreshGps,
@@ -227,6 +243,7 @@ class GameControlPanel extends StatelessWidget {
     if (!isRunning && prepLobbyMapHidden) {
       return _PrepMapPanelMapOff(
         playAreaSummary: playAreaSummary,
+        worldProfile: mapWorldProfile,
         onDismissPrepSheet: onDismissPrepSheet,
         onShowMap: onPrepShowMap,
       );
@@ -234,28 +251,20 @@ class GameControlPanel extends StatelessWidget {
 
     final expanded = sheetMode == ControlSheetMode.expanded;
     final scheme = Theme.of(context).colorScheme;
-    final onDark = isRunning;
-    final panelBg = onDark
-        ? MapHudContrast.runningControlPanelBg(scheme, mapWorldProfile)
-        : scheme.surfaceContainerHigh.withValues(alpha: 0.97);
-    final fg = onDark
-        ? (mapWorldProfile == WorldProfile.sport
-            ? const Color(0xFF1A1C1E)
-            : scheme.onSurface)
-        : scheme.onSurface;
-    final fgMuted = onDark && mapWorldProfile == WorldProfile.sport
-        ? const Color(0xFF3D4048)
-        : scheme.onSurfaceVariant;
-    final outlineAlpha = onDark
-        ? (mapWorldProfile == WorldProfile.horror ||
-                mapWorldProfile == WorldProfile.astronomy)
-            ? 0.44
-            : mapWorldProfile == WorldProfile.arg
-            ? 0.4
-            : mapWorldProfile == WorldProfile.sport
-            ? 0.42
-            : 0.35
-        : 0.5;
+    final runningLeg = isRunning
+        ? MapHudRunningLegibility.resolve(scheme, mapWorldProfile)
+        : null;
+    final mapLeg = !isRunning
+        ? MapHudMapPanelLegibility.resolve(scheme, mapWorldProfile)
+        : null;
+    final panelBg = isRunning
+        ? runningLeg!.controlPanelBg
+        : mapLeg!.panelBg;
+    final fg = isRunning ? runningLeg!.body : mapLeg!.title;
+    final fgMuted = isRunning ? runningLeg!.muted : mapLeg!.muted;
+    final accent = isRunning ? runningLeg!.accent : mapLeg!.accent;
+    final borderColor = isRunning ? runningLeg!.border : mapLeg!.border;
+    final outlineAlpha = isRunning ? 0.42 : 0.55;
 
     return Container(
       key: isRunning ? skillPanelKey : null,
@@ -264,7 +273,7 @@ class GameControlPanel extends StatelessWidget {
         color: panelBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: outlineAlpha),
+          color: borderColor.withValues(alpha: outlineAlpha),
         ),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
@@ -341,7 +350,10 @@ class GameControlPanel extends StatelessWidget {
           if (!isRunning) ...[
             Text(
               'マップ・位置（試合後）',
-              style: Theme.of(context).textTheme.titleSmall,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -421,6 +433,7 @@ class GameControlPanel extends StatelessWidget {
                       subtitle: 'カメラ移動',
                       onPressed: isEditing ? null : onRecenterGps,
                       lightStyle: false,
+                      worldProfile: mapWorldProfile,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -431,6 +444,7 @@ class GameControlPanel extends StatelessWidget {
                       subtitle: '位置の更新',
                       onPressed: onRefreshGps,
                       lightStyle: false,
+                      worldProfile: mapWorldProfile,
                     ),
                   ),
                 ],
@@ -478,27 +492,29 @@ class _PrepMapPanelMapOff extends StatelessWidget {
   const _PrepMapPanelMapOff({
     required this.onDismissPrepSheet,
     required this.onShowMap,
+    required this.worldProfile,
     this.playAreaSummary,
   });
 
   final VoidCallback onDismissPrepSheet;
   final VoidCallback onShowMap;
+  final WorldProfile worldProfile;
   final String? playAreaSummary;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fgMuted = scheme.onSurfaceVariant;
-    final panelBg = scheme.surfaceContainerHigh.withValues(alpha: 0.97);
-    final outlineAlpha = 0.5;
+    final leg = MapHudMapPanelLegibility.resolve(
+      Theme.of(context).colorScheme,
+      worldProfile,
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 12),
       decoration: BoxDecoration(
-        color: panelBg,
+        color: leg.panelBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: outlineAlpha),
+          color: leg.border.withValues(alpha: 0.55),
         ),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
@@ -525,7 +541,10 @@ class _PrepMapPanelMapOff extends StatelessWidget {
             '地図',
             style: Theme.of(
               context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: leg.title,
+                ),
           ),
           const SizedBox(height: 6),
           if (playAreaSummary != null && playAreaSummary!.isNotEmpty)
@@ -535,7 +554,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
                 '現在: ${playAreaSummary!}',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: scheme.primary,
+                      color: leg.accent,
                     ),
               ),
             ),
@@ -543,7 +562,7 @@ class _PrepMapPanelMapOff extends StatelessWidget {
             'エリア編集は準備画面の「プレイエリア」タブからも開けます。',
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: fgMuted, height: 1.35),
+            ).textTheme.bodySmall?.copyWith(color: leg.muted, height: 1.35),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(

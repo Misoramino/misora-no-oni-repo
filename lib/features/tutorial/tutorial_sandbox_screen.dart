@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
+import '../../theme/map_hud_contrast.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -478,6 +479,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                                         placementHolding: _placementHolding &&
                                             _placementHoldSeconds >= 0.35,
                                         scheme: theme.colorScheme,
+                                        diagram: context.diagramLegibility(),
                                       ),
                                     ),
                                   ),
@@ -668,6 +670,7 @@ class _ArenaPainter extends CustomPainter {
     required this.placedZone,
     required this.placementHolding,
     required this.scheme,
+    required this.diagram,
   });
 
   final Offset player;
@@ -686,6 +689,7 @@ class _ArenaPainter extends CustomPainter {
   final Offset? placedZone;
   final bool placementHolding;
   final ColorScheme scheme;
+  final WorldDiagramLegibility diagram;
 
   static const _zoneRadiusNorm = 0.14;
 
@@ -696,7 +700,7 @@ class _ArenaPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = scheme.surfaceContainerHighest;
+    final bg = Paint()..color = diagram.background;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(18)),
       bg,
@@ -709,14 +713,14 @@ class _ArenaPainter extends CustomPainter {
       areaC,
       areaR,
       Paint()
-        ..color = const Color(0xFFFFC107).withValues(alpha: 0.12)
+        ..color = diagram.stroke.withValues(alpha: 0.12)
         ..style = PaintingStyle.fill,
     );
     canvas.drawCircle(
       areaC,
       areaR,
       Paint()
-        ..color = const Color(0xFFFFC107).withValues(alpha: 0.7)
+        ..color = diagram.stroke.withValues(alpha: 0.82)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
     );

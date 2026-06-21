@@ -39,7 +39,7 @@ class SkillTimerHud extends StatelessWidget {
               )
             : scheme.surface.withValues(alpha: 0.94));
     final titleColor = pack?.textOnPanel ?? scheme.onSurface;
-    final hintColor = pack?.mutedOnPanel ?? scheme.onSurfaceVariant;
+    final hintColor = pack?.mutedOnPanel ?? const Color(0xFF424242);
     final radius = pack?.hudCornerRadius ?? 16.0;
     final showCountdown =
         secondsLeft != null && totalSeconds != null && totalSeconds! > 0;

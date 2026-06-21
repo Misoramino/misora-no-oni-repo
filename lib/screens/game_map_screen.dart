@@ -13,6 +13,7 @@ import '../audio/world_audio_director.dart';
 import '../audio/world_audio_state.dart';
 import '../audio/sfx_id.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
@@ -1755,8 +1756,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     return ' / ${faction.label}$frozen / ${perceived.label}${capture.isEmpty ? "" : "・$capture"}';
   }
 
-  bool _playAreaRelocatePromptShown = false;
-
   void _acceptPosition(Position position, {required bool animateCamera}) {
     final next = LatLng(position.latitude, position.longitude);
     final now = DateTime.now();
@@ -1806,16 +1805,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     if (animateCamera) {
       _runnerSmooth!.snapDisplayToTarget();
       _mapController?.animateCamera(CameraUpdate.newLatLng(next));
-    }
-
-    if (!_playAreaRelocatePromptShown &&
-        _gameState == GameState.waiting &&
-        !_matchPresentationActive &&
-        !_editingArea &&
-        _gpsPositionReady &&
-        _playAreaFarFromCurrentLocation()) {
-      _playAreaRelocatePromptShown = true;
-      unawaited(_maybeSuggestPlayAreaAtCurrentLocation());
     }
 
     final skipLocalEvaluate = _gameState == GameState.running &&
@@ -2080,7 +2069,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               Text(
                 'ローカル保存・最大50件',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: ctx.worldMuted,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2952,7 +2941,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     Text(
                       'ズームで見え方が変わるルールはそのまま。基準サイズだけ調整します。',
                       style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                            color: ctx.worldMuted,
                           ),
                     ),
                     SwitchListTile(
@@ -2978,7 +2967,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         compactSlot.label,
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                               color:
-                                  Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                  ctx.worldMuted,
                             ),
                       ),
                       children: [
@@ -2987,9 +2976,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           child: Text(
                             'タイマー背景でエリア内外は分かります。「すべて」は有効な情報を続けてスクロールします。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(ctx)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: ctx.worldMuted,
                                 ),
                           ),
                         ),
@@ -3203,11 +3190,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     final narrow = mq.size.width < 400;
     final onPrepPanel =
         _gameState == GameState.waiting && !showGameMap && !_editingArea;
+    final hideMapModeInTitle =
+        _matchPresentationActive && _gameState == GameState.waiting;
     final waitingMapTitle = _prepMapModeTitle();
     final appTitle = narrow
         ? switch (_gameState) {
             GameState.waiting =>
-              onPrepPanel ? 'ONI PIN' : waitingMapTitle,
+              onPrepPanel || hideMapModeInTitle ? 'ONI PIN' : waitingMapTitle,
             GameState.running => 'プレイ中',
             GameState.runnerWin => '逃走成功',
             GameState.caughtByOni => locallyEliminated
@@ -3215,7 +3204,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 : '捕獲',
           }
         : switch (_gameState) {
-            GameState.waiting => onPrepPanel
+            GameState.waiting => onPrepPanel || hideMapModeInTitle
                 ? 'ONI PIN'
                 : 'ONI PIN ・ $waitingMapTitle',
             GameState.running => 'ONI PIN ・ プレイ中',
@@ -3248,7 +3237,9 @@ class _GameMapScreenState extends State<GameMapScreen>
         }
       },
       child: Scaffold(
-        appBar: AppBar(
+        appBar: hideMapModeInTitle
+            ? null
+            : AppBar(
           automaticallyImplyLeading: false,
           leading: blockSystemBack
               ? const SizedBox.shrink()
@@ -3488,7 +3479,10 @@ class _GameMapScreenState extends State<GameMapScreen>
                 left: 16,
                 right: 16,
                 bottom: 16,
-                child: RoomInspectorBar(onOpenLobby: _openRoomLobby),
+                child: RoomInspectorBar(
+                  worldProfile: _activeProfile,
+                  onOpenLobby: _openRoomLobby,
+                ),
               ),
             if (_locationAccessStatus != null)
               Positioned(
@@ -3762,6 +3756,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     ? (_gameState == GameState.waiting &&
                             _prepMapMode == PrepMapMode.preview
                         ? PrepMapPreviewPanel(
+                            worldProfile: _activeProfile,
                             savedAreas: _savedPlayAreas,
                             focusSlotId: _previewFocusSlotId,
                             activePlayAreaLabel: _playAreaSummary(),
@@ -3790,6 +3785,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                             }),
                           )
                         : PrepMapBottomPanel(
+                        worldProfile: _activeProfile,
                         playAreaSummary: _playAreaSummary(),
                         isEditing: _editingArea,
                         areaEditorExpanded: _areaEditorPanelExpanded,
@@ -3914,6 +3910,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                 child: SafeArea(
                   child: PrepMapModeFab(
                     mode: _prepMapMode,
+                    worldProfile: _activeProfile,
                     onModeSelected: _setPrepMapModeFromFab,
                   ),
                 ),

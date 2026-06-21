@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../../../game/match_setup_summary.dart';
 
 /// ルームロビー向けのルール概要カード（非ホスト向け）。
@@ -49,7 +50,7 @@ class LobbyRulesSummaryCard extends StatelessWidget {
             Text(
               playerHint,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: context.worldMuted,
               ),
             ),
             const SizedBox(height: 6),

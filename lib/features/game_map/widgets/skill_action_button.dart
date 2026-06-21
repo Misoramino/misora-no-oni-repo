@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/map_hud_contrast.dart';
+import '../../../theme/world_profile.dart';
+
 class SkillActionButton extends StatefulWidget {
   const SkillActionButton({
     required this.label,
@@ -11,6 +14,7 @@ class SkillActionButton extends StatefulWidget {
     this.compact = false,
     this.blocked = false,
     this.auxLine,
+    this.worldProfile,
     super.key,
   });
 
@@ -23,6 +27,7 @@ class SkillActionButton extends StatefulWidget {
   final bool compact;
   final bool blocked;
   final String? auxLine;
+  final WorldProfile? worldProfile;
 
   @override
   State<SkillActionButton> createState() => _SkillActionButtonState();
@@ -31,9 +36,17 @@ class SkillActionButton extends StatefulWidget {
 class _SkillActionButtonState extends State<SkillActionButton> {
   bool _pinCd = false;
 
+  MapHudRunningLegibility _leg(BuildContext context) {
+    final profile = widget.worldProfile ?? WorldProfile.horror;
+    return MapHudRunningLegibility.resolve(
+      Theme.of(context).colorScheme,
+      profile,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final leg = _leg(context);
     final onCd = widget.cooldownSeconds > 0;
     final onBuff = widget.buffSeconds != null && widget.buffSeconds! > 0;
     final enabled = widget.onPressed != null && !onCd && !widget.blocked;
@@ -42,14 +55,8 @@ class _SkillActionButtonState extends State<SkillActionButton> {
       onCd: onCd,
       onBuff: onBuff,
     );
-    final compactFg = scheme.onSurface;
-    final compactBg = scheme.surfaceContainerHighest.withValues(alpha: 0.98);
-    final compactLabelFg = ThemeData.estimateBrightnessForColor(compactBg) ==
-            Brightness.dark
-        ? scheme.onSurface
-        : const Color(0xFF1A1C1E);
     final btn = Material(
-      color: widget.compact ? compactBg : null,
+      color: widget.compact ? leg.skillButtonBg : null,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: enabled ? widget.onPressed : null,
@@ -65,7 +72,9 @@ class _SkillActionButtonState extends State<SkillActionButton> {
           child: Icon(
             widget.icon,
             size: 22,
-            color: widget.compact ? compactFg : null,
+            color: widget.compact
+                ? (enabled ? leg.skillButtonFg : leg.skillButtonMuted)
+                : leg.icon,
           ),
         ),
       ),
@@ -91,7 +100,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   height: 1.2,
-                  color: compactLabelFg.withValues(alpha: 0.92),
+                  color: leg.skillButtonFg,
                 ),
               ),
             ),
@@ -99,21 +108,21 @@ class _SkillActionButtonState extends State<SkillActionButton> {
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: TextStyle(fontSize: 11, color: scheme.primary),
+                  style: TextStyle(fontSize: 11, color: leg.accent),
                 ),
               )
             else if (widget.blocked)
               ExcludeSemantics(
                 child: Text(
                   '待機',
-                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11, color: leg.skillButtonMuted),
                 ),
               )
             else if (widget.auxLine != null)
               ExcludeSemantics(
                 child: Text(
                   widget.auxLine!,
-                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11, color: leg.skillButtonMuted),
                 ),
               )
             else if (showPinnedCd || onCd)
@@ -123,9 +132,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.w700 : FontWeight.normal,
-                    color: showPinnedCd
-                        ? scheme.primary
-                        : scheme.onSurfaceVariant,
+                    color: showPinnedCd ? leg.accent : leg.skillButtonMuted,
                   ),
                 ),
               ),
@@ -150,28 +157,32 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, height: 1.2),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.2,
+                  color: leg.body,
+                ),
               ),
             ),
             if (onBuff)
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: const TextStyle(fontSize: 11),
+                  style: TextStyle(fontSize: 11, color: leg.accent),
                 ),
               )
             else if (widget.blocked)
               ExcludeSemantics(
                 child: Text(
                   '待機',
-                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11, color: leg.muted),
                 ),
               )
             else if (widget.auxLine != null)
               ExcludeSemantics(
                 child: Text(
                   widget.auxLine!,
-                  style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11, color: leg.muted),
                 ),
               )
             else if (showPinnedCd || onCd)
@@ -183,13 +194,16 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.bold : FontWeight.normal,
-                    color: showPinnedCd ? scheme.primary : null,
+                    color: showPinnedCd ? leg.accent : leg.muted,
                   ),
                 ),
               )
             else if (widget.active)
               ExcludeSemantics(
-                child: const Text('作動中', style: TextStyle(fontSize: 9)),
+                child: Text(
+                  '作動中',
+                  style: TextStyle(fontSize: 9, color: leg.accent),
+                ),
               ),
           ],
         ),

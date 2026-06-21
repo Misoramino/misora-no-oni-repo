@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
 import '../features/world_selection/world_selection_sheet.dart';
 import '../presentation/world/world_presentation_catalog.dart';
+import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../session/avatar_image_store.dart';
 import '../session/game_map_prefs.dart';
@@ -195,7 +196,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 Text(
                   'この端末だけに保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMutedOnScaffold,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -270,7 +271,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 Text(
                   'パニック・結界拘束・バックグラウンド復帰時の危機など。端末ローカルに保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: context.worldMutedOnScaffold,
                   ),
                 ),
                 const SizedBox(height: 8),

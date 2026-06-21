@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/map_hud_contrast.dart';
+import '../../theme/world_profile.dart';
 import 'world_presentation_context.dart';
 
 /// 世界観トークンへのショートカット（ガイド・チュートリアル・シート向け）。
@@ -24,4 +26,29 @@ extension WorldLegibilityOnContext on BuildContext {
 
   /// 不透明パネル背景。
   Color get worldPanelBg => worldPresentation.panelSurfaceOpaque;
+
+  /// 試合中 HUD の前景色セット。
+  MapHudRunningLegibility runningHudLegibility([WorldProfile? profile]) =>
+      MapHudRunningLegibility.resolve(
+        Theme.of(this).colorScheme,
+        profile ?? worldProfile,
+      );
+
+  /// 準備画面 HUD の前景色セット。
+  MapHudPrepLegibility prepHudLegibility([WorldProfile? profile]) =>
+      MapHudPrepLegibility.resolve(
+        Theme.of(this).colorScheme,
+        profile ?? worldProfile,
+      );
+
+  /// 準備中マップパネルの前景色セット。
+  MapHudMapPanelLegibility mapPanelLegibility([WorldProfile? profile]) =>
+      MapHudMapPanelLegibility.resolve(
+        Theme.of(this).colorScheme,
+        profile ?? worldProfile,
+      );
+
+  /// 図解・CustomPaint 向け色。
+  WorldDiagramLegibility diagramLegibility([WorldProfile? profile]) =>
+      WorldDiagramLegibility.resolve(profile ?? worldProfile);
 }
