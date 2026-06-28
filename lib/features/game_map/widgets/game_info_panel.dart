@@ -33,6 +33,7 @@ class GameInfoPanel extends StatelessWidget {
     required this.safeZoneCharges,
     required this.conditionText,
     required this.showConditionLine,
+    this.onOpenConditionGuide,
     this.werewolfOniActive = false,
     this.werewolfHudSummary,
     required this.werewolfCooldownSeconds,
@@ -68,6 +69,7 @@ class GameInfoPanel extends StatelessWidget {
   final int safeZoneCharges;
   final String conditionText;
   final bool showConditionLine;
+  final VoidCallback? onOpenConditionGuide;
   final bool werewolfOniActive;
   final String? werewolfHudSummary;
   final int werewolfCooldownSeconds;
@@ -309,7 +311,7 @@ class GameInfoPanel extends StatelessWidget {
           Row(
             children: [
               Text(
-                '暴露$revealCount · ステルス$safeZoneCharges',
+                '暴露$revealCount · 安全地帯$safeZoneCharges',
                 style: theme.textTheme.labelSmall?.copyWith(color: hud.muted),
               ),
               const Spacer(),
@@ -346,13 +348,13 @@ class GameInfoPanel extends StatelessWidget {
                 if (_showWerewolfChips) ..._werewolfChipChildren(),
                 if (fakeCooldownSeconds > 0)
                   CooldownChip(
-                    label: '偽位置CD',
+                    label: '偽位置',
                     seconds: fakeCooldownSeconds,
                     worldProfile: mapWorldProfile,
                   ),
                 if (fakeIntelRevealCooldownSeconds > 0)
                   CooldownChip(
-                    label: '偽情報CD',
+                    label: '偽情報',
                     seconds: fakeIntelRevealCooldownSeconds,
                     worldProfile: mapWorldProfile,
                   ),
@@ -384,11 +386,11 @@ class GameInfoPanel extends StatelessWidget {
             ),
           ],
           if (showConditionLine) ...[
-            Text(
-              conditionText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(color: hud.muted),
+            _ConditionLine(
+              text: conditionText,
+              mutedColor: hud.muted,
+              accentColor: hud.accent,
+              onOpenGuide: onOpenConditionGuide,
             ),
           ],
           const SizedBox(height: 4),
@@ -444,13 +446,13 @@ class GameInfoPanel extends StatelessWidget {
           ),
         if (werewolfForcedSeconds > 0)
           CooldownChip(
-            label: '強制まで',
+            label: '自動切替',
             seconds: werewolfForcedSeconds,
             worldProfile: mapWorldProfile,
           ),
         if (werewolfCooldownSeconds > 0)
           CooldownChip(
-            label: '切替CD',
+            label: '切替',
             seconds: werewolfCooldownSeconds,
             worldProfile: mapWorldProfile,
           ),
@@ -462,6 +464,46 @@ class GameInfoPanel extends StatelessWidget {
       spacing: 6,
       runSpacing: 4,
       children: _werewolfChipChildren(),
+    );
+  }
+}
+
+class _ConditionLine extends StatelessWidget {
+  const _ConditionLine({
+    required this.text,
+    required this.mutedColor,
+    required this.accentColor,
+    this.onOpenGuide,
+  });
+
+  final String text;
+  final Color mutedColor;
+  final Color accentColor;
+  final VoidCallback? onOpenGuide;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(color: mutedColor);
+    final child = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+    if (onOpenGuide == null) return child;
+    return InkWell(
+      onTap: onOpenGuide,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1),
+        child: Row(
+          children: [
+            Expanded(child: child),
+            Icon(Icons.menu_book_outlined, size: 14, color: accentColor),
+          ],
+        ),
+      ),
     );
   }
 }

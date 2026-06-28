@@ -75,6 +75,20 @@ extension _GameMapPresentation on _GameMapScreenState {
     );
   }
 
+  Future<GoogleMapController?> _ensureMapControllerForPresentation() async {
+    if (_mapController != null) return _mapController;
+    _syncSetState(() {
+      _prepMapMode = PrepMapMode.browse;
+      _prepControlSheetOpen = false;
+    });
+    final deadline = DateTime.now().add(const Duration(seconds: 4));
+    while (mounted && _mapController == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (DateTime.now().isAfter(deadline)) break;
+    }
+    return _mapController;
+  }
+
   Future<void> _runMatchStartPresentation({
     required bool rejoin,
     required bool inspector,
@@ -173,13 +187,15 @@ extension _GameMapPresentation on _GameMapScreenState {
       shortCeremony: shortCeremony,
       elapsedSeconds: elapsedSeconds,
     )) {
+      final mapController =
+          _mapController ?? await _ensureMapControllerForPresentation();
       await runPlayAreaOrbitCinema(
         context: context,
         area: _playArea,
         profile: _activeProfile,
         mapStyleJson: _mapVisual.mapStyleJson,
         tokens: _mapVisual.pack.tokens,
-        mapController: _mapController,
+        mapController: mapController,
       );
       if (!mounted) return;
     }

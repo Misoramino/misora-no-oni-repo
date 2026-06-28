@@ -1546,6 +1546,52 @@ extension _GameMapSkills on _GameMapScreenState {
     return '情報収集フェーズ — 告発は約$min分後（脱落後${elimMin}分経過で解禁）$scaleHint';
   }
 
+  String? _conditionGuideCardId() {
+    if (_gameState != GameState.running || _isEliminatedSpectator) {
+      return null;
+    }
+    if (_rt.lockZoneBoundIds.contains('self') && _rt.lockZoneEndsAt != null) {
+      return 'restraint';
+    }
+    if (_rt.touchLockNoticeShown && _rt.touchLockStartedAt != null) {
+      return 'restraint';
+    }
+    if (_rt.isInfectedNow || _rt.infectionExposureSeconds > 0) {
+      return 'panic';
+    }
+    if (_rt.fakePositionActive) {
+      return 'anon_trace';
+    }
+    if (_rt.bodyThrowPosition != null) {
+      return 'body_throw';
+    }
+    if (accusationEnabledForPlayerCount(_activeMatchPlayerCount) &&
+        !_rt.accusationUnlocked) {
+      return 'unlock';
+    }
+    if (accusationEnabledForPlayerCount(_activeMatchPlayerCount) &&
+        canLocalPlayerAccuse(
+          localRole: _localRole,
+          accusationUnlocked: _rt.accusationUnlocked,
+          accusationSpent: _rt.accusationSpentByMe,
+          isEliminated: _isEliminatedSpectator,
+          playerCount: _activeMatchPlayerCount,
+        )) {
+      return 'what';
+    }
+    return null;
+  }
+
+  void _openConditionGuide() {
+    final cardId = _conditionGuideCardId();
+    if (cardId == null) return;
+    showHowToPlaySheet(
+      context,
+      yourRole: _localRole,
+      initialGuideCardId: cardId,
+    );
+  }
+
   String _conditionLine() {
     if (_gameState == GameState.running &&
         _bleProximityIssue != null &&
@@ -1561,7 +1607,9 @@ extension _GameMapSkills on _GameMapScreenState {
         !_isEliminatedSpectator) {
       return '特化: ${_localRunnerModifier.label}';
     }
+    // 告発できるのは逃走者のみ。鬼・人狼には告発ヒントを出さない。
     if (_gameState == GameState.running &&
+        _localRole == PlayerRole.runner &&
         accusationEnabledForPlayerCount(_activeMatchPlayerCount) &&
         !_isEliminatedSpectator) {
       final copy = _accusationCopy;
@@ -1602,14 +1650,14 @@ extension _GameMapSkills on _GameMapScreenState {
     }
     if (_rt.fakePositionActive) {
       final left = _secondsUntil(_rt.fakePositionEndsAt);
-      return '偽位置展開中 残り$left秒 — 暴露はデコイ近傍（名前付き・匿名・定期）';
+      return '偽位置を展開中 残り$left秒 — 暴露されても、おとりの位置に表示されます';
     }
     if (_rt.bodyThrowPosition != null) {
       return _rt.bodyThrowOverdueRevealed
-          ? '体投げ — 人形未回収（暴露済み・回収まで他スキル不可）'
-          : '体投げ — 人形稼働中（回収まで他スキル不可）';
+          ? '体投げ — 人形が未回収（位置が暴露済み・回収するまで他スキル不可）'
+          : '体投げ — 人形が稼働中（回収するまで他スキル不可）';
     }
-    return '異常なし';
+    return '異常なし（追跡・拘束を受けていません）';
   }
 
   String get _localPlayerLabel {

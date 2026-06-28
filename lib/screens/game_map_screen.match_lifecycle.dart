@@ -2,6 +2,21 @@ part of 'game_map_screen.dart';
 
 /// 試合開始・終了・リセット・ティック評価・中止投票。
 extension _GameMapMatchLifecycle on _GameMapScreenState {
+  /// 準備画面の「試合を開始」— 無効条件でも押下時に理由を表示する。
+  Future<void> _onPrepStartPressed() async {
+    if (!_isHost) {
+      _toast('試合の開始はホストのみできます');
+      return;
+    }
+    if (_isOnlineFirestore && !_isLobbyPlayAreaAppliedForStart()) {
+      await _showMatchStartPlayAreaBlockDialog(
+        'プレイエリアが適用されていません。マップから編集・保存し「選択エリアを適用」してください。',
+      );
+      return;
+    }
+    await _startGame();
+  }
+
   Future<void> _startGame() async {
     if (_matchPresentationActive || _matchStartInFlight) return;
     if (_gameState != GameState.waiting) {

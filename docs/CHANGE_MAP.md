@@ -166,6 +166,28 @@
 **テスト:** `flutter test test/world_launch_branding_test.dart`  
 `flutter test test/launch_sound_synth_test.dart`
 
+### J. コピー・オンボーディング・用語（UX文言）
+
+言語方針は「機能=日本語／純演出=英語可」（[how_to_play_v2/07_CopyWriting.md](./how_to_play_v2/07_CopyWriting.md) §1.5）。HUD短ラベルの脱・専門用語ルールは同 §4.5。
+
+| 主ファイル | 注意 |
+|------------|------|
+| `lib/presentation/world/world_studio_identity_catalog.dart` | 機能マイクロコピー（confirm/cancel/close/next/back/loading/coachNext/coachDone）は日本語。gallerySelect/resultCopy は演出英語可 |
+| `lib/game/skill_reference.dart` | スキル本文・spec表（CD→再使用、デコイ→おとり、人狼 強制まで→自動切替/切替CD→切替） |
+| `lib/features/how_to_play/guide_sections.dart` / `guide_terms.dart` | ガイド章・用語ラダー（鬼/本物の鬼、残響体/復讐の鬼影） |
+| `lib/features/tutorial/tutorial_copy.dart` | チュートリアル文。HUD用語を説明前に出さない |
+| `lib/features/onboarding/welcome_flow.dart` / `match_structure_guide.dart` | ウェルカム/構造ガイド。用語の前出し回避 |
+| `lib/features/settings/guide_hub_sheet.dart` | ガイド入口（はじめてガイド/遊び方マニュアル/チュートリアル） |
+| `lib/features/game_map/widgets/skill_action_button.dart` / `cooldown_chip.dart` / `game_info_panel.dart` | HUD短ラベル（あと{n}s/回収待ち/安全地帯） |
+| `lib/features/game_map/hud/match_phase.dart` | フェーズ名（序盤・潜伏/中盤・追跡） |
+| `lib/screens/game_map_screen.skills.dart` | `_conditionLine()`（異常なし補足・暴露タクソノミー） |
+
+**テスト:** `flutter test test/world_studio_identity_catalog_test.dart`  
+`flutter test test/tutorial_guide_links_test.dart`  
+`flutter test test/role_briefing_test.dart`  
+`flutter test test/match_setup_summary_test.dart`  
+`flutter test test/presentation_completion_pass_test.dart`
+
 ## `test/` 全ファイル早見（カバレッジの感覚）
 
 | テストファイル | ざっくり中身 |

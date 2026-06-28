@@ -79,7 +79,7 @@ abstract final class SkillCatalog {
       body:
           '【できること】試合時間に連動した間隔（おおよそ75〜180秒）で参加者から1人が選ばれ、'
           '${GuideTerms.anonPositionReveal}され${GuideTerms.anonTrace}が出ます（${MatchUiTerms.namedReveal}ではありません）。\n'
-          '【偽位置との関係】逃走者の偽位置スキル発動中は、名前付き・匿名・定期暴露すべてデコイ近傍に出ます。\n'
+          '【偽位置との関係】逃走者の偽位置スキル発動中は、名前付き・匿名・定期暴露すべておとり近傍に出ます。\n'
           '【いつ使う】情報の床として、偽情報と区別しにくい手がかりになります。\n'
           '【リスク】理由は通信混線・傍受・監視カメラなど共通プールから。',
     ),
@@ -91,7 +91,7 @@ abstract final class SkillCatalog {
           '【できること】鬼からの距離が${MatchUiTerms.panicRing}（接触圏より外側になりやすい）に'
           '約6秒 → 約22秒の${GuideTerms.panic}状態。約7秒ごとに${GuideTerms.anonTrace}。\n'
           '【いつ使う】鬼が近いときの警戒サイン。\n'
-          '【リスク】脱落はしません。痕跡が残りやすくなります。偽位置中は痕跡もデコイ近傍。',
+          '【リスク】脱落はしません。痕跡が残りやすくなります。偽位置中は痕跡もおとり近傍。',
     ),
     SkillHelpEntry(
       id: 'capture',

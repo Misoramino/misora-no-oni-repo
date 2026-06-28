@@ -13,8 +13,6 @@ abstract final class WorldStudioIdentityCatalog {
   static const _all = <WorldProfile, WorldStudioIdentity>{
     WorldProfile.horror: WorldStudioIdentity(
       profile: WorldProfile.horror,
-      recommended: false,
-      galleryBlurb: '深夜都市の調査劇。監視と恐怖が交わるスタイリッシュホラー。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 22,
         screenPaddingV: 20,
@@ -39,15 +37,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeOutCubic,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Continue Investigation',
-        cancel: 'Hold',
-        close: 'Close File',
-        next: 'Next Lead',
-        back: 'Previous',
-        loading: 'Reviewing…',
+        confirm: '調査を続ける',
+        cancel: '保留',
+        close: 'ファイルを閉じる',
+        next: '次の手がかり',
+        back: '戻る',
+        loading: '確認中…',
         gallerySelect: 'Open Case',
-        coachNext: 'Next',
-        coachDone: 'Begin',
+        coachNext: '次へ',
+        coachDone: '始める',
       ),
       haptic: WorldHapticCharacter.heavy,
       silence: WorldSilenceRhythm(
@@ -74,8 +72,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.sport: WorldStudioIdentity(
       profile: WorldProfile.sport,
-      recommended: false,
-      galleryBlurb: '休日の街を駆ける。軽快でポップな週末プレイ。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 16,
         screenPaddingV: 14,
@@ -100,15 +96,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeOutBack,
       ),
       microcopy: WorldMicrocopy(
-        confirm: "Let's Go!",
-        cancel: 'Not yet',
-        close: 'Bye!',
-        next: 'Next!',
-        back: 'Back',
-        loading: 'Ready…',
+        confirm: 'いくよ！',
+        cancel: 'まだ',
+        close: '閉じる',
+        next: '次へ！',
+        back: '戻る',
+        loading: '準備中…',
         gallerySelect: 'Pick this vibe',
-        coachNext: 'Next!',
-        coachDone: 'Go!',
+        coachNext: '次へ！',
+        coachDone: 'スタート！',
       ),
       haptic: WorldHapticCharacter.pulse,
       silence: WorldSilenceRhythm(
@@ -135,7 +131,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.sciFi: WorldStudioIdentity(
       profile: WorldProfile.sciFi,
-      galleryBlurb: '電子都市へ侵入する、UIそのものが世界のサイバー体験。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 14,
         screenPaddingV: 12,
@@ -160,15 +155,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeOutCubic,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Execute',
-        cancel: 'Abort',
-        close: 'Disconnect',
-        next: 'Next',
-        back: 'Rewind',
-        loading: 'Syncing…',
+        confirm: '実行',
+        cancel: '中断',
+        close: '切断',
+        next: '次へ',
+        back: '戻る',
+        loading: '同期中…',
         gallerySelect: 'Jack In',
-        coachNext: 'Next',
-        coachDone: 'Run',
+        coachNext: '次へ',
+        coachDone: '開始',
       ),
       haptic: WorldHapticCharacter.click,
       silence: WorldSilenceRhythm(
@@ -195,7 +190,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.arg: WorldStudioIdentity(
       profile: WorldProfile.arg,
-      galleryBlurb: '夜間任務。実用品のようなミリタリー UI。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 10,
         screenPaddingV: 10,
@@ -220,15 +214,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeOut,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Confirmed',
-        cancel: 'Stand down',
-        close: 'Dismiss',
-        next: 'Next',
-        back: 'Back',
-        loading: 'Stand by…',
+        confirm: '了解',
+        cancel: '中止',
+        close: '閉じる',
+        next: '次へ',
+        back: '戻る',
+        loading: '待機中…',
         gallerySelect: 'Deploy',
-        coachNext: 'Next',
-        coachDone: 'Move',
+        coachNext: '次へ',
+        coachDone: '前進',
       ),
       haptic: WorldHapticCharacter.click,
       silence: WorldSilenceRhythm(
@@ -255,7 +249,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.magical: WorldStudioIdentity(
       profile: WorldProfile.magical,
-      galleryBlurb: '理論魔法と古代幾何学。知的な神秘学。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 20,
         screenPaddingV: 18,
@@ -280,15 +273,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeInOutCubic,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Invoke',
-        cancel: 'Dispel',
-        close: 'Seal',
-        next: 'Continue',
-        back: 'Return',
-        loading: 'Channeling…',
+        confirm: '唱える',
+        cancel: '解呪',
+        close: '封印',
+        next: '次へ',
+        back: '戻る',
+        loading: '詠唱中…',
         gallerySelect: 'Attune',
-        coachNext: 'Next',
-        coachDone: 'Awaken',
+        coachNext: '次へ',
+        coachDone: '目覚め',
       ),
       haptic: WorldHapticCharacter.soft,
       silence: WorldSilenceRhythm(
@@ -315,7 +308,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.astronomy: WorldStudioIdentity(
       profile: WorldProfile.astronomy,
-      galleryBlurb: '宇宙への憧憬。静寂と希望のリアル SF。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 28,
         screenPaddingV: 24,
@@ -340,15 +332,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeInOut,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Transmit',
-        cancel: 'Hold',
-        close: 'Close',
-        next: 'Continue',
-        back: 'Back',
-        loading: 'Acquiring signal…',
+        confirm: '送信',
+        cancel: '保留',
+        close: '閉じる',
+        next: '次へ',
+        back: '戻る',
+        loading: '信号受信中…',
         gallerySelect: 'Tune In',
-        coachNext: 'Next',
-        coachDone: 'Launch',
+        coachNext: '次へ',
+        coachDone: '出発',
       ),
       haptic: WorldHapticCharacter.lightLong,
       silence: WorldSilenceRhythm(
@@ -375,7 +367,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.japaneseLuxury: WorldStudioIdentity(
       profile: WorldProfile.japaneseLuxury,
-      galleryBlurb: '禅・間・墨。京都の高級旅館にいるような静けさ。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 32,
         screenPaddingV: 28,
@@ -435,7 +426,6 @@ abstract final class WorldStudioIdentityCatalog {
     ),
     WorldProfile.westernLuxury: WorldStudioIdentity(
       profile: WorldProfile.westernLuxury,
-      galleryBlurb: '宮廷と大理石。ヨーロッパ AAA の格式。',
       layout: WorldLayoutRhythm(
         screenPaddingH: 24,
         screenPaddingV: 22,
@@ -460,15 +450,15 @@ abstract final class WorldStudioIdentityCatalog {
         sheetCurve: Curves.easeOutQuart,
       ),
       microcopy: WorldMicrocopy(
-        confirm: 'Proceed',
-        cancel: 'Decline',
-        close: 'Dismiss',
-        next: 'Continue',
-        back: 'Return',
-        loading: 'Please wait…',
+        confirm: '進める',
+        cancel: '見送る',
+        close: '閉じる',
+        next: '次へ',
+        back: '戻る',
+        loading: 'お待ちください…',
         gallerySelect: 'Enter Hall',
-        coachNext: 'Next',
-        coachDone: 'Commence',
+        coachNext: '次へ',
+        coachDone: '開廷',
       ),
       haptic: WorldHapticCharacter.refined,
       silence: WorldSilenceRhythm(

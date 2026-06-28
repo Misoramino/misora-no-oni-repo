@@ -29,13 +29,29 @@ void main() {
       expect(layout.hudEdgeInset, greaterThanOrEqualTo(0));
     });
 
-    test('recommended flags are disabled in gallery UI', () {
+    // ハイブリッド言語方針: 機能マイクロコピー（決定/取消/閉じる/次/戻る/読込/
+    // コーチ）は日本語に統一。gallerySelect だけは世界観の英語フレーバーを許容。
+    test('functional microcopy is Japanese across all worlds', () {
+      final asciiLetters = RegExp(r'[A-Za-z]');
       for (final profile in WorldProfile.values) {
-        expect(
-          WorldStudioIdentityCatalog.of(profile).recommended,
-          isFalse,
-          reason: profile.name,
-        );
+        final m = WorldStudioIdentityCatalog.of(profile).microcopy;
+        final functional = <String>[
+          m.confirm,
+          m.cancel,
+          m.close,
+          m.next,
+          m.back,
+          m.loading,
+          m.coachNext,
+          m.coachDone,
+        ];
+        for (final label in functional) {
+          expect(
+            asciiLetters.hasMatch(label),
+            isFalse,
+            reason: '${profile.name}: "$label" should be Japanese',
+          );
+        }
       }
     });
   });

@@ -11,7 +11,7 @@ abstract final class MatchPhase {
     }
     if (accusationUnlocked) return '告発可';
     final elapsed = matchDurationSeconds - remainingSeconds;
-    if (elapsed < matchDurationSeconds * 0.15) return '隠密逃走';
-    return '追跡戦';
+    if (elapsed < matchDurationSeconds * 0.15) return '序盤・潜伏';
+    return '中盤・追跡';
   }
 }

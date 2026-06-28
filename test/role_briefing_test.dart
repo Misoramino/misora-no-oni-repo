@@ -67,7 +67,7 @@ void main() {
     expect(start.winLine, contains('少ない方'));
     expect(start.winLine, isNot(contains('見え方')));
     expect(start.mustKnow.join(), contains('人数比'));
-    expect(start.mustKnow.join(), contains('強制まで'));
+    expect(start.mustKnow.join(), contains('自動切替'));
     expect(start.winLine, isNot(contains('この試合は')));
 
     final withFaction = RoleBriefingCatalog.matchStartBriefing(

@@ -41,8 +41,8 @@ Future<void> showGuideHubSheet(
                   Icons.auto_awesome_rounded,
                   color: ctx.worldPresentation.accentOnScaffold,
                 ),
-                title: const Text('かんたんガイド'),
-                subtitle: const Text('基本スライド・コーチマーク・初回リセット'),
+                title: const Text('はじめてガイド'),
+                subtitle: const Text('ゲームの流れをスライドで・コーチマーク再生'),
                 onTap: () {
                   Navigator.pop(ctx);
                   showOnboardingReplaySheet(
@@ -54,42 +54,26 @@ Future<void> showGuideHubSheet(
               ),
               ListTile(
                 leading: Icon(
-                  Icons.menu_book_outlined,
-                  color: ctx.worldPresentation.accentOnScaffold,
-                ),
-                title: const Text('遊び方'),
-                subtitle: const Text('勝ち方・情報戦・告発・詳細ルール'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  openHowToPlayManual(context, yourRole: yourRole);
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.view_agenda_outlined,
-                  color: ctx.worldPresentation.accentOnScaffold,
-                ),
-                title: const Text('遊び方（シート）'),
-                subtitle: const Text('試合中と同じボトムシート表示'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  openHowToPlayManual(
-                    context,
-                    yourRole: yourRole,
-                    fullScreen: false,
-                  );
-                },
-              ),
-              ListTile(
-                leading: Icon(
                   Icons.school_rounded,
                   color: ctx.worldPresentation.accentOnScaffold,
                 ),
                 title: const Text('チュートリアル'),
-                subtitle: const Text('GPS不要・1〜2分で基本操作を体験'),
+                subtitle: const Text('GPS不要・1〜2分で操作を体験'),
                 onTap: () {
                   Navigator.pop(ctx);
                   openTutorialPicker(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.menu_book_outlined,
+                  color: ctx.worldPresentation.accentOnScaffold,
+                ),
+                title: const Text('遊び方マニュアル'),
+                subtitle: const Text('勝ち方・情報戦・告発などの詳細ルール'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  openHowToPlayManual(context, yourRole: yourRole);
                 },
               ),
             ],

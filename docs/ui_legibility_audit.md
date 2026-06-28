@@ -135,8 +135,8 @@
 | `GameInfoPanel` | タイマー・エリア・情報 | ⚠️ | `MapHudContrast.infoPanelSurface` 部分使用。`scheme.primary` 残存 |
 | `GameControlPanel` | スキル列 | ⚠️ | `onSurfaceVariant` on 試合中パネル |
 | `SkillActionButton` | スキルボタン | ⚠️ | `surfaceContainerHighest` / `onSurfaceVariant` |
-| `SkillTimerHud` | スキル CD | ⚠️ | |
-| `CooldownChip` | CD チップ | ⚠️ | |
+| `SkillTimerHud` | スキル再使用（残り秒） | ⚠️ | 「CD」→「あと{n}s／再使用」に文言変更済み |
+| `CooldownChip` | 再使用チップ | ⚠️ | ラベルに「あと」を前置（例: 偽位置 あと12s） |
 | `HudCompactLine` | 一行 HUD | ⚠️ | |
 | `HudMarqueeText` | マーキー | ⚠️ | |
 | `GameInlineStatusBadge` | ステータス | ⚠️ | |

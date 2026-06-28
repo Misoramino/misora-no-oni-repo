@@ -135,45 +135,38 @@ Future<void> showRoleBriefingDialog(
               ),
             ],
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: pack.buttonLabelOnAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            // 主CTA（「了解して開始」）を目立たせるため、練習・マニュアルは
+            // 補助リンクとして横並びの控えめなボタンにまとめる。
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await openTutorialPicker(context);
+                    },
+                    icon: const Icon(Icons.school_rounded, size: 18),
+                    label: const Text('操作を練習'),
+                  ),
                 ),
-                onPressed: () async {
-                  await openTutorialPicker(context);
-                },
-                icon: const Icon(Icons.school_rounded),
-                label: const Text('1分チュートリアルで練習する'),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final host = context;
+                      Navigator.pop(ctx);
+                      showHowToPlaySheet(
+                        host,
+                        yourRole: role,
+                        initialSectionId: 'roles',
+                      );
+                    },
+                    icon: const Icon(Icons.menu_book_outlined, size: 18),
+                    label: const Text('遊び方'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'スキル操作はチュートリアルで本番と同じ流れを体験できます。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: mutedBody,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () {
-                  final host = context;
-                  Navigator.pop(ctx);
-                  showHowToPlaySheet(
-                    host,
-                    yourRole: role,
-                    initialSectionId: 'roles',
-                  );
-                },
-                icon: const Icon(Icons.menu_book_outlined, size: 18),
-                label: const Text('遊び方を見る'),
-              ),
-            ),
+            const SizedBox(height: 6),
             Text(
               GuideText.forDisplay(start.learnMoreHint),
               style: theme.textTheme.bodySmall?.copyWith(

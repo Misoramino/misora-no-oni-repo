@@ -47,26 +47,26 @@ abstract final class SkillReference {
         iconName: 'scatter_plot',
         roles: const [PlayerRole.runner],
         trigger: SkillTrigger.instant,
-        oneLine: '約20秒、すべての暴露がデコイ近くに出る。',
+        oneLine: '約20秒、すべての暴露がおとりの位置に出る。',
         summary:
-            '進行方向の先（約${GameConfig.fakePositionSpawnOffsetMeters.toStringAsFixed(0)}m）にデコイを出し、'
-            'ゆっくり移動させます。',
+            '進行方向の先（約${GameConfig.fakePositionSpawnOffsetMeters.toStringAsFixed(0)}m）に'
+            'おとり（偽の自分）を出し、ゆっくり移動させます。',
         effect:
-            '効果中の名前付き暴露・匿名暴露・定期暴露はすべてデコイの近くに出ます。'
+            '効果中の名前付き暴露・匿名暴露・定期暴露はすべておとりの近くに出ます。'
             '体投げの人形が稼働中は人形側が優先されます。',
         operation: 'ボタン1回で即発動（地図操作なし）。',
         whenToUse: '追われているとき、位置情報をずらしたいとき。',
         risks:
-            '露出が起きない間は効果が限定的。相手の地図に「デコイ」とは表示されません。'
+            '露出が起きない間は効果が限定的。相手の地図に「おとり」とは表示されません。'
             '発動と同時に再使用待ちが始まります。',
         specRows: [
           GuideSpecRow('持続', '約${GameConfig.fakeSkillDurationSeconds}秒'),
-          GuideSpecRow('CD', '発動から約${GameConfig.fakeSkillCooldownSeconds}秒'),
+          GuideSpecRow('再使用', '発動から約${GameConfig.fakeSkillCooldownSeconds}秒'),
           GuideSpecRow(
-            'デコイ距離',
+            'おとり距離',
             '進行方向の先 約${GameConfig.fakePositionSpawnOffsetMeters.toStringAsFixed(0)}m',
           ),
-          GuideSpecRow('暴露', '名前付き・匿名・定期すべてデコイ近傍'),
+          GuideSpecRow('暴露', '名前付き・匿名・定期すべておとり近傍'),
         ],
         guideDetails: const [
           (
@@ -99,14 +99,14 @@ abstract final class SkillReference {
             '${GuideTerms.anonTrace}ではありません。',
         operation:
             '①ボタン → ②自分／ランダムを選択 → ③地図を長押し→離して設置。'
-            '選択画面・地図設置は×でキャンセル可（キャンセル時はCDなし）。',
+            '選択画面・地図設置は×でキャンセル可（キャンセル時は再使用待ちなし）。',
         whenToUse: 'アリバイ・図・読みのずらしに。',
         risks:
-            '配置を${GameConfig.fakeIntelMapTapWindowSeconds}秒以内に完了しないとキャンセル（CDなし）。'
+            '配置を${GameConfig.fakeIntelMapTapWindowSeconds}秒以内に完了しないとキャンセル（再使用待ちなし）。'
             '成功後の再使用まで約${GameConfig.fakeIntelRevealCooldownSeconds}秒。',
         specRows: [
           GuideSpecRow('配置期限', '選択後 約${GameConfig.fakeIntelMapTapWindowSeconds}秒'),
-          GuideSpecRow('CD', '設置成功後 約${GameConfig.fakeIntelRevealCooldownSeconds}秒'),
+          GuideSpecRow('再使用', '設置成功後 約${GameConfig.fakeIntelRevealCooldownSeconds}秒'),
           GuideSpecRow('地点', 'プレイエリア内・距離制限なし'),
           GuideSpecRow('表示', '${MatchUiTerms.namedReveal}（理由タグなし）'),
         ],
@@ -141,7 +141,7 @@ abstract final class SkillReference {
         whenToUse: '自分の現在地を隠しつつ追跡・接触したいとき。',
         risks:
             '約${GameConfig.bodyThrowDurationSeconds}秒以内に回収しないと人形の位置が${MatchUiTerms.namedReveal}。'
-            '暴露後も回収するまで人形は残ります。回収後CD約${GameConfig.bodyThrowCooldownSeconds}秒。',
+            '暴露後も回収するまで人形は残ります。回収後の再使用まで約${GameConfig.bodyThrowCooldownSeconds}秒。',
         specRows: [
           GuideSpecRow('設置射程', '約${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)}m'),
           GuideSpecRow('回収距離', '約${GameConfig.bodyThrowRecoveryDistanceMeters.toStringAsFixed(0)}m'),
@@ -149,7 +149,7 @@ abstract final class SkillReference {
             '回収期限',
             '約${GameConfig.bodyThrowDurationSeconds}秒（過ぎると人形位置が名前付き暴露）',
           ),
-          GuideSpecRow('CD', '回収後 約${GameConfig.bodyThrowCooldownSeconds}秒'),
+          GuideSpecRow('再使用', '回収後 約${GameConfig.bodyThrowCooldownSeconds}秒'),
           GuideSpecRow('他スキル', '人形稼働中・設置待ち中は不可'),
         ],
         guideDetails: [
@@ -191,7 +191,7 @@ abstract final class SkillReference {
           GuideSpecRow('設置射程', '約${GameConfig.bodyThrowDistanceMeters.toStringAsFixed(0)}m'),
           GuideSpecRow('半径', '約${GameConfig.captureZoneSkillRadiusMeters.toStringAsFixed(0)}m'),
           GuideSpecRow('持続', '約${GameConfig.captureZoneDurationSeconds}秒'),
-          GuideSpecRow('CD', '設置から約${GameConfig.captureZoneCooldownSeconds}秒'),
+          GuideSpecRow('再使用', '設置から約${GameConfig.captureZoneCooldownSeconds}秒'),
           GuideSpecRow('離脱時', '効果中のみ名前付き暴露'),
           GuideSpecRow('終了後', '結界消滅・拘束解除。旧位置から離れても暴露なし'),
           GuideSpecRow('円外猶予', '約${GameConfig.bindZoneEscapeGraceSeconds}秒'),
@@ -233,13 +233,13 @@ abstract final class SkillReference {
             '陣営（${GuideTerms.humanFaction}/${GuideTerms.oniFaction}）に応じて立ち回るとき。'
             '人数比で陣営が決まり、同数なら${GuideTerms.humanFaction}。',
         risks:
-            '任意切替の再発動待ち＝強制間隔÷3（HUDの「切替CD」）。'
-            '強制切替直後は切替CDがやや長くなります。'
-            '「強制まで」と「切替CD」は別タイマーです。告発不可。',
+            '任意切替の再使用待ち＝強制間隔÷3（HUDの「切替」）。'
+            '強制切替の直後は「切替」がやや長くなります。'
+            '「自動切替」と「切替」は別タイマーです。告発不可。',
         specRows: const [
-          GuideSpecRow('強制まで', '前回切替から min(15分, 試合÷2)'),
-          GuideSpecRow('任意切替CD', '強制間隔÷3'),
-          GuideSpecRow('強制直後のCD', '任意CD + 任意CD÷2'),
+          GuideSpecRow('自動切替まで', '前回切替から min(15分, 試合÷2)'),
+          GuideSpecRow('任意切替の再使用', '強制間隔÷3'),
+          GuideSpecRow('強制直後の再使用', '任意の再使用 + その半分'),
           GuideSpecRow('人陣営＋鬼化', '捕獲可'),
           GuideSpecRow('鬼陣営＋鬼化', '${GuideTerms.panic}・拘束のみ'),
         ],
@@ -247,8 +247,8 @@ abstract final class SkillReference {
           (
             title: 'HUDの見方',
             body:
-                '「強制まで」＝放置すると自動で反対の姿になるまでの秒数。'
-                '「切替CD」＝ボタンで任意に切り替えられるまでの秒数。別表示です。',
+                '「自動切替」＝放置すると自動で反対の姿になるまでの秒数。'
+                '「切替」＝ボタンで任意に切り替えられるまでの秒数。別表示です。',
           ),
           (
             title: '強制切替',

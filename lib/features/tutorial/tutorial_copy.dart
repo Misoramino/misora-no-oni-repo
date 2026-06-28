@@ -93,7 +93,7 @@ abstract final class TutorialCopyCatalog {
         PlayerRole.runner => const TutorialFinishCopy(
             title: '逃走者チュートリアル完了',
             body: '生き残るか、手がかりから鬼を当てるか — どちらも勝ち筋です。\nくわしくは「遊び方」を見てください。',
-            relatedGuides: const [
+            relatedGuides: [
               (sectionId: 'info', title: '情報戦', guideCardId: null),
               (sectionId: 'skills', title: 'スキル', guideCardId: 'fake_position'),
               (sectionId: 'combat', title: '鬼との距離', guideCardId: null),
@@ -105,7 +105,7 @@ abstract final class TutorialCopyCatalog {
             body:
                 '追うのは痕跡と暴露です。\n'
                 '点は「いまここ」ではなく、動いた手がかりと読みましょう。',
-            relatedGuides: const [
+            relatedGuides: [
               (sectionId: 'info', title: '情報戦', guideCardId: null),
               (sectionId: 'skills', title: 'スキル', guideCardId: 'capture_zone_skill'),
               (sectionId: 'combat', title: '鬼との距離', guideCardId: null),
@@ -116,8 +116,8 @@ abstract final class TutorialCopyCatalog {
             title: '${GuideTerms.werewolf}チュートリアル完了',
             body:
                 '${GuideTerms.werewolf}は${GuideTerms.realOni}ではありません。\n'
-                '人数比で陣営が決まります。HUDの「強制まで」と「切替CD」は別タイマーです。',
-            relatedGuides: const [
+                '人数比で陣営が決まります。HUDの「自動切替」と「切替」は別タイマーです。',
+            relatedGuides: [
               (sectionId: 'skills', title: '鬼化・人化', guideCardId: 'werewolf_transform'),
               (sectionId: 'roles', title: '役職', guideCardId: null),
               (sectionId: 'online', title: 'オンライン', guideCardId: null),
@@ -246,7 +246,7 @@ abstract final class TutorialCopyCatalog {
     TutorialStepCopy(
       text:
           '「偽位置」で、他人に見える位置をずらせます。\n'
-          '発動中は名前付き・匿名・定期の暴露がすべてデコイの近くに出ます。\n'
+          '発動中は、位置がばれても「おとり」のそばに表示されます。\n'
           '下のボタンを押して、もう一つの点を確認しましょう。',
       interaction: TutorialStepInteraction.skillInstant,
       guideSectionId: 'skills',

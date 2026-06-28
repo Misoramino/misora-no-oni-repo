@@ -74,6 +74,7 @@ Future<void> _orbitOnController({
       branding: branding,
       profile: profile,
       areaLabel: area.shapeSummary(),
+      offsetForAppBar: true,
     ),
   );
   overlay.insert(blockEntry);
@@ -314,14 +315,19 @@ class _OrbitCinemaHud extends StatelessWidget {
     required this.branding,
     required this.profile,
     required this.areaLabel,
+    this.offsetForAppBar = false,
   });
 
   final WorldLaunchBranding branding;
   final WorldProfile profile;
   final String areaLabel;
+  final bool offsetForAppBar;
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final topPad = topInset +
+        (offsetForAppBar ? kToolbarHeight + 8 : 16);
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -341,44 +347,42 @@ class _OrbitCinemaHud extends StatelessWidget {
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'AREA SCAN',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: branding.accent.withValues(alpha: 0.9),
-                          letterSpacing: 2,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    branding.profileLabel,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    areaLabel,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.88),
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _orbitTagline(profile),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white54,
-                        ),
-                  ),
-                ],
-              ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, topPad, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  WorldProfileTokenFactory.orbitScanHeadline(profile),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: branding.accent.withValues(alpha: 0.9),
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  branding.profileLabel,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const Spacer(),
+                Text(
+                  areaLabel,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.88),
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _orbitTagline(profile),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                ),
+              ],
             ),
           ),
         ],

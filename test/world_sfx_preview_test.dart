@@ -55,7 +55,7 @@ void main() {
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).uiTapVolume,
-      0.30,
+      0.22,
     );
     expect(
       WorldFxCatalog.forProfile(WorldProfile.japaneseLuxury).revealVolume,

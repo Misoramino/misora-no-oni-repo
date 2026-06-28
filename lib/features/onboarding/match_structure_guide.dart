@@ -61,7 +61,7 @@ const _pages = <_GuidePage>[
     lines: [
       'ホストがエリアと時間を決めて「試合を開始」',
       '鬼は追う／逃走者は耐える — スキルとギミックはあとで詳しく',
-      '脱落しても残響体・鬼影として、第二ゲームで味方を助けられます',
+      '捕まっても“第二の役割”（残響体・鬼影）になり、第二ゲームで味方を助けられます',
       '通話を前面にしても近づき・捕獲は続く（スキル操作だけアプリを前面に）',
     ],
   ),
@@ -97,11 +97,12 @@ const _pages = <_GuidePage>[
     icon: Icons.layers_outlined,
     color: Color(0xFFF39C12),
     title: '逃走者の選択肢',
+    subtitle: 'マップ上の施設に近づくと使えます',
     lines: [
-      '情報屋 … 鬼の方角・距離（今の座標ではない）',
-      '通信障害地帯 … 今の安全度を上げやすい',
-      '安全地帯 … チャージで追跡されにくくなる（使うと別の場所へ移動）',
-      '告発 … 後半に解禁。条件を満たせば本物の鬼を追放（詳細はガイドへ）',
+      '情報屋 … 鬼の方角・距離がわかる（今の座標まではわからない）',
+      '通信障害地帯 … 鬼から見つかりにくくする',
+      '安全地帯 … 追跡されにくくなる（使うと別の場所へ移動）',
+      '告発 … 試合の後半に解禁。条件を満たせば本物の鬼を追放できる',
     ],
   ),
 ];
@@ -167,6 +168,15 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: context.worldAccentReadable,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'スキルの細部の前に、試合全体の流れと役職の動きを共有します',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.worldMuted,
+                      height: 1.35,
                     ),
                   ),
                   if (page.subtitle != null) ...[

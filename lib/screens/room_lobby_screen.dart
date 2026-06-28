@@ -356,7 +356,7 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                               DropdownButtonFormField<WorldProfile>(
                                 initialValue: _worldProfile,
                                 decoration: const InputDecoration(
-                                  labelText: '地図の世界観',
+                                  labelText: '世界観',
                                   border: OutlineInputBorder(),
                                 ),
                                 items: WorldProfile.values

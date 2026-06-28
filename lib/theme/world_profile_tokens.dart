@@ -36,9 +36,6 @@ class WorldProfileTokens {
     required this.safeColor,
     required this.alertColor,
     required this.infoColor,
-    required this.dangerTextPrefix,
-    required this.warningTextPrefix,
-    required this.safeTextPrefix,
     required this.markerAccent,
     required this.playerRingColor,
     required this.playAreaColor,
@@ -54,9 +51,6 @@ class WorldProfileTokens {
   final Color safeColor;
   final Color alertColor;
   final Color infoColor;
-  final String dangerTextPrefix;
-  final String warningTextPrefix;
-  final String safeTextPrefix;
 
   final Color markerAccent;
   final Color playerRingColor;
@@ -79,9 +73,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF6D7D65),
           alertColor: Color(0xFF7C2D2D),
           infoColor: Color(0xFF8FA3B5),
-          dangerTextPrefix: '危険',
-          warningTextPrefix: '警戒',
-          safeTextPrefix: '静寂',
           markerAccent: Color(0xFF8FA3B5),
           playerRingColor: Color(0xFF8FA3B5),
           playAreaColor: Color(0xFF2C3E50),
@@ -109,9 +100,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFFB8E35B),
           alertColor: Color(0xFFFF6FAE),
           infoColor: Color(0xFF6ECFFF),
-          dangerTextPrefix: 'ハイリスク',
-          warningTextPrefix: 'インプレー',
-          safeTextPrefix: '安定',
           markerAccent: Color(0xFF6ECFFF),
           playerRingColor: Color(0xFF6ECFFF),
           playAreaColor: Color(0xFF6ECFFF),
@@ -139,9 +127,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF00FFC6),
           alertColor: Color(0xFFFF3B5C),
           infoColor: Color(0xFF00F0FF),
-          dangerTextPrefix: 'ALERT',
-          warningTextPrefix: 'SCAN',
-          safeTextPrefix: 'STEALTH',
           markerAccent: Color(0xFF00F0FF),
           playerRingColor: Color(0xFF00F0FF),
           playAreaColor: Color(0xFF2D5BFF),
@@ -169,9 +154,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF6F7A45),
           alertColor: Color(0xFFC8A64A),
           infoColor: Color(0xFFA59B6B),
-          dangerTextPrefix: '接触',
-          warningTextPrefix: '監視',
-          safeTextPrefix: '潜伏',
           markerAccent: Color(0xFFD9DFD0),
           playerRingColor: Color(0xFFD9DFD0),
           playAreaColor: Color(0xFF263524),
@@ -199,9 +181,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF3F7D67),
           alertColor: Color(0xFFC65A6A),
           infoColor: Color(0xFF6FC9D8),
-          dangerTextPrefix: '呪い',
-          warningTextPrefix: '予兆',
-          safeTextPrefix: '結界',
           markerAccent: Color(0xFF6FC9D8),
           playerRingColor: Color(0xFF6FC9D8),
           playAreaColor: Color(0xFF3F4F88),
@@ -229,9 +208,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF1F6FEB),
           alertColor: Color(0xFF4C5BD5),
           infoColor: Color(0xFF77D7FF),
-          dangerTextPrefix: '赤方偏移',
-          warningTextPrefix: '観測',
-          safeTextPrefix: '静穏',
           markerAccent: Color(0xFF77D7FF),
           playerRingColor: Color(0xFF77D7FF),
           playAreaColor: Color(0xFF0B1D3A),
@@ -259,9 +235,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF8E9B65),
           alertColor: Color(0xFF5B4636),
           infoColor: Color(0xFF2E4A5F),
-          dangerTextPrefix: '祟り',
-          warningTextPrefix: '気配',
-          safeTextPrefix: '静寂',
           markerAccent: Color(0xFF2E4A5F),
           playerRingColor: Color(0xFF2E4A5F),
           playAreaColor: Color(0xFF3F4A36),
@@ -289,9 +262,6 @@ abstract final class WorldProfileTokenFactory {
           safeColor: Color(0xFF607D5A),
           alertColor: Color(0xFF6D2138),
           infoColor: Color(0xFFC8A75A),
-          dangerTextPrefix: '危険',
-          warningTextPrefix: '監視',
-          safeTextPrefix: '安寧',
           markerAccent: Color(0xFFC8A75A),
           playerRingColor: Color(0xFF5C5246),
           playAreaColor: Color(0xFFAFCEDC),
@@ -317,4 +287,16 @@ abstract final class WorldProfileTokenFactory {
         ),
     };
   }
+
+  /// 試合開始 orbit シネマ左上の見出し（世界観別）。
+  static String orbitScanHeadline(WorldProfile profile) => switch (profile) {
+        WorldProfile.sciFi => 'AREA SCAN',
+        WorldProfile.horror => 'AREA SEARCH',
+        WorldProfile.sport => 'FIELD CHECK',
+        WorldProfile.arg => 'AREA WATCH',
+        WorldProfile.magical => 'SIGIL SCAN',
+        WorldProfile.astronomy => 'ORBIT SCAN',
+        WorldProfile.japaneseLuxury => '結界走査',
+        WorldProfile.westernLuxury => 'AREA VIEW',
+      };
 }

@@ -12,6 +12,7 @@ import '../../presentation/world/world_presentation_pack.dart';
 import '../../presentation/world/world_studio_identity.dart';
 import '../../presentation/world/world_studio_identity_catalog.dart';
 import '../../presentation/world/world_ui_layout.dart';
+import '../../presentation/world/widgets/world_gallery_description.dart';
 import '../../presentation/world/world_icon_frame.dart';
 import '../../presentation/world/widgets/world_ambient_painter.dart';
 import '../../presentation/world/widgets/world_profile_morph_overlay.dart';
@@ -231,21 +232,24 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                       ),
                     ),
                     SizedBox(height: WorldUILayout.cardGap),
-                    Text(
-                      _preview.label,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: _pack.accent,
-                            fontWeight: _pack.headlineWeight,
-                          ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Text(
+                        _preview.label,
+                        key: ValueKey(_preview),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(
+                              color: _pack.accent,
+                              fontWeight: _pack.headlineWeight,
+                            ),
+                      ),
                     ),
                     SizedBox(height: WorldUILayout.cardGap * 0.5),
-                    Text(
-                      _studio.galleryBlurb ?? _pack.shortIntro,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: _pack.mutedOnScaffold,
-                            height: _pack.bodyLineHeight,
-                          ),
+                    WorldGalleryDescription(
+                      profile: _preview,
+                      pack: _pack,
                     ),
                     SizedBox(height: WorldUILayout.sectionGap),
                     Text(
@@ -404,11 +408,20 @@ class _GalleryHeroCard extends StatelessWidget {
                     color: pack.accentMuted.withValues(alpha: 0.7),
                   ),
                 ),
-                Text(
-                  pack.tagline,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: pack.textOnScaffold.withValues(alpha: 0.9),
-                      ),
+                SizedBox(
+                  height: 52,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      pack.tagline,
+                      maxLines: 2,
+                      overflow: TextOverflow.clip,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: pack.textOnScaffold.withValues(alpha: 0.9),
+                            height: 1.25,
+                          ),
+                    ),
+                  ),
                 ),
               ],
             ),

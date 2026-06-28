@@ -477,7 +477,7 @@ final _facilitiesSection = GuideSectionData(
       details: [
         _detail(
           title: '数値を見る',
-          body: '半径約30m。逃走者CD約120秒、鬼CD約90秒。',
+          body: '半径約30m。再使用は逃走者 約120秒、鬼 約90秒。',
           specCardId: 'spec_info',
         ),
       ],
@@ -717,7 +717,7 @@ final _skillsSection = GuideSectionData(
       ],
       details: [
         _detail(
-          title: '数値・射程・CD',
+          title: '数値・射程・再使用',
           body: '各スキルカードの「操作」か、詳細ルール章の「スキル」表を見てください。',
           specCardId: 'spec_skills',
         ),
@@ -898,7 +898,7 @@ final _specSection = GuideSectionData(
         const GuideSpecRow('痕跡', '約7秒ごと'),
         const GuideSpecRow('種別', GuideTerms.anonTrace),
         const GuideSpecRow('脱落', 'しない'),
-        const GuideSpecRow('偽位置中', '名前付き・匿名・定期暴露はデコイ近傍'),
+        const GuideSpecRow('偽位置中', '名前付き・匿名・定期暴露はおとり近傍'),
       ],
     ),
     _specCard(
@@ -935,8 +935,8 @@ final _specSection = GuideSectionData(
         GuideSpecRow('監視カメラ半径', '約18m'),
         GuideSpecRow('カメラ再検知', '約90秒'),
         GuideSpecRow('情報屋半径', '約30m'),
-        GuideSpecRow('逃走者 情報屋CD', '約120秒'),
-        GuideSpecRow('鬼 情報屋CD', '約90秒'),
+        GuideSpecRow('逃走者 情報屋の再使用', '約120秒'),
+        GuideSpecRow('鬼 情報屋の再使用', '約90秒'),
         GuideSpecRow('安全地帯半径', '約40m'),
         GuideSpecRow('安全地帯チャージ', '最大2'),
       ],
@@ -966,15 +966,15 @@ final _specSection = GuideSectionData(
         GuideSpecGroup(
           title: GuideTerms.echoForm,
           rows: const [
-            GuideSpecRow('端子ジャック', 'チャージ約15秒 / CD約100秒 / 5回'),
-            GuideSpecRow('告発施設陣取り', 'チャージ約16秒 / CD約90秒 / 2回'),
+            GuideSpecRow('端子ジャック', 'チャージ約15秒 / 再使用約100秒 / 5回'),
+            GuideSpecRow('告発施設陣取り', 'チャージ約16秒 / 再使用約90秒 / 2回'),
           ],
         ),
         GuideSpecGroup(
           title: GuideTerms.vengefulShadow,
           rows: const [
-            GuideSpecRow('告発施設妨害', 'チャージ約18秒 / CD約90秒 / 3回'),
-            GuideSpecRow('カメラ停止', 'チャージ約14秒 / CD約25秒 / 各1回'),
+            GuideSpecRow('告発施設妨害', 'チャージ約18秒 / 再使用約90秒 / 3回'),
+            GuideSpecRow('カメラ停止', 'チャージ約14秒 / 再使用約25秒 / 各1回'),
           ],
         ),
       ],

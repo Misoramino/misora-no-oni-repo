@@ -83,7 +83,7 @@ void main() {
 
   test('werewolf tutorial finish points to guide for transform details', () {
     final finish = TutorialCopyCatalog.finishFor(PlayerRole.werewolf);
-    expect(finish.body, contains('強制まで'));
+    expect(finish.body, contains('自動切替'));
     expect(finish.body, contains(GuideTerms.werewolf));
     expect(
       finish.relatedGuides.any((g) => g.guideCardId == 'werewolf_transform'),

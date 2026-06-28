@@ -74,7 +74,6 @@ class WorldPresentationPack {
   const WorldPresentationPack({
     required this.profile,
     required this.tagline,
-    required this.shortIntro,
     required this.headlineFont,
     required this.bodyFont,
     required this.headlineLetterSpacing,
@@ -100,15 +99,12 @@ class WorldPresentationPack {
     required this.flashKind,
     required this.winAccent,
     required this.loseAccent,
-    required this.resultHeadlineWin,
-    required this.resultHeadlineLose,
     required this.chipBorderRadius,
     required this.hudCornerRadius,
   });
 
   final WorldProfile profile;
   final String tagline;
-  final String shortIntro;
 
   /// Google Fonts family names.
   final String headlineFont;
@@ -140,8 +136,6 @@ class WorldPresentationPack {
 
   final Color winAccent;
   final Color loseAccent;
-  final String resultHeadlineWin;
-  final String resultHeadlineLose;
 
   final double chipBorderRadius;
   final double hudCornerRadius;

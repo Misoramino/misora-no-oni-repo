@@ -5,7 +5,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../presentation/world/world_presentation_context.dart';
 import '../theme/map_hud_contrast.dart';
-import '../theme/world_profile.dart';
 import '../game/play_area.dart';
 
 /// 保存済みプレイエリアのざっくり形状プレビュー。

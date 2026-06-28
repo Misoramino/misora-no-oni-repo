@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../../../game/player_role.dart';
 import '../../../session/avatar_thumb_codec.dart';
 import '../../../presentation/world/world_presentation_catalog.dart';
-import '../../../theme/world_launch_branding.dart';
 import '../../../theme/world_profile.dart';
 
 /// 試合開始前の参加者ロスター表示用。
@@ -61,12 +60,11 @@ class _MatchStartRosterOverlay extends StatefulWidget {
 class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
     with SingleTickerProviderStateMixin {
   Timer? _autoClose;
+  var _closed = false;
   late final AnimationController _intro = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 520),
   )..forward();
-
-  WorldLaunchBranding get _branding => WorldLaunchBranding.of(widget.profile);
 
   @override
   void initState() {
@@ -76,7 +74,9 @@ class _MatchStartRosterOverlayState extends State<_MatchStartRosterOverlay>
   }
 
   void _close() {
-    if (!mounted) return;
+    if (_closed || !mounted) return;
+    _closed = true;
+    _autoClose?.cancel();
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();

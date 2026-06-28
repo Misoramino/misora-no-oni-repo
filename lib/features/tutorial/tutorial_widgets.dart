@@ -159,7 +159,7 @@ class TutorialFinishPanel extends StatelessWidget {
                   ),
                   onPressed: () {},
                   icon: const Icon(Icons.check_rounded),
-                  label: const Text('とじる'),
+                  label: const Text('閉じる'),
                 ),
               ),
             ),

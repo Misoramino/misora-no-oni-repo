@@ -8,7 +8,7 @@ import '../../widgets/app_dialog.dart';
 import 'match_structure_guide.dart';
 import 'welcome_flow.dart';
 
-/// かんたんガイド（スライド・コーチマーク・リセット）。
+/// はじめてガイド（スライド・コーチマーク・リセット）。
 Future<void> showOnboardingReplaySheet(
   BuildContext context, {
   Future<void> Function()? showPrepCoachMarksNow,
@@ -33,7 +33,7 @@ Future<void> showOnboardingReplaySheet(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
               children: [
-                Text('かんたんガイド', style: theme.textTheme.titleLarge),
+                Text('はじめてガイド', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 8),
                 Text(
                   '基本ルールのスライドと、画面ごとの案内（コーチマーク）を再表示できます。',

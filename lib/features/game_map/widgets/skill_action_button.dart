@@ -114,7 +114,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
             else if (widget.blocked)
               ExcludeSemantics(
                 child: Text(
-                  '待機',
+                  '回収待ち',
                   style: TextStyle(fontSize: 11, color: leg.skillButtonMuted),
                 ),
               )
@@ -128,7 +128,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
             else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
-                  showPinnedCd ? 'CD ${widget.cooldownSeconds}s' : '${widget.cooldownSeconds}',
+                  'あと${widget.cooldownSeconds}s',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.w700 : FontWeight.normal,
@@ -174,7 +174,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
             else if (widget.blocked)
               ExcludeSemantics(
                 child: Text(
-                  '待機',
+                  '回収待ち',
                   style: TextStyle(fontSize: 11, color: leg.muted),
                 ),
               )
@@ -188,9 +188,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
             else if (showPinnedCd || onCd)
               ExcludeSemantics(
                 child: Text(
-                  showPinnedCd
-                      ? 'CD ${widget.cooldownSeconds}s'
-                      : 'CD ${widget.cooldownSeconds}',
+                  'あと${widget.cooldownSeconds}s',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.bold : FontWeight.normal,

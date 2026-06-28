@@ -523,13 +523,40 @@ extension _GameMapPlayArea on _GameMapScreenState {
     if (!_playArea.contains(_currentPosition)) {
       final meters =
           _playArea.overflowDistanceMeters(_currentPosition).ceil();
-      await _showMatchStartPlayAreaBlockDialog(
-        '現在地がプレイエリアから${meters}m離れています。',
-      );
-      return false;
+      final proceed = await _confirmPlayAreaDistanceWarning(meters);
+      if (!proceed || !mounted) return false;
     }
 
     return true;
+  }
+
+  Future<bool> _confirmPlayAreaDistanceWarning(int meters) async {
+    final result = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) => AppDialog(
+        title: 'プレイエリアから離れています',
+        icon: Icons.location_on_outlined,
+        actions: [
+          AppDialogAction(
+            label: 'キャンセル',
+            filled: false,
+            sfx: SfxId.uiBack,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          AppDialogAction(
+            label: 'このまま開始',
+            filled: true,
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+        child: Text(
+          '現在地がプレイエリアから${meters}m離れています。\n'
+          'このまま試合を開始しますか？',
+          style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.5),
+        ),
+      ),
+    );
+    return result == true;
   }
 
   Future<void> _showMatchStartPlayAreaBlockDialog(String reason) async {
@@ -557,5 +584,23 @@ extension _GameMapPlayArea on _GameMapScreenState {
   bool _isLobbyPlayAreaAppliedForStart() {
     if (!_isOnlineFirestore || !_isHost) return true;
     return _lobbyHostAreaSlotName != null;
+  }
+
+  /// 開始ボタン直下に常時表示するブロック理由（押下前に分かるように）。
+  String? _prepStartBlockedHint() {
+    if (!_isHost) return null;
+    if (_isOnlineFirestore && !_isLobbyPlayAreaAppliedForStart()) {
+      return 'プレイエリアを「選択エリアを適用」で確定してください';
+    }
+    return null;
+  }
+
+  /// GPS 未取得時の補足（ブロック理由が無いときのみ）。
+  String? _prepStartGpsHint() {
+    if (!_isHost || _prepStartBlockedHint() != null) return null;
+    if (!_gpsPositionReady) {
+      return '現在地が取得できていません。位置情報の許可と GPS を確認してください';
+    }
+    return null;
   }
 }

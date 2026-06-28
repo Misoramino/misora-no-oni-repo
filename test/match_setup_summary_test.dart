@@ -33,7 +33,7 @@ void main() {
         remainingSeconds: 2600,
         matchDurationSeconds: 2700,
       ),
-      '隠密逃走',
+      '序盤・潜伏',
     );
     expect(
       MatchPhase.label(

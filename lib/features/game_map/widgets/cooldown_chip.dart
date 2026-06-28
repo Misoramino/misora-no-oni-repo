@@ -31,7 +31,7 @@ class CooldownChip extends StatelessWidget {
         border: Border.all(color: leg.border.withValues(alpha: 0.45)),
       ),
       child: Text(
-        seconds > 0 ? '$label ${seconds}s' : label,
+        seconds > 0 ? '$label あと${seconds}s' : label,
         style: TextStyle(fontSize: 11, color: leg.cdChipFg),
       ),
     );

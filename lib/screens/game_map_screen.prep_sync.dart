@@ -193,12 +193,7 @@ extension _GameMapPrepSync on _GameMapScreenState {
 
   void _dismissBlockingOverlaysForMatchJoin() {
     if (!mounted) return;
-    final navigator = Navigator.of(context);
-    while (navigator.canPop()) {
-      final name = ModalRoute.of(context)?.settings.name;
-      if (name == GameMapScreen.routeName) break;
-      navigator.pop();
-    }
+    Navigator.of(context).popUntil((route) => route is! PopupRoute);
   }
 
   Future<void> _replayMissedMatchEventsOnResume() async {

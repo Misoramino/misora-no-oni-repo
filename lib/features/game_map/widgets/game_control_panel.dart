@@ -262,7 +262,6 @@ class GameControlPanel extends StatelessWidget {
         : mapLeg!.panelBg;
     final fg = isRunning ? runningLeg!.body : mapLeg!.title;
     final fgMuted = isRunning ? runningLeg!.muted : mapLeg!.muted;
-    final accent = isRunning ? runningLeg!.accent : mapLeg!.accent;
     final borderColor = isRunning ? runningLeg!.border : mapLeg!.border;
     final outlineAlpha = isRunning ? 0.42 : 0.55;
 

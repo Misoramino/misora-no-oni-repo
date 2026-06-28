@@ -8,6 +8,7 @@ import 'package:oni_game/presentation/world/widgets/world_profile_morph_overlay.
 import 'package:oni_game/screens/match_result_screen.dart';
 import 'package:oni_game/screens/room_lobby_screen.dart';
 import 'package:oni_game/theme/world_profile.dart';
+import 'package:oni_game/theme/world_profile_tokens.dart';
 
 void main() {
   group('WorldProfileMorphOverlay', () {
@@ -123,25 +124,37 @@ void main() {
     });
   });
 
-  test('help copy mentions sync and resume events', () {
-    final lines = matchPlayabilityHintLinesForTest();
+  test('orbit scan headline varies by world profile', () {
     expect(
-      lines,
-      contains(
-        '通話や一時離脱中も、近接・捕獲の判定と危機通知は可能な範囲で継続します。復帰時には試合中に起きた出来事を反映します。',
-      ),
+      WorldProfileTokenFactory.orbitScanHeadline(WorldProfile.sciFi),
+      'AREA SCAN',
     );
     expect(
+      WorldProfileTokenFactory.orbitScanHeadline(WorldProfile.westernLuxury),
+      'AREA VIEW',
+    );
+    expect(
+      WorldProfileTokenFactory.orbitScanHeadline(WorldProfile.japaneseLuxury),
+      '結界走査',
+    );
+  });
+
+  test('help copy mentions sync and resume events', () {
+    final lines = matchPlayabilityHintLinesForTest();
+    final joined = lines.join('\n');
+    expect(joined, contains('復帰時'));
+    expect(joined, contains('判定'));
+    expect(joined, contains('危機通知'));
+    expect(
       lines,
-      contains('スキル操作だけは、アプリを前面に戻してから行ってください。'),
+      contains('スキルを使うときだけ、アプリを前面に戻してください。'),
     );
   });
 }
 
 /// テスト用に [showMatchPlayabilityHintsIfNeeded] と同じ先頭行を返す。
 List<String> matchPlayabilityHintLinesForTest() => [
-      '通話しながら遊ぶときは、通話を開始したあと一度 ONI PIN を開いて準備してください。',
-      '通知を見てスリープのまま走るときも、位置情報の許可（iPhoneは「常に」）をオンにしてください。',
-      '通話や一時離脱中も、近接・捕獲の判定と危機通知は可能な範囲で継続します。復帰時には試合中に起きた出来事を反映します。',
-      'スキル操作だけは、アプリを前面に戻してから行ってください。',
+      '通話しながらでもOK。通話を始めたら一度 ONI PIN を開いておくと安定します。',
+      '画面ロック・通話中も近接/捕獲の判定と危機通知は継続し、復帰時に試合中の出来事を反映します（位置情報の許可が必要／iPhoneは「常に」推奨）。',
+      'スキルを使うときだけ、アプリを前面に戻してください。',
     ];

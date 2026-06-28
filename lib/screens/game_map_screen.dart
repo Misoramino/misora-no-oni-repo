@@ -520,9 +520,9 @@ class _GameMapScreenState extends State<GameMapScreen>
     });
   }
 
-  /// 初回だけ、準備画面で「かんたんガイド」を案内する（軽量導入A）。
+  /// 初回だけ、準備画面で「かんたんガイド」を案内する。
   ///
-  /// 順序: 基本ルール（ウェルカム）→ 試合の構造 → 操作ガイド → 試合時間プリセット。
+  /// 順序: ウェルカム → 試合の構造（全体像）→ 準備画面の操作案内 → プリセット。
   Future<void> _maybeShowPrepOnboarding() async {
     if (_prepOnboardingChecked) return;
     _prepOnboardingChecked = true;
@@ -535,9 +535,11 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (!mounted || _gameState != GameState.waiting) return;
     }
 
+    var structureGuideCompleted = false;
     if (!await OnboardingPrefs.structureGuideSeen()) {
       if (!mounted || _gameState != GameState.waiting) return;
-      await showMatchStructureGuide(context);
+      final completed = await showMatchStructureGuide(context);
+      structureGuideCompleted = completed == true;
       await OnboardingPrefs.markStructureGuideSeen();
       if (!mounted || _gameState != GameState.waiting) return;
     }
@@ -569,7 +571,10 @@ class _GameMapScreenState extends State<GameMapScreen>
             ),
           ],
           child: Text(
-            '準備画面のボタンと、試合用の操作を短く案内します。',
+            structureGuideCompleted
+                ? '試合の流れは先ほど説明しました。\n'
+                    '準備画面のボタンを、30秒ほどで案内しますか？'
+                : '準備画面のボタンを、30秒ほどで案内しますか？',
             style: theme.textTheme.bodyMedium,
           ),
         );
@@ -1358,7 +1363,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         jammingZoneCenters: _rt.commJammingZonePositions,
       );
 
-  /// 地図に出す暴露座標。偽位置発動中はデコイ近傍へ差し替え（体投げ人形は別経路）。
+  /// 地図に出す暴露座標。偽位置発動中はおとり近傍へ差し替え（体投げ人形は別経路）。
   LatLng _mapRevealPosition(LatLng logical, {bool periodic = false}) {
     if (_rt.fakePositionActive &&
         _rt.fakePositionLatLng != null &&
@@ -3237,9 +3242,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         }
       },
       child: Scaffold(
-        appBar: hideMapModeInTitle
-            ? null
-            : AppBar(
+        appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: blockSystemBack
               ? const SizedBox.shrink()
@@ -3317,10 +3320,12 @@ class _GameMapScreenState extends State<GameMapScreen>
                     onOpenMapBrowse: () =>
                         _enterPrepMapMode(PrepMapMode.browse),
                   onOpenAreaGallery: _openAreaGallery,
-                  onStart: _startGame,
+                  onStart: _onPrepStartPressed,
                   canStart: !_editingArea &&
                       _isHost &&
                       (!_isOnlineFirestore || _lobbyHostAreaSlotName != null),
+                  startBlockedHint: _prepStartBlockedHint(),
+                  startGpsHint: _prepStartGpsHint(),
                   onOpenCustomSettings: _openCustomMenu,
                   onOpenPersonalSettings: _openPersonalSettings,
                   displayName: _localPlayerLabel,
@@ -3580,6 +3585,9 @@ class _GameMapScreenState extends State<GameMapScreen>
                   editing: _editingArea,
                   safeZoneCharges: _rt.safeZoneCharges,
                   conditionText: _conditionLine(),
+                  onOpenConditionGuide: _conditionGuideCardId() != null
+                      ? _openConditionGuide
+                      : null,
                   werewolfOniActive: _rt.werewolfInOniForm,
                   werewolfHudSummary: _werewolfHudSummary(),
                   werewolfCooldownSeconds: _cooldownRemainingSeconds(

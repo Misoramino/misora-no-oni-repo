@@ -171,8 +171,6 @@ class WorldStudioIdentity {
     required this.silence,
     required this.camera,
     required this.resultCopy,
-    this.recommended = false,
-    this.galleryBlurb,
   });
 
   final WorldProfile profile;
@@ -183,8 +181,6 @@ class WorldStudioIdentity {
   final WorldSilenceRhythm silence;
   final WorldMapCameraRhythm camera;
   final WorldResultCopy resultCopy;
-  final bool recommended;
-  final String? galleryBlurb;
 }
 
 /// 世界観別触覚（プレゼンテーション層のみ）。

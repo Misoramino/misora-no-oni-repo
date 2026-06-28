@@ -145,7 +145,7 @@ class EliminationSupportBar extends StatelessWidget {
               ] else if (personalCooldownSeconds != null &&
                   personalCooldownSeconds! > 0)
                 Text(
-                  '個人CD: あと ${personalCooldownSeconds}s',
+                  '再使用: あと ${personalCooldownSeconds}s',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: pack.mutedOnPanel,
                   ),
