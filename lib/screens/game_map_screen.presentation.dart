@@ -229,6 +229,9 @@ extension _GameMapPresentation on _GameMapScreenState {
   Future<void> _uploadOnlineMatchArchive(SavedMatchRecord rec) async {
     final fs = _firestoreSession;
     if (fs == null || !_isOnlineFirestore) return;
+    // ソロ（参加者が自分だけ）のときは共有先がないため、端末保存のみで終了。
+    // 権限エラー等のオンライン共有失敗メッセージをユーザーに見せない。
+    if (!_isRoomInspector && _lobbyParticipantCount() <= 1) return;
     final sessionKey = fs.currentMatchStart?.gimmickSeed;
     if (sessionKey == null) return;
 

@@ -327,9 +327,16 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                     .playSfx(SfxId.uiTap);
                                                 showSettingsHubSheet(
                                                   context,
+                                                  onWorldProfileChanged: (p) =>
+                                                      unawaited(
+                                                    _onProfileSelected(p),
+                                                  ),
                                                   onPersonalSettingsApplied:
-                                                      (_) =>
-                                                          _reloadProfileFromPrefs(),
+                                                      (result) => unawaited(
+                                                    _onProfileSelected(
+                                                      result.profile,
+                                                    ),
+                                                  ),
                                                 );
                                               }
                                             : null,

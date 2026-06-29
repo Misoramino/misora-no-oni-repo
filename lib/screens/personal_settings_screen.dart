@@ -8,14 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/game_map/settings/player_personal_settings_models.dart';
 import '../features/world_selection/world_selection_sheet.dart';
 import '../presentation/world/world_presentation_catalog.dart';
-import '../presentation/world/world_legibility.dart';
-import '../presentation/world/world_presentation_context.dart';
 import '../session/avatar_image_store.dart';
 import '../session/game_map_prefs.dart';
 import '../session/session_prefs.dart';
 import '../session/match_presentation_prefs.dart';
 import '../session/world_profile_prefs.dart';
 import '../settings/oni_operator_prefs.dart';
+import '../theme/app_theme_factory.dart';
 import '../theme/world_profile.dart';
 import '../theme/world_visual_pack_factory.dart';
 
@@ -162,14 +161,25 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final themed = theme.copyWith(
-      extensions: [
-        for (final e in theme.extensions.values)
-          if (e is! WorldProfileTheme) e,
-        WorldProfileTheme(_profile),
-      ],
+    // 現在選択中の世界観テーマを毎回生成（画面内で世界観を変えても
+    // フォント・色が即反映される）。本画面の内容はスキャフォールド上に
+    // 直接並ぶため、既定の文字色をスキャフォールド向けに上書きして
+    // 暗いスキャフォールドでの「暗文字 on 暗背景」を防ぐ。
+    final pack = WorldPresentationCatalog.of(_profile);
+    final base = AppThemeFactory.create(_profile);
+    final scaffoldTextTheme = base.textTheme.apply(
+      bodyColor: pack.textOnScaffold,
+      displayColor: pack.textOnScaffold,
     );
+    final themed = base.copyWith(
+      textTheme: scaffoldTextTheme,
+      primaryTextTheme: scaffoldTextTheme,
+      colorScheme: base.colorScheme.copyWith(
+        onSurface: pack.textOnScaffold,
+        onSurfaceVariant: pack.mutedOnScaffold,
+      ),
+    );
+    final theme = themed;
     return Theme(
       data: themed,
       child: Scaffold(
@@ -196,7 +206,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 Text(
                   'この端末だけに保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.worldMutedOnScaffold,
+                    color: pack.mutedOnScaffold,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -271,7 +281,7 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 Text(
                   'パニック・結界拘束・バックグラウンド復帰時の危機など。端末ローカルに保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.worldMutedOnScaffold,
+                    color: pack.mutedOnScaffold,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -320,14 +330,25 @@ class _PersonalSettingsScreenState extends State<PersonalSettingsScreen> {
                 const SizedBox(height: 20),
                 _sectionTitle(context, 'プライバシー'),
                 const SizedBox(height: 8),
-                Card(
+                Container(
+                  decoration: BoxDecoration(
+                    color: pack.panelOnScaffold,
+                    borderRadius: BorderRadius.circular(pack.hudCornerRadius + 4),
+                    border: Border.all(color: pack.panelBorder),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('GPSサービス: ${_locationServiceEnabled ? 'ON' : 'OFF'}'),
-                        Text('権限: ${_locationPermission?.name ?? 'unknown'}'),
+                        Text(
+                          'GPSサービス: ${_locationServiceEnabled ? 'ON' : 'OFF'}',
+                          style: TextStyle(color: pack.textOnPanelOverScaffold),
+                        ),
+                        Text(
+                          '権限: ${_locationPermission?.name ?? 'unknown'}',
+                          style: TextStyle(color: pack.textOnPanelOverScaffold),
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,

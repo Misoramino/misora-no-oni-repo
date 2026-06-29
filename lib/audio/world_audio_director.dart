@@ -34,6 +34,18 @@ class WorldAudioDirector {
     GameAudio.instance.setActiveWorldProfile(profile);
   }
 
+  /// [GameAudio] からのレイヤー再開要求を受け取れるよう接続する。
+  ///
+  /// 「OFF(自分の音楽)」でレイヤーを止めた後に再び有効化したとき、
+  /// 現在の状態（タイトル/ロビー/試合など）のレイヤーを鳴らし直す。
+  void attachToAudio() {
+    GameAudio.instance.onLayeredBgmRestartNeeded = () async {
+      final p = _profile;
+      if (p == null) return;
+      await enter(_state, profile: p);
+    };
+  }
+
   /// 状態遷移の主入口。
   Future<void> enter(
     WorldAudioState next, {

@@ -452,7 +452,7 @@ class GameInfoPanel extends StatelessWidget {
           ),
         if (werewolfCooldownSeconds > 0)
           CooldownChip(
-            label: '切替',
+            label: '切替可能まで',
             seconds: werewolfCooldownSeconds,
             worldProfile: mapWorldProfile,
           ),

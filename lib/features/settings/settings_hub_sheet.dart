@@ -21,7 +21,7 @@ Future<void> showSettingsHubSheet(
   return showWorldSheet<void>(
     context,
     profile: profile,
-    builder: (ctx) => WorldThemed(
+    builder: (ctx) => WorldScaffoldThemed(
       profile: profile,
       child: SafeArea(
         child: Padding(

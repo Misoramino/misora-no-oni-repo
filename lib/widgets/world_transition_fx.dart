@@ -167,6 +167,8 @@ class _HorizontalScanPainter extends CustomPainter {
       old.progress != progress;
 }
 
+/// 禅京都の遷移。以前は縦の障子パネル＋金の縦線で目立っていたため、
+/// 縦線を排した「やわらかい墨のベール＋金の横刷毛＋金粉」に変更。
 class _ShojiWipePainter extends CustomPainter {
   _ShojiWipePainter({required this.progress});
 
@@ -174,24 +176,40 @@ class _ShojiWipePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const panels = 5;
-    final panelW = size.width / panels;
-    for (var i = 0; i < panels; i++) {
-      final delay = i * 0.08;
-      final t = ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
-      final x = panelW * i + panelW * (1 - t);
-      final paint = Paint()
-        ..color = const Color(0xFF1A1A14).withValues(alpha: 0.55 * (1 - t));
-      canvas.drawRect(Rect.fromLTWH(x, 0, panelW + 1, size.height), paint);
-      final gold = Paint()
-        ..color = const Color(0xFFC9A227).withValues(alpha: 0.22 * t);
-      canvas.drawRect(Rect.fromLTWH(x + panelW - 2, 0, 1.5, size.height), gold);
-    }
-    final dust = Paint()..color = const Color(0xFFFFD54F).withValues(alpha: 0.12);
+    final rect = Offset.zero & size;
+    final inv = (1 - progress).clamp(0.0, 1.0);
+
+    // 墨のやわらかいベール（フェードのみ・縦線なし）。
+    final veil = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF1A1A14).withValues(alpha: 0.40 * inv),
+          const Color(0xFF1A1A14).withValues(alpha: 0.26 * inv),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, veil);
+
+    // 中央を払う、やわらかな金の横刷毛（遷移の中盤で最も濃く）。
+    final sweep = (1 - (progress - 0.5).abs() * 2).clamp(0.0, 1.0);
+    final brush = Paint()
+      ..color = const Color(0xFFC9A227).withValues(alpha: 0.16 * sweep)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final y = size.height * 0.5;
+    final path = Path()
+      ..moveTo(0, y)
+      ..quadraticBezierTo(size.width * 0.5, y - 16 * inv, size.width, y);
+    canvas.drawPath(path, brush);
+
+    // 漂う金粉。
+    final dust = Paint()
+      ..color = const Color(0xFFFFD54F).withValues(alpha: 0.10 * inv);
     for (var i = 0; i < 6; i++) {
-      final px = size.width * (0.15 + i * 0.14) * progress;
-      final py = size.height * (0.2 + (i % 3) * 0.25);
-      canvas.drawCircle(Offset(px, py), 1.5 + i * 0.3, dust);
+      final px = size.width * ((0.12 + i * 0.16 + progress * 0.05) % 1);
+      final py = size.height * (0.22 + (i % 3) * 0.24);
+      canvas.drawCircle(Offset(px, py), 1.4 + i * 0.25, dust);
     }
   }
 

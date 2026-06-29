@@ -19,6 +19,7 @@ import '../session/world_profile_prefs.dart';
 import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/widgets/world_scaffold.dart';
+import '../theme/app_theme_factory.dart';
 import '../theme/world_profile.dart';
 import '../features/game_map/prep/lobby_rules_summary_card.dart';
 import '../features/settings/guide_hub_sheet.dart';
@@ -293,12 +294,27 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final pack = WorldPresentationCatalog.of(_worldProfile);
-    return Theme(
-      data: theme.copyWith(
-        extensions: [WorldProfileTheme(_worldProfile)],
+    // 内容は WorldScaffold（スキャフォールド）上に直接並ぶため、既定の
+    // 文字色をスキャフォールド向けに上書きし、暗い背景でも読めるようにする。
+    // パネル要素（_MemberTile / _RoomIdShareCard / ルール概要カード等）は
+    // それぞれ pack.textOnPanel を明示しているので影響を受けない。
+    final base = AppThemeFactory.create(_worldProfile);
+    final scaffoldTextTheme = base.textTheme.apply(
+      bodyColor: pack.textOnScaffold,
+      displayColor: pack.textOnScaffold,
+    );
+    final themed = base.copyWith(
+      textTheme: scaffoldTextTheme,
+      primaryTextTheme: scaffoldTextTheme,
+      colorScheme: base.colorScheme.copyWith(
+        onSurface: pack.textOnScaffold,
+        onSurfaceVariant: pack.mutedOnScaffold,
       ),
+    );
+    final theme = themed;
+    return Theme(
+      data: themed,
       child: WorldScaffold(
         profile: _worldProfile,
         showProfileMorph: true,
@@ -355,6 +371,11 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                               const SizedBox(height: 12),
                               DropdownButtonFormField<WorldProfile>(
                                 initialValue: _worldProfile,
+                                dropdownColor: pack.scaffoldTop,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: pack.textOnScaffold,
+                                ),
+                                iconEnabledColor: pack.accentOnScaffold,
                                 decoration: const InputDecoration(
                                   labelText: '世界観',
                                   border: OutlineInputBorder(),
@@ -565,7 +586,9 @@ class _RoomLobbyScreenState extends State<RoomLobbyScreen> {
                           alignment: Alignment.topLeft,
                           child: Text(
                             '参加するとメンバー一覧が表示されます',
-                            style: theme.textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: pack.mutedOnScaffold,
+                            ),
                           ),
                         ),
                       ),

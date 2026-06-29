@@ -75,6 +75,13 @@ class GameAudio {
 
   bool _layersActive = false;
   bool _backgroundPaused = false;
+
+  /// レイヤーBGMが停止状態から再開すべきときに呼ぶフック。
+  ///
+  /// 例: ユーザーが「OFF(自分の音楽)」にしてレイヤーを止めた後、再び
+  /// 「おまかせ」や曲を選んだ場合。[WorldAudioDirector] が現在の状態を
+  /// 再適用してレイヤーを鳴らし直す。循環参照を避けるためコールバックで連携。
+  Future<void> Function()? onLayeredBgmRestartNeeded;
   /// マニフェスト上に存在するアセットのパス集合（`assets/...`）。
   Set<String> _assets = <String>{};
   bool _initialized = false;
@@ -127,11 +134,16 @@ class GameAudio {
       await stopAllMusicLayers(fadeMs: 280);
     }
 
-    if (next.layeredBgmEnabled && _layersActive) {
-      return;
-    }
-
     if (next.layeredBgmEnabled) {
+      // レイヤーが既に鳴っていれば音量更新のみで十分。
+      // 停止中（OFF→おまかせ/曲 へ戻したケース等）はディレクターに
+      // 現在状態の再適用を依頼してレイヤーを鳴らし直す。
+      if (!_layersActive) {
+        final restart = onLayeredBgmRestartNeeded;
+        if (restart != null) {
+          await restart();
+        }
+      }
       return;
     }
 
@@ -293,7 +305,11 @@ class GameAudio {
       return;
     }
 
-    final vol = _volumeForWorldSfx(id, fx, baseVol);
+    // 試聴は「単体での聴き比べ」なので、試合中のミックス用係数
+    // (_volumeForWorldSfx) は使わない。世界観ごとに 0.22〜0.82 まで開きが
+    // あり、ギャラリーで鳴らすと音量バラバラ・BGM と差が大きく感じるため、
+    // 種類ごとに一定の試聴レベルへ正規化して聴き比べやすくする。
+    final vol = _galleryPreviewVolume(id, baseVol);
     if (vol <= 0) return;
 
     _galleryPreviewSfxPlayer ??= AudioPlayer();
@@ -387,6 +403,21 @@ class GameAudio {
     }
     final kind = _previewKindForSfx(id);
     return kind?.debounceMs ?? 0;
+  }
+
+  /// ギャラリー試聴用の正規化音量。
+  ///
+  /// 世界観ごとの試合用係数ではなく、SE 種類ごとに一定レベルへそろえる。
+  /// 「操作音 < 暴露音 < 捕獲音」の自然な強弱だけ残しつつ、世界観間の
+  /// ばらつきと BGM との極端な差をなくす。
+  double _galleryPreviewVolume(SfxId id, double baseVol) {
+    final level = switch (id) {
+      SfxId.uiTap || SfxId.uiConfirm => 0.80,
+      SfxId.reveal || SfxId.anonReveal => 0.88,
+      SfxId.capture => 0.95,
+      _ => 0.85,
+    };
+    return baseVol * level;
   }
 
   double _volumeForWorldSfx(SfxId id, WorldFxProfile fx, double baseVol) {

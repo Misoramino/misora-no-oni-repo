@@ -47,13 +47,18 @@ class WorldChip extends StatelessWidget {
               color: fg,
             ),
             SizedBox(width: dense ? 4 : 6),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: fg,
-                    fontWeight: FontWeight.w600,
-                    fontSize: dense ? 10 : null,
-                  ),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                      fontSize: dense ? 10 : null,
+                    ),
+              ),
             ),
           ],
         ),

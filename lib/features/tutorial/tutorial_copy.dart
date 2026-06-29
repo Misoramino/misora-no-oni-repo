@@ -116,7 +116,7 @@ abstract final class TutorialCopyCatalog {
             title: '${GuideTerms.werewolf}チュートリアル完了',
             body:
                 '${GuideTerms.werewolf}は${GuideTerms.realOni}ではありません。\n'
-                '人数比で陣営が決まります。HUDの「自動切替」と「切替」は別タイマーです。',
+                '人数比で陣営が決まります。HUDの「自動切替」と「切替可能まで」は別タイマーです。',
             relatedGuides: [
               (sectionId: 'skills', title: '鬼化・人化', guideCardId: 'werewolf_transform'),
               (sectionId: 'roles', title: '役職', guideCardId: null),

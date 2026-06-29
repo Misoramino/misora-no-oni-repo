@@ -60,7 +60,7 @@ const _pages = <_WelcomePage>[
     lines: [
       'ホストが決めたエリア（公園・商店街など）が舞台',
       '手がかり・距離感・スキルで追いかけっこ',
-      'Discord/LINE 通話はそのまま。危険は通知で追えます',
+      'Discord・LINEなどの通話アプリと一緒に遊べます',
     ],
   ),
   _WelcomePage(
@@ -75,7 +75,7 @@ const _pages = <_WelcomePage>[
       '🏃 逃走者：生き残るか、告発で鬼を当てれば勝ち',
       '👹 鬼：逃走者を全員捕まえれば勝ち',
       '捕まっても“別の役割”に変わって、最後まで試合に関われます',
-      'くわしい流れは準備画面の「試合の構造」で案内します',
+      'このあと「試合の構造」で、くわしい流れを案内します',
     ],
   ),
 ];
@@ -121,6 +121,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final page = _pages[_index];
     final profile = context.worldProfile;
 
@@ -134,6 +135,29 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
               child: TextButton(
                 onPressed: () => _finish(WelcomeResult.skipped),
                 child: const Text('スキップ'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Text(
+                    '基本ルール',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: context.worldAccentReadable,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'まずは、どんなゲームかをざっくり紹介します',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.worldMuted,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(

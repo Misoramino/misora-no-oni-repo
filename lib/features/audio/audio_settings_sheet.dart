@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/world/world_legibility.dart';
+import '../../presentation/world/world_presentation_catalog.dart';
+import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../audio/audio_library.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -15,15 +18,21 @@ Future<void> showAudioSettingsSheet(
   BuildContext context, {
   WorldProfile? worldProfile,
 }) {
+  final profile = worldProfile ?? context.worldProfile;
+  final pack = WorldPresentationCatalog.of(profile);
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
     isDismissible: true,
     enableDrag: true,
-    builder: (sheetCtx) => _AudioSettingsSheet(
-      initialWorldProfile: worldProfile,
-      onClose: () => Navigator.pop(sheetCtx),
+    backgroundColor: pack.scaffoldBottom,
+    builder: (sheetCtx) => WorldScaffoldThemed(
+      profile: profile,
+      child: _AudioSettingsSheet(
+        initialWorldProfile: worldProfile,
+        onClose: () => Navigator.pop(sheetCtx),
+      ),
     ),
   );
 }
@@ -110,7 +119,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                 child: Text(
                   '変更はすぐに反映され、自動で保存されます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.worldMuted,
+                    color: context.worldMutedOnScaffold,
                   ),
                 ),
               ),
@@ -250,7 +259,7 @@ class _AudioSettingsSheetState extends State<_AudioSettingsSheet> {
                           '対戦中は既定で環境音のみ。ここで曲を選ぶと試合中もBGMを流せます。\n'
                           'OFFにすると効果音と環境音だけになり、好きな音楽を裏で流せます。',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: context.worldMuted,
+                            color: context.worldMutedOnScaffold,
                             height: 1.45,
                           ),
                         ),
@@ -293,7 +302,7 @@ class _WorldSfxPreviewSection extends StatelessWidget {
           Text(
             '現在の世界観: $profileLabel',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: context.worldMuted,
+              color: context.worldMutedOnScaffold,
             ),
           ),
           const SizedBox(height: 10),
@@ -316,7 +325,7 @@ class _WorldSfxPreviewSection extends StatelessWidget {
             'UI音・暴露音・遷移音をその場で試聴できます。'
             'ファイルが無い場合は合成音にフォールバックします。',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: context.worldMuted,
+              color: context.worldMutedOnScaffold,
               height: 1.4,
             ),
           ),
@@ -363,7 +372,7 @@ class _AmbientChoicePicker extends StatelessWidget {
                 size: 18,
                 color: selected
                     ? theme.colorScheme.onSecondaryContainer
-                    : context.worldMuted,
+                    : context.worldMutedOnScaffold,
               ),
         label: Text(label),
         onSelected: (_) => onPick(value),
@@ -387,7 +396,7 @@ class _AmbientChoicePicker extends StatelessWidget {
             child: Text(
               '「おまかせ」は ${profile.label} のプール（${pool.map((a) => a.label).join(' / ')}）から選びます。',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: context.worldMuted,
+                color: context.worldMutedOnScaffold,
                 height: 1.4,
               ),
             ),
@@ -419,7 +428,7 @@ class _BgmChoicePicker extends StatelessWidget {
                 size: 18,
                 color: selected
                     ? theme.colorScheme.onSecondaryContainer
-                    : context.worldMuted,
+                    : context.worldMutedOnScaffold,
               ),
         label: Text(label),
         onSelected: (_) => onPick(value),
@@ -462,7 +471,7 @@ class _VolumeRow extends StatelessWidget {
       opacity: enabled ? 1 : 0.5,
       child: Row(
         children: [
-          Icon(icon, size: 20, color: context.worldMuted),
+          Icon(icon, size: 20, color: context.worldMutedOnScaffold),
           const SizedBox(width: 10),
           SizedBox(
             width: 56,

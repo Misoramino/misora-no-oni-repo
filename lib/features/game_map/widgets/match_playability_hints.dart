@@ -29,7 +29,7 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
 
   final lines = <String>[
     if (!generalSeen) ...[
-      '通話しながらでもOK。通話を始めたら一度 ONI PIN を開いておくと安定します。',
+      '通話しながらでもOK。先に ONI PIN を起動し、通話アプリはバックグラウンドにすると安定します。',
       '画面ロック・通話中も近接/捕獲の判定と危機通知は継続し、復帰時に試合中の出来事を反映します（位置情報の許可が必要／iPhoneは「常に」推奨）。',
       'スキルを使うときだけ、アプリを前面に戻してください。',
     ],

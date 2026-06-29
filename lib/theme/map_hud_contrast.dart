@@ -345,10 +345,13 @@ abstract final class MapHudContrast {
       MapHudMapPanelLegibility.resolve(scheme, profile);
 
   static Color _textOnSurface(Color surface, WorldPresentationPack pack) {
+    // HUD パネル面の明度から直接前景を決める。pack.textOnPanel は
+    // 「パネル＝明るい」世界観（マジカル/禅京都/ロイヤル）では暗色のため、
+    // 暗い HUD 面に載せると暗文字 on 暗背景になってしまう。明度判定で回避。
     if (surface.computeLuminance() > 0.52) {
       return const Color(0xFF1A1A2E);
     }
-    return pack.textOnPanel;
+    return const Color(0xFFF2F2F7);
   }
 
   static Color _mutedOnSurface(Color surface, WorldPresentationPack pack) {

@@ -26,13 +26,29 @@ class GameMapOverflowMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final running = gameState == GameState.running;
-    final menuTheme = Theme.of(context).copyWith(
+    final base = Theme.of(context);
+    // ポップアップは常に明るい面で描画する。メニュー項目（ListTile）の
+    // 文字・アイコンを暗色に固定しないと、暗色世界観では onSurface が
+    // 明色のままで「白文字 on 白背景」になり読めない。
+    // ※ listTileTheme と popupMenuTheme のみを上書きし、トリガーの ⋮
+    //   アイコン（AppBar の前景色）には影響させない。
+    const popupSurface = Color(0xFFFAFAFA);
+    const popupOnSurface = Color(0xFF1A1A1A);
+    const popupOnSurfaceVariant = Color(0xFF5A5A5A);
+    final menuTheme = base.copyWith(
+      listTileTheme: base.listTileTheme.copyWith(
+        iconColor: popupOnSurface,
+        textColor: popupOnSurface,
+        subtitleTextStyle: base.textTheme.bodySmall?.copyWith(
+          color: popupOnSurfaceVariant,
+        ),
+      ),
       popupMenuTheme: PopupMenuThemeData(
-        color: const Color(0xFFFAFAFA),
+        color: popupSurface,
         surfaceTintColor: Colors.transparent,
-        textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF1A1A1A),
-            ),
+        textStyle: base.textTheme.bodyMedium?.copyWith(
+          color: popupOnSurface,
+        ),
       ),
     );
 

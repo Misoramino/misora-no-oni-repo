@@ -54,6 +54,42 @@ class WorldThemed extends StatelessWidget {
   }
 }
 
+/// 「スキャフォールド地（グラデーション背景）」に内容を直接置くシート・
+/// 全画面向けのテーマ。既定文字色をスキャフォールド向けに上書きし、
+/// 明パネル＋暗背景の世界観（マジカル/禅京都など）でも文字が読めるように
+/// する。カード等のパネル要素は各自 textOnPanel を明示すること。
+class WorldScaffoldThemed extends StatelessWidget {
+  const WorldScaffoldThemed({
+    required this.profile,
+    required this.child,
+    super.key,
+  });
+
+  final WorldProfile profile;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final pack = WorldPresentationCatalog.of(profile);
+    final base = AppThemeFactory.create(profile);
+    final scaffoldTextTheme = base.textTheme.apply(
+      bodyColor: pack.textOnScaffold,
+      displayColor: pack.textOnScaffold,
+    );
+    return Theme(
+      data: base.copyWith(
+        textTheme: scaffoldTextTheme,
+        primaryTextTheme: scaffoldTextTheme,
+        colorScheme: base.colorScheme.copyWith(
+          onSurface: pack.textOnScaffold,
+          onSurfaceVariant: pack.mutedOnScaffold,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 /// 世界観別ボトムシート（グラデーション枠）。
 Future<T?> showWorldSheet<T>(
   BuildContext context, {

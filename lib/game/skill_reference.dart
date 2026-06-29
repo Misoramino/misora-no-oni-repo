@@ -233,9 +233,9 @@ abstract final class SkillReference {
             '陣営（${GuideTerms.humanFaction}/${GuideTerms.oniFaction}）に応じて立ち回るとき。'
             '人数比で陣営が決まり、同数なら${GuideTerms.humanFaction}。',
         risks:
-            '任意切替の再使用待ち＝強制間隔÷3（HUDの「切替」）。'
-            '強制切替の直後は「切替」がやや長くなります。'
-            '「自動切替」と「切替」は別タイマーです。告発不可。',
+            '任意切替の再使用待ち＝強制間隔÷3（HUDの「切替可能まで」）。'
+            '強制切替の直後は「切替可能まで」がやや長くなります。'
+            '「自動切替」と「切替可能まで」は別タイマーです。告発不可。',
         specRows: const [
           GuideSpecRow('自動切替まで', '前回切替から min(15分, 試合÷2)'),
           GuideSpecRow('任意切替の再使用', '強制間隔÷3'),
@@ -248,7 +248,7 @@ abstract final class SkillReference {
             title: 'HUDの見方',
             body:
                 '「自動切替」＝放置すると自動で反対の姿になるまでの秒数。'
-                '「切替」＝ボタンで任意に切り替えられるまでの秒数。別表示です。',
+                '「切替可能まで」＝ボタンで任意に切り替えられるまでの秒数。別表示です。',
           ),
           (
             title: '強制切替',

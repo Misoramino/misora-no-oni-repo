@@ -36,6 +36,7 @@ class LobbyRulesSummaryCard extends StatelessWidget {
                   'ルール概要',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: context.worldBody,
                   ),
                 ),
               ],
@@ -44,7 +45,9 @@ class LobbyRulesSummaryCard extends StatelessWidget {
             Text(
               '参加 $participantCount 人 · 推奨 ${MatchSetupSummary.recommendedPlayers} · '
               '${MatchSetupSummary.recommendedDuration}',
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.worldBody,
+              ),
             ),
             const SizedBox(height: 4),
             Text(

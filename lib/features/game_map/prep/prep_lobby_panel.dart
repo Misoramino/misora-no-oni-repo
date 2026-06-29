@@ -314,11 +314,14 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                   'エリア提案 — ${proposal.proposerName}',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w600,
+                                    color: scheme.onSecondaryContainer,
                                   ),
                                 ),
                                 Text(
                                   '「${proposal.slotName}」 — ${proposal.area.coarseLocationLabel()}',
-                                  style: theme.textTheme.bodySmall,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSecondaryContainer,
+                                  ),
                                 ),
                                 const SizedBox(height: 8),
                                 FilledButton.tonal(

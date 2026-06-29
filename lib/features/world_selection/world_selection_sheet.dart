@@ -7,7 +7,6 @@ import '../../audio/world_audio_state.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
 import '../../presentation/world/world_presentation_catalog.dart';
-import '../../presentation/world/world_presentation_context.dart';
 import '../../presentation/world/world_presentation_pack.dart';
 import '../../presentation/world/world_studio_identity.dart';
 import '../../presentation/world/world_studio_identity_catalog.dart';
@@ -18,6 +17,7 @@ import '../../presentation/world/widgets/world_ambient_painter.dart';
 import '../../presentation/world/widgets/world_profile_morph_overlay.dart';
 import '../../presentation/world/widgets/world_button.dart';
 import '../../presentation/world/widgets/world_loading.dart';
+import '../../theme/app_theme_factory.dart';
 import '../../theme/world_profile.dart';
 
 /// 世界観ギャラリー（作品を選ぶ体験）。
@@ -135,10 +135,10 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
 
+    // プレビュー中の世界観テーマ（フォント込み）を適用し、決定前から
+    // 世界観ごとの書体・色を反映してわかりやすくする。
     return Theme(
-      data: Theme.of(context).copyWith(
-        extensions: [WorldProfileTheme(_preview)],
-      ),
+      data: AppThemeFactory.create(_preview),
       child: Scaffold(
         backgroundColor: _pack.scaffoldBottom,
         body: Stack(
@@ -230,6 +230,14 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
                           );
                         },
                       ),
+                    ),
+                    SizedBox(height: WorldUILayout.cardGap * 0.6),
+                    _SwipeHint(pack: _pack),
+                    SizedBox(height: WorldUILayout.cardGap * 0.5),
+                    _PageDots(
+                      count: WorldProfile.values.length,
+                      index: _preview.index,
+                      pack: _pack,
                     ),
                     SizedBox(height: WorldUILayout.cardGap),
                     AnimatedSwitcher(
@@ -329,6 +337,67 @@ class _WorldGalleryScreenState extends State<WorldGalleryScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 「スワイプで世界観を切り替えられる」ことを伝えるヒント。
+class _SwipeHint extends StatelessWidget {
+  const _SwipeHint({required this.pack});
+
+  final WorldPresentationPack pack;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = pack.mutedOnScaffold;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.chevron_left_rounded, size: 18, color: color),
+        const SizedBox(width: 4),
+        Text(
+          'スワイプで世界観を切り替え',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+        ),
+        const SizedBox(width: 4),
+        Icon(Icons.chevron_right_rounded, size: 18, color: color),
+      ],
+    );
+  }
+}
+
+/// 現在のカード位置を示すドットインジケータ。
+class _PageDots extends StatelessWidget {
+  const _PageDots({
+    required this.count,
+    required this.index,
+    required this.pack,
+  });
+
+  final int count;
+  final int index;
+  final WorldPresentationPack pack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            width: i == index ? 18 : 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: i == index
+                  ? pack.accent
+                  : pack.mutedOnScaffold.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+      ],
     );
   }
 }
