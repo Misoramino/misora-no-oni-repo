@@ -1305,14 +1305,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
             _logDebug('danger_warning_enter');
             _maybeBackgroundCrisisAlert(
               kind: BackgroundCrisisKind.proximityWarning,
-              title: '鬼が近い',
-              body: MatchHudCopy.panicExposureStart,
+              title: '接触圏内',
+              body: MatchHudCopy.contactRingEntered,
             );
           } else if (level == 'danger') {
             _logDebug('danger_close_enter');
             _maybeBackgroundCrisisAlert(
               kind: BackgroundCrisisKind.proximityDanger,
-              title: '至近距離',
+              title: 'ごく至近です',
               body: MatchHudCopy.panicExposureImminent,
             );
           }
@@ -1369,8 +1369,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         case MatchTouchLockStartEffect():
           _maybeBackgroundCrisisAlert(
             kind: BackgroundCrisisKind.touchLock,
-            title: '止められ圏',
-            body: 'このまま離れると位置が暴露されます',
+            title: '拘束されました',
+            body: '円の外へ出ないと位置が暴露されます',
           );
           HapticFeedback.mediumImpact();
           GameAudio.instance.playSfx(SfxId.skillCast);

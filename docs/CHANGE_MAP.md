@@ -141,7 +141,7 @@
 | `game_map_screen.skills.dart` | スキル |
 | `game_map_screen.overlay.dart` | 地図オーバーレイ |
 | `lib/screens/app_launch_shell.dart` | 起動演出 → タイトル遷移 |
-| `lib/screens/title_screen.dart` | 入口・Firebase 表示・**v3.0.0** |
+| `lib/screens/title_screen.dart` | 入口・Firebase 表示・**v3.1.0** |
 | `lib/screens/room_lobby_screen.dart` | ロビー（非ホスト向けルール概要） |
 | `lib/features/game_map/prep/prep_lobby_panel.dart` | 準備 UI（設定サマリ一行） |
 | `lib/features/game_map/widgets/game_info_panel.dart` | HUD（フェーズ・イベント履歴） |
@@ -173,7 +173,7 @@
 | 主ファイル | 注意 |
 |------------|------|
 | `lib/presentation/world/world_studio_identity_catalog.dart` | 機能マイクロコピー（confirm/cancel/close/next/back/loading/coachNext/coachDone）は日本語。gallerySelect/resultCopy は演出英語可 |
-| `lib/game/skill_reference.dart` | スキル本文・spec表（CD→再使用、デコイ→おとり、人狼 強制まで→自動切替/切替CD→切替） |
+| `lib/game/skill_reference.dart` | スキル本文・spec表（CD→再使用、デコイ→おとり、人狼 HUD: 自動切替まで／切替可能まで） |
 | `lib/features/how_to_play/guide_sections.dart` / `guide_terms.dart` | ガイド章・用語ラダー（鬼/本物の鬼、残響体/復讐の鬼影） |
 | `lib/features/tutorial/tutorial_copy.dart` | チュートリアル文。HUD用語を説明前に出さない |
 | `lib/features/onboarding/welcome_flow.dart` / `match_structure_guide.dart` | ウェルカム/構造ガイド。用語の前出し回避 |

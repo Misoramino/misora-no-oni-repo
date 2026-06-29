@@ -18,9 +18,7 @@ Future<void> showHowToPlaySheet(
   return showWorldSheet<void>(
     context,
     profile: profile,
-    builder: (sheetCtx) => WorldThemed(
-      profile: profile,
-      child: DraggableScrollableSheet(
+    builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.85,
         minChildSize: 0.45,
@@ -33,7 +31,6 @@ Future<void> showHowToPlaySheet(
           initialGuideCardId: initialGuideCardId,
         ),
       ),
-    ),
   );
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -62,7 +63,7 @@ const _pages = <_GuidePage>[
       'ホストがエリアと時間を決めて「試合を開始」',
       '鬼は追う／逃走者は耐える — スキルとギミックはあとで詳しく',
       '捕まっても“第二の役割”（残響体・鬼影）になり、第二ゲームで味方を助けられます',
-      '通話アプリを開いていても、近づき・捕獲は進みます（スキル操作のときだけONI PINを前面に）',
+      '通話中でも近づき・捕獲の判定は続きます。スキル操作のときだけ ONI PIN を前面に。',
     ],
   ),
   _GuidePage(
@@ -90,7 +91,7 @@ const _pages = <_GuidePage>[
     lines: [
       '【決まり方】生存者のうち、人側・鬼側の人数が少ない方が味方',
       '【つまり？】人が捕まって減るほど、前半は鬼側・後半は人側の味方になりやすい',
-      '「人化」「鬼化」で見た目を切り替えて撹乱',
+      '「人化」「鬼化」で見た目を切り替えて攪乱',
     ],
   ),
   _GuidePage(
@@ -102,7 +103,7 @@ const _pages = <_GuidePage>[
       '情報屋 … 鬼の方角・距離がわかる（今の座標まではわからない）',
       '通信障害地帯 … 鬼から見つかりにくくする',
       '安全地帯 … しばらく追跡されにくくなる',
-      '告発 … 試合の後半に解禁。条件を満たせば本物の鬼を追放できる',
+      '告発 … 試合の後半に解禁。条件を満たせば本物の鬼を当てられる',
     ],
   ),
 ];
@@ -146,7 +147,9 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
 
     return WorldScaffold(
       profile: profile,
-      body: SafeArea(
+      body: WorldScaffoldThemed(
+        profile: profile,
+        child: SafeArea(
         child: Column(
           children: [
             Align(
@@ -156,6 +159,9 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
                   GameAudio.instance.playSfx(SfxId.uiBack);
                   Navigator.of(context).pop(false);
                 },
+                style: TextButton.styleFrom(
+                  foregroundColor: context.worldAccentReadable,
+                ),
                 child: const Text('スキップ'),
               ),
             ),
@@ -175,7 +181,7 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
                     'スキルの細部の前に、試合全体の流れと役職の動きを共有します',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.worldMuted,
+                      color: context.worldMutedOnScaffold,
                       height: 1.35,
                     ),
                   ),
@@ -184,7 +190,7 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
                     Text(
                       GuideText.forDisplay(page.subtitle!),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: context.worldMuted,
+                        color: context.worldMutedOnScaffold,
                       ),
                     ),
                   ],
@@ -229,6 +235,7 @@ class _MatchStructureGuideState extends State<_MatchStructureGuide> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

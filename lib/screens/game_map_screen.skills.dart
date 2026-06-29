@@ -7,6 +7,16 @@ extension _GameMapSkills on _GameMapScreenState {
     required LatLng hit,
     required DateTime now,
   }) {
+    unawaited(
+      _finalizeHunterInfoBroker(hitIndex: hitIndex, hit: hit, now: now),
+    );
+  }
+
+  Future<void> _finalizeHunterInfoBroker({
+    required int hitIndex,
+    required LatLng hit,
+    required DateTime now,
+  }) async {
     if (!_isOnlineFirestore) {
       _toast('鬼の情報屋はオンライン試合でのみ使えます');
       return;
@@ -22,7 +32,8 @@ extension _GameMapSkills on _GameMapScreenState {
       return;
     }
     final targetLabel = _displayNameForUid(targetUid);
-    final nextInfoBroker = _relocateInfoBroker(hitIndex);
+    final nextInfoBroker = await _relocateInfoBroker(hitIndex);
+    if (!mounted || _gameState != GameState.running) return;
     final intelLine = '標的: $targetLabel — ${MatchUiTerms.namedReveal}を発動';
     _markInfoBrokerUsed(
       hitIndex: hitIndex,
@@ -1160,6 +1171,7 @@ extension _GameMapSkills on _GameMapScreenState {
     required String playerLabel,
     required double overflowMeters,
     String? reasonSummary,
+    String? subjectUid,
   }) async {
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
@@ -1180,6 +1192,7 @@ extension _GameMapSkills on _GameMapScreenState {
         'playerLabel': playerLabel,
         'overflowMeters': overflowMeters,
         'reasonSummary': ?reasonSummary,
+        'subjectUid': ?subjectUid,
       },
       sessionKey: sk,
     );

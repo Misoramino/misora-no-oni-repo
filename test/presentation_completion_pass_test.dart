@@ -98,6 +98,26 @@ void main() {
           );
         }
       });
+
+      test('${profile.name} scaffold vs panel token split avoids card regression',
+          () {
+        final pack = WorldPresentationCatalog.of(profile);
+        if (!pack.isLightPanel || pack.isLightScaffold) return;
+        // 暗背景＋明パネル（禅京都/マジカル等）では Card 内は textOnPanel 必須。
+        final scaffoldOnPanel = (pack.textOnScaffold.computeLuminance() -
+                pack.panelSurface.computeLuminance())
+            .abs();
+        expect(
+          scaffoldOnPanel,
+          lessThan(0.25),
+          reason:
+              '${profile.name}: textOnScaffold on light panel is low contrast — use WorldPanelThemed',
+        );
+        final panelOnPanel = (pack.textOnPanel.computeLuminance() -
+                pack.panelSurface.computeLuminance())
+            .abs();
+        expect(panelOnPanel, greaterThan(0.25));
+      });
     }
   });
 
@@ -154,7 +174,8 @@ void main() {
 
 /// テスト用に [showMatchPlayabilityHintsIfNeeded] と同じ先頭行を返す。
 List<String> matchPlayabilityHintLinesForTest() => [
-      '通話しながらでもOK。通話を始めたら一度 ONI PIN を開いておくと安定します。',
-      '画面ロック・通話中も近接/捕獲の判定と危機通知は継続し、復帰時に試合中の出来事を反映します（位置情報の許可が必要／iPhoneは「常に」推奨）。',
+      '通話しながらでもOK。先に ONI PIN を起動し、通話アプリはバックグラウンドにすると安定します。',
+      '画面ロック・通話中も近づき・捕獲の判定と危機通知は継続します。復帰時に試合中の出来事を反映します。',
+      '（位置情報の許可が必要です。iPhone は「常に」を推奨）',
       'スキルを使うときだけ、アプリを前面に戻してください。',
     ];

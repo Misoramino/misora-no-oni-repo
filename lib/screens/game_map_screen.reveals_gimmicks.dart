@@ -182,6 +182,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
         playerLabel: playerLabel,
         overflowMeters: overflowMeters,
         reasonSummary: pick.summary,
+        subjectUid: resolvedSubjectUid,
       ),
     );
   }
@@ -237,7 +238,16 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     );
     if (hitIndex == null) return;
     final hit = _rt.safeZonePositions[hitIndex];
-    final nextSafeZone = GimmickRelocator.relocate(
+    _rt.safeZoneAvailable = false;
+    unawaited(_finalizeSafeZonePickup(hitIndex: hitIndex, hit: hit, now: now));
+  }
+
+  Future<void> _finalizeSafeZonePickup({
+    required int hitIndex,
+    required LatLng hit,
+    required DateTime now,
+  }) async {
+    final candidate = GimmickRelocator.relocate(
       area: _playArea,
       avoid: [
         ..._rt.safeZonePositions,
@@ -248,11 +258,15 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       angleSeed: 35 + _rt.elapsedSeconds * 7 + hitIndex * 53,
       radiusFactor: 0.44,
     );
+    final nextSafeZone = await GimmickRelocator.snapCandidateToRoad(
+      candidate: candidate,
+      apiKey: GoogleMapsConfig.apiKey,
+    );
+    if (!mounted || _gameState != GameState.running) return;
     _syncSetState(() {
       _rt.lastSafeChargeAt = now;
       _rt.safeZoneCharges += 1;
       _refreshSkillCooldownsFromSafeZone();
-      _rt.safeZoneAvailable = false;
       _rt.safeZoneRespawnAt = now.add(
         const Duration(seconds: GameConfig.safeZoneRespawnSeconds),
       );
@@ -263,7 +277,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
         from: now,
         localHint: true,
       );
-      _statusMessage = '安全地帯: ステルス獲得 + スキル再使用可能（移動中）';
+      _statusMessage = '安全地帯: チャージ獲得 + スキル再使用可能（移動中）';
     });
     _emitMatchEvent(
       type: 'safe_charge',
@@ -298,6 +312,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     );
     if (hitIndex == null) return;
     final hit = _rt.infoBrokerPositions[hitIndex];
+    _rt.infoBrokerAvailable = false;
     if (isHunter) {
       _applyHunterInfoBroker(hitIndex: hitIndex, hit: hit, now: now);
     } else {
@@ -310,8 +325,8 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     }
   }
 
-  LatLng _relocateInfoBroker(int hitIndex) {
-    return GimmickRelocator.relocate(
+  Future<LatLng> _relocateInfoBroker(int hitIndex) async {
+    final candidate = GimmickRelocator.relocate(
       area: _playArea,
       avoid: [
         ..._rt.safeZonePositions,
@@ -321,6 +336,10 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       ],
       angleSeed: 150 + _rt.elapsedSeconds * 11 + hitIndex * 71,
       radiusFactor: 0.58,
+    );
+    return GimmickRelocator.snapCandidateToRoad(
+      candidate: candidate,
+      apiKey: GoogleMapsConfig.apiKey,
     );
   }
 
@@ -357,6 +376,22 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     required DateTime now,
     required double distanceToOni,
   }) {
+    unawaited(
+      _finalizeRunnerInfoBroker(
+        hitIndex: hitIndex,
+        hit: hit,
+        now: now,
+        distanceToOni: distanceToOni,
+      ),
+    );
+  }
+
+  Future<void> _finalizeRunnerInfoBroker({
+    required int hitIndex,
+    required LatLng hit,
+    required DateTime now,
+    required double distanceToOni,
+  }) async {
     final bearing = Geolocator.bearingBetween(
       _currentPosition.latitude,
       _currentPosition.longitude,
@@ -388,10 +423,10 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
         oniFacingDirection: facing,
       );
     }
-    final nextInfoBroker = _relocateInfoBroker(hitIndex);
+    final nextInfoBroker = await _relocateInfoBroker(hitIndex);
+    if (!mounted || _gameState != GameState.running) return;
     _syncSetState(() {
       _rt.lastInfoBrokerAt = now;
-      _rt.infoBrokerAvailable = false;
       _rt.infoBrokerRespawnAt = now.add(
         const Duration(seconds: GameConfig.infoBrokerRespawnSeconds),
       );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_ui_helpers.dart';
 import '../game/play_area.dart';
 import '../services/play_area_slot_store.dart';
 import '../features/game_map/prep/area_gallery_pick.dart';
@@ -335,7 +336,9 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                                       ],
                                     ),
                                   ),
-                                  PopupMenuButton<String>(
+                                  Theme(
+                                    data: worldPopupMenuTheme(context),
+                                    child: PopupMenuButton<String>(
                                     padding: EdgeInsets.zero,
                                     onSelected: (v) async {
                                       switch (v) {
@@ -380,6 +383,7 @@ class _AreaGalleryScreenState extends State<AreaGalleryScreen> {
                                         ),
                                       ],
                                     ],
+                                  ),
                                   ),
                                 ],
                               ),

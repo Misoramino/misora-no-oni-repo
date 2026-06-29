@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../presentation/world/world_legibility.dart';
+import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_ui_helpers.dart';
 import '../services/match_archive_store.dart';
 import '../session/game_map_prefs.dart';
 import '../session/world_profile_prefs.dart';
@@ -55,7 +57,10 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
+    final profile = context.worldProfile;
+    return WorldScaffoldThemed(
+      profile: profile,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('データ管理'),
         actions: [
@@ -77,7 +82,9 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Card(
+                WorldPanelThemed(
+                  profile: profile,
+                  child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
@@ -119,8 +126,10 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                     ),
                   ),
                 ),
+                ),
               ],
             ),
+    ),
     );
   }
 

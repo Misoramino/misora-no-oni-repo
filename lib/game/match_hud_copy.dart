@@ -6,26 +6,26 @@ abstract final class MatchHudCopy {
   // --- パニック ---
   static const panicExposureStart = '鬼が近くにいます';
   static const panicExposureStartDetail = '離れましょう';
-  static const panicExposureImminent = 'もう少しで近づきすぎ';
-  static const panicExposureImminentDetail = 'このままだと足が止まりやすくなります';
-  static const panicStartedEvent = '近づきすぎ';
+  static const panicExposureImminent = 'あと少しでパニックです';
+  static const panicExposureImminentDetail = 'このままだとパニックになります';
+  static const panicStartedEvent = 'パニック発生';
   static const panicStartedStatus = '落ち着かない状態です。離れると落ち着きます';
   static const panicTraceSnack =
       '${GuideTerms.anonPositionReveal}され、${GuideTerms.anonTrace}が残りました';
   static String panicActiveCountdown(int secondsLeft) =>
       '落ち着くまであと$secondsLeft秒';
   static String panicDangerCountdown(int secondsLeft) =>
-      'あと約$secondsLeft秒で近づきすぎ';
+      'あと約$secondsLeft秒でパニック';
 
   // --- 接触・拘束・捕獲 ---
   static const contactRingEntered = '鬼に近すぎます';
-  static const contactRingEnteredDetail = 'このままだと動きを止められます';
-  static const contactRingCountdownPrefix = '近づきすぎ: あと';
-  static const contactRingCountdownSuffix = '秒で止められる';
-  static const restraintStarted = '動きを止められました';
+  static const contactRingEnteredDetail = 'このままだと拘束されます';
+  static const contactRingCountdownPrefix = '拘束まで あと';
+  static const contactRingCountdownSuffix = '秒';
+  static const restraintStarted = '拘束されました';
   static const restraintStartedDetail = '大きな円の外に出れば助かります';
-  static const restraintLockStatusPrefix = '止められ中: 残り';
-  static const restraintLockStatusSuffix = '秒 / 至近距離または体の接近で捕獲';
+  static const restraintLockStatusPrefix = '拘束中: 残り';
+  static const restraintLockStatusSuffix = '秒 — ごく至近で捕獲の恐れ';
   static const captureSucceeded = '捕獲されました';
   static const captureSucceededDetail = '${GuideTerms.secondGame}に移行します。';
   static const captureSucceededOni = '捕獲成功';
@@ -142,9 +142,9 @@ abstract final class MatchHudCopy {
   static const captureZonePlaced = '捕獲結界を設置';
   static const captureZonePlacedStatus = '捕獲結界を設置しました';
   static const disruptionZonePlaced =
-      '攪乱結界を設置（近づきすぎ・止めのみ・捕獲不可）';
+      '攪乱結界を設置（拘束のみ・捕獲不可）';
   static const captureZoneEnded = '捕獲結界が終了';
-  static const touchRestraintReleased = '止められ状態が解除';
+  static const touchRestraintReleased = '拘束が解除されました';
   static const bodyThrowMissReveal =
       '体投げ未回収 — ${MatchUiTerms.namedReveal}（人形の位置）';
 

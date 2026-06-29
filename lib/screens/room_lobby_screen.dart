@@ -17,7 +17,6 @@ import '../sync/room_phase.dart';
 import '../sync/shared_match_snapshot.dart';
 import '../session/world_profile_prefs.dart';
 import '../presentation/world/world_presentation_catalog.dart';
-import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/widgets/world_scaffold.dart';
 import '../theme/app_theme_factory.dart';
 import '../theme/world_profile.dart';

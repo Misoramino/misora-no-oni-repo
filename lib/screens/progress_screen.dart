@@ -4,6 +4,8 @@ import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../progression/progress_store.dart';
 import '../presentation/world/world_legibility.dart';
+import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_ui_helpers.dart';
 import '../widgets/responsive_page.dart';
 
 /// 累積戦績と称号コレクションを表示する画面。
@@ -39,7 +41,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final unlocked = _progress.unlockedTitleIds;
     final earned = PlayerTitles.all.where((t) => unlocked.contains(t.id)).length;
 
-    return Scaffold(
+    final profile = context.worldProfile;
+    return WorldScaffoldThemed(
+      profile: profile,
+      child: Scaffold(
       appBar: AppBar(title: const Text('戦績・称号')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -47,7 +52,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Card(
+                  WorldPanelThemed(
+                    profile: profile,
+                    child: Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -90,10 +97,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       ),
                     ),
                   ),
+                  ),
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      Text('称号', style: theme.textTheme.titleMedium),
+                      Text('称号', style: theme.textTheme.titleMedium?.copyWith(
+                        color: context.worldBodyOnScaffold,
+                      )),
                       const SizedBox(width: 8),
                       Text(
                         '$earned / ${PlayerTitles.all.length}',
@@ -106,7 +116,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   const SizedBox(height: 8),
                   ...PlayerTitles.all.map((t) {
                     final got = unlocked.contains(t.id);
-                    return Card(
+                    return WorldPanelThemed(
+                      profile: profile,
+                      child: Card(
                       child: ListTile(
                         leading: Icon(
                           got ? t.iconData : Icons.lock_outline_rounded,
@@ -118,9 +130,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           got ? t.label : '???',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: got
-                                ? null
-                                : context.worldMutedOnScaffold,
+                            color: got ? null : context.worldMuted,
                           ),
                         ),
                         subtitle: Text(t.description),
@@ -129,11 +139,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 color: Colors.green.shade600)
                             : null,
                       ),
+                    ),
                     );
                   }),
                 ],
               ),
             ),
+    ),
     );
   }
 }

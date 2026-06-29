@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
 import '../../presentation/world/world_ui_helpers.dart';
 import '../../session/onboarding_prefs.dart';
@@ -18,9 +17,7 @@ Future<void> showOnboardingReplaySheet(
   return showWorldSheet<void>(
     context,
     profile: profile,
-    builder: (ctx) => WorldThemed(
-      profile: profile,
-      child: DraggableScrollableSheet(
+    builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,
         minChildSize: 0.35,
@@ -38,7 +35,6 @@ Future<void> showOnboardingReplaySheet(
                 Text(
                   '基本ルールのスライドと、画面ごとの案内（コーチマーク）を再表示できます。',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.worldMuted,
                     height: 1.4,
                   ),
                 ),
@@ -78,10 +74,9 @@ Future<void> showOnboardingReplaySheet(
                     if (showPrepCoachMarksNow != null && context.mounted) {
                       await showPrepCoachMarksNow();
                     } else if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('準備画面でコーチマークが再表示されます'),
-                        ),
+                      showWorldSnackBar(
+                        context,
+                        message: '準備画面でコーチマークが再表示されます',
                       );
                     }
                   },
@@ -114,10 +109,9 @@ Future<void> showOnboardingReplaySheet(
                     if (showMatchCoachMarksNow != null && context.mounted) {
                       await showMatchCoachMarksNow();
                     } else if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('次の試合開始時にガイドが再表示されます'),
-                        ),
+                      showWorldSnackBar(
+                        context,
+                        message: '次の試合開始時にガイドが再表示されます',
                       );
                     }
                   },
@@ -163,8 +157,9 @@ Future<void> showOnboardingReplaySheet(
                     await OnboardingPrefs.resetAll();
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('初回ガイドをリセットしました')),
+                      showWorldSnackBar(
+                        context,
+                        message: '初回ガイドをリセットしました',
                       );
                     }
                   },
@@ -176,6 +171,5 @@ Future<void> showOnboardingReplaySheet(
           );
         },
       ),
-    ),
   );
 }

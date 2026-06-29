@@ -210,6 +210,13 @@ abstract final class SkillReference {
                 '鬼の至近接触による拘束（接触圏）とは別物です。'
                 'スキル結界は地図に置く円で、持続は約${GameConfig.captureZoneDurationSeconds}秒です。',
           ),
+          (
+            title: '接触拘束のあとに使う',
+            body:
+                '接触拘束が時間切れで解けた直後でも、捕獲結界を設置して拘束し直せます。'
+                '結界の拘束中は、ごく至近まで迫れば捕獲できます（接触圏の約4秒は不要）。'
+                '結界なしで至近だけでは捕獲になりません。',
+          ),
         ],
       );
 
@@ -228,18 +235,18 @@ abstract final class SkillReference {
         effect:
             '鬼化中は鬼のように追跡・拘束できます。'
             '人陣営＋鬼化は捕獲可、鬼陣営＋鬼化は${GuideTerms.panic}・拘束のみ（捕獲結界も攪乱タイプ）。',
-        operation: 'ボタン1回で即切替。長く放置すると強制で反対の姿に（通知なし）。',
+        operation: 'ボタン1回で即切替。長く放置すると自動で反対の姿に（通知なし）。',
         whenToUse:
             '陣営（${GuideTerms.humanFaction}/${GuideTerms.oniFaction}）に応じて立ち回るとき。'
             '人数比で陣営が決まり、同数なら${GuideTerms.humanFaction}。',
         risks:
-            '任意切替の再使用待ち＝強制間隔÷3（HUDの「切替可能まで」）。'
-            '強制切替の直後は「切替可能まで」がやや長くなります。'
+            '任意切替の再使用待ち＝自動切替間隔÷3（HUDの「切替可能まで」）。'
+            '自動切替の直後は「切替可能まで」がやや長くなります。'
             '「自動切替」と「切替可能まで」は別タイマーです。告発不可。',
         specRows: const [
           GuideSpecRow('自動切替まで', '前回切替から min(15分, 試合÷2)'),
-          GuideSpecRow('任意切替の再使用', '強制間隔÷3'),
-          GuideSpecRow('強制直後の再使用', '任意の再使用 + その半分'),
+          GuideSpecRow('任意切替の再使用', '自動切替間隔÷3'),
+          GuideSpecRow('自動切替直後の再使用', '任意の再使用 + その半分'),
           GuideSpecRow('人陣営＋鬼化', '捕獲可'),
           GuideSpecRow('鬼陣営＋鬼化', '${GuideTerms.panic}・拘束のみ'),
         ],
@@ -251,7 +258,7 @@ abstract final class SkillReference {
                 '「切替可能まで」＝ボタンで任意に切り替えられるまでの秒数。別表示です。',
           ),
           (
-            title: '強制切替',
+            title: '自動切替',
             body:
                 '前回の切替から一定時間、任意に切り替えないと反対の姿になります（プッシュ通知なし）。'
                 '任意に切り替えた場合もタイマーはリセットされます。',

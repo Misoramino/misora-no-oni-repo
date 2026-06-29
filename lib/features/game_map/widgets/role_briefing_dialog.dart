@@ -269,7 +269,7 @@ Widget roleBriefingBlock(
         ),
       if (briefing.notes.isNotEmpty) ...[
         const SizedBox(height: 6),
-        Text('Tips', style: theme.textTheme.labelMedium),
+        Text('ヒント', style: theme.textTheme.labelMedium),
         for (final n in briefing.notes)
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 2),

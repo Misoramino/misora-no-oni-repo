@@ -15,6 +15,7 @@ import '../audio/sfx_id.dart';
 import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_legibility.dart';
 import '../presentation/world/world_presentation_context.dart';
+import '../presentation/world/world_ui_helpers.dart';
 import '../progression/player_progress.dart';
 import '../progression/player_title.dart';
 import '../progression/progress_store.dart';
@@ -263,7 +264,21 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   MatchRuntimeState get _rt => _matchCtrl.runtime;
 
+  String? get _effectiveMapStyleJson =>
+      _transientMapStyleJson ?? _mapVisual.mapStyleJson;
+
+  Future<void> _applyTransientMapStyle(String? style) async {
+    if (!mounted) return;
+    final restore = style == null || style == _mapVisual.mapStyleJson;
+    setState(() {
+      _transientMapStyleJson = restore ? null : style;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
   GoogleMapController? _mapController;
+  /// オービットシネマ等で一時的に [GoogleMap.style] を差し替える。
+  String? _transientMapStyleJson;
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<ProximitySignal>? _proximitySubscription;
   Timer? _matchTimer;
@@ -2055,10 +2070,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   void _showRevealLog() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
+    showWorldSheet<void>(
+      context,
       builder: (ctx) {
         final h = (MediaQuery.sizeOf(ctx).height * 0.65).clamp(280.0, 560.0);
         final theme = Theme.of(ctx);
@@ -2074,7 +2087,7 @@ class _GameMapScreenState extends State<GameMapScreen>
               Text(
                 'ローカル保存・最大50件',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: ctx.worldMuted,
+                  color: ctx.worldMutedOnScaffold,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2103,9 +2116,8 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   void _openCombinedIntelRevealLogSheet() {
     final tab = ValueNotifier(0);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
+    showWorldSheet<void>(
+      context,
       builder: (ctx) {
         final theme = Theme.of(ctx);
         final h = (MediaQuery.sizeOf(ctx).height * 0.52).clamp(300.0, 540.0);
@@ -2851,9 +2863,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     final locallyEliminated =
         _gameState == GameState.caughtByOni && _afterCatchRule != null;
     if (_gameState != GameState.running && !locallyEliminated) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
+    await showWorldSheet<void>(
+      context,
       builder: (ctx) {
         var showIntel = _hudShowIntelLine;
         var showStatus = _hudShowStatusLine;
@@ -2946,7 +2957,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                     Text(
                       'ズームで見え方が変わるルールはそのまま。基準サイズだけ調整します。',
                       style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                            color: ctx.worldMuted,
+                            color: ctx.worldMutedOnScaffold,
                           ),
                     ),
                     SwitchListTile(
@@ -2972,7 +2983,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                         compactSlot.label,
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                               color:
-                                  ctx.worldMuted,
+                                  ctx.worldMutedOnScaffold,
                             ),
                       ),
                       children: [
@@ -2981,7 +2992,7 @@ class _GameMapScreenState extends State<GameMapScreen>
                           child: Text(
                             'タイマー背景でエリア内外は分かります。「すべて」は有効な情報を続けてスクロールします。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                  color: ctx.worldMuted,
+                                  color: ctx.worldMutedOnScaffold,
                                 ),
                           ),
                         ),

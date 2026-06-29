@@ -344,8 +344,9 @@ final _combatSection = GuideSectionData(
       oneLine: '①パニック ②止められる ③捕まる',
       body:
           '① やや遠い円：長くいると${GuideTerms.panic}（脱落しない・痕跡が出やすい）\n'
-          '② 近い円：しばらくいると動きを止められる\n'
-          '③ ごく近い：止められ中に鬼が来ると捕獲',
+          '② 近い円：しばらくいると拘束される\n'
+          '③ ごく近い：拘束中に鬼が来ると捕獲\n'
+          '④ 捕獲結界：接触拘束が解けたあとも設置で拘束し直せる。結界中はごく至近で捕獲可能',
     ),
     _card(
       id: 'panic',
@@ -379,12 +380,13 @@ final _combatSection = GuideSectionData(
       id: 'capture',
       title: '捕獲',
       icon: Icons.front_hand,
-      oneLine: '至近まで来られると脱落。',
+      oneLine: 'ごく至近まで来られると脱落。',
       body: '捕獲後も${GuideTerms.secondGame}で関われます。',
       details: [
         _detail(
           title: '数値を見る',
-          body: '直接捕獲の目安はGPS約12m。BLE接触はより強い接近情報として扱われます。',
+          body: '直接捕獲の目安はGPS約12m。BLE接触はより強い接近情報として扱われます。'
+              '拘束中（接触拘束・捕獲結界のどちらでも）に有効です。',
           specCardId: 'spec_capture',
         ),
       ],
@@ -825,20 +827,21 @@ final _onlineSection = GuideSectionData(
   sectionDiagram: const GuideDiagramData(
     type: GuideDiagramType.onlineMatch,
     title: '通話しながら遊ぶ',
-    caption: '近接判定は背面でも／スキル操作は前面',
+    caption: 'ONI PIN先起動・通話はバックグラウンド推奨',
   ),
   cards: [
     _card(
       id: 'call_play',
       title: '通話しながら遊ぶ',
       icon: Icons.phone_in_talk_outlined,
-      oneLine: 'Discord / LINE 通話はそのまま。スキルだけ前面に。',
-      body: 'ゲーム内通話はありません。通話アプリを前面にしたままでも、'
-          '位置情報の許可があれば近接・捕獲・パニックの判定と危機通知は継続します。'
-          'スキルや告発の操作は ONI PIN を前面に戻してから行ってください。',
+      oneLine: '通話しながらOK。ONI PINを先に起動し、通話はバックグラウンド推奨。',
+      body: 'ゲーム内の通話機能はありません。Discord や LINE などの通話アプリと併用して遊びます。'
+          '先に ONI PIN を起動し、通話アプリはバックグラウンドにすると安定します。'
+          '画面ロックや通話中でも近づき・捕獲の判定と危機通知は続きます。'
+          'スキルや告発の操作だけ、ONI PIN を前面に戻してください。',
       bullets: const [
-        '試合前に一度 ONI PIN を開いて位置・通知の許可を確認',
-        'iPhone は位置情報「常に」を推奨（ロック中も判定が安定）',
+        '試合前に ONI PIN で位置・通知の許可を確認',
+        '通話アプリはバックグラウンドにすると安定（iPhone は位置「常に」推奨）',
         '復帰時に通話中の出来事（捕獲・暴露など）をまとめて反映',
       ],
     ),
@@ -914,6 +917,10 @@ final _specSection = GuideSectionData(
         const GuideSpecRow('円外猶予', '約10秒'),
         const GuideSpecRow('直接捕獲', 'GPS 約12m'),
         const GuideSpecRow('BLE接触', '強い接近情報として扱う'),
+        const GuideSpecRow(
+          '捕獲結界との連携',
+          '接触拘束解除後も結界で拘束し直し可。結界中は至近で捕獲可',
+        ),
       ],
     ),
     _specCard(

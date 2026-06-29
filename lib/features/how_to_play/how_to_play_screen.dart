@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../game/player_role.dart';
 import 'widgets/how_to_play_guide_body.dart';
@@ -47,12 +48,15 @@ class _HowToPlayScreenState extends State<HowToPlayScreen> {
       appBar: AppBar(
         title: const Text('遊び方'),
       ),
-      body: HowToPlayGuideBody(
-        scrollController: _scrollController,
-        yourRole: widget.yourRole,
-        initialSectionId: widget.initialSectionId,
-        initialSpecCardId: widget.initialSpecCardId,
-        initialGuideCardId: widget.initialGuideCardId,
+      body: WorldScaffoldThemed(
+        profile: profile,
+        child: HowToPlayGuideBody(
+          scrollController: _scrollController,
+          yourRole: widget.yourRole,
+          initialSectionId: widget.initialSectionId,
+          initialSpecCardId: widget.initialSpecCardId,
+          initialGuideCardId: widget.initialGuideCardId,
+        ),
       ),
     );
   }

@@ -185,7 +185,7 @@ extension _GameMapOverlay on _GameMapScreenState {
     return GameMapInteractiveLayer(
       key: const ValueKey('game_map_interactive_layer'),
       overlayListenable: _mapOverlayNotifier,
-      mapStyleJson: _mapVisual.mapStyleJson,
+      mapStyleJson: _effectiveMapStyleJson,
       initialCameraTarget: _currentPosition,
       onMapCreated: _onMapCreated,
       onTap: _onMapTap,

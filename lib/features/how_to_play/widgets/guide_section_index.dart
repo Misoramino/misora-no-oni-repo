@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
 import '../guide_models.dart';
 
 /// 章一覧（タップで該当章を展開）。
@@ -28,6 +29,7 @@ class GuideSectionIndex extends StatelessWidget {
           prompt,
           style: theme.textTheme.labelLarge?.copyWith(
             fontWeight: FontWeight.w600,
+            color: context.worldBodyOnScaffold,
           ),
         ),
         if (footer != null) ...[
@@ -35,7 +37,7 @@ class GuideSectionIndex extends StatelessWidget {
           Text(
             footer!,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: context.worldMuted,
+              color: context.worldMutedOnScaffold,
             ),
           ),
         ],
@@ -46,8 +48,13 @@ class GuideSectionIndex extends StatelessWidget {
           children: [
             for (final s in sections)
               ActionChip(
-                avatar: Icon(s.icon, size: 16),
-                label: Text(s.title),
+                avatar: Icon(s.icon, size: 16, color: context.worldBody),
+                label: Text(
+                  s.title,
+                  style: TextStyle(color: context.worldBody),
+                ),
+                backgroundColor: context.worldPanelBg,
+                side: BorderSide(color: context.worldPresentation.panelBorder),
                 visualDensity: VisualDensity.compact,
                 onPressed: () => onSectionTap(s.id),
               ),

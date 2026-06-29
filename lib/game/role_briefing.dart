@@ -115,7 +115,7 @@ abstract final class RoleBriefingCatalog {
       mustKnow: [
         factionLine,
         '「人化」「鬼化」で姿を切り替え。HUDに「自動切替」と「切替可能まで」が別表示。',
-        '強制切替の直後は「切替可能まで」がやや長くなります。告発はできません。',
+        '自動切替の直後は「切替可能まで」がやや長くなります。告発はできません。',
         faction == null
             ? 'いまの陣営は HUD で確認できます。'
             : '脱落後の第二ゲームもこの陣営で固定です。',
@@ -177,7 +177,7 @@ abstract final class RoleBriefingCatalog {
     actions: [
       '${GuideTerms.humanFaction}: 鬼化で逃走者を捕獲できる',
       '${GuideTerms.oniFaction}: 鬼化は追跡・拘束向き（捕獲不可・攪乱）',
-      '「人化」「鬼化」で姿を切り替え（自動切替／切替可能までは別表示）',
+      '「人化」「鬼化」で姿を切り替え。「自動切替」と「切替可能まで」は別表示',
       '告発はできない',
     ],
     notes: [

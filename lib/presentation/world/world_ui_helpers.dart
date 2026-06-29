@@ -57,7 +57,7 @@ class WorldThemed extends StatelessWidget {
 /// 「スキャフォールド地（グラデーション背景）」に内容を直接置くシート・
 /// 全画面向けのテーマ。既定文字色をスキャフォールド向けに上書きし、
 /// 明パネル＋暗背景の世界観（マジカル/禅京都など）でも文字が読めるように
-/// する。カード等のパネル要素は各自 textOnPanel を明示すること。
+/// する。カード等のパネル要素は [WorldPanelThemed] か textOnPanel を明示すること。
 class WorldScaffoldThemed extends StatelessWidget {
   const WorldScaffoldThemed({
     required this.profile,
@@ -90,6 +90,22 @@ class WorldScaffoldThemed extends StatelessWidget {
   }
 }
 
+/// Card / ExpansionTile 等・明るいパネル面に載せる子向け。
+/// 親が [WorldScaffoldThemed] でもパネル用の既定文字色に戻す。
+class WorldPanelThemed extends StatelessWidget {
+  const WorldPanelThemed({
+    required this.profile,
+    required this.child,
+    super.key,
+  });
+
+  final WorldProfile profile;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => WorldThemed(profile: profile, child: child);
+}
+
 /// 世界観別ボトムシート（グラデーション枠）。
 Future<T?> showWorldSheet<T>(
   BuildContext context, {
@@ -115,7 +131,34 @@ Future<T?> showWorldSheet<T>(
         ),
         border: Border.all(color: pack.panelBorder),
       ),
-      child: builder(ctx),
+      child: WorldScaffoldThemed(
+        profile: p,
+        child: builder(ctx),
+      ),
+    ),
+  );
+}
+
+/// 三点メニュー等：常に明るい面＋暗色文字（世界観に依存しない）。
+ThemeData worldPopupMenuTheme(BuildContext context) {
+  final base = Theme.of(context);
+  const popupSurface = Color(0xFFFAFAFA);
+  const popupOnSurface = Color(0xFF1A1A1A);
+  const popupOnSurfaceVariant = Color(0xFF5A5A5A);
+  return base.copyWith(
+    listTileTheme: base.listTileTheme.copyWith(
+      iconColor: popupOnSurface,
+      textColor: popupOnSurface,
+      subtitleTextStyle: base.textTheme.bodySmall?.copyWith(
+        color: popupOnSurfaceVariant,
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: popupSurface,
+      surfaceTintColor: Colors.transparent,
+      textStyle: base.textTheme.bodyMedium?.copyWith(
+        color: popupOnSurface,
+      ),
     ),
   );
 }

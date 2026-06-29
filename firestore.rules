@@ -259,7 +259,7 @@ service cloud.firestore {
     }
 
     // ─── Match archives (Replay upload / Gallery download) ────────────
-    function validMatchArchiveWrite(roomId) {
+    function validMatchArchiveWrite(roomId, archiveId) {
       let d = request.resource.data;
       return isRoomParticipant(roomId)
         && d.keys().hasAll(['kind', 'sessionKey', 'uploadedByUid'])
@@ -276,7 +276,7 @@ service cloud.firestore {
 
     match /rooms/{roomId}/matchArchives/{archiveId} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && validMatchArchiveWrite(roomId);
+      allow create, update: if signedIn() && validMatchArchiveWrite(roomId, archiveId);
       allow delete: if false;
     }
   }

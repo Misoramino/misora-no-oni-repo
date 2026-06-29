@@ -60,7 +60,7 @@ class LobbyRulesSummaryCard extends StatelessWidget {
             Text(
               '告発の重み・制限時間などの詳細は、ゲーム画面の「準備」でホスト設定を確認できます。',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.outline,
+                color: context.worldMuted,
                 height: 1.35,
               ),
             ),

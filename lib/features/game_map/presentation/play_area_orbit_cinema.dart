@@ -24,6 +24,7 @@ Future<void> runPlayAreaOrbitCinema({
   required String? mapStyleJson,
   required WorldProfileTokens tokens,
   GoogleMapController? mapController,
+  Future<void> Function(String? style)? onApplyMapStyle,
 }) async {
   if (!context.mounted) return;
 
@@ -34,6 +35,7 @@ Future<void> runPlayAreaOrbitCinema({
       area: area,
       profile: profile,
       mapStyleJson: mapStyleJson,
+      onApplyMapStyle: onApplyMapStyle,
     );
     return;
   }
@@ -60,6 +62,7 @@ Future<void> _orbitOnController({
   required PlayArea area,
   required WorldProfile profile,
   required String? mapStyleJson,
+  Future<void> Function(String? style)? onApplyMapStyle,
 }) async {
   final branding = WorldLaunchBranding.of(profile);
   final overlay = Overlay.of(context);
@@ -83,16 +86,12 @@ Future<void> _orbitOnController({
   final labelsHidden = MapStyleLoader.withLabelsHidden(mapStyleJson);
   try {
     if (labelsHidden != null) {
-      try {
-        await controller.setMapStyle(labelsHidden);
-      } catch (_) {}
+      await onApplyMapStyle?.call(labelsHidden);
     }
     await _playOrbitSequence(controller, area, profile);
   } finally {
     if (mapStyleJson != null) {
-      try {
-        await controller.setMapStyle(mapStyleJson);
-      } catch (_) {}
+      await onApplyMapStyle?.call(mapStyleJson);
     }
     entry.remove();
     blockEntry.remove();

@@ -249,6 +249,8 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final label = ev.payload['playerLabel'] as String? ?? 'player1';
     final overflow = (ev.payload['overflowMeters'] as num?)?.toDouble() ?? 0;
     final reasonSummary = ev.payload['reasonSummary'] as String? ?? '通信混線';
+    final subjectUid =
+        ev.payload['subjectUid'] as String? ?? ev.actorUid;
     if (!mounted) return;
     _syncSetState(() {
       _rt.revealCount += 1;
@@ -261,7 +263,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
           overflowMeters: overflow,
           playerLabel: label,
           reasonSummary: reasonSummary,
-          subjectUid: ev.actorUid,
+          subjectUid: subjectUid,
         ),
       );
       if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
@@ -377,6 +379,8 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       nextPosition: LatLng(nextLat, nextLng),
     );
 
+    unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
+
     if (myUid != targetUid) return;
 
     const pick = RevealReasonPick.exactLocation;
@@ -392,6 +396,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       playerLabel: _localPlayerLabel,
       pick: pick,
       syncLocalEventType: 'oni_info_broker',
+      subjectUid: targetUid,
     );
     _remoteRevealFeedback(heavy: true);
   }

@@ -329,7 +329,7 @@ abstract final class TutorialCopyCatalog {
     TutorialStepCopy(
       text:
           '「鬼化」で見た目を鬼に近づけられます（ボタン1回）。\n'
-          '陣営によって捕獲できるかが変わります。長く放置すると強制切替もあります。\n'
+          '陣営によって捕獲できるかが変わります。長く放置すると自動切替もあります。\n'
           '下のボタンを試しましょう。',
       interaction: TutorialStepInteraction.skillInstant,
       guideSectionId: 'skills',

@@ -4,7 +4,6 @@ import '../../../audio/sfx_id.dart';
 import '../../../features/how_to_play/guide_terms.dart';
 import '../../../game/accusation_weight.dart';
 import '../../../presentation/world/world_legibility.dart';
-import '../../../presentation/world/world_presentation_context.dart';
 import '../../../presentation/world/world_ui_helpers.dart';
 import '../../../theme/accusation_facility_copy.dart';
 import '../../../widgets/app_dialog.dart';
@@ -24,10 +23,7 @@ Future<String?> showAccusationPlayerSheet({
   return showWorldSheet<String>(
     context,
     builder: (ctx) {
-      final profile = context.worldProfile;
-      return WorldThemed(
-        profile: profile,
-        child: DraggableScrollableSheet(
+      return DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.55,
           minChildSize: 0.35,
@@ -87,8 +83,7 @@ Future<String?> showAccusationPlayerSheet({
               ),
             );
           },
-        ),
-      );
+        );
     },
   );
 }

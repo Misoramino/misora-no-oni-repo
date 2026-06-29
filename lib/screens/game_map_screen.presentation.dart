@@ -196,6 +196,7 @@ extension _GameMapPresentation on _GameMapScreenState {
         mapStyleJson: _mapVisual.mapStyleJson,
         tokens: _mapVisual.pack.tokens,
         mapController: mapController,
+        onApplyMapStyle: _applyTransientMapStyle,
       );
       if (!mounted) return;
     }

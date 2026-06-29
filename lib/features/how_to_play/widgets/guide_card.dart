@@ -42,6 +42,7 @@ class GuideCard extends StatelessWidget {
                         data.title,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
+                          color: context.worldBody,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -69,7 +70,10 @@ class GuideCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 GuideText.forDisplay(data.body),
-                style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  height: 1.55,
+                  color: context.worldBody,
+                ),
               ),
             ],
             if (data.bullets.isNotEmpty) ...[

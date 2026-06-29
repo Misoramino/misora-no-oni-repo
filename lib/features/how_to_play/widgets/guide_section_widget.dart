@@ -57,6 +57,7 @@ class GuideSectionWidget extends StatelessWidget {
                           section.title,
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
+                            color: context.worldBody,
                           ),
                         ),
                         const SizedBox(height: 4),

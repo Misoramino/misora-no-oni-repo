@@ -13,6 +13,8 @@ import '../../../game/skill_ids.dart';
 import '../../../session/game_map_prefs.dart';
 import '../../../sync/firebase_bootstrap.dart';
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import 'game_custom_settings_models.dart';
 
 Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
@@ -38,10 +40,10 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
   var firebaseWarmScheduled = false;
 
   bool? ok;
-  ok = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
+  final profile = context.worldProfile;
+  ok = await showWorldSheet<bool>(
+      context,
+      profile: profile,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -58,7 +60,9 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                 );
               });
             }
-            return Padding(
+            return SafeArea(
+              top: false,
+              child: Padding(
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
@@ -80,7 +84,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                           child: Text(
                             'ホストが編集。開放中は一部変更できます。',
                             style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                              color: ctx.worldMuted,
+                              color: ctx.worldMutedOnScaffold,
                             ),
                           ),
                         )
@@ -397,6 +401,7 @@ Future<GameCustomSettingsResult?> showGameCustomSettingsSheet({
                   ),
                 ),
               ),
+            ),
             );
           },
         );
@@ -453,7 +458,10 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final profile = context.worldProfile;
+    return WorldPanelThemed(
+      profile: profile,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
@@ -462,6 +470,7 @@ class _SettingsSection extends StatelessWidget {
         childrenPadding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
         children: children,
       ),
+    ),
     );
   }
 }

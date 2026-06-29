@@ -62,3 +62,37 @@ flutter run -d <device> ^
 ---
 
 関連: [HANDBOOK.md](./HANDBOOK.md)（引き継ぎ入口） · [CHANGE_MAP.md](./CHANGE_MAP.md)（変更とテストの対応）
+
+## リリース手順（バージョン上げ時）
+
+`pubspec.yaml` の `version:`（例 `3.1.0+4`）と `lib/app_version.dart` の `label` / `buildNumber` を**必ず同じ値**に揃える。iOS の `CFBundleShortVersionString` / `CFBundleVersion` は Flutter ビルド時に pubspec から入る。
+
+### 毎回やること
+
+1. `flutter pub get`
+2. `flutter analyze`
+3. `flutter test`
+4. 実機 QA（[DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)）
+
+### コード変更がないドキュメント／文言リリース（例 3.1.0）
+
+- **Firestore ルール deploy は不要**（`firestore.rules` を触っていない限り）。
+- 3.0.0 以降一度も deploy していない環境だけ `firebase deploy --only firestore:rules`。
+
+### ルールやスキーマを変えたリリース
+
+- `firestore.rules` / インデックスを変更したら **必ず** deploy。
+- 新しい Firestore パスを使う機能は、ルール未 deploy だと本番で permission-denied になる。
+
+### GitHub Actions（手動ワークフロー）
+
+- push だけでは Android / iOS ビルドは走らない（`workflow_dispatch` のみ）。
+- 手動ビルド時はリポジトリ secret **`GOOGLE_MAPS_API_KEY`** が必要。
+- iOS IPA を配布するたびに **ビルド番号（`+` 以降）を増やす**。同番号の再インストールは端末によって失敗しやすい。
+
+### 手元に置くファイル（コミットしない）
+
+- `android/app/google-services.json`
+- `ios/Runner/GoogleService-Info.plist`
+
+別プロジェクトの plist / json だと別 Firebase に繋がる。push 前に誤コミットしていないか `git status` で確認する。

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
 import '../../audio/sfx_id.dart';
@@ -60,7 +61,7 @@ const _pages = <_WelcomePage>[
     lines: [
       'ホストが決めたエリア（公園・商店街など）が舞台',
       '手がかり・距離感・スキルで追いかけっこ',
-      'Discord・LINEなどの通話アプリと一緒に遊べます',
+      'Discord・LINEなどで通話しながら遊べます（先に ONI PIN を起動すると安定）',
     ],
   ),
   _WelcomePage(
@@ -127,13 +128,18 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
 
     return WorldScaffold(
       profile: profile,
-      body: SafeArea(
+      body: WorldScaffoldThemed(
+        profile: profile,
+        child: SafeArea(
         child: Column(
           children: [
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _finish(WelcomeResult.skipped),
+                style: TextButton.styleFrom(
+                  foregroundColor: context.worldAccentReadable,
+                ),
                 child: const Text('スキップ'),
               ),
             ),
@@ -153,7 +159,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
                     'まずは、どんなゲームかをざっくり紹介します',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.worldMuted,
+                      color: context.worldMutedOnScaffold,
                       height: 1.35,
                     ),
                   ),
@@ -214,6 +220,7 @@ class _WelcomeFlowState extends State<_WelcomeFlow> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -254,6 +261,7 @@ class _WelcomeCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
+              color: context.worldBodyOnScaffold,
             ),
           ),
           const SizedBox(height: 18),

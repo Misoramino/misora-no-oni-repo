@@ -18,9 +18,7 @@ Future<void> showGuideHubSheet(
   return showWorldSheet<void>(
     context,
     profile: profile,
-    builder: (ctx) => WorldScaffoldThemed(
-      profile: profile,
-      child: SafeArea(
+    builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
           child: Column(
@@ -80,6 +78,5 @@ Future<void> showGuideHubSheet(
           ),
         ),
       ),
-    ),
   );
 }
