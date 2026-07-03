@@ -97,12 +97,13 @@ class _PresetTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pack = WorldPresentationCatalog.of(context.worldProfile);
+    final panelBg = pack.panelOnScaffold;
     return JuicyTap(
       onTap: onTap,
       sfx: SfxId.uiTap,
       child: Material(
         elevation: 0,
-        color: pack.panelOnScaffold,
+        color: panelBg,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -136,7 +137,7 @@ class _PresetTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: pack.accentOnScaffold),
+                Icon(Icons.chevron_right, color: pack.accentOn(panelBg)),
               ],
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../presentation/world/world_legibility.dart';
 
 
 
@@ -95,6 +96,7 @@ class PrepPlayAreaHub extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     final leg = prepLegibility ?? MapHudContrast.prepLegibility(scheme, worldProfile);
+    final tileBg = leg.tileSurface;
 
 
 
@@ -124,7 +126,9 @@ class PrepPlayAreaHub extends StatelessWidget {
 
           playAreaSummary,
 
-          style: theme.textTheme.bodySmall?.copyWith(color: leg.body),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: context.worldTextOn(tileBg),
+          ),
 
         ),
 
@@ -136,7 +140,9 @@ class PrepPlayAreaHub extends StatelessWidget {
 
             '選択: $selectedSlotName',
 
-            style: theme.textTheme.labelSmall?.copyWith(color: leg.muted),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: context.worldMutedOn(tileBg),
+            ),
 
           ),
 
@@ -238,7 +244,9 @@ class PrepPlayAreaHub extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '保存したエリアはこの端末のみ。試合に使う形はホストが決めます。',
-            style: theme.textTheme.labelSmall?.copyWith(color: leg.muted),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: context.worldMutedOn(tileBg),
+            ),
           ),
           if (selectedSlotName != null && onProposeToHost != null) ...[
             const SizedBox(height: 8),
@@ -310,6 +318,7 @@ class _HubActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
 
     final theme = Theme.of(context);
+    final tileBg = leg.tileSurface;
 
 
 
@@ -339,7 +348,9 @@ class _HubActionTile extends StatelessWidget {
 
                 size: 26,
 
-                color: enabled ? leg.tileIcon : leg.muted.withValues(alpha: 0.5),
+                color: enabled
+                    ? leg.tileIcon
+                    : context.worldMutedOn(tileBg).withValues(alpha: 0.5),
 
               ),
 
@@ -353,7 +364,7 @@ class _HubActionTile extends StatelessWidget {
 
                 style: theme.textTheme.labelMedium?.copyWith(
 
-                  color: enabled ? leg.tileValue : leg.muted,
+                  color: enabled ? leg.tileValue : context.worldMutedOn(tileBg),
 
                   fontWeight: FontWeight.w600,
 

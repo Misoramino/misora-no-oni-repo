@@ -219,6 +219,18 @@ class WorldPresentationPack {
   /// スキャフォールド上の見出し・アクセント文字色。
   Color get accentOnScaffold => readableOnScaffold(accent);
 
+  /// 任意の背景色上で読めるアクセント色。
+  ///
+  /// 世界観の accent 自体が薄い場合（禅京都・マジカル・ロイヤル等）は、
+  /// そのままだと明るいパネル上で埋もれるため本文色へフォールバックする。
+  Color accentOn(Color background) {
+    final candidate = accent;
+    final contrast =
+        (candidate.computeLuminance() - background.computeLuminance()).abs();
+    if (contrast > 0.24) return candidate;
+    return textOn(background);
+  }
+
   /// 任意の背景色の上で読める本文色（明度から自動判定）。
   Color textOn(Color background) {
     if (background.computeLuminance() > 0.52) return const Color(0xFF1A1A2E);

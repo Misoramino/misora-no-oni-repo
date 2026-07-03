@@ -55,7 +55,10 @@ class PrepPlayAreaCollapsedPreview extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: leg?.muted ?? context.worldMutedOnScaffold,
+                  color: leg?.tileTitle ??
+                      context.worldMutedOn(
+                        leg?.tileSurface ?? theme.colorScheme.surface,
+                      ),
                   height: 1.25,
                 ),
               ),

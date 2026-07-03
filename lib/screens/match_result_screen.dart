@@ -429,73 +429,84 @@ class _MatchResultScreenState extends State<MatchResultScreen>
               if (widget.contextualHint != null &&
                   widget.contextualHint!.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Card(
-                  color: Color.alphaBlend(
-                    pack.accent.withValues(alpha: 0.12),
-                    pack.panelSurface,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.tips_and_updates_outlined,
-                          color: pack.accentOnScaffold,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            widget.contextualHint!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              height: 1.4,
-                              color: pack.textOnPanel,
+                Builder(
+                  builder: (context) {
+                    final hintBg = Color.alphaBlend(
+                      pack.accent.withValues(alpha: 0.12),
+                      pack.panelSurface,
+                    );
+                    final hintAccent = pack.accentOn(hintBg);
+                    return Card(
+                      color: hintBg,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.tips_and_updates_outlined,
+                              color: hintAccent,
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                widget.contextualHint!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  height: 1.4,
+                                  color: pack.textOnPanel,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ],
               if (outcome == GameState.caughtByOni &&
                   widget.afterCatchRule != null) ...[
                 const SizedBox(height: 12),
-                Card(
-                  color: pack.panelSurface,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                Builder(
+                  builder: (context) {
+                    final panelAccent = pack.accentOn(pack.panelSurface);
+                    return Card(
+                      color: pack.panelSurface,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.visibility_outlined,
-                              color: pack.accentOnScaffold,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.visibility_outlined,
+                                  color: panelAccent,
+                                ),
+                                const SizedBox(width: 8),
+                                Text('第二ゲーム',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      color: pack.textOnPanel,
+                                    )),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text('第二ゲーム',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: pack.textOnPanel,
-                                )),
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.afterCatchRule!.label,
+                              style: TextStyle(color: pack.textOnPanel),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _afterCatchBlurb(widget.afterCatchRule!),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: pack.mutedOnPanel,
+                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.afterCatchRule!.label,
-                          style: TextStyle(color: pack.textOnPanel),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _afterCatchBlurb(widget.afterCatchRule!),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: pack.mutedOnPanel,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ],
               const SizedBox(height: 24),
@@ -687,13 +698,15 @@ class _NewTitlesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pack = context.worldPresentation;
+    final accentBg = Color.alphaBlend(
+      pack.accent.withValues(alpha: 0.16),
+      pack.panelSurface,
+    );
+    final panelAccent = pack.accentOn(accentBg);
     return WorldPanelThemed(
       profile: context.worldProfile,
       child: Card(
-      color: Color.alphaBlend(
-        pack.accent.withValues(alpha: 0.16),
-        pack.panelSurface,
-      ),
+      color: accentBg,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -702,7 +715,7 @@ class _NewTitlesCard extends StatelessWidget {
             Row(
               children: [
                 Icon(Icons.workspace_premium_rounded,
-                    color: pack.accentOnScaffold),
+                    color: panelAccent),
                 const SizedBox(width: 8),
                 Text(
                   '称号を獲得！',
@@ -722,7 +735,7 @@ class _NewTitlesCard extends StatelessWidget {
                     Icon(
                       t.iconData,
                       size: 20,
-                      color: pack.accentOnScaffold,
+                      color: panelAccent,
                     ),
                     const SizedBox(width: 8),
                     Text(

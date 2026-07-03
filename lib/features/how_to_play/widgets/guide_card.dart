@@ -24,6 +24,7 @@ class GuideCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final profile = context.worldProfile;
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     return WorldPanelThemed(
       profile: profile,
       child: Card(
@@ -37,7 +38,7 @@ class GuideCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(data.icon, size: 20, color: context.worldAccentReadable),
+                Icon(data.icon, size: 20, color: panelAccent),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -54,7 +55,7 @@ class GuideCard extends StatelessWidget {
                       Text(
                         GuideText.forDisplay(data.oneLine),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: context.worldAccentReadable,
+                          color: panelAccent,
                           fontWeight: FontWeight.w600,
                           height: 1.35,
                         ),

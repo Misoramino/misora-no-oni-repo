@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../../../theme/map_hud_contrast.dart';
 import '../../../theme/world_profile.dart';
 import '../../../theme/world_profile_tokens.dart';
@@ -124,6 +125,10 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final leg = MapHudContrast.prepLegibility(scheme, widget.worldVisualProfile);
+    final hostAbsentBg = Color.alphaBlend(
+      leg.link.withValues(alpha: 0.12),
+      leg.tileSurface,
+    );
     final minutes = widget.matchDurationMinutes.round();
 
     return Material(
@@ -163,10 +168,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Material(
-                        color: Color.alphaBlend(
-                          leg.link.withValues(alpha: 0.12),
-                          leg.tileSurface,
-                        ),
+                        color: hostAbsentBg,
                         borderRadius: BorderRadius.circular(10),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -177,14 +179,14 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                 children: [
                                   Icon(
                                     Icons.cloud_off_rounded,
-                                    color: leg.link,
+                                    color: context.worldAccentOn(hostAbsentBg),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'ホストがオフラインです',
                                       style: theme.textTheme.titleSmall?.copyWith(
-                                        color: leg.title,
+                                        color: context.worldTextOn(hostAbsentBg),
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -197,7 +199,7 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                 Text(
                                   '「${widget.hostLabel}」が応答していません。',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: leg.muted,
+                                    color: context.worldMutedOn(hostAbsentBg),
                                   ),
                                 ),
                               ],
@@ -249,14 +251,17 @@ class _PrepLobbyPanelState extends State<PrepLobbyPanel> {
                                                 ? '編集可 — タップ'
                                                 : 'ホスト待ち — タップで確認')),
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: leg.body,
+                                      color: context.worldTextOn(leg.tileSurface),
                                       height: 1.35,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right, color: leg.muted),
+                            Icon(
+                              Icons.chevron_right,
+                              color: context.worldMutedOn(leg.tileSurface),
+                            ),
                           ],
                         ),
                       ),

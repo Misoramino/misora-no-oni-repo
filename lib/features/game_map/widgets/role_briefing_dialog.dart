@@ -196,6 +196,7 @@ Widget roleBriefingBlock(
   final briefing = RoleBriefingCatalog.forRole(role);
   final theme = Theme.of(ctx);
   final accent = roleAccentColor(role);
+  final panelAccent = ctx.worldAccentOn(ctx.worldPanelBg);
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -240,7 +241,7 @@ Widget roleBriefingBlock(
       Text(
         briefing.headline,
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: ctx.worldAccentReadable,
+          color: panelAccent,
           fontWeight: FontWeight.w600,
         ),
       ),

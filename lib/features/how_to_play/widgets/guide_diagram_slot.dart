@@ -21,6 +21,7 @@ class GuideDiagramSlot extends StatelessWidget {
     final theme = Theme.of(context);
     final profile = context.worldProfile;
     final panelBg = context.worldPanelBg;
+    final panelAccent = context.worldAccentOn(panelBg);
     return WorldPanelThemed(
       profile: profile,
       child: Card(
@@ -34,7 +35,7 @@ class GuideDiagramSlot extends StatelessWidget {
               Row(
                 children: [
                   Icon(Icons.image_outlined,
-                      size: 18, color: context.worldAccentReadable),
+                      size: 18, color: panelAccent),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

@@ -6,6 +6,7 @@ import 'package:oni_game/presentation/world/world_icon_frame.dart';
 import 'package:oni_game/presentation/world/world_presentation_catalog.dart';
 import 'package:oni_game/presentation/world/widgets/world_profile_morph_overlay.dart';
 import 'package:oni_game/screens/match_result_screen.dart';
+import 'package:oni_game/theme/map_hud_contrast.dart';
 import 'package:oni_game/screens/room_lobby_screen.dart';
 import 'package:oni_game/theme/world_profile.dart';
 import 'package:oni_game/theme/world_profile_tokens.dart';
@@ -127,6 +128,53 @@ void main() {
                 pack.panelSurface.computeLuminance())
             .abs();
         expect(panelOnPanel, greaterThan(0.25));
+      });
+
+      test('${profile.name} accent/icon tokens stay readable on panel surfaces',
+          () {
+        final pack = WorldPresentationCatalog.of(profile);
+        final scheme = ColorScheme.fromSeed(
+          seedColor: pack.accent,
+          brightness:
+              profile == WorldProfile.sport ? Brightness.light : Brightness.dark,
+          primary: pack.accent,
+          secondary: pack.accentMuted,
+          surface: pack.panelSurface,
+          error: pack.dangerColor,
+        ).copyWith(
+          onSurface: pack.textOnPanel,
+          onSurfaceVariant: pack.mutedOnPanel,
+          onPrimary: pack.buttonLabelOnAccent,
+        );
+        final prep = MapHudPrepLegibility.resolve(scheme, profile);
+        final running = MapHudRunningLegibility.resolve(scheme, profile);
+        final diagram = WorldDiagramLegibility.resolve(profile);
+
+        final panelAccentContrast =
+            (pack.accentOn(pack.panelSurfaceOpaque).computeLuminance() -
+                    pack.panelSurfaceOpaque.computeLuminance())
+                .abs();
+        expect(panelAccentContrast, greaterThan(0.22));
+
+        final prepIconContrast =
+            (prep.tileIcon.computeLuminance() - prep.tileSurface.computeLuminance())
+                .abs();
+        expect(prepIconContrast, greaterThan(0.22));
+
+        final runningInfoContrast =
+            (running.icon.computeLuminance() - running.infoPanelBg.computeLuminance())
+                .abs();
+        final runningControlContrast =
+            (running.controlIcon.computeLuminance() -
+                    running.controlPanelBg.computeLuminance())
+                .abs();
+        expect(runningInfoContrast, greaterThan(0.22));
+        expect(runningControlContrast, greaterThan(0.22));
+
+        final diagramStrokeContrast =
+            (diagram.stroke.computeLuminance() - diagram.background.computeLuminance())
+                .abs();
+        expect(diagramStrokeContrast, greaterThan(0.22));
       });
     }
   });

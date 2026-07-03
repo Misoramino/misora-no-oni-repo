@@ -58,7 +58,8 @@ class MapHudPrepLegibility {
         ? pack.mutedOnPanel
         : (tileDark ? const Color(0xFFC7C7CC) : pack.mutedOnScaffold);
 
-    final link = pack.accentOnScaffold;
+    final tileAccent = pack.accentOn(tileSurface);
+    final link = tileAccent;
 
     return MapHudPrepLegibility(
       background: background,
@@ -68,7 +69,7 @@ class MapHudPrepLegibility {
       tileSurface: tileSurface,
       tileTitle: tileSoft,
       tileValue: tileStrong,
-      tileIcon: pack.accentOnScaffold,
+      tileIcon: tileAccent,
       tileMutedIcon: tileSoft,
       link: link,
       decorativeIcon: muted.withValues(alpha: 0.72),
@@ -87,6 +88,8 @@ class MapHudRunningLegibility {
     required this.muted,
     required this.icon,
     required this.accent,
+    required this.controlIcon,
+    required this.controlAccent,
     required this.border,
     required this.chipBg,
     required this.chipFg,
@@ -106,6 +109,8 @@ class MapHudRunningLegibility {
   final Color muted;
   final Color icon;
   final Color accent;
+  final Color controlIcon;
+  final Color controlAccent;
   final Color border;
   final Color chipBg;
   final Color chipFg;
@@ -127,10 +132,11 @@ class MapHudRunningLegibility {
     final infoPanelBg = MapHudContrast.infoPanelSurface(scheme, profile);
     final titleOnInfo = MapHudContrast._textOnSurface(infoPanelBg, pack);
     final mutedOnInfo = MapHudContrast._mutedOnSurface(infoPanelBg, pack);
-    final accent = pack.readableOnScaffold(pack.accentOnScaffold);
     final titleOnControl = MapHudContrast._textOnSurface(controlPanelBg, pack);
     final mutedOnControl =
         MapHudContrast._mutedOnSurface(controlPanelBg, pack);
+    final infoAccent = pack.accentOn(infoPanelBg);
+    final controlAccent = pack.accentOn(controlPanelBg);
 
     return MapHudRunningLegibility(
       controlPanelBg: controlPanelBg,
@@ -138,8 +144,10 @@ class MapHudRunningLegibility {
       title: titleOnInfo,
       body: titleOnInfo,
       muted: mutedOnInfo,
-      icon: accent,
-      accent: accent,
+      icon: infoAccent,
+      accent: infoAccent,
+      controlIcon: controlAccent,
+      controlAccent: controlAccent,
       border: pack.panelBorder.withValues(alpha: 0.55),
       chipBg: Color.alphaBlend(
         pack.accent.withValues(alpha: 0.22),
@@ -196,7 +204,7 @@ class MapHudMapPanelLegibility {
     final title = pack.textOn(panelBg);
     final body = pack.textOn(panelBg);
     final muted = pack.mutedOn(panelBg);
-    final accent = pack.isLightPanel ? pack.accent : pack.accentOnScaffold;
+    final accent = pack.accentOn(panelBg);
     return MapHudMapPanelLegibility(
       panelBg: panelBg,
       title: title,
@@ -234,14 +242,15 @@ class WorldDiagramLegibility {
 
   static WorldDiagramLegibility resolve(WorldProfile profile) {
     final pack = WorldPresentationCatalog.of(profile);
-    final stroke = pack.accentOnScaffold;
+    final background = pack.panelSurfaceOpaque.withValues(alpha: 0.55);
+    final stroke = pack.accentOn(background);
     return WorldDiagramLegibility(
       stroke: stroke,
       fill: stroke.withValues(alpha: 0.18),
       mutedStroke: pack.mutedOnPanel,
       label: pack.textOnPanel,
       mutedLabel: pack.mutedOnPanel,
-      background: pack.panelSurfaceOpaque.withValues(alpha: 0.55),
+      background: background,
     );
   }
 }

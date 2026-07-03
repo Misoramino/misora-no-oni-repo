@@ -103,7 +103,7 @@ class _TimelineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = context.worldMuted;
-    final accent = context.worldAccentReadable;
+    final accent = context.worldAccentOn(context.worldPanelBg);
     final time =
         '${item.at.toLocal().hour.toString().padLeft(2, '0')}:'
         '${item.at.toLocal().minute.toString().padLeft(2, '0')}:'

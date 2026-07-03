@@ -17,6 +17,7 @@ class GuideHeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final profile = context.worldProfile;
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     return WorldPanelThemed(
       profile: profile,
       child: Card(
@@ -38,7 +39,7 @@ class GuideHeaderCard extends StatelessWidget {
             Text(
               data.subtitle,
               style: theme.textTheme.titleSmall?.copyWith(
-                color: context.worldAccentReadable,
+                color: panelAccent,
                 fontWeight: FontWeight.w600,
               ),
             ),

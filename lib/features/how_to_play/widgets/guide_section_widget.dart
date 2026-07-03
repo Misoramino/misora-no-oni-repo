@@ -37,6 +37,7 @@ class GuideSectionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final profile = context.worldProfile;
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     return WorldPanelThemed(
       profile: profile,
       child: Card(
@@ -52,7 +53,7 @@ class GuideSectionWidget extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(section.icon, color: context.worldAccentReadable),
+                  Icon(section.icon, color: panelAccent),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

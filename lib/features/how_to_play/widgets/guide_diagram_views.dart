@@ -212,6 +212,7 @@ class InformationStrengthDiagram extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     const rows = [
       (Icons.person_pin_circle_outlined, '名前付き暴露', 1.0),
       (Icons.storefront_outlined, '情報屋ヒント', 0.82),
@@ -225,7 +226,7 @@ class InformationStrengthDiagram extends StatelessWidget {
           '強い情報',
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            color: context.worldAccentReadable,
+            color: panelAccent,
           ),
         ),
         const SizedBox(height: 6),
@@ -234,7 +235,7 @@ class InformationStrengthDiagram extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
-                Icon(row.$1, size: 18, color: context.worldAccentReadable),
+                Icon(row.$1, size: 18, color: panelAccent),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(row.$2, style: theme.textTheme.bodySmall?.copyWith(
@@ -394,12 +395,13 @@ class InformationTypesDiagram extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const anonAccent = Color(0xFF8E5BD8);
+    final namedAccent = context.worldAccentOn(context.worldPanelBg);
     return LayoutBuilder(
       builder: (context, constraints) {
         final sideBySide = constraints.maxWidth >= 300;
         final named = _DiagramMiniCard(
           icon: Icons.person_pin_circle_outlined,
-          iconColor: context.worldAccentReadable,
+          iconColor: namedAccent,
           title: GuideTerms.namedReveal,
           lines: const [
             '「○○がここにいた」',
@@ -515,15 +517,17 @@ class OutsideAreaFlowDiagram extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final panelFill = context.worldPanelBg.withValues(alpha: 0.55);
+    final panelAccent = context.worldAccentOn(panelFill);
     return Column(
       children: [
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            border: Border.all(color: context.worldAccentReadable.withValues(alpha: 0.4)),
+            border: Border.all(color: panelAccent.withValues(alpha: 0.4)),
             borderRadius: BorderRadius.circular(10),
-            color: context.worldPanelBg.withValues(alpha: 0.55),
+            color: panelFill,
           ),
           child: Column(
             children: [
@@ -531,18 +535,14 @@ class OutsideAreaFlowDiagram extends StatelessWidget {
                 'プレイエリア内',
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: context.worldTextOn(
-                    context.worldPanelBg.withValues(alpha: 0.55),
-                  ),
+                  color: context.worldTextOn(panelFill),
                 ),
               ),
               const Divider(height: 16),
               Text(
                 '境界を越える',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.worldMutedOn(
-                    context.worldPanelBg.withValues(alpha: 0.55),
-                  ),
+                  color: context.worldMutedOn(panelFill),
                 ),
               ),
             ],
@@ -635,11 +635,12 @@ class SecondGameBranchDiagram extends StatelessWidget {
     final theme = Theme.of(context);
     const humanColor = Color(0xFF1FA98A);
     const oniColor = Color(0xFFD64545);
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     return Column(
       children: [
         _DiagramMiniCard(
           icon: Icons.hourglass_bottom_rounded,
-          iconColor: context.worldAccentReadable,
+          iconColor: panelAccent,
           title: '脱落',
           lines: const ['捕獲・告発失敗・エリア外など'],
         ),
@@ -755,8 +756,9 @@ class _ClueChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chipBg = context.worldPanelBg;
     return Chip(
-      avatar: Icon(icon, size: 16, color: context.worldAccentReadable),
+      avatar: Icon(icon, size: 16, color: context.worldAccentOn(chipBg)),
       label: Text(label),
       visualDensity: VisualDensity.compact,
     );
@@ -937,6 +939,7 @@ class _FacilityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pack = context.worldPresentation;
+    final tileBg = context.worldPanelBg.withValues(alpha: 0.35);
     return SizedBox(
       width: width,
       child: Container(
@@ -944,11 +947,11 @@ class _FacilityTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: pack.panelBorder),
-          color: context.worldPanelBg.withValues(alpha: 0.35),
+          color: tileBg,
         ),
         child: Row(
           children: [
-            Icon(icon, color: context.worldAccentReadable, size: 22),
+            Icon(icon, color: context.worldAccentOn(tileBg), size: 22),
             const SizedBox(width: 8),
             Expanded(
               child: Column(

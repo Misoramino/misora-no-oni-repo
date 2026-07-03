@@ -74,7 +74,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
             size: 22,
             color: widget.compact
                 ? (enabled ? leg.skillButtonFg : leg.skillButtonMuted)
-                : leg.icon,
+                : leg.controlIcon,
           ),
         ),
       ),
@@ -108,7 +108,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: TextStyle(fontSize: 11, color: leg.accent),
+                  style: TextStyle(fontSize: 11, color: leg.controlAccent),
                 ),
               )
             else if (widget.blocked)
@@ -132,7 +132,8 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.w700 : FontWeight.normal,
-                    color: showPinnedCd ? leg.accent : leg.skillButtonMuted,
+                    color:
+                        showPinnedCd ? leg.controlAccent : leg.skillButtonMuted,
                   ),
                 ),
               ),
@@ -160,7 +161,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.2,
-                  color: leg.body,
+                  color: leg.skillButtonFg,
                 ),
               ),
             ),
@@ -168,21 +169,21 @@ class _SkillActionButtonState extends State<SkillActionButton> {
               ExcludeSemantics(
                 child: Text(
                   '${widget.buffSeconds}s',
-                  style: TextStyle(fontSize: 11, color: leg.accent),
+                  style: TextStyle(fontSize: 11, color: leg.controlAccent),
                 ),
               )
             else if (widget.blocked)
               ExcludeSemantics(
                 child: Text(
                   '回収待ち',
-                  style: TextStyle(fontSize: 11, color: leg.muted),
+                  style: TextStyle(fontSize: 11, color: leg.skillButtonMuted),
                 ),
               )
             else if (widget.auxLine != null)
               ExcludeSemantics(
                 child: Text(
                   widget.auxLine!,
-                  style: TextStyle(fontSize: 11, color: leg.muted),
+                  style: TextStyle(fontSize: 11, color: leg.skillButtonMuted),
                 ),
               )
             else if (showPinnedCd || onCd)
@@ -192,7 +193,8 @@ class _SkillActionButtonState extends State<SkillActionButton> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: showPinnedCd ? FontWeight.bold : FontWeight.normal,
-                    color: showPinnedCd ? leg.accent : leg.muted,
+                    color:
+                        showPinnedCd ? leg.controlAccent : leg.skillButtonMuted,
                   ),
                 ),
               )
@@ -200,7 +202,7 @@ class _SkillActionButtonState extends State<SkillActionButton> {
               ExcludeSemantics(
                 child: Text(
                   '作動中',
-                  style: TextStyle(fontSize: 9, color: leg.accent),
+                  style: TextStyle(fontSize: 9, color: leg.controlAccent),
                 ),
               ),
           ],

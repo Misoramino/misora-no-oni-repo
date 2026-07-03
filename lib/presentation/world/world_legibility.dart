@@ -21,6 +21,10 @@ extension WorldLegibilityOnContext on BuildContext {
   /// 見出し・アクセント（背景に応じて読みやすい色）。
   Color get worldAccentReadable => worldPresentation.accentOnScaffold;
 
+  /// 任意の背景色上で読めるアクセント色。
+  Color worldAccentOn(Color background) =>
+      worldPresentation.accentOn(background);
+
   /// フィルドボタン上のラベル色。
   Color get worldButtonLabel => worldPresentation.buttonLabelOnAccent;
 

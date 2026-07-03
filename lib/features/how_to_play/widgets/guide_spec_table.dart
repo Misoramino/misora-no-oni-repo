@@ -17,6 +17,7 @@ class GuideSpecTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final panelAccent = context.worldAccentOn(context.worldPanelBg);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -26,7 +27,7 @@ class GuideSpecTable extends StatelessWidget {
           Text(
             g.title,
             style: theme.textTheme.labelLarge?.copyWith(
-              color: context.worldAccentReadable,
+              color: panelAccent,
               fontWeight: FontWeight.w700,
             ),
           ),

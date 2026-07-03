@@ -7,7 +7,10 @@ const _scanRoots = [
   'lib/features/how_to_play',
   'lib/features/onboarding',
   'lib/features/tutorial',
+  'lib/features/game_map/widgets/match_flow_timeline.dart',
+  'lib/features/game_map/widgets/role_briefing_dialog.dart',
   'lib/screens/title_screen.dart',
+  'lib/screens/match_result_screen.dart',
   'lib/screens/progress_screen.dart',
   'lib/features/game_map/prep',
 ];
@@ -100,6 +103,28 @@ void _scanFile(
           '$path:$lineNo  uses $token — prefer diagramLegibility() or worldMuted',
         );
       }
+    }
+
+    if ((path.contains('how_to_play/') ||
+            path.contains('game_map/prep/') ||
+            path.endsWith('match_flow_timeline.dart') ||
+            path.endsWith('role_briefing_dialog.dart') ||
+            path.endsWith('match_result_screen.dart')) &&
+        line.contains('worldAccentReadable')) {
+      violations.add(
+        '$path:$lineNo  uses worldAccentReadable on likely panel content — '
+        'prefer worldAccentOn(actualBackground)',
+      );
+    }
+
+    if ((path.contains('how_to_play/') ||
+            path.contains('game_map/prep/') ||
+            path.endsWith('match_result_screen.dart')) &&
+        line.contains('accentOnScaffold')) {
+      violations.add(
+        '$path:$lineNo  uses accentOnScaffold on likely panel content — '
+        'prefer accentOn(actualBackground)',
+      );
     }
 
     if (path.contains('how_to_play') &&

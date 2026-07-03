@@ -208,7 +208,7 @@ class MapLobbyToolButton extends StatelessWidget {
           )
         : null;
     final bg = lightStyle ? mapLeg!.tileBg : runningLeg!.skillButtonBg;
-    final iconColor = lightStyle ? mapLeg!.accent : runningLeg!.icon;
+    final iconColor = lightStyle ? mapLeg!.accent : runningLeg!.controlIcon;
     final textColor = lightStyle ? mapLeg!.body : runningLeg!.skillButtonFg;
     final subColor = lightStyle ? mapLeg!.muted : runningLeg!.skillButtonMuted;
 

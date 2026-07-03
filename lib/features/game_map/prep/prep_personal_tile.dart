@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../../../theme/map_hud_contrast.dart';
 
 /// 準備画面の「個人設定」サマリー（名前・アイコンタップで詳細へ）。
@@ -23,6 +24,7 @@ class PrepPersonalTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final leg = prepLegibility;
+    final tileBg = leg.tileSurface;
 
     Widget avatar() {
       const radius = 22.0;
@@ -75,7 +77,7 @@ class PrepPersonalTile extends StatelessWidget {
                     Text(
                       '名前・写真・BLE',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: leg.muted,
+                        color: context.worldMutedOn(tileBg),
                       ),
                     ),
                   ],

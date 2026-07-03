@@ -25,6 +25,7 @@ class DiagramLegibilityHarness extends StatelessWidget {
   const DiagramLegibilityHarness({
     required this.profile,
     required this.type,
+    super.key,
   });
 
   final WorldProfile profile;

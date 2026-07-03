@@ -403,8 +403,10 @@ class GameInfoPanel extends StatelessWidget {
             ),
             child: Text(
               areaText,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: areaColor.computeLuminance() > 0.52
+                    ? const Color(0xFF1A1A2E)
+                    : const Color(0xFFF2F2F7),
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
