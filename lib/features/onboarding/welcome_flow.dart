@@ -297,7 +297,7 @@ class _Dots extends StatelessWidget {
           decoration: BoxDecoration(
             color: active
                 ? color
-                : Theme.of(context).colorScheme.outlineVariant,
+                : context.worldMutedOnScaffold,
             borderRadius: BorderRadius.circular(4),
           ),
         );

@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../../presentation/world/world_legibility.dart';
 import '../../presentation/world/world_presentation_context.dart';
+import '../../presentation/world/world_ui_helpers.dart';
 import '../../theme/map_hud_contrast.dart';
 import '../../presentation/world/widgets/world_scaffold.dart';
 import '../../audio/game_audio.dart';
@@ -380,7 +381,9 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
             ),
         ],
       ),
-      body: _finished
+      body: WorldScaffoldThemed(
+        profile: profile,
+        child: _finished
           ? TutorialFinishPanel(
               copy: finishCopy,
               accent: _accent,
@@ -521,6 +524,7 @@ class _TutorialSandboxScreenState extends State<TutorialSandboxScreen>
                 const SizedBox(height: 12),
               ],
             ),
+      ),
     );
   }
 }

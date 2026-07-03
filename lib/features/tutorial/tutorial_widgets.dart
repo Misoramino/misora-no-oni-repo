@@ -28,10 +28,16 @@ class TutorialInstructionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bannerBg = Color.alphaBlend(
+      accent.withValues(alpha: 0.14),
+      theme.scaffoldBackgroundColor,
+    );
+    final bodyColor = context.worldTextOn(bannerBg);
+    final mutedColor = context.worldMutedOn(bannerBg);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-      color: accent.withValues(alpha: 0.12),
+      color: bannerBg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -49,6 +55,7 @@ class TutorialInstructionBanner extends StatelessWidget {
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     height: 1.3,
+                    color: bodyColor,
                   ),
                 ),
               ),
@@ -57,7 +64,7 @@ class TutorialInstructionBanner extends StatelessWidget {
                 Text(
                   missionLabel!,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: context.worldMuted,
+                    color: mutedColor,
                   ),
                 ),
               ],
@@ -79,6 +86,7 @@ class TutorialInstructionBanner extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: onOpenGuide,
+                style: TextButton.styleFrom(foregroundColor: accent),
                 icon: const Icon(Icons.menu_book_outlined, size: 18),
                 label: const Text('遊び方でくわしく'),
               ),

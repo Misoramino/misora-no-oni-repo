@@ -19,6 +19,7 @@ import '../presentation/world/world_presentation_catalog.dart';
 import '../presentation/world/world_presentation_context.dart';
 import '../presentation/world/world_studio_identity.dart';
 import '../presentation/world/world_studio_identity_catalog.dart';
+import '../presentation/world/world_ui_helpers.dart';
 import '../presentation/world/widgets/world_particle_burst.dart';
 import '../presentation/world/widgets/world_scaffold.dart';
 import '../theme/world_profile.dart';
@@ -264,7 +265,9 @@ class _MatchResultScreenState extends State<MatchResultScreen>
         backgroundColor: Colors.transparent,
         foregroundColor: pack.textOnScaffold,
       ),
-      body: Stack(
+      body: WorldScaffoldThemed(
+        profile: widget.worldProfile,
+        child: Stack(
         children: [
           WorldParticleBurst(
             pack: pack,
@@ -332,9 +335,18 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                 ),
               ],
               const SizedBox(height: 8),
-              Text(widget.detail, textAlign: TextAlign.center),
+              Text(
+                widget.detail,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: pack.mutedOnScaffold,
+                  height: 1.45,
+                ),
+              ),
               const SizedBox(height: 16),
-              Card(
+              WorldPanelThemed(
+                profile: widget.worldProfile,
+                child: Card(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
@@ -377,9 +389,12 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                   ),
                 ),
               ),
+              ),
               if (widget.spectatorMode && widget.spectatorRecord != null) ...[
                 const SizedBox(height: 12),
-                Card(
+                WorldPanelThemed(
+                  profile: widget.worldProfile,
+                  child: Card(
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(
@@ -397,6 +412,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
                       ],
                     ),
                   ),
+                ),
                 ),
               ],
               if (widget.progress != null) ...[
@@ -534,6 +550,7 @@ class _MatchResultScreenState extends State<MatchResultScreen>
         ],
       ),
       ),
+      ),
     );
   }
 
@@ -561,7 +578,9 @@ class _ProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final streak = progress.currentStreak;
-    return Card(
+    return WorldPanelThemed(
+      profile: context.worldProfile,
+      child: Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -615,6 +634,7 @@ class _ProgressCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -667,7 +687,9 @@ class _NewTitlesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pack = context.worldPresentation;
-    return Card(
+    return WorldPanelThemed(
+      profile: context.worldProfile,
+      child: Card(
       color: Color.alphaBlend(
         pack.accent.withValues(alpha: 0.16),
         pack.panelSurface,
@@ -726,6 +748,7 @@ class _NewTitlesCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../../../game/match_setup_summary.dart';
 
 /// ルームロビー向けのルール概要カード（非ホスト向け）。
@@ -21,7 +23,9 @@ class LobbyRulesSummaryCard extends StatelessWidget {
             ? 'やや少なめ（告発可）'
             : '3人未満（告発不可）';
 
-    return Card(
+    return WorldPanelThemed(
+      profile: context.worldProfile,
+      child: Card(
       margin: const EdgeInsets.only(top: 12, bottom: 4),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -67,6 +71,7 @@ class LobbyRulesSummaryCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

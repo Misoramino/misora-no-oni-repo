@@ -71,8 +71,9 @@ flutter run -d <device> ^
 
 1. `flutter pub get`
 2. `flutter analyze`
-3. `flutter test`
-4. 実機 QA（[DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)）
+3. `dart run tools/audit_legibility.dart`（ガイド・オンボーディングの可読性アンチパターン）
+4. `flutter test`（`test/legibility_screens_test.dart` で 8 世界観×全図解も検証）
+5. 実機 QA（[DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md)）
 
 ### コード変更がないドキュメント／文言リリース（例 3.1.0）
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../presentation/world/world_legibility.dart';
 import '../../../theme/map_hud_contrast.dart';
 
 class PrepSummaryTile extends StatelessWidget {
@@ -43,7 +44,8 @@ class PrepSummaryTile extends StatelessWidget {
       color: pl?.tileValue,
     );
     final iconColor = pl?.tileIcon ?? theme.colorScheme.primary;
-    final chevronColor = pl?.tileMutedIcon ?? theme.colorScheme.onSurface.withValues(alpha: 0.72);
+    final chevronColor =
+        pl?.tileMutedIcon ?? context.worldMutedOn(surfaceColor);
 
     return Material(
       color: surfaceColor,
@@ -74,9 +76,8 @@ class PrepSummaryTile extends StatelessWidget {
                           Text(
                             subtitle!,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: pl?.muted ??
-                                  theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.78),
+                              color: pl?.tileTitle ??
+                                  context.worldMutedOn(surfaceColor),
                               height: 1.3,
                             ),
                           ),

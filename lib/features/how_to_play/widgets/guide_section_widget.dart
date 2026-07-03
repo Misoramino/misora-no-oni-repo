@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../guide_text.dart';
 import '../../../game/player_role.dart';
 import '../../game_map/widgets/role_briefing_dialog.dart';
@@ -34,7 +36,10 @@ class GuideSectionWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    final profile = context.worldProfile;
+    return WorldPanelThemed(
+      profile: profile,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -113,6 +118,7 @@ class GuideSectionWidget extends StatelessWidget {
           ],
         ],
       ),
+    ),
     );
   }
 }

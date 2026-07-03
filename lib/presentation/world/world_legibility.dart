@@ -51,4 +51,12 @@ extension WorldLegibilityOnContext on BuildContext {
   /// 図解・CustomPaint 向け色。
   WorldDiagramLegibility diagramLegibility([WorldProfile? profile]) =>
       WorldDiagramLegibility.resolve(profile ?? worldProfile);
+
+  /// 任意の背景色上の本文色（パネル・半透明チップ・バナー等）。
+  Color worldTextOn(Color background) =>
+      worldPresentation.textOn(background);
+
+  /// 任意の背景色上の補助色。
+  Color worldMutedOn(Color background) =>
+      worldPresentation.mutedOn(background);
 }

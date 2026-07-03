@@ -456,8 +456,23 @@ extension _GameMapPrepSync on _GameMapScreenState {
 
   /// 快適プレイ案内 → HUDコーチマークを順番に表示（重なり防止）。
   Future<void> _runPostMatchStartOnboarding() async {
+    await _waitForBlockingRoutesToClose();
+    if (!mounted || _gameState != GameState.running) return;
     await _maybeShowMatchPlayabilityHints();
     if (!mounted || _gameState != GameState.running) return;
+    await _waitForBlockingRoutesToClose();
+    if (!mounted || _gameState != GameState.running) return;
     await _maybeShowMatchCoachMarks();
+  }
+
+  /// ボトムシート・ダイアログが閉じるまで待つ（役職後の遊び方など）。
+  Future<void> _waitForBlockingRoutesToClose() async {
+    const maxWait = Duration(seconds: 120);
+    final deadline = DateTime.now().add(maxWait);
+    while (mounted && DateTime.now().isBefore(deadline)) {
+      final nav = Navigator.of(context);
+      if (!nav.canPop()) break;
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
   }
 }

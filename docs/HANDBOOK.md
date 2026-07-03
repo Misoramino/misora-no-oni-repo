@@ -21,6 +21,7 @@
 | [event_pipeline.md](./event_pipeline.md) | ゲーム → Firestore → Replay パイプライン | 記録・同期・再生を変えたら |
 | [sync.md](./sync.md) | `FirestoreRoomSession` 責務マップ | 同期 API を分割・追加したら |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | モジュール構成・オンライン Phase・世界観パックの詳説（日本語） | 機能追加で構成が変わったら |
+| [LEGIBILITY_RULES.md](./LEGIBILITY_RULES.md) | UI 可読性の設計ルール・自動チェック | ガイド/オンボーディング/世界観 UI を触ったら |
 | [AI_HANDOFF.md](./AI_HANDOFF.md) | 設計優先度の英語サマリ（短い） | プロダクト方針が変わったら |
 | [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) | Firebase / Maps キー / 実機の**運用手順** | 配布方法や制約が変わったら |
 | [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md) | 実機・複数端末の**目視 QA** | UI やオンライン動線を変えたら |

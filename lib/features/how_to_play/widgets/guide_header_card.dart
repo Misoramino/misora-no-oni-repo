@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../guide_models.dart';
 
 class GuideHeaderCard extends StatelessWidget {
@@ -14,7 +16,10 @@ class GuideHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    final profile = context.worldProfile;
+    return WorldPanelThemed(
+      profile: profile,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: context.worldPanelBg,
       child: Padding(
@@ -56,6 +61,7 @@ class GuideHeaderCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

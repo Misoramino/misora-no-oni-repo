@@ -29,36 +29,41 @@ class GuideBulletList extends StatelessWidget {
         ],
         for (var i = 0; i < lines.length; i++) ...[
           if (i > 0) const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accent.withValues(alpha: 0.18)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(
-                    Icons.circle,
-                    size: 8,
-                    color: accent,
-                  ),
+          Builder(
+            builder: (context) {
+              final panelBg = context.worldPanelBg;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: panelBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withValues(alpha: 0.28)),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    GuideText.forDisplay(lines[i]),
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.45,
-                      color: context.worldBody,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.circle,
+                        size: 8,
+                        color: accent,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        GuideText.forDisplay(lines[i]),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.45,
+                          color: context.worldTextOn(panelBg),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ],

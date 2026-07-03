@@ -109,6 +109,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       await _runMatchStartPresentation(rejoin: false, inspector: false);
       if (!mounted) return;
       _startGameCore();
+      if (!mounted) return;
+      await _runPostMatchStartOnboarding();
     } finally {
       _matchStartInFlight = false;
       _matchPresentationActive = false;
@@ -158,7 +160,6 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (!inspector && _localRole == PlayerRole.werewolf) {
         _rt.lastWerewolfTransformAt = DateTime.now();
       }
-      unawaited(_runPostMatchStartOnboarding());
     }
     if (_isOnlineFirestore) {
       final sk = _matchEventSessionKey;

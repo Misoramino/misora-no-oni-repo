@@ -263,6 +263,7 @@ class _GuideCard extends StatelessWidget {
                   page.title,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: context.worldBodyOnScaffold,
                   ),
                 ),
               ),
@@ -301,7 +302,7 @@ class _Dots extends StatelessWidget {
           decoration: BoxDecoration(
             color: active
                 ? color
-                : Theme.of(context).colorScheme.outlineVariant,
+                : context.worldMutedOnScaffold,
             borderRadius: BorderRadius.circular(4),
           ),
         );

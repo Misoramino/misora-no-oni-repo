@@ -674,7 +674,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         icon: Icons.dashboard_outlined,
         title: '試合情報',
         body: '残り時間と状態がここに出ます。'
-            '「エリア内／外」も表示 — プレイエリアの外では位置がわかりやすくなります。'
+            '「エリア内／外」など、今の状況がひと目で分かります。'
             'バーをタップすると詳細が開きます。',
       ),
       CoachStep(

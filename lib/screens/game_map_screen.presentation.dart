@@ -61,7 +61,7 @@ extension _GameMapPresentation on _GameMapScreenState {
   Future<void> _maybeShowPreMatchRoleBriefing({required bool rejoin}) async {
     if (!mounted || rejoin || _matchRoleBriefingShown) return;
     _matchRoleBriefingShown = true;
-    await showRoleBriefingDialog(
+    final followUp = await showRoleBriefingDialog(
       context,
       role: _localRole,
       worldProfile: _activeProfile,
@@ -73,6 +73,14 @@ extension _GameMapPresentation on _GameMapScreenState {
           ? _localRunnerModifier
           : RunnerModifier.none,
     );
+    if (!mounted) return;
+    if (followUp == 'learn_more') {
+      await showHowToPlaySheet(
+        context,
+        yourRole: _localRole,
+        initialSectionId: 'roles',
+      );
+    }
   }
 
   Future<GoogleMapController?> _ensureMapControllerForPresentation() async {

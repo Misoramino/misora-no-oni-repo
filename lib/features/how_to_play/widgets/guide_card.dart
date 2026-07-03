@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
+import '../../../presentation/world/world_ui_helpers.dart';
 import '../guide_text.dart';
 import '../guide_models.dart';
 import 'guide_detail_expansion.dart';
@@ -21,12 +23,15 @@ class GuideCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
+    final profile = context.worldProfile;
+    return WorldPanelThemed(
+      profile: profile,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
@@ -84,12 +89,15 @@ class GuideCard extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('・', style: theme.textTheme.bodyMedium),
+                      Text('・', style: theme.textTheme.bodyMedium?.copyWith(
+                            color: context.worldBody,
+                          )),
                       Expanded(
                         child: Text(
                           GuideText.forDisplay(b),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             height: 1.45,
+                            color: context.worldBody,
                           ),
                         ),
                       ),
@@ -114,7 +122,8 @@ class GuideCard extends StatelessWidget {
                 onOpenSpecCard: onOpenSpecCard,
               ),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );

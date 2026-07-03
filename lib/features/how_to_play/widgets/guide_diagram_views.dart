@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../presentation/world/world_legibility.dart';
+import '../../../presentation/world/world_presentation_context.dart';
 import '../../game_map/widgets/how_to_play_diagrams.dart';
 import '../guide_diagram_type.dart';
 import '../../../game/player_role.dart';
@@ -82,7 +83,12 @@ class _DiagramMiniCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 2),
               child: Text(
                 line,
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  height: 1.35,
+                  color: context.worldTextOn(
+                    iconColor.withValues(alpha: 0.08),
+                  ),
+                ),
               ),
             ),
           if (footer != null) ...[
@@ -91,7 +97,9 @@ class _DiagramMiniCard extends StatelessWidget {
               footer!,
               style: theme.textTheme.labelSmall?.copyWith(
                 fontStyle: FontStyle.italic,
-                color: context.worldMuted,
+                color: context.worldMutedOn(
+                  iconColor.withValues(alpha: 0.08),
+                ),
               ),
             ),
           ],
@@ -106,12 +114,13 @@ class _DownArrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final muted = context.diagramLegibility().mutedStroke;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Icon(
         Icons.arrow_downward_rounded,
         size: 18,
-        color: Theme.of(context).colorScheme.outline,
+        color: muted,
       ),
     );
   }
@@ -133,6 +142,9 @@ class _DangerBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bandBg = color.withValues(alpha: 0.12);
+    final labelColor = context.worldTextOn(bandBg);
+    final mutedColor = context.worldMutedOn(bandBg);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 4),
@@ -161,11 +173,15 @@ class _DangerBand extends StatelessWidget {
                   label,
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w700,
+                    color: labelColor,
                   ),
                 ),
                 Text(
                   note,
-                  style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    height: 1.3,
+                    color: mutedColor,
+                  ),
                 ),
                 if (emphasizeNotElimination)
                   Padding(
@@ -221,7 +237,9 @@ class InformationStrengthDiagram extends StatelessWidget {
                 Icon(row.$1, size: 18, color: context.worldAccentReadable),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(row.$2, style: theme.textTheme.bodySmall),
+                  child: Text(row.$2, style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.worldBody,
+                      )),
                 ),
                 SizedBox(
                   width: 72,
@@ -260,16 +278,21 @@ class TraceChainDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final diag = context.diagramLegibility();
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (var i = 0; i < 3; i++) ...[
           Column(
             children: [
-              Icon(Icons.help_outline, color: scheme.tertiary, size: 22),
+              Icon(Icons.help_outline, color: diag.stroke, size: 22),
               const SizedBox(height: 2),
-              Text('？', style: Theme.of(context).textTheme.labelSmall),
+              Text(
+                '？',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: diag.label,
+                    ),
+              ),
             ],
           ),
           if (i < 2)
@@ -278,7 +301,7 @@ class TraceChainDiagram extends StatelessWidget {
               child: Icon(
                 Icons.arrow_forward_rounded,
                 size: 18,
-                color: scheme.outline,
+                color: diag.mutedStroke,
               ),
             ),
         ],
@@ -324,7 +347,7 @@ class OnlineMatchDiagram extends StatelessWidget {
         Text(
           '試合中止・ギャラリー保存は下のカードを参照。',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.outline,
+            color: context.worldMuted,
             height: 1.35,
           ),
           textAlign: TextAlign.center,
@@ -370,7 +393,7 @@ class InformationTypesDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    const anonAccent = Color(0xFF8E5BD8);
     return LayoutBuilder(
       builder: (context, constraints) {
         final sideBySide = constraints.maxWidth >= 300;
@@ -386,7 +409,7 @@ class InformationTypesDiagram extends StatelessWidget {
         );
         final anon = _DiagramMiniCard(
           icon: Icons.help_outline,
-          iconColor: scheme.tertiary,
+          iconColor: anonAccent,
           title: GuideTerms.anonTrace,
           lines: const [
             '「誰かがここにいた」',
@@ -439,6 +462,7 @@ class CombatDangerDiagram extends StatelessWidget {
               '鬼（近いほど危険）',
               style: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: context.worldBody,
               ),
             ),
           ],
@@ -473,7 +497,9 @@ class CombatDangerDiagram extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               GuideTerms.runner,
-              style: theme.textTheme.labelMedium,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: context.worldBody,
+              ),
             ),
           ],
         ),
@@ -505,12 +531,19 @@ class OutsideAreaFlowDiagram extends StatelessWidget {
                 'プレイエリア内',
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: context.worldTextOn(
+                    context.worldPanelBg.withValues(alpha: 0.55),
+                  ),
                 ),
               ),
               const Divider(height: 16),
               Text(
                 '境界を越える',
-                style: theme.textTheme.bodySmall,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.worldMutedOn(
+                    context.worldPanelBg.withValues(alpha: 0.55),
+                  ),
+                ),
               ),
             ],
           ),
@@ -606,7 +639,7 @@ class SecondGameBranchDiagram extends StatelessWidget {
       children: [
         _DiagramMiniCard(
           icon: Icons.hourglass_bottom_rounded,
-          iconColor: theme.colorScheme.outline,
+          iconColor: context.worldAccentReadable,
           title: '脱落',
           lines: const ['捕獲・告発失敗・エリア外など'],
         ),
@@ -664,7 +697,9 @@ class IntroCluesDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final pack = context.worldPresentation;
+    final danger = pack.dangerColor;
+    final panelBg = context.worldPanelBg;
     return Column(
       children: [
         Container(
@@ -672,20 +707,23 @@ class IntroCluesDiagram extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: scheme.outlineVariant),
+            color: panelBg.withValues(alpha: 0.55),
+            border: Border.all(color: pack.panelBorder),
           ),
           child: Column(
             children: [
-              Icon(Icons.location_off_outlined, size: 28, color: scheme.error),
+              Icon(Icons.location_off_outlined, size: 28, color: danger),
               const SizedBox(height: 4),
               Text(
                 '相手の位置',
-                style: Theme.of(context).textTheme.labelLarge,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: context.worldBody,
+                    ),
               ),
               Text(
                 '基本見えません',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.error,
+                      color: danger,
                       fontWeight: FontWeight.w600,
                     ),
               ),
@@ -898,14 +936,15 @@ class _FacilityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final pack = context.worldPresentation;
     return SizedBox(
       width: width,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: scheme.outlineVariant),
+          border: Border.all(color: pack.panelBorder),
+          color: context.worldPanelBg.withValues(alpha: 0.35),
         ),
         child: Row(
           children: [
@@ -915,8 +954,18 @@ class _FacilityTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: Theme.of(context).textTheme.labelLarge),
-                  Text(note, style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: context.worldBody,
+                        ),
+                  ),
+                  Text(
+                    note,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.worldMuted,
+                        ),
+                  ),
                 ],
               ),
             ),
@@ -997,7 +1046,9 @@ class _RoleBadge extends StatelessWidget {
           Text(
             note,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelSmall,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: context.worldMutedOn(color.withValues(alpha: 0.10)),
+                ),
           ),
         ],
       ),

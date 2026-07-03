@@ -193,12 +193,16 @@ class MapHudMapPanelLegibility {
     final pack = WorldPresentationCatalog.of(profile);
     final prep = MapHudPrepLegibility.resolve(scheme, profile);
     final panelBg = pack.panelSurfaceOpaque;
+    final title = pack.textOn(panelBg);
+    final body = pack.textOn(panelBg);
+    final muted = pack.mutedOn(panelBg);
+    final accent = pack.isLightPanel ? pack.accent : pack.accentOnScaffold;
     return MapHudMapPanelLegibility(
       panelBg: panelBg,
-      title: prep.title,
-      body: prep.body,
-      muted: prep.muted,
-      accent: pack.accentOnScaffold,
+      title: title,
+      body: body,
+      muted: muted,
+      accent: accent,
       tileBg: prep.tileSurface,
       border: pack.panelBorder,
       highlightBg: Color.alphaBlend(

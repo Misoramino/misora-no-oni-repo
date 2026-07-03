@@ -189,6 +189,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pack = WorldPresentationCatalog.of(_profile);
     final handoff = widget.handoff;
     final v = handoff == null
         ? null
@@ -270,7 +271,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                     ? branding.titleHeadlineColor
                     : Color.lerp(
                         branding.titleHeadlineColor,
-                        theme.colorScheme.onSurface,
+                        context.worldBodyOnScaffold,
                         layoutT,
                       )!;
                 final subtitleColor = handoff == null
@@ -321,6 +322,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                     children: [
                                       IconButton(
                                         tooltip: '設定',
+                                        color: pack.mutedOnScaffold,
                                         onPressed: handoff == null
                                             ? () {
                                                 GameAudio.instance
@@ -484,6 +486,10 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                       .playSfx(SfxId.uiTap);
                                                   showGuideHubSheet(context);
                                                 },
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      pack.textOnScaffold,
+                                                ),
                                                 icon: const Icon(
                                                   Icons.menu_book_outlined,
                                                 ),
@@ -503,6 +509,10 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                                     worldProfile: _profile,
                                                   );
                                                 },
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      pack.textOnScaffold,
+                                                ),
                                                 icon: const Icon(
                                                   Icons
                                                       .workspace_premium_outlined,
@@ -521,7 +531,9 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(
                                             color: FirebaseBootstrap.isReady
-                                                ? theme.colorScheme.primary
+                                                ? pack.readableOnScaffold(
+                                                    pack.accent,
+                                                  )
                                                 : theme.colorScheme.error,
                                           ),
                                         ),
@@ -544,7 +556,7 @@ class _TitleScreenState extends State<TitleScreen> with TickerProviderStateMixin
                                           textAlign: TextAlign.center,
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(
-                                            color: theme.colorScheme.outline,
+                                            color: pack.mutedOnScaffold,
                                             fontSize: 11,
                                           ),
                                         ),

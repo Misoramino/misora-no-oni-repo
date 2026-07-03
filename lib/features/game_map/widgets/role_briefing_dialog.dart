@@ -12,10 +12,11 @@ import '../../../presentation/world/world_presentation_context.dart';
 import '../../../theme/world_profile.dart';
 import '../../../widgets/app_dialog.dart';
 import '../../tutorial/tutorial_entry.dart';
-import 'how_to_play_sheet.dart';
 
 /// 試合開始時: 役職の要点だけを短く伝える演出付きダイアログ。
-Future<void> showRoleBriefingDialog(
+///
+/// 戻り値: `learn_more` = 遊び方を開きたい（ダイアログは閉じたあとシート表示）。
+Future<String?> showRoleBriefingDialog(
   BuildContext context, {
   required PlayerRole role,
   required List<String> skillLabels,
@@ -34,7 +35,7 @@ Future<void> showRoleBriefingDialog(
   final accent = Color.lerp(pack.accent, roleAccent, 0.45)!;
   final bodyColor = pack.textOnPanel;
   final mutedBody = bodyColor.withValues(alpha: 0.72);
-  return showAppDialog<void>(
+  return showAppDialog<String?>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) {
@@ -151,15 +152,7 @@ Future<void> showRoleBriefingDialog(
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      final host = context;
-                      Navigator.pop(ctx);
-                      showHowToPlaySheet(
-                        host,
-                        yourRole: role,
-                        initialSectionId: 'roles',
-                      );
-                    },
+                    onPressed: () => Navigator.pop(ctx, 'learn_more'),
                     icon: const Icon(Icons.menu_book_outlined, size: 18),
                     label: const Text('遊び方'),
                   ),

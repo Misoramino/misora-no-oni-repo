@@ -218,4 +218,13 @@ class WorldPresentationPack {
 
   /// スキャフォールド上の見出し・アクセント文字色。
   Color get accentOnScaffold => readableOnScaffold(accent);
+
+  /// 任意の背景色の上で読める本文色（明度から自動判定）。
+  Color textOn(Color background) {
+    if (background.computeLuminance() > 0.52) return const Color(0xFF1A1A2E);
+    return const Color(0xFFF2F2F7);
+  }
+
+  /// [textOn] の補助色。
+  Color mutedOn(Color background) => textOn(background).withValues(alpha: 0.78);
 }

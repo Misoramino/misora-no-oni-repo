@@ -99,6 +99,16 @@ void main() {
         }
       });
 
+      test('${profile.name} textOn(panel) vs textOn(scaffold) split for light panel worlds',
+          () {
+        final pack = WorldPresentationCatalog.of(profile);
+        if (!pack.isLightPanel || pack.isLightScaffold) return;
+        final panelText = pack.textOn(pack.panelSurfaceOpaque);
+        final scaffoldText = pack.textOn(pack.scaffoldBottom);
+        expect(panelText.computeLuminance(), lessThan(0.25));
+        expect(scaffoldText.computeLuminance(), greaterThan(0.5));
+      });
+
       test('${profile.name} scaffold vs panel token split avoids card regression',
           () {
         final pack = WorldPresentationCatalog.of(profile);

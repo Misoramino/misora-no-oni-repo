@@ -124,7 +124,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           got ? t.iconData : Icons.lock_outline_rounded,
                           color: got
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.outline,
+                              : context.worldMuted,
                         ),
                         title: Text(
                           got ? t.label : '???',
@@ -169,7 +169,12 @@ class _Metric extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Text(label, style: theme.textTheme.labelSmall),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: context.worldBody,
+          ),
+        ),
       ],
     );
   }
