@@ -187,6 +187,27 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     );
   }
 
+  /// 脱落時に他端末へ最終位置を名前付き暴露として送る（エリア外などの取りこぼし対策）。
+  Future<void> _publishFinalRevealForElimination({required String cause}) async {
+    if (!_isOnlineFirestore) return;
+    final summary = switch (cause) {
+      'outside' => 'エリア外',
+      'caught' => '捕獲',
+      _ => '脱落',
+    };
+    final raw = _positionForReveal;
+    final overflow = _playArea.overflowDistanceMeters(_currentPosition);
+    await _publishFirestoreReveal(
+      revealKind: cause == 'outside' ? 'area_elimination' : 'eliminated',
+      message: MatchHudCopy.namedRevealStatus(_localPlayerLabel, summary),
+      position: raw,
+      playerLabel: _localPlayerLabel,
+      overflowMeters: overflow,
+      reasonSummary: summary,
+      subjectUid: _firestoreSession?.myUid,
+    );
+  }
+
   void _triggerLocationReveal(double overflowMeters) {
     _rt.revealedInCurrentOutside = true;
     final playerLabel = _localPlayerLabel;
@@ -296,7 +317,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     );
   }
 
-  void _evaluateInfoBroker(double distanceToOni) {
+  void _evaluateInfoBroker() {
     final now = DateTime.now();
     final isHunter = _localRole == PlayerRole.hunter;
     final hitIndex = GimmickPickupEvaluator.pickupIndexIfAllowed(
@@ -316,12 +337,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     if (isHunter) {
       _applyHunterInfoBroker(hitIndex: hitIndex, hit: hit, now: now);
     } else {
-      _applyRunnerInfoBroker(
-        hitIndex: hitIndex,
-        hit: hit,
-        now: now,
-        distanceToOni: distanceToOni,
-      );
+      _applyRunnerInfoBroker(hitIndex: hitIndex, hit: hit, now: now);
     }
   }
 
@@ -374,15 +390,9 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     required int hitIndex,
     required LatLng hit,
     required DateTime now,
-    required double distanceToOni,
   }) {
     unawaited(
-      _finalizeRunnerInfoBroker(
-        hitIndex: hitIndex,
-        hit: hit,
-        now: now,
-        distanceToOni: distanceToOni,
-      ),
+      _finalizeRunnerInfoBroker(hitIndex: hitIndex, hit: hit, now: now),
     );
   }
 
@@ -390,24 +400,31 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     required int hitIndex,
     required LatLng hit,
     required DateTime now,
-    required double distanceToOni,
   }) async {
-    final bearing = Geolocator.bearingBetween(
-      _currentPosition.latitude,
-      _currentPosition.longitude,
-      _oniPosition.latitude,
-      _oniPosition.longitude,
-    );
-    final direction = MapGeoUtils.bearingToDirection(bearing);
-    final distBand = distanceToOni <= GameConfig.dangerDistanceMeters
+    final hunterPos = _assignedHunterPosition;
+    final distanceToHunter = _distanceToAssignedHunter();
+    final bearing = hunterPos != null && _assignedHunterPositionKnown
+        ? Geolocator.bearingBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            hunterPos.latitude,
+            hunterPos.longitude,
+          )
+        : 0.0;
+    final direction = _assignedHunterPositionKnown
+        ? MapGeoUtils.bearingToDirection(bearing)
+        : '不明';
+    final distBand = !_assignedHunterPositionKnown
+        ? '不明'
+        : distanceToHunter <= GameConfig.dangerDistanceMeters
         ? '至近'
-        : distanceToOni <= GameConfig.warningDistanceMeters
+        : distanceToHunter <= GameConfig.warningDistanceMeters
         ? '中距離'
         : '遠距離';
     var intel = OniIntelTextBuilder.build(
       mode: _oniIntelMode,
       elapsedSeconds: _rt.elapsedSeconds,
-      oniInCommJammingZone: _oniInCommJammingZone,
+      oniInCommJammingZone: _assignedHunterInCommJammingZone,
       playerPosition: _currentPosition,
       commJammingZoneCenters: _rt.commJammingZonePositions,
       direction: direction,
@@ -415,11 +432,11 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
       bearingDegrees: bearing,
     );
     if (_localRunnerModifier == RunnerModifier.hacker) {
-      final facing = _oniFacingDirectionLabel();
+      final facing = _assignedHunterFacingDirectionLabel();
       intel = OniIntelTextBuilder.buildHackerAugment(
         baseIntel: intel,
         distanceBand: distBand,
-        distanceMeters: distanceToOni,
+        distanceMeters: distanceToHunter,
         oniFacingDirection: facing,
       );
     }
@@ -447,7 +464,7 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
         from: now,
         localHint: true,
       );
-      final trailHint = _oniTrailPointsForMap().length >= 2
+      final trailHint = _assignedHunterTrailPointsForMap().length >= 2
           ? ' · 地図に鬼の遅延軌跡を表示'
           : '';
       _statusMessage = '情報屋: $intel$trailHint';
@@ -470,8 +487,8 @@ extension _GameMapRevealsGimmicks on _GameMapScreenState {
     );
   }
 
-  String? _oniFacingDirectionLabel() {
-    final deg = _lastKnownOniHeadingDegrees;
+  String? _assignedHunterFacingDirectionLabel() {
+    final deg = _lastKnownAssignedHunterHeadingDegrees;
     if (deg == null) return null;
     return MapGeoUtils.bearingToDirection(deg);
   }

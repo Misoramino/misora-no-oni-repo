@@ -35,12 +35,14 @@ import '../features/game_map/map/game_map_overlay_visual.dart';
 import '../features/game_map/map/map_geo_format.dart';
 import '../features/game_map/logic/gimmick_relocator.dart';
 import '../features/game_map/logic/map_geo_utils.dart';
+import '../features/game_map/logic/assigned_hunter_intel.dart';
 import '../features/game_map/logic/oni_intel_text_builder.dart';
 import '../features/game_map/logic/reveal_reason_pool.dart';
 import '../game/anonymous_reveal_trace.dart';
 import '../game/match_gimmick_layout.dart';
 import '../game/match_record.dart';
 import '../features/game_map/match/game_map_match_controller.dart';
+import '../features/game_map/match/match_sync_gate.dart';
 import '../features/game_map/match/gimmick_pickup_evaluator.dart';
 import '../features/game_map/match/match_geo_helpers.dart';
 import '../features/game_map/match/match_runtime_state.dart';
@@ -329,6 +331,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   Set<String> _skillLoadout = const {SkillIds.fakePosition};
   final List<LatLng> _tracePoints = [];
   final List<OniPathSample> _oniPathSamples = [];
+  final List<OniPathSample> _hunterPathSamples = [];
   LatLng? _oniMatchStartAnchor;
 
   // --- Recording & visuals ---
@@ -397,10 +400,12 @@ class _GameMapScreenState extends State<GameMapScreen>
   final ResumeCrisisSummaryCollector _resumeCrisisCollector =
       ResumeCrisisSummaryCollector();
   final Map<String, Set<String>> _captureAcksByPlace = {};
+  final Map<String, List<String>> _capturePlacedTargetsByPlace = {};
   DateTime? _lastBodyThrowAreaToastAt;
   DateTime? _lastHunterPositionPublishAt;
   LatLng? _lastHunterPositionPublished;
   double? _lastKnownOniHeadingDegrees;
+  double? _lastKnownAssignedHunterHeadingDegrees;
   LatLng? _prevOniSampleForHeading;
   RunnerModifier _localRunnerModifier = RunnerModifier.none;
   bool _hostAccusationUnlockSent = false;
@@ -423,6 +428,11 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _gpsPositionReady = false;
   final RoomEventDeduper _roomEventDeduper = RoomEventDeduper();
   final Map<String, Timer> _captureBoundTimers = {};
+  int? _boundMatchSessionKey;
+  int? _armedSyncSessionKey;
+  Timer? _onlineEventSyncTimer;
+  int _lastOnlineEventSyncAtMs = 0;
+  bool _abortVoteDialogShowing = false;
   bool _ownsRoomSession = false;
 
   /// オンラインで鬼役の位置が members に載っている。
@@ -466,6 +476,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _suppressMatchFeedback = false;
   bool _matchRoleBriefingShown = false;
   bool _rejoinRestoringEvents = false;
+  bool _matchSyncArmed = false;
+  final List<RoomMatchEvent> _bufferedMatchEvents = [];
   bool _matchPresentationActive = false;
   bool _howToPlaySheetOpen = false;
   bool _matchStartInFlight = false;
@@ -656,18 +668,22 @@ class _GameMapScreenState extends State<GameMapScreen>
   /// 初回試合のみ、役職ブリーフィング後に HUD・スキル・メニューを案内する。
   Future<void> _maybeShowMatchCoachMarks() async {
     if (!mounted || _gameState != GameState.running) return;
+    if (_isOnlineFirestore && _rt.elapsedSeconds > 8) return;
     if (await OnboardingPrefs.matchCoachMarksSeen()) return;
+    await OnboardingPrefs.markMatchCoachMarksSeen();
 
     if (_controlSheetMode == ControlSheetMode.hidden) {
       setState(() => _controlSheetMode = ControlSheetMode.skillsOnly);
     }
     await Future<void>.delayed(const Duration(milliseconds: 320));
     if (!mounted || _gameState != GameState.running) return;
-    await _showMatchCoachMarks(markSeen: true);
+    if (_isOnlineFirestore && _rt.elapsedSeconds > 8) return;
+    await _showMatchCoachMarks(markSeen: false);
   }
 
   Future<void> _showMatchCoachMarks({bool markSeen = false}) async {
     if (!mounted || _gameState != GameState.running) return;
+    if (_isOnlineFirestore && _rt.elapsedSeconds > 8) return;
     await showCoachMarks(context, [
       CoachStep(
         targetKey: _matchHudKey,
@@ -881,7 +897,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   BleGameScanFilter? _bleGameScanFilter() {
-    if (_gameState != GameState.running) return null;
+    if (_gameState != GameState.running && !_matchSyncArmed) return null;
     final roomId = _firestoreSession?.roomId;
     final sk = _matchEventSessionKey;
     if (roomId == null || sk == null) return null;
@@ -1008,7 +1024,18 @@ class _GameMapScreenState extends State<GameMapScreen>
       unawaited(_maybeAutoClaimHostIfAbsent());
     });
     _roomMatchSub?.cancel();
-    _roomMatchSub = session.roomMatchState.listen(_onRemoteRoomMatchState);
+    _roomMatchSub = session.roomMatchState.listen((state) {
+      if (!mounted) return;
+      if (state.phase == RoomPhase.lobby && _gameState == GameState.waiting) {
+        final lobbyArea = session.currentLobbyPlayArea;
+        if (lobbyArea != null) {
+          _applyLobbyPlayAreaSnapshot(lobbyArea);
+        }
+      }
+      if (!_isHost) {
+        _onRemoteRoomMatchState(state);
+      }
+    });
 
     _roomEventSub?.cancel();
     _roomEventSub =
@@ -1018,7 +1045,13 @@ class _GameMapScreenState extends State<GameMapScreen>
     _roomConnectionStatus = session.currentConnectionStatus;
     _connectionSub = session.connectionStatus.listen((status) {
       if (!mounted) return;
+      final prev = _roomConnectionStatus;
       setState(() => _roomConnectionStatus = status);
+      if (prev == RoomConnectionStatus.offline &&
+          status == RoomConnectionStatus.connected &&
+          _matchSyncArmed) {
+        unawaited(_recoverOnlineMatchSync());
+      }
     });
 
     final rm = session.currentRoomMatch;
@@ -1087,21 +1120,57 @@ class _GameMapScreenState extends State<GameMapScreen>
       AccusationFacilityCopy.forProfile(_mapVisual.pack.profile);
 
   void _applyRemoteOniPosition(Map<String, RemoteMemberSnapshot> map) {
-    _remoteOniKnown = false;
+    var known = _remoteOniKnown;
+    LatLng? resolved;
+
     for (final m in map.values) {
-      if ((m.role == 'oni' || m.role == 'hunter') &&
-          m.lat != null &&
-          m.lng != null) {
-        _oniPosition = LatLng(m.lat!, m.lng!);
-        _remoteOniKnown = true;
-        return;
+      if ((m.role == 'oni' || m.role == 'hunter') && m.hasCoords) {
+        resolved = LatLng(m.lat!, m.lng!);
+        known = true;
+        break;
       }
     }
-    final hunterUid = _hunterUidFromAssignments;
-    if (hunterUid != null && _lastKnownHunterPositions.containsKey(hunterUid)) {
-      _oniPosition = _lastKnownHunterPositions[hunterUid]!;
-      _remoteOniKnown = true;
+
+    if (resolved == null) {
+      final myUid = _firestoreSession?.myUid ?? 'local';
+      var nearestDist = double.infinity;
+      for (final p in _matchParticipants()) {
+        if (p.uid == myUid) continue;
+        if (!WerewolfFactionLogic.isPerceivedOni(
+          assignmentRole: p.assignmentRole,
+          werewolfInOniForm: p.werewolfInOniForm,
+        )) {
+          continue;
+        }
+        final pos = _lastKnownHunterPositions[p.uid];
+        if (pos == null) continue;
+        final d = Geolocator.distanceBetween(
+          _currentPosition.latitude,
+          _currentPosition.longitude,
+          pos.latitude,
+          pos.longitude,
+        );
+        if (d < nearestDist) {
+          nearestDist = d;
+          resolved = pos;
+          known = true;
+        }
+      }
     }
+
+    if (resolved == null) {
+      final hunterUid = _hunterUidFromAssignments;
+      if (hunterUid != null &&
+          _lastKnownHunterPositions.containsKey(hunterUid)) {
+        resolved = _lastKnownHunterPositions[hunterUid]!;
+        known = true;
+      }
+    }
+
+    if (resolved != null) {
+      _oniPosition = resolved;
+    }
+    _remoteOniKnown = known;
   }
 
   final Map<String, LatLng> _lastKnownHunterPositions = {};
@@ -1113,6 +1182,36 @@ class _GameMapScreenState extends State<GameMapScreen>
       if (e.value.role == PlayerRole.hunter) return e.key;
     }
     return null;
+  }
+
+  /// 役割割当の本鬼座標（鬼化人狼の位置は含めない）。
+  LatLng? get _assignedHunterPosition => AssignedHunterIntel.position(
+        hunterUid: _hunterUidFromAssignments,
+        myUid: _firestoreSession?.myUid,
+        localIsHunter: _localRole == PlayerRole.hunter,
+        playerPosition: _currentPosition,
+        lastKnownByUid: _lastKnownHunterPositions,
+      );
+
+  bool get _assignedHunterPositionKnown => AssignedHunterIntel.positionKnown(
+        testMode: _testMode,
+        hunterUid: _hunterUidFromAssignments,
+        localIsHunter: _localRole == PlayerRole.hunter,
+        lastKnownByUid: _lastKnownHunterPositions,
+      );
+
+  double _distanceToAssignedHunter() => AssignedHunterIntel.distanceMeters(
+        playerPosition: _currentPosition,
+        hunterPosition: _assignedHunterPosition,
+        known: _assignedHunterPositionKnown,
+        testMode: _testMode,
+        testFallbackOni: _oniPosition,
+      );
+
+  bool get _assignedHunterInCommJammingZone {
+    final pos = _assignedHunterPosition;
+    if (pos == null) return false;
+    return _isPointInCommJammingZone(pos);
   }
 
   /// 逃走者・人狼など、鬼が追う対象が試合にいるか。
@@ -1173,7 +1272,8 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   Future<void> _publishPresenceBandIfNeeded(ProximityBand band) async {
     final fs = _firestoreSession;
-    if (fs == null || _gameState != GameState.running) return;
+    if (fs == null) return;
+    if (_gameState != GameState.running && !_matchSyncArmed) return;
     final now = DateTime.now();
     if (_lastPresenceBandPublishAt != null &&
         now.difference(_lastPresenceBandPublishAt!).inSeconds < 5) {
@@ -1183,6 +1283,8 @@ class _GameMapScreenState extends State<GameMapScreen>
     await fs.publishPresence(
       tension: band == ProximityBand.contact || band == ProximityBand.near,
       proximityBandName: band.name,
+      lat: _currentPosition.latitude,
+      lng: _currentPosition.longitude,
     );
   }
 
@@ -1407,8 +1509,6 @@ class _GameMapScreenState extends State<GameMapScreen>
     _rt.commJammingZonePositions,
     GameConfig.commJammingZoneRadiusMeters,
   );
-
-  bool get _oniInCommJammingZone => _isPointInCommJammingZone(_oniPosition);
 
   Future<void> _setupLocation() async {
     var check = await _locationService.checkLocationAccess();
@@ -1678,6 +1778,71 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   bool get _isHunterNow => _isPerceivedOniNow;
 
+  /// 他端末から見て鬼ロールのプレイヤーか（配信された位置イベントの検証用）。
+  bool _isPerceivedOniActor(String uid) {
+    if (uid == _firestoreSession?.myUid) {
+      return _isPerceivedOniNow;
+    }
+    for (final p in _matchParticipants()) {
+      if (p.uid != uid) continue;
+      return WerewolfFactionLogic.isPerceivedOni(
+        assignmentRole: p.assignmentRole,
+        werewolfInOniForm: p.werewolfInOniForm,
+      );
+    }
+    return uid == _hunterUidFromAssignments;
+  }
+
+  /// 逃走者側: 同期済みの鬼位置が1体以上あるか（本鬼または鬼化人狼）。
+  bool get _anyPerceivedOniPositionKnown {
+    if (_testMode || _localRole == PlayerRole.hunter) return _remoteOniKnown;
+    if (_isPerceivedOniNow) return true;
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    for (final p in _matchParticipants()) {
+      if (p.uid == myUid) continue;
+      if (!WerewolfFactionLogic.isPerceivedOni(
+        assignmentRole: p.assignmentRole,
+        werewolfInOniForm: p.werewolfInOniForm,
+      )) {
+        continue;
+      }
+      if (_lastKnownHunterPositions.containsKey(p.uid)) return true;
+    }
+    return _remoteOniKnown;
+  }
+
+  /// マップ表示用: 最も近い同期済み鬼の座標。
+  LatLng get _nearestPerceivedOniPosition {
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    var best = _oniPosition;
+    var bestDist = double.infinity;
+    var found = _remoteOniKnown;
+    for (final p in _matchParticipants()) {
+      if (p.uid == myUid) continue;
+      if (!WerewolfFactionLogic.isPerceivedOni(
+        assignmentRole: p.assignmentRole,
+        werewolfInOniForm: p.werewolfInOniForm,
+      )) {
+        continue;
+      }
+      final pos = _lastKnownHunterPositions[p.uid];
+      if (pos == null) continue;
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        best = pos;
+        found = true;
+      }
+    }
+    if (found) return best;
+    return _oniPosition;
+  }
+
   List<MatchParticipantState> _matchParticipants() {
     final fs = _firestoreSession;
     final assignments = fs?.currentMatchStart?.assignments ?? {};
@@ -1848,6 +2013,9 @@ class _GameMapScreenState extends State<GameMapScreen>
           deviceHeading: position.heading,
         );
         _maybePublishHunterPosition(next, heading: position.heading);
+      } else if (_localRole == PlayerRole.werewolf && _rt.werewolfInOniForm) {
+        _lastKnownHunterPositions[_firestoreSession?.myUid ?? 'local'] = next;
+        _maybePublishHunterPosition(next, heading: position.heading);
       }
       if (_roomSession is FirestoreRoomSession) {
         final dist = Geolocator.distanceBetween(
@@ -1862,6 +2030,8 @@ class _GameMapScreenState extends State<GameMapScreen>
             tension:
                 _remoteOniKnown && dist <= GameConfig.warningDistanceMeters,
             proximityBandName: _latestProximityBand.name,
+            lat: next.latitude,
+            lng: next.longitude,
           ),
         );
         _maybePublishInspectorFeed();
@@ -3134,6 +3304,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     _remoteMembersSub?.cancel();
     _roomMatchSub?.cancel();
     _roomEventSub?.cancel();
+    _onlineEventSyncTimer?.cancel();
     _connectionSub?.cancel();
     _matchTimer?.cancel();
     _hudRevealAlertTimer?.cancel();

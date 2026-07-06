@@ -1,9 +1,8 @@
 import 'firestore_room_blueprint.dart';
 /// Firestore `members` ドキュメントのローカル表現。
 ///
-/// プライバシー設計上、members には生の GPS（[lat]/[lng]）は書き込まれない。
-/// そのため座標は基本 null で、ニックネーム/役割/近接バンド/顔写真サムネといった
-/// 座標に依存しない情報を運ぶのが主目的（顔写真ピンなどはこれで届く）。
+/// 試合中はスロットル付きで [lat]/[lng] が載る（地図ピンは出さない・
+/// `locationVisibility: hidden`）。鬼側の距離判定・バックグラウンド捕獲の補助に使う。
 class RemoteMemberSnapshot {
   const RemoteMemberSnapshot({
     required this.uid,

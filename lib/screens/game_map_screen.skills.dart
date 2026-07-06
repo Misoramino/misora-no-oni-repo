@@ -93,12 +93,46 @@ extension _GameMapSkills on _GameMapScreenState {
   bool get _bodyThrowBlocksOtherSkills =>
       _rt.bodyThrowAwaitingMapTap || _bodyThrowPuppetActive;
 
-  double _distanceToOni() => MatchGeoHelpers.distanceToOni(
-    player: _currentPosition,
-    oni: _oniPosition,
-    oniKnown: _remoteOniKnown,
-    testMode: _testMode,
-  );
+  double _distanceToOni() {
+    if (_testMode) {
+      return MatchGeoHelpers.distanceToOni(
+        player: _currentPosition,
+        oni: _oniPosition,
+        oniKnown: true,
+        testMode: true,
+      );
+    }
+    if (_isPerceivedOniNow) {
+      return double.infinity;
+    }
+    if (!_anyPerceivedOniPositionKnown) {
+      return double.infinity;
+    }
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    var best = double.infinity;
+    for (final p in _matchParticipants()) {
+      if (p.uid == myUid) continue;
+      if (!WerewolfFactionLogic.isPerceivedOni(
+        assignmentRole: p.assignmentRole,
+        werewolfInOniForm: p.werewolfInOniForm,
+      )) {
+        continue;
+      }
+      final pos = _lastKnownHunterPositions[p.uid] ??
+          (p.uid == _hunterUidFromAssignments && _remoteOniKnown
+              ? _oniPosition
+              : null);
+      if (pos == null) continue;
+      final d = Geolocator.distanceBetween(
+        _currentPosition.latitude,
+        _currentPosition.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (d < best) best = d;
+    }
+    return best;
+  }
 
   bool get _showGimmickMapMarkers =>
       _testMode ||
@@ -271,6 +305,9 @@ extension _GameMapSkills on _GameMapScreenState {
           : '人の姿 — スキルで鬼化${_werewolfStatusSuffix()}';
     });
     unawaited(_syncBleMatchContext(forceAdvertiseRestart: true));
+    if (inOniForm) {
+      _maybePublishHunterPosition(_currentPosition, force: true);
+    }
   }
 
   bool _isAccusationSiteBlockedByLiveHunter(int siteIndex) {
@@ -293,6 +330,16 @@ extension _GameMapSkills on _GameMapScreenState {
       facilityPosition: facility,
       hunterPosition: hunterPos,
       hunterPositionKnown: hunterPos != null,
+    );
+  }
+
+  List<LatLng> _assignedHunterTrailPointsForMap() {
+    final trail = MatchDurationScaling.oniTrail(_matchDurationSeconds);
+    return OniPathTrailLogic.visibleTrailPoints(
+      samples: _hunterPathSamples,
+      now: DateTime.now(),
+      minAgeSeconds: trail.minAgeSeconds,
+      maxAgeSeconds: trail.maxAgeSeconds,
     );
   }
 
@@ -338,6 +385,20 @@ extension _GameMapSkills on _GameMapScreenState {
       retainSeconds: trail.retainSeconds,
     );
     _oniPathSamples
+      ..clear()
+      ..addAll(pruned);
+  }
+
+  void _recordAssignedHunterPathSample(LatLng pos) {
+    final now = DateTime.now();
+    _hunterPathSamples.add(OniPathSample(recordedAt: now, position: pos));
+    final trail = MatchDurationScaling.oniTrail(_matchDurationSeconds);
+    final pruned = OniPathTrailLogic.prune(
+      samples: _hunterPathSamples,
+      now: now,
+      retainSeconds: trail.retainSeconds,
+    );
+    _hunterPathSamples
       ..clear()
       ..addAll(pruned);
   }
@@ -621,10 +682,20 @@ extension _GameMapSkills on _GameMapScreenState {
     double? heading,
     bool force = false,
   }) {
-    if (!_isOnlineFirestore || _gameState != GameState.running) return;
-    // 向きは実際の移動から、配信座標は体投げ中なら人形位置から。
-    _updateOniHeadingFromPosition(pos, deviceHeading: heading);
-    final broadcast = _effectiveHunterBroadcastPos(pos);
+    if (!_isOnlineFirestore || !_isPerceivedOniNow) return;
+    final roomRunning =
+        _firestoreSession?.currentPhase == RoomPhase.running;
+    if (!_matchSyncArmed &&
+        _gameState != GameState.running &&
+        !(_matchPresentationActive && roomRunning)) {
+      return;
+    }
+    if (_localRole == PlayerRole.hunter) {
+      _updateOniHeadingFromPosition(pos, deviceHeading: heading);
+    }
+    final broadcast = _localRole == PlayerRole.hunter
+        ? _effectiveHunterBroadcastPos(pos)
+        : pos;
     final now = DateTime.now();
     final lastAt = _lastHunterPositionPublishAt;
     final lastPos = _lastHunterPositionPublished;
@@ -647,6 +718,9 @@ extension _GameMapSkills on _GameMapScreenState {
     _lastHunterPositionPublishAt = now;
     _lastHunterPositionPublished = broadcast;
     _recordOniPathSample(broadcast);
+    if (_localRole == PlayerRole.hunter) {
+      _recordAssignedHunterPathSample(broadcast);
+    }
     unawaited(
       _publishFirestoreMatchEventInner(
         innerType: 'hunter_position',
@@ -868,13 +942,15 @@ extension _GameMapSkills on _GameMapScreenState {
       unawaited(
         _publishCaptureZonePlaced(placeId, pos, rawTargets, fromSkill: true),
       );
+      _capturePlacedTargetsByPlace[placeId] =
+          _captureTargetUidsForFirestore(rawTargets);
       _captureAcksByPlace.putIfAbsent(placeId, () => <String>{});
       _scheduleCaptureBoundOnce(placeId: placeId, center: pos);
     }
   }
 
   int? get _matchEventSessionKey =>
-      _firestoreSession?.currentMatchStart?.gimmickSeed;
+      _boundMatchSessionKey ?? _firestoreSession?.currentMatchStart?.gimmickSeed;
 
   static const _fsMatchEventInnerTypes = <String>{
     'gimmicks_generated',
@@ -901,6 +977,23 @@ extension _GameMapSkills on _GameMapScreenState {
     _scheduleCaptureBoundOnce(placeId: placeId, center: center);
   }
 
+  List<String> _captureTargetUidsFromPayload(Map<String, dynamic> payload) {
+    final raw = payload['targetUids'];
+    if (raw is! List) return const [];
+    return raw.map((e) => e.toString()).toList(growable: false);
+  }
+
+  void _rememberCapturePlacedTargets(String placeId, List<String> targetUids) {
+    if (targetUids.isEmpty) return;
+    _capturePlacedTargetsByPlace[placeId] = targetUids;
+  }
+
+  List<String> _mergedCaptureBoundTargets(String placeId) {
+    final placed = _capturePlacedTargetsByPlace.remove(placeId) ?? const [];
+    final acked = _captureAcksByPlace.remove(placeId)?.toList() ?? const [];
+    return {...placed, ...acked}.toList(growable: false);
+  }
+
   void _scheduleCaptureBoundOnce({
     required String placeId,
     required LatLng center,
@@ -917,10 +1010,11 @@ extension _GameMapSkills on _GameMapScreenState {
       () async {
         _captureBoundTimers.remove(placeId);
         if (!mounted || _gameState != GameState.running) return;
-        final acked = _captureAcksByPlace.remove(placeId)?.toList() ?? [];
+        final targets = _mergedCaptureBoundTargets(placeId);
+        if (targets.isEmpty) return;
         final payload = {
           'placeId': placeId,
-          'targetUids': acked,
+          'targetUids': targets,
           'centerLat': center.latitude,
           'centerLng': center.longitude,
           'durationSec': GameConfig.captureZoneDurationSeconds,

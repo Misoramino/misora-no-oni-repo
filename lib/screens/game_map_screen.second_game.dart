@@ -11,6 +11,9 @@ extension _GameMapSecondGame on _GameMapScreenState {
     _dismissOpenModals();
     _tracePoints.add(_currentPosition);
     unawaited(_publishTraceDrop(_currentPosition));
+    if (publishOnline) {
+      unawaited(_publishFinalRevealForElimination(cause: cause));
+    }
     final factionAtDeath = _localFactionNow();
     final rule = EliminationAftermathRule.forEliminatedFaction(
       matchDefault: _eliminationAftermathRule,

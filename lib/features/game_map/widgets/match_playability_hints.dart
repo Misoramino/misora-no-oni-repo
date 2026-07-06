@@ -25,6 +25,14 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
 
   if (generalSeen && !needsAlways && !lowPower) return;
 
+  if (generalSeen && (needsAlways || lowPower)) {
+    final lastShown = await OnboardingPrefs.matchPlayabilityConditionalLastShown();
+    if (lastShown != null &&
+        DateTime.now().difference(lastShown) < const Duration(hours: 24)) {
+      return;
+    }
+  }
+
   if (!context.mounted) return;
 
   final lines = <String>[
@@ -69,5 +77,7 @@ Future<void> showMatchPlayabilityHintsIfNeeded(
 
   if (!generalSeen) {
     await OnboardingPrefs.markMatchPlayabilityHintsSeen();
+  } else {
+    await OnboardingPrefs.markMatchPlayabilityConditionalShown();
   }
 }

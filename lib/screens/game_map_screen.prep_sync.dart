@@ -10,14 +10,26 @@ extension _GameMapPrepSync on _GameMapScreenState {
     required String title,
     required String body,
   }) {
-    if (!_crisisNotifyVibration && !_crisisNotifyLocal) return;
-
     if (_suppressMatchFeedback) {
       _resumeCrisisCollector.record(kind: kind, title: title, body: body);
       return;
     }
 
-    if (!_appInBackground) return;
+    if (!_appInBackground) {
+      _showInlineStatus(
+        '$title — $body',
+        duration: const Duration(seconds: 5),
+      );
+      if (kind == BackgroundCrisisKind.eliminated ||
+          kind == BackgroundCrisisKind.proximityDanger ||
+          kind == BackgroundCrisisKind.proximityWarning) {
+        HapticFeedback.mediumImpact();
+      }
+      return;
+    }
+
+    if (!_crisisNotifyVibration && !_crisisNotifyLocal) return;
+
     unawaited(
       BackgroundCrisisAlert.notify(
         kind: kind,
@@ -455,7 +467,13 @@ extension _GameMapPrepSync on _GameMapScreenState {
   }
 
   /// 快適プレイ案内 → HUDコーチマークを順番に表示（重なり防止）。
-  Future<void> _runPostMatchStartOnboarding() async {
+  Future<void> _runPostMatchStartOnboarding({bool rejoin = false}) async {
+    if (_isOnlineFirestore && _rt.elapsedSeconds > 8) return;
+    if (rejoin) {
+      final hintsSeen = await OnboardingPrefs.matchPlayabilityHintsSeen();
+      final coachSeen = await OnboardingPrefs.matchCoachMarksSeen();
+      if (hintsSeen && coachSeen) return;
+    }
     await _waitForBlockingRoutesToClose();
     if (!mounted || _gameState != GameState.running) return;
     await _maybeShowMatchPlayabilityHints();

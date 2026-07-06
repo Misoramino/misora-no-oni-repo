@@ -150,8 +150,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     }
     if (!rejoin) {
       _captureAcksByPlace.clear();
+      _capturePlacedTargetsByPlace.clear();
       _lastKnownHunterPositions.clear();
       _oniPathSamples.clear();
+      _hunterPathSamples.clear();
+      _lastKnownAssignedHunterHeadingDegrees = null;
       _bodyThrowBroadcastActive = false;
       _oniMatchStartAnchor = null;
       if (_localRole == PlayerRole.hunter) {
@@ -166,6 +169,17 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (sk != null) {
         _firestoreSession?.startRoomEventsListener(sk);
       }
+    }
+    if (_localRole == PlayerRole.hunter && !_isRoomInspector) {
+      _maybePublishHunterPosition(_currentPosition, force: true);
+    } else if (_localRole == PlayerRole.werewolf &&
+        _rt.werewolfInOniForm &&
+        !_isRoomInspector) {
+      _maybePublishHunterPosition(_currentPosition, force: true);
+    }
+    if (_isOnlineFirestore) {
+      unawaited(_bootstrapOnlineMatchEvents());
+      _startOnlineEventSyncPump();
     }
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
@@ -218,6 +232,12 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
       if (_gameState == GameState.running) {
         _evaluateGame();
+        if (_isOnlineFirestore &&
+            _isPerceivedOniNow &&
+            !_isRoomInspector &&
+            _rt.elapsedSeconds % 5 == 0) {
+          _maybePublishHunterPosition(_currentPosition, force: true);
+        }
       } else {
         _evaluateEliminationAftermathCharges();
         _maybePublishAccusationUnlock();
@@ -526,6 +546,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   Future<void> _applySharedMatchStart(SharedMatchSnapshot snapshot) async {
+    _boundMatchSessionKey = snapshot.gimmickSeed;
     _playArea = snapshot.playArea;
     _matchDurationSeconds = snapshot.matchDurationSeconds;
     _oniIntelMode = snapshot.oniIntelMode;
@@ -553,11 +574,16 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (_localRole == PlayerRole.hunter) {
       _oniPosition = _currentPosition;
       _remoteOniKnown = true;
-      _maybePublishHunterPosition(_currentPosition);
+    }
+    if (_isOnlineFirestore) {
+      await _armMatchSync();
     }
   }
 
   void _resetGame({bool skipFirestoreSync = false}) {
+    _disarmMatchSync();
+    _stopOnlineEventSyncPump();
+    _boundMatchSessionKey = null;
     _matchRoleBriefingShown = false;
     _matchTimer?.cancel();
     _cancelCaptureBoundTimers();
@@ -592,6 +618,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _abortProposalTimer?.cancel();
     _abortProposalTimer = null;
     _captureAcksByPlace.clear();
+    _capturePlacedTargetsByPlace.clear();
     _eliminatedUids.clear();
     _absentSinceByUid.clear();
     _factionAtDeath = null;
@@ -673,8 +700,8 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
       return;
     }
-    final sk = _matchEventSessionKey;
-    if (_isOnlineFirestore && sk != null) {
+      final sk = _activeMatchSessionKey;
+      if (_isOnlineFirestore && sk != null) {
       final fs = _firestoreSession;
       if (fs == null) {
         _toast('ルームに接続していません');
@@ -733,7 +760,15 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   void _onAbortProposalTimedOut() {
-    if (!mounted || _gameState != GameState.running) return;
+    final roomRunning =
+        _isOnlineFirestore &&
+        _firestoreSession?.currentPhase == RoomPhase.running;
+    if (!mounted ||
+        (_gameState != GameState.running &&
+            !_matchPresentationActive &&
+            !roomRunning)) {
+      return;
+    }
     if (_abortProposalInitiatorUid == null) return;
     final initiator = _abortProposalInitiatorUid!;
     final n = _activeMatchPlayerCount;
@@ -752,6 +787,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   Future<void> _showAbortVotePromptDialog({required String initiatorLabel}) async {
+    if (_abortVoteDialogShowing) return;
+    _abortVoteDialogShowing = true;
+    try {
     final n = _activeMatchPlayerCount;
     final need = (n ~/ 2) + 1;
     final expires = _abortProposalExpiresAt;
@@ -795,11 +833,14 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     );
     if (!mounted || choice == null) return;
     await _submitAbortVote(choice == 'yes');
+    } finally {
+      _abortVoteDialogShowing = false;
+    }
   }
 
   Future<void> _submitAbortVote(bool agree) async {
     final fs = _firestoreSession;
-    final sk = _matchEventSessionKey;
+    final sk = _activeMatchSessionKey;
     if (fs == null || sk == null) return;
     final err = await fs.publishRoomEvent(
       type: RoomMatchEventTypes.abortVote,
@@ -823,23 +864,46 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
   }
 
   void _handleAbortProposalEvent(RoomMatchEvent ev) {
+    if (!_matchSyncArmed && _gameState == GameState.waiting) return;
     final ms = ev.payload['expiresAtMs'];
     if (ms is! num) return;
     final expiresAt = DateTime.fromMillisecondsSinceEpoch(ms.toInt());
     if (!expiresAt.isAfter(DateTime.now())) return;
-    if (_abortProposalInitiatorUid == ev.actorUid &&
-        _abortProposalExpiresAt != null &&
-        _abortProposalExpiresAt!.isAfter(DateTime.now())) {
+    final myUid = _firestoreSession?.myUid;
+    final existingInitiator = _abortProposalInitiatorUid;
+    final existingExpires = _abortProposalExpiresAt;
+    if (existingInitiator != null &&
+        existingExpires != null &&
+        existingExpires.isAfter(DateTime.now())) {
+      if (expiresAt.isAfter(existingExpires)) {
+        _abortProposalExpiresAt = expiresAt;
+        _abortProposalTimer?.cancel();
+        final wait = expiresAt.difference(DateTime.now());
+        if (!wait.isNegative) {
+          _abortProposalTimer = Timer(wait, _onAbortProposalTimedOut);
+        }
+      }
+      if (mounted && myUid != null && ev.actorUid != myUid) {
+        unawaited(
+          _showAbortVotePromptDialog(initiatorLabel: '他の参加者'),
+        );
+      }
+      return;
+    }
+    if (existingInitiator == ev.actorUid &&
+        existingExpires != null &&
+        existingExpires.isAfter(DateTime.now())) {
       return;
     }
     _beginAbortProposal(initiatorUid: ev.actorUid, expiresAt: expiresAt);
-    if (!mounted || ev.actorUid == _firestoreSession?.myUid) return;
+    if (!mounted || ev.actorUid == myUid) return;
     unawaited(
       _showAbortVotePromptDialog(initiatorLabel: '他の参加者'),
     );
   }
 
   void _handleAbortVoteEvent(RoomMatchEvent ev) {
+    if (!_matchSyncArmed && _gameState == GameState.waiting) return;
     if (_abortProposalInitiatorUid == null) return;
     final agree = ev.payload['agree'] == true;
     if (!mounted) return;
@@ -858,21 +922,28 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         _isOnlineFirestore &&
         _firestoreSession?.currentPhase == RoomPhase.running;
     if (!_isOnlineFirestore ||
-        (_gameState != GameState.running && !roomRunning)) {
+        (_gameState != GameState.running &&
+            !roomRunning &&
+            !_matchSyncArmed)) {
       return;
     }
-    if (_abortProposalInitiatorUid == null) return;
+    final initiatorUid = _abortProposalInitiatorUid;
+    if (initiatorUid == null) return;
     final n = _activeMatchPlayerCount;
     final need = (n ~/ 2) + 1;
     if (_abortVoteYesUids.length >= need) {
       _abortProposalTimer?.cancel();
       _abortProposalTimer = null;
-      _abortProposalInitiatorUid = null;
       _abortProposalExpiresAt = null;
+      final myUid = _firestoreSession?.myUid;
+      final shouldPublish = _isHost || myUid == initiatorUid;
+      _abortProposalInitiatorUid = null;
       _abortVoteYesUids.clear();
-      unawaited(
-        _finalizeAbortByMajority('参加者の過半数が賛成し、試合を中止しました'),
-      );
+      if (shouldPublish) {
+        unawaited(
+          _finalizeAbortByMajority('参加者の過半数が賛成し、試合を中止しました'),
+        );
+      }
     }
   }
 
@@ -906,6 +977,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       if (_isHost) {
         _abortMatch(message);
       } else {
+        if (_hostUnavailableForRescue()) {
+          await _attemptAbortEndRescue(message);
+        }
         _abortMatchLocalReset(message);
       }
       return;
@@ -916,6 +990,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (_isHost) {
       _abortMatch(message);
     } else {
+      if (_hostUnavailableForRescue()) {
+        await _attemptAbortEndRescue(message);
+      }
       _abortMatchLocalReset(message);
     }
   }
@@ -1184,7 +1261,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     final distance = _distanceToOni();
     _proximityService.ingestGpsDistanceMeters(distance);
     _evaluateSafeZone();
-    _evaluateInfoBroker(distance);
+    _evaluateInfoBroker();
     _maybePublishAccusationUnlock();
     _evaluateAccusationFacility();
     _maybeWerewolfForcedTransform();
@@ -1197,9 +1274,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     final effects = _matchCtrl.evaluateRunningTick(
       playArea: _playArea,
       playerPosition: _currentPosition,
-      oniPosition: _oniPosition,
+      oniPosition: _nearestPerceivedOniPosition,
       testMode: _testMode,
-      oniKnown: _remoteOniKnown,
+      oniKnown: _anyPerceivedOniPositionKnown,
       isHunterNow: _isPerceivedOniNow,
       runnerProximityActive:
           _chaseTargetsPresent && !_isPerceivedOniNow,
@@ -1230,9 +1307,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     final effects = _matchCtrl.evaluateRunningTick(
       playArea: _playArea,
       playerPosition: _currentPosition,
-      oniPosition: _oniPosition,
+      oniPosition: _nearestPerceivedOniPosition,
       testMode: _testMode,
-      oniKnown: _remoteOniKnown,
+      oniKnown: _anyPerceivedOniPositionKnown,
       isHunterNow: _isPerceivedOniNow,
       runnerProximityActive:
           _chaseTargetsPresent && !_isPerceivedOniNow,
@@ -1395,9 +1472,16 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _maybePublishInspectorFeed();
   }
 
-  void _updateOniHeadingFromPosition(LatLng pos, {double? deviceHeading}) {
+  void _updateOniHeadingFromPosition(
+    LatLng pos, {
+    double? deviceHeading,
+    bool updateAssignedHunter = false,
+  }) {
     if (deviceHeading != null && deviceHeading >= 0 && deviceHeading <= 360) {
       _lastKnownOniHeadingDegrees = deviceHeading;
+      if (updateAssignedHunter || _localRole == PlayerRole.hunter) {
+        _lastKnownAssignedHunterHeadingDegrees = deviceHeading;
+      }
       return;
     }
     final prev = _prevOniSampleForHeading;
@@ -1410,12 +1494,16 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       pos.longitude,
     );
     if (moved < GameConfig.hackerHeadingMinMoveMeters) return;
-    _lastKnownOniHeadingDegrees = Geolocator.bearingBetween(
+    final bearing = Geolocator.bearingBetween(
       prev.latitude,
       prev.longitude,
       pos.latitude,
       pos.longitude,
     );
+    _lastKnownOniHeadingDegrees = bearing;
+    if (updateAssignedHunter || _localRole == PlayerRole.hunter) {
+      _lastKnownAssignedHunterHeadingDegrees = bearing;
+    }
   }
 
   AnonymousTraceSource _traceSourceFromKey(String source) {

@@ -79,6 +79,10 @@ extension _GameMapAccusation on _GameMapScreenState {
         'cause': ?cause,
         'factionAtDeath': faction.name,
         'afterCatchRule': rule.name,
+        'playerLabel': _localPlayerLabel,
+        'lat': _currentPosition.latitude,
+        'lng': _currentPosition.longitude,
+        'overflowMeters': _playArea.overflowDistanceMeters(_currentPosition),
       },
       sessionKey: sk,
     );
@@ -441,6 +445,46 @@ extension _GameMapAccusation on _GameMapScreenState {
     );
   }
 
+  Map<String, dynamic> _eliminationPayloadForUid(
+    String uid, {
+    required String cause,
+  }) {
+    final participants = _matchParticipants();
+    MatchParticipantState? pState;
+    for (final p in participants) {
+      if (p.uid == uid) {
+        pState = p;
+        break;
+      }
+    }
+    final payload = <String, dynamic>{
+      'uid': uid,
+      'cause': cause,
+      'playerLabel': _displayNameForUid(uid),
+    };
+    if (pState != null) {
+      final faction = WerewolfFactionLogic.factionFor(
+        assignmentRole: pState.assignmentRole,
+        players: participants,
+        uid: uid,
+      );
+      final rule = EliminationAftermathRule.forEliminatedFaction(
+        matchDefault: _eliminationAftermathRule,
+        factionAtDeath: faction,
+      );
+      payload['factionAtDeath'] = faction.name;
+      payload['afterCatchRule'] = rule.name;
+    }
+    final remote = _remoteMembers[uid];
+    if (remote?.lat != null && remote?.lng != null) {
+      final pos = LatLng(remote!.lat!, remote.lng!);
+      payload['lat'] = pos.latitude;
+      payload['lng'] = pos.longitude;
+      payload['overflowMeters'] = _playArea.overflowDistanceMeters(pos);
+    }
+    return payload;
+  }
+
   Future<void> _publishParticipantEliminatedByHost({
     required String uid,
     required String cause,
@@ -450,7 +494,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     if (fs == null || sk == null || !_isHost) return;
     await fs.publishHostRoomEvent(
       type: RoomMatchEventTypes.playerEliminated,
-      payload: {'uid': uid, 'cause': cause},
+      payload: _eliminationPayloadForUid(uid, cause: cause),
       sessionKey: sk,
     );
   }

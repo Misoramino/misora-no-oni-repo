@@ -36,7 +36,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (!mounted) return;
     _startGameCore(rejoin: true);
     if (elapsed <= GameConfig.syncJoinFullPresentationMaxSeconds) {
-      await _runPostMatchStartOnboarding();
+      await _runPostMatchStartOnboarding(rejoin: true);
     }
     _rejoinRestoringEvents = true;
     await _replayHistoricalMatchEvents(snap.gimmickSeed);

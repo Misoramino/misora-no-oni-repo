@@ -114,7 +114,6 @@ extension _GameMapHostLight on _GameMapScreenState {
       _absentSinceByUid.remove(uid);
       final key = HostLightRescueKeys.disconnectElimination(sk, uid);
       if (_hostLightRescueEmittedKeys.contains(key)) continue;
-      _rememberHostLightRescueKey(key);
       unawaited(
         _publishDisconnectEliminationRescue(uid: uid, idempotencyKey: key),
       );
@@ -131,10 +130,14 @@ extension _GameMapHostLight on _GameMapScreenState {
     final err = await fs.publishHostLightRescueEvent(
       type: HostLightRescueEventTypes.playerEliminatedRescue,
       idempotencyKey: idempotencyKey,
-      payload: {'uid': uid, 'cause': 'disconnect'},
+      payload: _eliminationPayloadForUid(uid, cause: 'disconnect'),
       sessionKey: sk,
     );
-    if (err != null && mounted) _toast(err);
+    if (err == null) {
+      _rememberHostLightRescueKey(idempotencyKey);
+    } else if (mounted) {
+      _toast(err);
+    }
   }
 
   /// 陣営全滅による終了: ホスト不通時は非ホストが match_end_rescue を担う。
@@ -207,6 +210,34 @@ extension _GameMapHostLight on _GameMapScreenState {
           endReason: endReason,
           skipFirestoreSync: true,
         );
+      }
+    } finally {
+      _matchEndRescueInFlight = false;
+    }
+  }
+
+  Future<void> _attemptAbortEndRescue(String message) async {
+    if (_matchEndRescueInFlight || _gameState == GameState.waiting) return;
+    final fs = _firestoreSession;
+    final sk = _matchEventSessionKey;
+    if (fs == null || sk == null || fs.isHost) return;
+    if (fs.currentPhase == RoomPhase.ended) return;
+    final idempotencyKey = HostLightRescueKeys.abortMajority(sk);
+    if (_hostLightRescueEmittedKeys.contains(idempotencyKey)) return;
+    _matchEndRescueInFlight = true;
+    try {
+      final err = await fs.publishMatchEndRescue(
+        idempotencyKey: idempotencyKey,
+        outcome: GameState.runnerWin,
+        endReason: MatchEndReason.hostAbort,
+        message: message,
+        sessionKey: sk,
+      );
+      if (!mounted) return;
+      if (err == null) {
+        _rememberHostLightRescueKey(idempotencyKey);
+      } else {
+        _toast(err);
       }
     } finally {
       _matchEndRescueInFlight = false;
@@ -288,7 +319,6 @@ extension _GameMapHostLight on _GameMapScreenState {
 
       final key = HostLightRescueKeys.oniCapture(sk, member.uid);
       if (_hostLightRescueEmittedKeys.contains(key)) continue;
-      _rememberHostLightRescueKey(key);
       unawaited(
         _publishOniCaptureElimination(uid: member.uid, idempotencyKey: key),
       );
@@ -305,10 +335,14 @@ extension _GameMapHostLight on _GameMapScreenState {
     final err = await fs.publishHostLightRescueEvent(
       type: HostLightRescueEventTypes.oniCaptureElimination,
       idempotencyKey: idempotencyKey,
-      payload: {'uid': uid, 'cause': 'caught'},
+      payload: _eliminationPayloadForUid(uid, cause: 'caught'),
       sessionKey: sk,
     );
-    if (err != null && mounted) _toast(err);
+    if (err == null) {
+      _rememberHostLightRescueKey(idempotencyKey);
+    } else if (mounted) {
+      _toast(err);
+    }
   }
 
   void _recordGloballyBoundTargets(List<dynamic> rawTargets) {

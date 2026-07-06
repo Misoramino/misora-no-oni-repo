@@ -199,6 +199,7 @@ class FirestoreRoomSession implements RoomSessionPort {
   SharedMatchSnapshot? _latestMatchStart;
   LobbyPlayAreaSnapshot? _latestLobbyPlayArea;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _eventsSub;
+  int? _eventsListenerSessionKey;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inspectorFeedSub;
   Map<String, InspectorFeedSnapshot> _latestInspectorFeed = const {};
   final StreamController<Map<String, InspectorFeedSnapshot>> _inspectorFeedCtrl =
@@ -670,11 +671,20 @@ class FirestoreRoomSession implements RoomSessionPort {
     );
   }
 
+  void _emitRoomMatchEvent(String docId, Map<String, dynamic>? data) {
+    if (data == null || _roomEventCtrl.isClosed) return;
+    final ev = RoomMatchEvent.tryParse(docId, data);
+    if (ev != null) _roomEventCtrl.add(ev);
+  }
+
   /// 現在の試合 sessionKey（gimmickSeed）で events を購読（ルーム doc / members に加えて 1 本）。
   void startRoomEventsListener(int sessionKey) {
     if (_roomId == null) return;
+    if (_eventsListenerSessionKey == sessionKey && _eventsSub != null) return;
     final rid = _roomId!;
     _eventsSub?.cancel();
+    _eventsListenerSessionKey = sessionKey;
+    var firstSnapshot = true;
     _eventsSub = _db
         .collection('rooms')
         .doc(rid)
@@ -683,21 +693,32 @@ class FirestoreRoomSession implements RoomSessionPort {
         .orderBy(RoomEventsFields.emittedAtMs)
         .snapshots()
         .listen((snap) {
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            for (final doc in snap.docs) {
+              _emitRoomMatchEvent(doc.id, doc.data());
+            }
+            return;
+          }
           for (final change in snap.docChanges) {
             if (change.type == DocumentChangeType.removed) continue;
-            final data = change.doc.data();
-            if (data == null) continue;
-            final ev = RoomMatchEvent.tryParse(change.doc.id, data);
-            if (ev != null && !_roomEventCtrl.isClosed) {
-              _roomEventCtrl.add(ev);
-            }
+            _emitRoomMatchEvent(change.doc.id, change.doc.data());
           }
+        }, onError: (_) {
+          _setConnectionStatus(RoomConnectionStatus.offline);
         });
   }
 
   void stopRoomEventsListener() {
     _eventsSub?.cancel();
     _eventsSub = null;
+    _eventsListenerSessionKey = null;
+  }
+
+  /// 再接続時に初回スナップショットを取り直す。
+  void restartRoomEventsListener(int sessionKey) {
+    stopRoomEventsListener();
+    startRoomEventsListener(sessionKey);
   }
 
   /// ロビー参加前にホストが適用したエリア（events フォールバック）。
@@ -1119,6 +1140,8 @@ class FirestoreRoomSession implements RoomSessionPort {
     required bool tension,
     String? proximityBandName,
     bool? werewolfOniForm,
+    double? lat,
+    double? lng,
   }) async {
     if (_roomId == null || _uid == null) return;
     final throttle = tension ? _tense : _calm;
@@ -1144,6 +1167,10 @@ class FirestoreRoomSession implements RoomSessionPort {
     }
     if (proximityBandName != null && proximityBandName.isNotEmpty) {
       payload[MemberPresenceFields.proximityBand] = proximityBandName;
+    }
+    if (lat != null && lng != null) {
+      payload[MemberPresenceFields.lastLat] = lat;
+      payload[MemberPresenceFields.lastLng] = lng;
     }
     if (werewolfOniForm != null) {
       payload[MemberPresenceFields.werewolfOniForm] = werewolfOniForm;

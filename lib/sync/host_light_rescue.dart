@@ -22,6 +22,8 @@ abstract final class HostLightRescueKeys {
 
   static String oniCapture(int sessionKey, String targetUid) =>
       'oni_capture_${sessionKey}_$targetUid';
+
+  static String abortMajority(int sessionKey) => 'abort_majority_$sessionKey';
 }
 
 /// 救済イベント payload に含める冪等キー名。

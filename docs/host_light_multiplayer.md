@@ -50,7 +50,8 @@ Discord / LINE 通話を常時つなぎながら遊べるよう、**ゲーム内
 
 ## 7. 鬼側の接近シグナル
 
-- 逃走者の live GPS は members に載せない。
+- 逃走者の live GPS は **地図ピンとしては共有しない**（`locationVisibility: hidden`）。
+- 試合中は members の `lat`/`lng` に **スロットル付き**（12秒/5.5秒）で載せ、鬼側の距離判定・バックグラウンド捕獲の補助に使う。
 - 逃走者端末が **`proximityBand`**（`far` / `near` / `contact`）を publish。鬼は粗い接近情報として参照（正確な座標ピンではない）。
 - パニック・匿名痕跡・名前付き暴露が地図上の主な情報源。
 

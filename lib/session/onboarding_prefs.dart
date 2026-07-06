@@ -15,6 +15,8 @@ abstract final class OnboardingPrefs {
   static const _structureGuideKey = 'onboarding_structure_guide_seen_v1';
   static const _matchPlayabilityKey =
       'onboarding_match_playability_hints_seen_v1';
+  static const _matchPlayabilityConditionalAtKey =
+      'onboarding_match_playability_conditional_at_ms_v1';
 
   static Future<bool> welcomeSeen() => _get(_welcomeKey);
   static Future<void> markWelcomeSeen() => _set(_welcomeKey, true);
@@ -27,6 +29,21 @@ abstract final class OnboardingPrefs {
       _get(_matchPlayabilityKey);
   static Future<void> markMatchPlayabilityHintsSeen() =>
       _set(_matchPlayabilityKey, true);
+
+  static Future<DateTime?> matchPlayabilityConditionalLastShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ms = prefs.getInt(_matchPlayabilityConditionalAtKey);
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  static Future<void> markMatchPlayabilityConditionalShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      _matchPlayabilityConditionalAtKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  }
 
   static Future<bool> prepGuideSeen() => _get(_prepGuideKey);
   static Future<void> markPrepGuideSeen() => _set(_prepGuideKey, true);
@@ -71,6 +88,7 @@ abstract final class OnboardingPrefs {
     await prefs.remove(_welcomeKey);
     await prefs.remove(_structureGuideKey);
     await prefs.remove(_matchPlayabilityKey);
+    await prefs.remove(_matchPlayabilityConditionalAtKey);
     await prefs.remove(_prepGuideKey);
     await prefs.remove(_coachKey);
     await prefs.remove(_matchCoachKey);

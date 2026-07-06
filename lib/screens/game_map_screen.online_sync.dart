@@ -5,28 +5,52 @@ part of 'game_map_screen.dart';
 /// `game_map_screen.dart` 本体（`_GameMapScreenState`）から物理的に切り出した
 /// 受信ハンドラ群。挙動は本体にあった頃と完全に同一（同一ライブラリの extension）。
 extension _GameMapOnlineSyncEvents on _GameMapScreenState {
+  DateTime _eventTimestamp(RoomMatchEvent ev) =>
+      DateTime.fromMillisecondsSinceEpoch(ev.emittedAtMs, isUtc: true).toLocal();
+
   void _onRemoteRoomMatchEvent(RoomMatchEvent ev) {
     if (!mounted) return;
-    if (!_roomEventDeduper.markIfNew(ev.id)) return;
 
     if (_gameState == GameState.waiting &&
         ev.sessionKey == lobbySessionKey) {
+      if (!_roomEventDeduper.markIfNew(ev.id)) return;
       _onRemoteLobbyPhaseEvent(ev);
       return;
     }
 
-    final sk = _matchEventSessionKey;
+    final sk = _boundMatchSessionKey ?? _matchEventSessionKey;
+    if (sk == null || ev.sessionKey != sk) return;
+
+    if (MatchSyncGate.shouldBufferMatchEvent(
+      syncArmed: _matchSyncArmed,
+      stillActive: _isMatchStillActiveForLocalPlayer,
+      eventSessionKey: ev.sessionKey,
+      boundSessionKey: sk,
+    )) {
+      _bufferedMatchEvents.add(ev);
+      return;
+    }
+
+    if (!_roomEventDeduper.markIfNew(ev.id)) return;
+    _applyRemoteRoomMatchEvent(ev);
+  }
+
+  void _applyRemoteRoomMatchEvent(RoomMatchEvent ev) {
+    if (!mounted) return;
+
+    final sk = _boundMatchSessionKey ?? _matchEventSessionKey;
     if (sk == null || ev.sessionKey != sk) return;
     // 捕獲後も残響体/鬼影として戦線に残るため、試合継続中はイベントを受け取る
     // （マップの暴露・鬼位置・他ゴーストの行動を反映し続ける）。
     final roomRunning =
         _firestoreSession?.currentPhase == RoomPhase.running;
-    final acceptWhilePresenting =
-        _matchPresentationActive && roomRunning;
-    if (!_isMatchStillActiveForLocalPlayer && !acceptWhilePresenting) {
+    final syncLive = _matchSyncArmed && roomRunning;
+    if (!_isMatchStillActiveForLocalPlayer && !syncLive && !roomRunning) {
       return;
     }
     final running = _gameState == GameState.running;
+    final secondGameActive = _isMatchStillActiveForLocalPlayer && !running;
+    final matchActive = running || syncLive || secondGameActive;
     final fs = _firestoreSession;
     if (fs == null) return;
 
@@ -89,11 +113,15 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       case RoomMatchEventTypes.captureZonePlaced:
         final placeId = ev.payload['placeId'] as String?;
         if (placeId == null) return;
+        _rememberCapturePlacedTargets(
+          placeId,
+          _captureTargetUidsFromPayload(ev.payload),
+        );
         if (ev.actorUid != fs.myUid) {
           _applyRemoteCaptureZonePlaced(ev);
         }
         // 捕獲対象になり得るのは生存者のみ（ゴーストはackしない）。
-        if (running) {
+        if (matchActive) {
           unawaited(_publishCaptureZoneAckIfNeeded(ev, fs, placeId));
         }
         if (_isHost && !_captureBoundTimers.containsKey(placeId)) {
@@ -121,7 +149,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       case RoomMatchEventTypes.captureZoneBound:
       case HostLightRescueEventTypes.captureZoneBoundRescue:
         // 束縛→捕獲は生存者のみ（ゴーストは対象外）。
-        if (running) _applyRemoteCaptureZoneBound(ev, fs);
+        if (matchActive) _applyRemoteCaptureZoneBound(ev, fs);
         return;
       case RoomMatchEventTypes.captureZoneAck:
         final placeId = ev.payload['placeId'] as String?;
@@ -215,6 +243,42 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       _rt.syncedEliminationCount += 1;
       _eliminatedUids.add(uid);
     });
+    final label =
+        ev.payload['playerLabel'] as String? ?? _displayNameForUid(uid);
+    final lat = ev.payload['lat'];
+    final lng = ev.payload['lng'];
+    final overflow =
+        (ev.payload['overflowMeters'] as num?)?.toDouble() ?? 0;
+    final reasonSummary = switch (cause) {
+      'outside' => 'エリア外',
+      'caught' => '捕獲',
+      'disconnect' => '切断',
+      _ => '脱落',
+    };
+    if (lat is num && lng is num) {
+      final revealPos = LatLng(lat.toDouble(), lng.toDouble());
+      _syncSetState(() {
+        _rt.revealCount += 1;
+        _rt.revealLog.insert(
+          0,
+          LocationRevealEvent(
+            sequence: _rt.revealCount,
+            timestamp: _eventTimestamp(ev),
+            position: revealPos,
+            overflowMeters: overflow,
+            playerLabel: label,
+            reasonSummary: reasonSummary,
+            subjectUid: uid,
+          ),
+        );
+        if (_rt.revealLog.length > 50) _rt.revealLog.removeLast();
+      });
+      unawaited(_ingestRemoteAvatarThumbs(_remoteMembers));
+      _pushHudRevealAlert(MatchHudCopy.namedRevealAlert(label, reasonSummary));
+      _remoteRevealFeedback(heavy: true);
+    } else {
+      _pushHudRevealAlert('$labelが脱落しました');
+    }
     _recordMatchFeed(MatchHudCopy.eliminatedFeed);
     _maybePublishAccusationUnlock();
     _maybeEndMatchForFactionElimination();
@@ -258,7 +322,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         0,
         LocationRevealEvent(
           sequence: _rt.revealCount,
-          timestamp: DateTime.now(),
+          timestamp: _eventTimestamp(ev),
           position: pos,
           overflowMeters: overflow,
           playerLabel: label,
@@ -300,7 +364,7 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         0,
         LocationRevealEvent(
           sequence: _rt.revealCount,
-          timestamp: DateTime.now(),
+          timestamp: _eventTimestamp(ev),
           position: pos,
           overflowMeters: 0,
           playerLabel: label,
@@ -410,21 +474,30 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final now = DateTime.now();
     final hunterUid = _hunterUidFromAssignments;
 
-    if (inner == 'hunter_position' &&
-        (hunterUid == null || ev.actorUid == hunterUid)) {
+    if (inner == 'hunter_position' && _isPerceivedOniActor(ev.actorUid)) {
       _lastKnownHunterPositions[ev.actorUid] = pos;
+      final isAssignedHunter = ev.actorUid == hunterUid;
+      if (isAssignedHunter) {
+        _recordAssignedHunterPathSample(pos);
+      }
       _recordOniPathSample(pos);
       final h = ev.payload['headingDeg'];
-      if (h is num) {
+      if (isAssignedHunter) {
+        if (h is num) {
+          _lastKnownAssignedHunterHeadingDegrees = h.toDouble();
+          _lastKnownOniHeadingDegrees = h.toDouble();
+        } else {
+          _updateOniHeadingFromPosition(pos, updateAssignedHunter: true);
+        }
+      } else if (h is num) {
         _lastKnownOniHeadingDegrees = h.toDouble();
-      } else {
-        _updateOniHeadingFromPosition(pos);
       }
       if (!mounted) return;
       _syncSetState(() {
-        _oniPosition = pos;
+        _oniPosition = _nearestPerceivedOniPosition;
         _remoteOniKnown = true;
       });
+      _publishMapOverlay(force: true);
     } else if (inner == 'trace_drop') {
       if (!mounted) return;
       _syncSetState(() => _tracePoints.add(pos));
@@ -479,5 +552,87 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
       default:
         break;
     }
+  }
+
+  int? get _activeMatchSessionKey =>
+      _boundMatchSessionKey ?? _matchEventSessionKey;
+
+  Future<void> _armMatchSync() async {
+    if (!_isOnlineFirestore || !mounted) return;
+    final sk = _activeMatchSessionKey;
+    if (sk != null && sk != _armedSyncSessionKey) {
+      _lastOnlineEventSyncAtMs = 0;
+      _armedSyncSessionKey = sk;
+    }
+    _matchSyncArmed = true;
+    final pending = MatchSyncGate.sortedForReplay(_bufferedMatchEvents);
+    _bufferedMatchEvents.clear();
+    for (final ev in pending) {
+      if (!mounted) return;
+      if (!_roomEventDeduper.markIfNew(ev.id)) continue;
+      _applyRemoteRoomMatchEvent(ev);
+    }
+    _startOnlineEventSyncPump();
+    await _bootstrapOnlineMatchEvents();
+    if (!mounted) return;
+    if (_isPerceivedOniNow && !_isRoomInspector) {
+      _maybePublishHunterPosition(_currentPosition, force: true);
+    }
+  }
+
+  void _disarmMatchSync() {
+    _matchSyncArmed = false;
+    _armedSyncSessionKey = null;
+    _bufferedMatchEvents.clear();
+  }
+
+  Future<void> _recoverOnlineMatchSync() async {
+    if (!_isOnlineFirestore || !mounted || !_matchSyncArmed) return;
+    final sk = _activeMatchSessionKey;
+    final fs = _firestoreSession;
+    if (sk == null || fs == null) return;
+    fs.restartRoomEventsListener(sk);
+    _lastOnlineEventSyncAtMs = 0;
+    await _bootstrapOnlineMatchEvents();
+  }
+
+  Future<void> _bootstrapOnlineMatchEvents() async {
+    if (!_isOnlineFirestore || !mounted) return;
+    final sk = _activeMatchSessionKey;
+    final fs = _firestoreSession;
+    if (sk == null || fs == null) return;
+    List<RoomMatchEvent> events;
+    try {
+      events = await fs.fetchMatchEvents(sk);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    events.sort((a, b) => a.emittedAtMs.compareTo(b.emittedAtMs));
+    for (final ev in events) {
+      if (ev.emittedAtMs < _lastOnlineEventSyncAtMs) continue;
+      _onRemoteRoomMatchEvent(ev);
+      _lastOnlineEventSyncAtMs = ev.emittedAtMs;
+    }
+  }
+
+  void _startOnlineEventSyncPump() {
+    _onlineEventSyncTimer?.cancel();
+    if (!_isOnlineFirestore) return;
+    _onlineEventSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      if (!_matchSyncArmed &&
+          _gameState != GameState.running &&
+          _gameState != GameState.caughtByOni) {
+        return;
+      }
+      unawaited(_bootstrapOnlineMatchEvents());
+    });
+  }
+
+  void _stopOnlineEventSyncPump() {
+    _onlineEventSyncTimer?.cancel();
+    _onlineEventSyncTimer = null;
+    _lastOnlineEventSyncAtMs = 0;
   }
 }
