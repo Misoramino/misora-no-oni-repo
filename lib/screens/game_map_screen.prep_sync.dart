@@ -491,14 +491,4 @@ extension _GameMapPrepSync on _GameMapScreenState {
     await _maybeShowMatchCoachMarks();
   }
 
-  /// ボトムシート・ダイアログが閉じるまで待つ（役職後の遊び方など）。
-  Future<void> _waitForBlockingRoutesToClose() async {
-    const maxWait = Duration(seconds: 120);
-    final deadline = DateTime.now().add(maxWait);
-    while (mounted && DateTime.now().isBefore(deadline)) {
-      final nav = Navigator.of(context);
-      if (!nav.canPop()) break;
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-    }
-  }
 }

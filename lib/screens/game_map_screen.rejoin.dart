@@ -61,7 +61,7 @@ extension _GameMapRejoin on _GameMapScreenState {
       discardExisting: true,
       matchStartedAtUtc: startedUtc,
     );
-    await _runMatchStartPresentation(
+    await _runCompactMatchStartPresentation(
       rejoin: true,
       inspector: true,
       elapsedSeconds: _rt.elapsedSeconds,

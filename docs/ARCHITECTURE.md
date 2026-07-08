@@ -69,7 +69,7 @@ Settings (個人設定・世界観・通知)
 
 - `rooms/{roomId}/events/{eventId}` — **create のみ**（update/delete 禁止）。`sessionKey` は `matchStart.gimmickSeed` と一致させ、試合中だけ購読する（ルーム doc / members に加えて **events 1 本**）。
 - `FirestoreRoomSession.publishRoomEvent` / `publishHostRoomEvent` — 参加者が書ける型とホスト専用型をルールで分離。
-- `GameMapScreen` — `roomMatchEvents` を受けて露出・偽情報・情報屋・捕獲結界を全員で揃える。常時 GPS は members に載せない方針は維持。
+- `GameMapScreen` — `roomMatchEvents` を受けて露出・偽情報・情報屋・捕獲結界を全員で揃える。試合中は members に `lat` / `lng` をスロットル付きで載せ、近接判定の補助に使う（地図ピンは表示しない）。
 
 ### 捕獲結界（capture_zone）の target 判定
 
@@ -77,7 +77,7 @@ Settings (個人設定・世界観・通知)
 |------|-----------|------|
 | 設置 | **結界を置いた端末**（スキル使用者） | 地図タップ位置を中心に、半径内の `'self'` と `_remoteMembers` の UID を `_captureZoneTargetsAt` で算出 |
 | 共有 | 同上 → Firestore | `capture_zone_placed`: `targetUids`, **`fromSkill: true`**（`CaptureZoneEventPayload`） |
-| 確定 | **ホスト**（2 秒バッファ後） | 設置イベントの `targetUids` をそのまま `capture_zone_bound` に載せる（再計算しない） |
+| 確定 | **ホスト**（6 秒バッファ後） | 設置イベントの `targetUids` と `ack` を統合して `capture_zone_bound` に載せる（再計算しない） |
 | 適用 | 各端末 | `bound` で `lockZoneBoundIds` に `'self'`。`placed` で `lockZoneCenter` と **`lockZoneFromSkill`**（地図円半径・脱出判定に使用） |
 
 接触拘束（タッチロック）は Firestore を経由せず、ローカルで `lockZoneFromSkill = false`。

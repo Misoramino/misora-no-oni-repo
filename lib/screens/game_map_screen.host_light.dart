@@ -249,7 +249,6 @@ extension _GameMapHostLight on _GameMapScreenState {
     required LatLng center,
   }) {
     if (_isHost || !_isOnlineFirestore) return;
-    if (!_hostUnavailableForRescue()) return;
     _scheduleCaptureBoundOnce(placeId: placeId, center: center);
   }
 
