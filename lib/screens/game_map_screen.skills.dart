@@ -988,27 +988,37 @@ extension _GameMapSkills on _GameMapScreenState {
     _capturePlacedTargetsByPlace[placeId] = targetUids;
   }
 
-  List<String> _mergedCaptureBoundTargets(String placeId) {
-    final placed = _capturePlacedTargetsByPlace.remove(placeId) ?? const [];
-    final acked = _captureAcksByPlace.remove(placeId)?.toList() ?? const [];
+  List<String> _captureBoundTargetsSnapshot(String placeId) {
+    final placed = _capturePlacedTargetsByPlace[placeId] ?? const [];
+    final acked = _captureAcksByPlace[placeId]?.toList() ?? const [];
     return {...placed, ...acked}.toList(growable: false);
+  }
+
+  void _clearCaptureBoundTargets(String placeId) {
+    _capturePlacedTargetsByPlace.remove(placeId);
+    _captureAcksByPlace.remove(placeId);
   }
 
   void _scheduleCaptureBoundOnce({
     required String placeId,
     required LatLng center,
+    int rescueRetryAttempt = 0,
+    Duration wait = const Duration(milliseconds: 6000),
   }) {
     if (_captureBoundTimers.containsKey(placeId)) return;
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
     _captureBoundTimers[placeId] = Timer(
-      const Duration(milliseconds: 6000),
+      wait,
       () async {
         _captureBoundTimers.remove(placeId);
         if (!mounted || _gameState != GameState.running) return;
-        final targets = _mergedCaptureBoundTargets(placeId);
-        if (targets.isEmpty) return;
+        final targets = _captureBoundTargetsSnapshot(placeId);
+        if (targets.isEmpty) {
+          _clearCaptureBoundTargets(placeId);
+          return;
+        }
         final payload = {
           'placeId': placeId,
           'targetUids': targets,
@@ -1025,19 +1035,46 @@ extension _GameMapSkills on _GameMapScreenState {
           );
         } else {
           // 非ホスト救済は「配置時」ではなく「発火時」にホスト不在を判定する。
-          if (!_hostUnavailableForRescue()) return;
+          if (!_hostUnavailableForRescue()) {
+            if (rescueRetryAttempt < 2) {
+              _scheduleCaptureBoundOnce(
+                placeId: placeId,
+                center: center,
+                rescueRetryAttempt: rescueRetryAttempt + 1,
+                wait: const Duration(milliseconds: 2200),
+              );
+            }
+            return;
+          }
           final key = HostLightRescueKeys.captureBound(sk, placeId);
-          if (_hostLightRescueEmittedKeys.contains(key)) return;
+          if (_hostLightRescueEmittedKeys.contains(key)) {
+            _clearCaptureBoundTargets(placeId);
+            return;
+          }
           err = await fs.publishHostLightRescueEvent(
             type: HostLightRescueEventTypes.captureZoneBoundRescue,
             idempotencyKey: key,
             payload: payload,
             sessionKey: sk,
           );
-          if (err == null) _rememberHostLightRescueKey(key);
+          if (err == null) {
+            _rememberHostLightRescueKey(key);
+          }
         }
-        if (err != null && mounted) {
+        if (err == null) {
+          _clearCaptureBoundTargets(placeId);
+          return;
+        }
+        if (mounted) {
           _toast(err);
+        }
+        if (!_isHost && rescueRetryAttempt < 2) {
+          _scheduleCaptureBoundOnce(
+            placeId: placeId,
+            center: center,
+            rescueRetryAttempt: rescueRetryAttempt + 1,
+            wait: const Duration(milliseconds: 2200),
+          );
         }
       },
     );

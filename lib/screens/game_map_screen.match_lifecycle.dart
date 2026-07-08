@@ -115,10 +115,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         final err = await _firestoreSession!.publishMatchStart(toPublish);
         if (err != null) {
           _toast(err);
-          _disarmMatchSync();
+          _resetGame(skipFirestoreSync: true);
           _syncSetState(() {
-            _gameState = GameState.waiting;
-            _statusMessage = '試合開始に失敗しました';
+            _statusMessage = '試合開始に失敗しました。通信状態を確認して再試行してください。';
           });
           return;
         }
