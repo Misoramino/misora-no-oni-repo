@@ -9,7 +9,7 @@
 |------|------------|----------|
 | 人間（初見） | リポジトリ直下 [README.md](../README.md) | [CHANGE_MAP.md](./CHANGE_MAP.md) の該当行だけ |
 | 別の AI | [AI_HANDOFF.md](./AI_HANDOFF.md)（意図）→ 本書の「検証コマンド」 | [CHANGE_MAP.md](./CHANGE_MAP.md) |
-| オンライン／Firebase だけ | [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) | [FIRESTORE_AND_PERFORMANCE.md](./FIRESTORE_AND_PERFORMANCE.md) |
+| オンライン／Firebase だけ | [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) | [FIRESTORE_AND_PERFORMANCE.md](./FIRESTORE_AND_PERFORMANCE.md) · [LIVE_COORDINATE_SYNC.md](./LIVE_COORDINATE_SYNC.md) |
 | 実機プレイ QA | [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md) | 上記の Firestore 節 |
 
 ## ドキュメント一覧（役割とメンテ方針）
@@ -26,6 +26,7 @@
 | [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) | Firebase / Maps キー / 実機の**運用手順** | 配布方法や制約が変わったら |
 | [DEVICE_VERIFICATION_CHECKLIST.md](./DEVICE_VERIFICATION_CHECKLIST.md) | 実機・複数端末の**目視 QA** | UI やオンライン動線を変えたら |
 | [FIRESTORE_AND_PERFORMANCE.md](./FIRESTORE_AND_PERFORMANCE.md) | 書き込み頻度・課金感・トラブルシュート | 同期スキーマやルールを変えたら |
+| [LIVE_COORDINATE_SYNC.md](./LIVE_COORDINATE_SYNC.md) | **座標同期の現行整理・間隔最適化案・live 導入案・課金見積り** | 近接同期や presence レートを変える前 |
 | [BLE_PROXIMITY.md](./BLE_PROXIMITY.md) | BLE 近接の挙動メモ（任意機能） | 近接スタックを変えたら |
 | [GAME_EVENT_AREAS.md](./GAME_EVENT_AREAS.md) | マップ上イベントエリアの仕様メモ | `GameConfig` やギミック生成を変えたら |
 | [GAME_DESIGN_SPEC.md](./GAME_DESIGN_SPEC.md) | **ゲーム性・バランス・GPT用質問テンプレ**（仕様の日本語まとめ） | ルール・スキル方針を変えたら |

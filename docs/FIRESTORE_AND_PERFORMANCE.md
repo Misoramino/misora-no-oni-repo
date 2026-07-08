@@ -4,6 +4,8 @@
 
 このドキュメントは現行実装（2026-05 時点）の**実測ではなく設計上の上限感**です。本番前に Firebase Console の使用量アラートを必ず設定してください。
 
+座標同期の改善方針（現行最適化 / live 座標導入案・課金試算の詳細）は [LIVE_COORDINATE_SYNC.md](./LIVE_COORDINATE_SYNC.md) を参照。
+
 ## 課金リスク（Firestore）
 
 | 項目 | 現状 | リスク |
