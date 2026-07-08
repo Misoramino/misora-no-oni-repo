@@ -1002,9 +1002,6 @@ extension _GameMapSkills on _GameMapScreenState {
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
-    final hostPath = _isHost;
-    final rescuePath = !_isHost && _hostUnavailableForRescue();
-    if (!hostPath && !rescuePath) return;
     _captureBoundTimers[placeId] = Timer(
       const Duration(milliseconds: 6000),
       () async {
@@ -1027,6 +1024,8 @@ extension _GameMapSkills on _GameMapScreenState {
             sessionKey: sk,
           );
         } else {
+          // 非ホスト救済は「配置時」ではなく「発火時」にホスト不在を判定する。
+          if (!_hostUnavailableForRescue()) return;
           final key = HostLightRescueKeys.captureBound(sk, placeId);
           if (_hostLightRescueEmittedKeys.contains(key)) return;
           err = await fs.publishHostLightRescueEvent(
