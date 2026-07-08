@@ -43,6 +43,26 @@ void main() {
     expect(parsed.assignmentFor('uid-b')?.role, PlayerRole.hunter);
   });
 
+  test('withStartedAt sets server start timestamp', () {
+    const area = PlayArea.circle(
+      center: LatLng(35.68, 139.76),
+      radiusMeters: 400,
+    );
+    final base = SharedMatchSnapshot(
+      gimmickSeed: 7,
+      playArea: area,
+      matchDurationSeconds: 600,
+      oniIntelMode: OniIntelMode.fragmented,
+      eliminationAftermathRule: EliminationAftermathRule.spectralOperative,
+      assignments: const {
+        'a': SharedPlayerAssignment(role: PlayerRole.hunter, skills: []),
+      },
+    );
+    final stamped = base.withStartedAt('2026-07-08T12:00:00.000Z');
+    expect(stamped.startedAtUtc, '2026-07-08T12:00:00.000Z');
+    expect(stamped.gimmickSeed, base.gimmickSeed);
+  });
+
   test('SharedMatchEnd parses room doc fields', () {
     final end = SharedMatchEnd.tryParse({
       RoomDocFields.endReason: MatchEndReason.timeUp,

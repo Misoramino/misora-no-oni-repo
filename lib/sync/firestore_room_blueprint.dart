@@ -167,11 +167,11 @@ abstract final class RoomEventsFields {
 ///
 /// 実際の課金はFirebaseコンソールの見積りが絶対。ここは「設計のアッパー」です。
 abstract final class PresenceSyncBudget {
-  /// 逃走者：**通常レベル**。おおよそ 2〜8 書き込み／分でも十分機能する構成を想定。
-  static const int calmMinIntervalMs = 12000;
+  /// 逃走者：**通常レベル**（6秒）。感染6秒判定に1サンプル以上届く目安。
+  static const int calmMinIntervalMs = 6000;
 
-  /// 逃走者：**緊迫ゾーン**（鬼が近い等）。体感を優先するときのみ短くする。
-  static const int tensionMinIntervalMs = 5500;
+  /// 逃走者：**追跡ゾーン**（鬼が近い等）。接触拘束4秒に対し複数サンプル。
+  static const int tensionMinIntervalMs = 3000;
 
   /// インスペクター向けライブ GPS（参加者→観戦者フィード）。
   static const int inspectorFeedMinIntervalMs = 12000;
