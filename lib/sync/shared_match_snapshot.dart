@@ -47,6 +47,21 @@ class SharedMatchSnapshot {
   /// 告発の重み（全端末同一）。
   final AccusationWeight accusationWeight;
 
+  SharedMatchSnapshot withStartedAt(String startedAtUtc) => SharedMatchSnapshot(
+        gimmickSeed: gimmickSeed,
+        playArea: playArea,
+        matchDurationSeconds: matchDurationSeconds,
+        oniIntelMode: oniIntelMode,
+        eliminationAftermathRule: eliminationAftermathRule,
+        assignments: assignments,
+        startedAtUtc: startedAtUtc,
+        gimmickDensity: gimmickDensity,
+        eventAreas: eventAreas,
+        accusationSites: accusationSites,
+        cameraJackSites: cameraJackSites,
+        accusationWeight: accusationWeight,
+      );
+
   Map<String, dynamic> toMap() => {
         RoomDocFields.matchStartGimmickSeed: gimmickSeed,
         RoomDocFields.matchStartPlayArea: playArea.toJson(),

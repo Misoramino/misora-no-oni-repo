@@ -118,7 +118,7 @@ extension _GameMapSkills on _GameMapScreenState {
       )) {
         continue;
       }
-      final pos = _lastKnownHunterPositions[p.uid] ??
+      final pos = _resolvedPerceivedOniPosition(p.uid) ??
           (p.uid == _hunterUidFromAssignments && _remoteOniKnown
               ? _oniPosition
               : null);

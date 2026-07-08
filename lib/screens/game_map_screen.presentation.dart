@@ -97,6 +97,146 @@ extension _GameMapPresentation on _GameMapScreenState {
     return _mapController;
   }
 
+  Future<void> _runCompactMatchStartPresentation({
+    required bool rejoin,
+    required bool inspector,
+    int elapsedSeconds = 0,
+    bool remoteSyncJoin = false,
+  }) async {
+    if (!mounted) return;
+
+    _matchPresentationActive = true;
+    _dismissBlockingOverlaysForMatchJoin();
+    _syncSetState(() {
+      _prepMapMode = PrepMapMode.browse;
+      _prepControlSheetOpen = false;
+    });
+
+    try {
+      if (inspector) {
+        await WorldPhaseFlash.pulse(context, profile: _activeProfile);
+        return;
+      }
+
+      if (remoteSyncJoin) {
+        if (elapsedSeconds > GameConfig.syncJoinRoleBriefingMaxSeconds) {
+          if (mounted) {
+            await showMatchRejoinNotice(
+              context: context,
+              remainingSeconds: _rt.remainingSeconds,
+              roleLabel: _localRole.displayName,
+            );
+          }
+          return;
+        }
+        if (elapsedSeconds > GameConfig.syncJoinFullPresentationMaxSeconds) {
+          if (mounted) {
+            await showMatchRejoinNotice(
+              context: context,
+              remainingSeconds: _rt.remainingSeconds,
+              roleLabel: _localRole.displayName,
+            );
+          }
+        } else {
+          await _showAutoRoleReveal();
+        }
+        if (mounted) {
+          await showMatchStartCountdown(
+            context: context,
+            profile: _activeProfile,
+            pack: _mapVisual.pack,
+          );
+        }
+        if (mounted) {
+          await WorldPhaseFlash.pulse(context, profile: _activeProfile);
+        }
+        return;
+      }
+
+      if (rejoin && elapsedSeconds > 15) {
+        if (mounted) {
+          await showMatchRejoinNotice(
+            context: context,
+            remainingSeconds: _rt.remainingSeconds,
+            roleLabel: _localRole.displayName,
+          );
+        }
+        return;
+      }
+
+      final shortCeremony =
+          await MatchPresentationPrefs.shortMatchStartCeremony();
+
+      if (!shortCeremony &&
+          _shouldShowMatchStartRoster(
+            rejoin: rejoin,
+            shortCeremony: shortCeremony,
+            elapsedSeconds: elapsedSeconds,
+          )) {
+        await showMatchStartRoster(
+          context: context,
+          profile: _activeProfile,
+          entries: _matchStartRosterEntries(),
+        );
+        if (!mounted) return;
+      }
+
+      if (!shortCeremony &&
+          _shouldShowAreaOrbitCinema(
+            rejoin: rejoin,
+            shortCeremony: shortCeremony,
+            elapsedSeconds: elapsedSeconds,
+          )) {
+        final mapController =
+            _mapController ?? await _ensureMapControllerForPresentation();
+        await runPlayAreaOrbitCinema(
+          context: context,
+          area: _playArea,
+          profile: _activeProfile,
+          mapStyleJson: _mapVisual.mapStyleJson,
+          tokens: _mapVisual.pack.tokens,
+          mapController: mapController,
+          onApplyMapStyle: _applyTransientMapStyle,
+        );
+        if (!mounted) return;
+      }
+
+      if (!rejoin) {
+        await _showAutoRoleReveal();
+        if (!mounted) return;
+      }
+
+      await showMatchStartCountdown(
+        context: context,
+        profile: _activeProfile,
+        pack: _mapVisual.pack,
+      );
+      if (!mounted) return;
+
+      await WorldPhaseFlash.pulse(context, profile: _activeProfile);
+    } finally {
+      _matchPresentationActive = false;
+    }
+  }
+
+  Future<void> _showAutoRoleReveal() async {
+    if (!mounted || _matchRoleBriefingShown) return;
+    _matchRoleBriefingShown = true;
+    await showAutoRoleRevealOverlay(
+      context: context,
+      role: _localRole,
+      worldProfile: _activeProfile,
+      skillLabels: _skillLoadout.map(_skillLabelForUi).toList(),
+      werewolfCurrentFaction: _localRole == PlayerRole.werewolf
+          ? _localFactionNow()
+          : null,
+      runnerModifier: _localRole == PlayerRole.runner
+          ? _localRunnerModifier
+          : RunnerModifier.none,
+    );
+  }
+
+  /// 旧フロー（ロングセレモニー）。新規開始は [_runCompactMatchStartPresentation] を使用。
   Future<void> _runMatchStartPresentation({
     required bool rejoin,
     required bool inspector,

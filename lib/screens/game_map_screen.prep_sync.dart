@@ -466,19 +466,27 @@ extension _GameMapPrepSync on _GameMapScreenState {
     );
   }
 
-  /// 快適プレイ案内 → HUDコーチマークを順番に表示（重なり防止）。
-  Future<void> _runPostMatchStartOnboarding({bool rejoin = false}) async {
-    if (_isOnlineFirestore && _rt.elapsedSeconds > 8) return;
+  /// 快適プレイ案内 → HUDコーチマーク（非ブロッキング。試合は継続）。
+  void _runPostMatchStartOnboarding({bool rejoin = false}) {
+    if (_isOnlineFirestore && _rt.elapsedSeconds > 12) return;
+    if (rejoin) {
+      unawaited(_maybeRunDeferredOnboarding(rejoin: true));
+      return;
+    }
+    unawaited(_maybeRunDeferredOnboarding(rejoin: false));
+  }
+
+  Future<void> _maybeRunDeferredOnboarding({required bool rejoin}) async {
     if (rejoin) {
       final hintsSeen = await OnboardingPrefs.matchPlayabilityHintsSeen();
       final coachSeen = await OnboardingPrefs.matchCoachMarksSeen();
       if (hintsSeen && coachSeen) return;
     }
-    await _waitForBlockingRoutesToClose();
+    await Future<void>.delayed(const Duration(seconds: 2));
     if (!mounted || _gameState != GameState.running) return;
     await _maybeShowMatchPlayabilityHints();
     if (!mounted || _gameState != GameState.running) return;
-    await _waitForBlockingRoutesToClose();
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     if (!mounted || _gameState != GameState.running) return;
     await _maybeShowMatchCoachMarks();
   }

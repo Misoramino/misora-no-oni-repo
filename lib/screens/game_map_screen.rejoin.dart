@@ -20,14 +20,14 @@ extension _GameMapRejoin on _GameMapScreenState {
     if (!mounted || _gameState != GameState.waiting) return;
     _dismissBlockingOverlaysForMatchJoin();
     _isRoomInspector = false;
-    await _applySharedMatchStart(snap);
+    await _applySharedMatchStart(snap, armSync: false);
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
     _roomEventDeduper.clear();
     if (!mounted) return;
     _ensureMatchRecorder(discardExisting: true);
     final elapsed = _rt.elapsedSeconds;
-    await _runMatchStartPresentation(
+    await _runCompactMatchStartPresentation(
       rejoin: elapsed > GameConfig.syncJoinFullPresentationMaxSeconds,
       inspector: false,
       elapsedSeconds: elapsed,
@@ -35,9 +35,7 @@ extension _GameMapRejoin on _GameMapScreenState {
     );
     if (!mounted) return;
     _startGameCore(rejoin: true);
-    if (elapsed <= GameConfig.syncJoinFullPresentationMaxSeconds) {
-      await _runPostMatchStartOnboarding(rejoin: true);
-    }
+    unawaited(_runPostMatchStartOnboarding(rejoin: true));
     _rejoinRestoringEvents = true;
     await _replayHistoricalMatchEvents(snap.gimmickSeed);
     _rejoinRestoringEvents = false;
@@ -50,7 +48,7 @@ extension _GameMapRejoin on _GameMapScreenState {
   }) async {
     if (!mounted || _gameState != GameState.waiting) return;
     _isRoomInspector = true;
-    await _applySharedMatchStart(snap);
+    await _applySharedMatchStart(snap, armSync: false);
     if (!mounted || _gameState != GameState.waiting) return;
     _syncMatchTimerFromSnapshot(snap);
     _roomEventDeduper.clear();

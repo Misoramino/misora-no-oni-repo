@@ -82,15 +82,12 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _matchRoleBriefingShown = false;
       _ensureMatchRecorder(discardExisting: true);
 
+      SharedMatchSnapshot? pendingOnlineSnapshot;
       if (_isOnlineFirestore && _isHost) {
-        final snapshot = await _buildSharedMatchSnapshot();
-        final err = await _firestoreSession!.publishMatchStart(snapshot);
-        if (err != null) {
-          _toast(err);
-          return;
-        }
-        await _applySharedMatchStart(snapshot);
-      } else {
+        pendingOnlineSnapshot =
+            await _buildSharedMatchSnapshot(deferStartedAt: true);
+        await _applySharedMatchStart(pendingOnlineSnapshot, armSync: false);
+      } else if (!_isOnlineFirestore) {
         _assignDefaultSetupIfNeeded();
         final seed = DateTime.now().millisecondsSinceEpoch;
         final gimmicks = await GeneratedGimmicks.createForMatchStart(
@@ -106,11 +103,31 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       }
 
       _retuneGpsIfNeeded();
-      await _runMatchStartPresentation(rejoin: false, inspector: false);
+      await _runCompactMatchStartPresentation(
+        rejoin: false,
+        inspector: false,
+      );
       if (!mounted) return;
+
+      if (_isOnlineFirestore && _isHost && pendingOnlineSnapshot != null) {
+        final started = DateTime.now().toUtc().toIso8601String();
+        final toPublish = pendingOnlineSnapshot.withStartedAt(started);
+        final err = await _firestoreSession!.publishMatchStart(toPublish);
+        if (err != null) {
+          _toast(err);
+          _disarmMatchSync();
+          _syncSetState(() {
+            _gameState = GameState.waiting;
+            _statusMessage = '試合開始に失敗しました';
+          });
+          return;
+        }
+        _syncMatchTimerFromSnapshot(toPublish);
+      }
+
       _startGameCore();
       if (!mounted) return;
-      await _runPostMatchStartOnboarding();
+      unawaited(_runPostMatchStartOnboarding());
     } finally {
       _matchStartInFlight = false;
       _matchPresentationActive = false;
@@ -180,6 +197,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (_isOnlineFirestore) {
       unawaited(_bootstrapOnlineMatchEvents());
       _startOnlineEventSyncPump();
+      unawaited(_armMatchSync());
     }
     unawaited(_syncBleMatchContext());
     _retuneRenderPump();
@@ -452,7 +470,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     return gimmicks;
   }
 
-  Future<SharedMatchSnapshot> _buildSharedMatchSnapshot() async {
+  Future<SharedMatchSnapshot> _buildSharedMatchSnapshot({
+    bool deferStartedAt = false,
+  }) async {
     final fs = _firestoreSession!;
     final seed = DateTime.now().millisecondsSinceEpoch;
     final rnd = math.Random(seed);
@@ -512,7 +532,9 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       oniIntelMode: oniIntel,
       eliminationAftermathRule: aftermath,
       assignments: assignments,
-      startedAtUtc: DateTime.now().toUtc().toIso8601String(),
+      startedAtUtc: deferStartedAt
+          ? null
+          : DateTime.now().toUtc().toIso8601String(),
       gimmickDensity: _gimmickDensity,
       eventAreas: gimmicks.eventAreas,
       accusationSites: gimmicks.accusationFacilities,
@@ -545,7 +567,10 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     );
   }
 
-  Future<void> _applySharedMatchStart(SharedMatchSnapshot snapshot) async {
+  Future<void> _applySharedMatchStart(
+    SharedMatchSnapshot snapshot, {
+    bool armSync = true,
+  }) async {
     _boundMatchSessionKey = snapshot.gimmickSeed;
     _playArea = snapshot.playArea;
     _matchDurationSeconds = snapshot.matchDurationSeconds;
@@ -575,7 +600,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
       _oniPosition = _currentPosition;
       _remoteOniKnown = true;
     }
-    if (_isOnlineFirestore) {
+    if (_isOnlineFirestore && armSync) {
       await _armMatchSync();
     }
   }

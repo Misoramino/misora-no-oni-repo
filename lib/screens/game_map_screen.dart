@@ -55,6 +55,7 @@ import '../features/game_map/prep/prep_map_mode_fab.dart';
 import '../features/game_map/prep/prep_map_preview_panel.dart';
 import '../features/game_map/prep/prep_lobby_panel.dart';
 import '../features/game_map/presentation/match_start_countdown_overlay.dart';
+import '../features/game_map/presentation/role_reveal_overlay.dart';
 import '../features/game_map/presentation/match_start_roster_overlay.dart';
 import '../features/game_map/presentation/match_rejoin_notice.dart';
 import '../features/game_map/presentation/play_area_orbit_cinema.dart';
@@ -1793,6 +1794,39 @@ class _GameMapScreenState extends State<GameMapScreen>
     return uid == _hunterUidFromAssignments;
   }
 
+  /// members / events から鬼 UID の座標を解決（events 優先、次に presence）。
+  LatLng? _resolvedPerceivedOniPosition(String uid) {
+    final fromEvent = _lastKnownHunterPositions[uid];
+    if (fromEvent != null) return fromEvent;
+    final remote = _remoteMembers[uid];
+    if (remote != null &&
+        remote.hasCoords &&
+        _isRemoteMemberCoordFresh(remote)) {
+      return LatLng(remote.lat!, remote.lng!);
+    }
+    if (uid == _hunterUidFromAssignments && _remoteOniKnown) {
+      return _oniPosition;
+    }
+    return null;
+  }
+
+  bool _isRemoteMemberCoordFresh(RemoteMemberSnapshot member) {
+    final at = member.reportedAtUtc;
+    if (at == null) return false;
+    return DateTime.now().difference(at).inSeconds <=
+        GameConfig.gpsMaxFixAgeSeconds;
+  }
+
+  bool _presenceTensionForDistance(double distToOni) {
+    if (_gameState != GameState.running) return false;
+    if (_latestProximityBand == ProximityBand.contact ||
+        _latestProximityBand == ProximityBand.near) {
+      return true;
+    }
+    return _anyPerceivedOniPositionKnown &&
+        distToOni <= GameConfig.warningDistanceMeters;
+  }
+
   /// 逃走者側: 同期済みの鬼位置が1体以上あるか（本鬼または鬼化人狼）。
   bool get _anyPerceivedOniPositionKnown {
     if (_testMode || _localRole == PlayerRole.hunter) return _remoteOniKnown;
@@ -1806,7 +1840,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       )) {
         continue;
       }
-      if (_lastKnownHunterPositions.containsKey(p.uid)) return true;
+      if (_resolvedPerceivedOniPosition(p.uid) != null) return true;
     }
     return _remoteOniKnown;
   }
@@ -1825,7 +1859,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       )) {
         continue;
       }
-      final pos = _lastKnownHunterPositions[p.uid];
+      final pos = _resolvedPerceivedOniPosition(p.uid);
       if (pos == null) continue;
       final d = Geolocator.distanceBetween(
         _currentPosition.latitude,
@@ -2027,8 +2061,7 @@ class _GameMapScreenState extends State<GameMapScreen>
         final fs = _roomSession as FirestoreRoomSession;
         unawaited(
           fs.publishPresence(
-            tension:
-                _remoteOniKnown && dist <= GameConfig.warningDistanceMeters,
+            tension: _presenceTensionForDistance(dist),
             proximityBandName: _latestProximityBand.name,
             lat: next.latitude,
             lng: next.longitude,
