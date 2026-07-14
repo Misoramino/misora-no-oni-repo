@@ -112,7 +112,8 @@ service cloud.firestore {
         && (request.resource.data.endReason == 'time_up'
             || request.resource.data.endReason == 'all_humans_eliminated'
             || request.resource.data.endReason == 'oni_eliminated'
-            || request.resource.data.endReason == 'host_abort');
+            || request.resource.data.endReason == 'host_abort'
+            || request.resource.data.endReason == 'accusation_success');
     }
 
     match /rooms/{roomId} {

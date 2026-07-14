@@ -38,7 +38,7 @@ Future<void> showAutoRoleRevealOverlay({
       pageBuilder: (ctx, animation, secondaryAnimation) => _RoleRevealCard(
         role: role,
         skillLabels: skillLabels,
-        worldProfile: worldProfile ?? WorldProfile.urbanHorror,
+        worldProfile: worldProfile ?? WorldProfile.horror,
         werewolfCurrentFaction: werewolfCurrentFaction,
         runnerModifier: runnerModifier,
         autoCloseAfter: hold,

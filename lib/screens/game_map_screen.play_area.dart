@@ -1,6 +1,6 @@
 part of 'game_map_screen.dart';
 
-/// プレイエリアの読込・編集・保存・ロビー共有。
+/// プレイエリアの読込・編集・保存・ロビー共有・開始時寄せ。
 extension _GameMapPlayArea on _GameMapScreenState {
   Future<void> _loadSavedArea() async {
     final saved = await _areaStore.load();
@@ -520,6 +520,10 @@ extension _GameMapPlayArea on _GameMapScreenState {
       return false;
     }
 
+    if (_alignPlayAreaToCurrentPositionIfFar()) {
+      return true;
+    }
+
     if (!_playArea.contains(_currentPosition)) {
       final meters =
           _playArea.overflowDistanceMeters(_currentPosition).ceil();
@@ -527,6 +531,25 @@ extension _GameMapPlayArea on _GameMapScreenState {
       if (!proceed || !mounted) return false;
     }
 
+    return true;
+  }
+
+  /// 円エリアのみ: 現在地が外かつ [GameConfig.playAreaAutoAlignMinOverflowMeters]
+  /// 以上なら中心を現在地へ寄せる（半径維持）。多角形は変更しない。
+  bool _alignPlayAreaToCurrentPositionIfFar() {
+    final next = _playArea.alignedCircleToPositionIfFar(
+      _currentPosition,
+      minOverflowMeters: GameConfig.playAreaAutoAlignMinOverflowMeters,
+    );
+    if (next == null) return false;
+    final radius = next.radiusMeters;
+    _syncSetState(() {
+      _playArea = next;
+      _circleDraftCenter = next.center;
+      _circleDraftRadiusMeters = radius;
+      _statusMessage =
+          'プレイエリアの中心を現在地に合わせました（半径 ${radius.round()}m）';
+    });
     return true;
   }
 
@@ -602,5 +625,43 @@ extension _GameMapPlayArea on _GameMapScreenState {
       return '現在地が取得できていません。位置情報の許可と GPS を確認してください';
     }
     return null;
+  }
+
+
+  String _playAreaSummary() => _playArea.shapeSummary();
+
+  void _toggleAreaEditor() {
+    if (_gameState == GameState.running) {
+      _toast('ゲーム中はエリアを編集できません');
+      return;
+    }
+    _syncSetState(() {
+      final opening = !_editingArea;
+      _editingArea = opening;
+      if (opening) {
+        _prepMapMode = PrepMapMode.edit;
+        _prepControlSheetOpen = true;
+        _areaEditorPanelExpanded = true;
+        _polygonDraft.clear();
+        _polygonDraftClosed = false;
+        _waitingCircleCenterTap = false;
+        _editCircleMode = _playArea.type == PlayAreaType.circle;
+        if (_playArea.type == PlayAreaType.circle) {
+          _circleDraftCenter = _playArea.center;
+          _circleDraftRadiusMeters = _playArea.radiusMeters.clamp(50, 2000);
+        } else {
+          _polygonDraft.addAll(_playArea.points);
+          _circleDraftCenter = _currentPosition;
+        }
+        _statusMessage = 'エリア編集モード（地図をタップして頂点追加 / 円はスライダー）';
+      } else {
+        _exitAreaEditKeepMap();
+      }
+    });
+    _retuneRenderPump();
+  }
+
+  Future<void> _applyEditedArea() async {
+    await _saveEditedAreaAsSlot();
   }
 }

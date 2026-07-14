@@ -90,6 +90,49 @@ void main() {
     );
   });
 
+  test('bound proximity capture requires bind before GPS or BLE', () {
+    expect(
+      MatchGeoHelpers.isBoundProximityCapture(
+        proximityBand: ProximityBand.contact,
+        gpsDistanceToOniMeters: 80,
+        proximityCapturePermitted: true,
+      ),
+      isTrue,
+    );
+    expect(
+      MatchGeoHelpers.isBoundProximityCapture(
+        proximityBand: ProximityBand.none,
+        gpsDistanceToOniMeters: GameConfig.captureDistanceMeters,
+        proximityCapturePermitted: true,
+      ),
+      isTrue,
+    );
+    expect(
+      MatchGeoHelpers.isBoundProximityCapture(
+        proximityBand: ProximityBand.none,
+        gpsDistanceToOniMeters: GameConfig.captureDistanceMeters + 1,
+        proximityCapturePermitted: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('captureZoneTargetIds includes self and remotes in radius', () {
+    const center = LatLng(35.0, 139.0);
+    final ids = MatchGeoHelpers.captureZoneTargetIds(
+      center: center,
+      selfDistanceMeters: 10,
+      radiusMeters: 55,
+      remotePositions: {
+        'a': const LatLng(35.0002, 139.0), // ~22m
+        'b': const LatLng(35.01, 139.0), // far
+      },
+    );
+    expect(ids.contains('self'), isTrue);
+    expect(ids.contains('a'), isTrue);
+    expect(ids.contains('b'), isFalse);
+  });
+
   test('distanceToOni finite when oni known', () {
     final d = MatchGeoHelpers.distanceToOni(
       player: const LatLng(35, 139),

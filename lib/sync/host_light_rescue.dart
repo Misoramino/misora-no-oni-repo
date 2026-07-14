@@ -14,6 +14,9 @@ abstract final class HostLightRescueKeys {
 
   static String accusationUnlock(int sessionKey) => 'unlock_$sessionKey';
 
+  static String accusationResolve(int sessionKey, String attemptEventId) =>
+      'accuse_resolve_${sessionKey}_$attemptEventId';
+
   static String captureBound(int sessionKey, String placeId) =>
       'bound_${placeId}_$sessionKey';
 

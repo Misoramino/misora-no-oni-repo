@@ -85,9 +85,15 @@ bool canLocalPlayerAccuse({
   required bool accusationSpent,
   required bool isEliminated,
   required int playerCount,
+  bool accusationPending = false,
 }) {
   if (!accusationEnabledForPlayerCount(playerCount)) return false;
   if (localRole != PlayerRole.runner) return false;
-  if (!accusationUnlocked || accusationSpent || isEliminated) return false;
+  if (!accusationUnlocked ||
+      accusationSpent ||
+      accusationPending ||
+      isEliminated) {
+    return false;
+  }
   return true;
 }

@@ -40,6 +40,28 @@ void main() {
     );
   });
 
+  test('unlock publish must treatAsUnlocked for non-empty sites', () {
+    // Mirrors _computeActiveAccusationIndices(treatAsUnlocked: true).
+    expect(
+      activeAccusationSiteCount(
+        accusationUnlocked: false,
+        siteCount: 4,
+      ),
+      0,
+    );
+    expect(
+      pickActiveAccusationSiteIndices(
+        gimmickSeed: 1,
+        siteCount: 4,
+        activeCount: activeAccusationSiteCount(
+          accusationUnlocked: true,
+          siteCount: 4,
+        ),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('pickActiveAccusationSiteIndices is deterministic', () {
     final a = pickActiveAccusationSiteIndices(
       gimmickSeed: 42,

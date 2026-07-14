@@ -126,7 +126,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
 
       _startGameCore();
       if (!mounted) return;
-      unawaited(_runPostMatchStartOnboarding());
+      _runPostMatchStartOnboarding();
     } finally {
       _matchStartInFlight = false;
       _matchPresentationActive = false;
@@ -167,6 +167,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     if (!rejoin) {
       _captureAcksByPlace.clear();
       _capturePlacedTargetsByPlace.clear();
+      _capturePermittedByPlace.clear();
       _lastKnownHunterPositions.clear();
       _oniPathSamples.clear();
       _hunterPathSamples.clear();
@@ -244,7 +245,11 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
         WorldAudioDirector.instance.onMatchTick(_rt.remainingSeconds);
       }
       if (_rt.remainingSeconds <= 0) {
-        unawaited(_handleMatchTimeUp());
+        if (_gameState == GameState.caughtByOni) {
+          _evaluateEliminationAftermathCharges();
+        } else if (_gameState == GameState.running) {
+          unawaited(_handleMatchTimeUp());
+        }
         return;
       }
       if (_gameState == GameState.running) {
@@ -585,7 +590,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _hostAccusationUnlockSent = false;
     _participantAccusationUnlockSent = false;
     _hostLightRescueEmittedKeys.clear();
-    _globallyBoundRunnerUids.clear();
+    _globallyBoundUntil.clear();
     final gimmicks = await _gimmicksFromSnapshot(snapshot);
     _rt.applyStartGimmicks(
       gimmicks: gimmicks,
@@ -615,7 +620,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _hostAccusationUnlockSent = false;
     _participantAccusationUnlockSent = false;
     _hostLightRescueEmittedKeys.clear();
-    _globallyBoundRunnerUids.clear();
+    _globallyBoundUntil.clear();
     _accusationPromptOpen = false;
     _matchRecorder?.discard();
     _matchRecorder = null;
@@ -643,6 +648,7 @@ extension _GameMapMatchLifecycle on _GameMapScreenState {
     _abortProposalTimer = null;
     _captureAcksByPlace.clear();
     _capturePlacedTargetsByPlace.clear();
+    _capturePermittedByPlace.clear();
     _eliminatedUids.clear();
     _absentSinceByUid.clear();
     _factionAtDeath = null;

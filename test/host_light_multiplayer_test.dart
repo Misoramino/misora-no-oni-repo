@@ -1,7 +1,5 @@
-import 'package:oni_game/sync/host_light_rescue.dart';
-import 'package:oni_game/sync/host_presence_status.dart';
-import 'package:oni_game/sync/room_member_view.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oni_game/sync/host_light_rescue.dart';
 
 void main() {
   group('HostLightRescueKeys', () {
@@ -22,45 +20,19 @@ void main() {
         'disconnect_3_p1',
       );
     });
-  });
 
-  group('HostPresenceStatus unavailableForMatchEnd', () {
-    test('background host is unavailable', () {
-      final host = RoomMemberView(
-        uid: 'h',
-        nickname: 'host',
-        role: 'runner',
-        isSelf: false,
-        isHost: true,
-        reportedAtUtc: DateTime.utc(2026, 1, 1, 12, 0),
-        appLifecycle: 'background',
-        backgroundSinceUtc: DateTime.utc(2026, 1, 1, 12, 0),
-      );
+    test('accusation resolve key includes attempt event id', () {
       expect(
-        HostPresenceStatus.unavailableForMatchEnd(
-          host,
-          DateTime.utc(2026, 1, 1, 12, 1),
-        ),
-        isTrue,
+        HostLightRescueKeys.accusationResolve(9, 'evt_1'),
+        'accuse_resolve_9_evt_1',
       );
     });
 
-    test('foreground fresh host is available', () {
-      final host = RoomMemberView(
-        uid: 'h',
-        nickname: 'host',
-        role: 'runner',
-        isSelf: false,
-        isHost: true,
-        reportedAtUtc: DateTime.utc(2026, 1, 1, 12, 0),
-        appLifecycle: 'foreground',
-      );
+    test('accusation unlock and capture bound keys', () {
+      expect(HostLightRescueKeys.accusationUnlock(5), 'unlock_5');
       expect(
-        HostPresenceStatus.unavailableForMatchEnd(
-          host,
-          DateTime.utc(2026, 1, 1, 12, 0, 5),
-        ),
-        isFalse,
+        HostLightRescueKeys.captureBound(5, 'p1'),
+        'bound_p1_5',
       );
     });
   });

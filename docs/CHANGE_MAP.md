@@ -76,7 +76,7 @@
 
 | 主ファイル | 関連 |
 |------------|------|
-| `lib/game/accusation_logic.dart` / `accusation_sites.dart` | 解禁・有効施設数 |
+| `lib/game/accusation_logic.dart` / `accusation_sites.dart` / `accusation_outcome.dart` | 解禁・有効施設数・解決分岐 |
 | `lib/game/accusation_block_logic.dart` | 本鬼による施設単位ブロック |
 | `lib/game/facility_sabotage_logic.dart` / `spectral_territory_logic.dart` / `camera_shutdown_logic.dart` | 脱落後チャージ |
 | `lib/game/elimination_aftermath_rule.dart` | 残響体 vs 鬼影分岐 |
@@ -106,13 +106,17 @@
 |------------|------|
 | `lib/sync/firestore_room_session.dart` | 参加・購読・イベント送信 |
 | `lib/sync/room_match_event.dart` | イベント payload 解釈 |
+| `lib/sync/host_light_rescue.dart` / `member_role_wire.dart` | 救済キー・役職ワイヤ |
 | `lib/screens/room_lobby_screen.dart` | ロビー UI |
 | `firestore.rules` | 権限（リポジトリの例を Console にデプロイ） |
 
 **テスト:** `flutter test test/firestore_presence_contract_test.dart`  
 `flutter test test/room_match_event_test.dart`  
 `flutter test test/shared_match_snapshot_test.dart`  
-`flutter test test/room_phase_test.dart`
+`flutter test test/room_phase_test.dart`  
+`flutter test test/host_light_multiplayer_test.dart`  
+`flutter test test/member_role_wire_test.dart`  
+`flutter test test/accusation_outcome_test.dart`
 
 ### G. 近接・感染距離（GPS + BLE 補助）
 

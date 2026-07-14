@@ -13,7 +13,7 @@ Discord / LINE 通話を常時つなぎながら遊べるよう、**ゲーム内
 | **time up / match end** | ホスト `publishMatchEnd` | `match_end_rescue`（ホスト background / stale 時） |
 | **陣営全滅終了** | ホスト `_maybeEndMatchForFactionElimination` | 同上 `match_end_rescue`（`all_humans_eliminated` / `oni_eliminated`） |
 | **告発解禁** | ホスト `accusation_unlocked` | `accusation_unlocked_rescue` |
-| **告発解決** | ホスト `_hostResolveAccusationAttempt` | ホスト引継ぎ or 前面復帰を想定（変更なし） |
+| **告発解決** | ホスト `_hostResolveAccusationAttempt` | ホスト不通時: 引継ぎ → 通常解決、または参加者による `match_end_rescue`（`accusation_success`）/ `accusation_failed` / `player_eliminated_rescue` |
 | **捕獲結界 bound** | ホスト `capture_zone_bound` | `capture_zone_bound_rescue` |
 | **切断脱落** | ホスト `player_eliminated` | `player_eliminated_rescue` |
 | **安全地帯** | 各参加者 `safe_zone_pickup` | もともと分散 |
@@ -31,8 +31,10 @@ Discord / LINE 通話を常時つなぎながら遊べるよう、**ゲーム内
 
 ## 3. 捕獲判定（鬼前面）
 
-- 逃走者が background でも、members の `proximityBand` / 結界 bound / 座標があれば鬼端末が `oni_capture_elimination` を発行可能
+- 逃走者が background でも、members の `proximityBand` / 結界 bound（期限付き）/ 新鮮な座標があれば鬼端末が `oni_capture_elimination` を発行可能
+- **拘束が有効な間だけ**、かつ GPS 約12m または BLE contact（逃走者ローカルの `isCaptureTriggered` と同じ条件）
 - 逃走者は復帰時に Firestore イベントで脱落を反映（`publishOnline: false`）
+- `capture_zone_bound` は設置時の `capturePermitted` を引き継ぐ（鬼陣営人狼の捕獲不可結界が viewer 側で致死化しない）
 
 ## 4. Firestore 課金
 

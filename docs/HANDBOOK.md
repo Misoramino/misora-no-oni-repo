@@ -3,6 +3,16 @@
 仕様を変えずに「どこを読むか・どこを触ったら何を検証するか」を一本化した入口です。  
 英語の短い設計意図だけ必要な場合は [AI_HANDOFF.md](./AI_HANDOFF.md) を先にどうぞ。
 
+## 仕様の一次ソース（矛盾時の優先順）
+
+1. **コード** — `lib/game/game_config.dart`（数値）・`lib/game/skill_reference.dart`（装備スキル文案）
+2. **[PLAYER_REFERENCE.md](./PLAYER_REFERENCE.md)** — プレイヤー／リリース向けの短い現行仕様
+3. **[GAME_DESIGN_SPEC.md](./GAME_DESIGN_SPEC.md)** — 設計者向けの接近3系統・告発・第二ゲーム
+4. **[HOWTO_GENERATION_SPEC.md](./HOWTO_GENERATION_SPEC.md)** — ガイド文生成用（コードと矛盾時はコード優先）
+5. **[how_to_play_v2/](./how_to_play_v2/)** — **歴史的 UX 設計メモ。実装の根拠にしない**
+
+画面実装の当たりは `lib/features/game_map/game_map_screen_index.dart`。
+
 ## 誰向けに何を読むか
 
 | 読者 | 最初に読む | 次に読む |
@@ -35,6 +45,14 @@
 | [../CHANGELOG.md](../CHANGELOG.md) | **リリース履歴**（v2.0 以降） | ユーザー向け機能追加のたび |
 
 **削除済み・参照しない:** 旧 `FIREBASE_USER_TASKS.txt` の内容は [OPERATIONS_CHECKLIST.md](./OPERATIONS_CHECKLIST.md) に統合しました。
+
+## コード整理ベースライン（2026-07・完了）
+
+GameMapScreen の part 分割・索引・告発分岐抽出・用語一本化までを **一区切り完了** とした。
+
+- **当たり先:** `lib/features/game_map/game_map_screen_index.dart`
+- **仕様の読み順:** 本書上の「仕様の一次ソース」
+- **以降の大きなリファクタ**（screens 物理移動、`lockZone*` 全リネーム等）は必要な機能開発に合わせて段階的に。このベースラインを壊さないこと。
 
 ## 変更後に必ず回す検証（仕様非変更の安全网）
 

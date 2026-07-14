@@ -1,9 +1,19 @@
 part of 'game_map_screen.dart';
 
-/// オンライン（Firestore ルーム）から受信したマッチイベントの適用処理。
+/// オンライン（Firestore ルーム）から受信したマッチイベントのディスパッチ。
 ///
-/// `game_map_screen.dart` 本体（`_GameMapScreenState`）から物理的に切り出した
-/// 受信ハンドラ群。挙動は本体にあった頃と完全に同一（同一ライブラリの extension）。
+/// 実際の適用ロジックは型ごとに他 part に置く。ここは **入り口の一覧**。
+///
+/// | イベント | 適用先（目安） |
+/// |---|---|
+/// | `reveal` / `anonymous_reveal` / `fake_intel_reveal` | match_events / reveals_gimmicks |
+/// | `info_broker` / `oni_info_broker` / `safe_zone_pickup` | match_events / reveals_gimmicks |
+/// | `capture_zone_placed` / `bound` / `ack` | capture_zone |
+/// | `accusation_*` | accusation |
+/// | `player_eliminated` / host-light rescue | online_sync 内 + second_game |
+/// | `camera_jack` / `spectral_territory` / sabotage / shutdown | second_game |
+/// | `match_end_rescue` / abort* | match_lifecycle / host_light |
+/// | lobby `lobby_play_area*` | play_area |
 extension _GameMapOnlineSyncEvents on _GameMapScreenState {
   DateTime _eventTimestamp(RoomMatchEvent ev) =>
       DateTime.fromMillisecondsSinceEpoch(ev.emittedAtMs, isUtc: true).toLocal();
@@ -116,6 +126,8 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         _rememberCapturePlacedTargets(
           placeId,
           _captureTargetUidsFromPayload(ev.payload),
+          capturePermitted:
+              CaptureZoneEventPayload.capturePermitted(ev.payload),
         );
         if (ev.actorUid != fs.myUid) {
           _applyRemoteCaptureZonePlaced(ev);
@@ -185,13 +197,26 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
         _applyAccusationUnlocked(ev);
         return;
       case RoomMatchEventTypes.accusationAttempt:
-        if (!_isHost || _gameState != GameState.running) return;
+        if (_gameState != GameState.running) return;
         final accusedUid = ev.payload['accusedUid'] as String?;
         if (accusedUid == null || accusedUid.isEmpty) return;
-        _hostResolveAccusationAttempt(
-          accuserUid: ev.actorUid,
-          accusedUid: accusedUid,
-        );
+        if (_isHost) {
+          _hostResolveAccusationAttempt(
+            accuserUid: ev.actorUid,
+            accusedUid: accusedUid,
+          );
+          return;
+        }
+        // ホスト不通時: ホストを引き継いで解決（告発消費の宙吊り防止）。
+        if (_hostUnavailableForRescue()) {
+          unawaited(
+            _maybeParticipantResolveAccusationAttempt(
+              accuserUid: ev.actorUid,
+              accusedUid: accusedUid,
+              eventId: ev.id,
+            ),
+          );
+        }
         return;
       case RoomMatchEventTypes.accusationFailed:
         _applyRemoteAccusationFailed(ev);
@@ -224,6 +249,13 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
     final uid = ev.payload['uid'] as String? ?? ev.actorUid;
     final myUid = _firestoreSession?.myUid;
     final cause = ev.payload['cause'] as String? ?? 'eliminated';
+    if (_rt.accusationAwaitingResolution &&
+        (cause == 'accusation_hunter' || cause == 'accusation_failed')) {
+      _syncSetState(() {
+        _rt.accusationSpentByMe = true;
+        _rt.accusationAwaitingResolution = false;
+      });
+    }
     if (uid == myUid && _gameState == GameState.running) {
       final msg = switch (cause) {
         'accusation_hunter' =>
@@ -287,16 +319,19 @@ extension _GameMapOnlineSyncEvents on _GameMapScreenState {
   void _applyRemoteAccusationPointScored(RoomMatchEvent ev) {
     final total = (ev.payload['total'] as num?)?.toInt();
     if (total == null || !mounted) return;
-    _syncSetState(() => _rt.accusationPointsHuman = total);
+    _syncSetState(() {
+      _rt.accusationPointsHuman = total;
+      if (_rt.accusationAwaitingResolution) {
+        _rt.accusationSpentByMe = true;
+        _rt.accusationAwaitingResolution = false;
+      }
+    });
   }
 
   void _applyRemoteAccusationFailed(RoomMatchEvent ev) {
     final accuserUid = ev.payload['accuserUid'] as String?;
     final myUid = _firestoreSession?.myUid;
     if (accuserUid == myUid) {
-      if (!_rt.accusationSpentByMe) {
-        _syncSetState(() => _rt.accusationSpentByMe = true);
-      }
       _applyAccusationFailureToAccuser(accuserUid!);
       return;
     }

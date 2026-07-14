@@ -72,4 +72,29 @@ void main() {
       false,
     );
   });
+
+  test('canLocalPlayerAccuse blocks pending resolution', () {
+    expect(
+      canLocalPlayerAccuse(
+        localRole: PlayerRole.runner,
+        accusationUnlocked: true,
+        accusationSpent: false,
+        accusationPending: true,
+        isEliminated: false,
+        playerCount: 3,
+      ),
+      false,
+    );
+    expect(
+      canLocalPlayerAccuse(
+        localRole: PlayerRole.runner,
+        accusationUnlocked: true,
+        accusationSpent: false,
+        accusationPending: false,
+        isEliminated: false,
+        playerCount: 3,
+      ),
+      true,
+    );
+  });
 }

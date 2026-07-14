@@ -4,6 +4,38 @@ All notable changes to ONI PIN are documented here.
 
 ## [Unreleased]
 
+### 整理（完了ベースライン 2026-07）
+
+- **match_events part** — 試合イベント送信・定期匿名・reveal/gimmick publish を skills から分離。
+- **本体フィールド**を Online / Elimination / Progression 等にセクション分け。
+- **索引**を 15 part に更新し、「ここで一区切り」と明記（HANDBOOK 同趣旨）。
+- 段階1〜2の SSOT・告発 outcome・capture_zone・HUD/play_area 分離・MemberRoleWire を含む。
+
+### 整理（段階2: part 責務・用語）
+
+- **skills ジャンク撤去** — トースト／条件 HUD → `hud_experience`、エリア編集 → `play_area`、告発ブロック判定 → `accusation`。
+- **`MemberRoleWire`** — `oni`/`hunter` ワイヤ判定と表示ラベルを `lib/sync/` に集約。
+- **online_sync** 先頭にイベント→適用 part 対応表を追加。
+- 索引・CHANGELOG を同期。
+
+### 整理（段階1: 地図・重複削減）
+
+- **GameMapScreen 索引を現行 14 part に更新**（`capture_zone` / `host_light` / `prep_sync` / `presentation` / `rejoin`）。
+- **仕様 SSOT** — HANDBOOK / PLAYER_REFERENCE / how_to_play_v2 に優先順位とアーカイブ明示。
+- **告発結果を `accusation_outcome.dart` に集約** — host / local / host-light が同じ分岐を参照。
+- **捕獲結界を `game_map_screen.capture_zone.dart` に分離**（skills ジャンクドロアから切り出し）。
+- **GuideTerms → MatchUiTerms 参照**で重なる表示文言を一本化。
+- **`MatchGeoHelpers.captureZoneTargetIds`** を抽出してテスト可能に。
+
+### バグ修正（致命〜高）
+
+- **告発解禁で有効施設が 0 のまま** — 解禁ペイロード生成時に `treatAsUnlocked` で施設を選び、空 indices は受信側で再計算。
+- **鬼前面の捕獲が拘束なしで発火** — ホストライト捕獲を「拘束中 + GPS12m/BLE」に揃え、bound を結界持続で期限切れに。
+- **捕獲結界の致死フラグ欠落** — `capture_zone_bound` に `capturePermitted` を載せ、鬼陣営人狼の非致死結界が viewer 側で捕獲可にならないよう修正。
+- **告発権だけ消えて解決されない** — 送信直後は判定待ち、解決で消費確定。ホスト不通時は引継ぎ／参加者救済で解決。
+- **円エリアの 80m 自動寄せが未配線** — 試合開始検証で `_alignPlayAreaToCurrentPositionIfFar` を実行。
+- **ビルド破綻** — `WorldProfile.urbanHorror` → `horror`、`unawaited(void)` を除去。
+
 ### 同期・試合開始
 
 - **試合開始フローを短縮** — 役職カード（自動クローズ）→ カウントダウン → 試合開始に統一し、`startedAtUtc` を実際の開始タイミングに合わせる構成へ。
@@ -17,6 +49,8 @@ All notable changes to ONI PIN are documented here.
 - **鬼位置フォールバック** — `hunter_position` が遅れた場合も `members.lat/lng`（fresh のみ）で近接判定を補助。
 - **結界 rescue の発火判定改善** — 非ホスト救済は配置時ではなく発火時にホスト不在を判定し、取りこぼしを軽減。
 - **結界 rescue の再試行を追加** — ホスト状態の瞬間変化で bound が落ちるケースに対し短い再判定を行う。
+- **告発施設ブロック** — 本鬼位置を presence / events の解決座標で判定。
+- **第二ゲーム** — 試合タイマー 0 付近でも残響体／鬼影チャージ評価を継続。
 
 ## [3.1.0] — 2026-06-29
 

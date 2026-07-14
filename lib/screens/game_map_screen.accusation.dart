@@ -18,7 +18,7 @@ extension _GameMapAccusation on _GameMapScreenState {
     }
     _hostAccusationUnlockSent = true;
     final reason = _rt.syncedEliminationCount > 0 ? 'elimination' : 'time_ratio';
-    final active = _computeActiveAccusationIndices();
+    final active = _computeActiveAccusationIndices(treatAsUnlocked: true);
     unawaited(
       _publishAccusationUnlocked(
         reason: reason,
@@ -27,11 +27,11 @@ extension _GameMapAccusation on _GameMapScreenState {
     );
   }
 
-  Set<int> _computeActiveAccusationIndices() {
+  Set<int> _computeActiveAccusationIndices({bool treatAsUnlocked = false}) {
     final sites = _rt.accusationFacilityPositions;
     final seed = _firestoreSession?.currentMatchStart?.gimmickSeed ?? 0;
     final n = activeAccusationSiteCount(
-      accusationUnlocked: _rt.accusationUnlocked,
+      accusationUnlocked: treatAsUnlocked || _rt.accusationUnlocked,
       siteCount: sites.length,
       territoryBonus: _rt.accusationTerritoryBonus,
     );
@@ -94,12 +94,17 @@ extension _GameMapAccusation on _GameMapScreenState {
     final copy = _accusationCopy;
     final raw = ev?.payload['activeSiteIndices'];
     if (raw is List) {
-      _rt.activeAccusationSiteIndices = raw
+      final parsed = raw
           .whereType<num>()
           .map((e) => e.toInt())
           .toSet();
+      // 旧クライアントが空 indices を送った場合は解禁前提で再計算する。
+      _rt.activeAccusationSiteIndices = parsed.isNotEmpty
+          ? parsed
+          : _computeActiveAccusationIndices(treatAsUnlocked: true);
     } else {
-      _rt.activeAccusationSiteIndices = _computeActiveAccusationIndices();
+      _rt.activeAccusationSiteIndices =
+          _computeActiveAccusationIndices(treatAsUnlocked: true);
     }
     _syncSetState(() {
       _rt.accusationUnlocked = true;
@@ -139,6 +144,7 @@ extension _GameMapAccusation on _GameMapScreenState {
       localRole: _localRole,
       accusationUnlocked: _rt.accusationUnlocked,
       accusationSpent: _rt.accusationSpentByMe,
+      accusationPending: _rt.accusationAwaitingResolution,
       isEliminated: _isEliminatedSpectator,
       playerCount: _activeMatchPlayerCount,
     )) {
@@ -194,7 +200,8 @@ extension _GameMapAccusation on _GameMapScreenState {
           matchDurationSeconds: _matchDurationSeconds,
         ) &&
         !_isOnlineFirestore) {
-      _rt.activeAccusationSiteIndices = _computeActiveAccusationIndices();
+      _rt.activeAccusationSiteIndices =
+          _computeActiveAccusationIndices(treatAsUnlocked: true);
       _applyAccusationUnlocked(null);
     }
 
@@ -208,6 +215,7 @@ extension _GameMapAccusation on _GameMapScreenState {
       localRole: _localRole,
       accusationUnlocked: _rt.accusationUnlocked,
       accusationSpent: _rt.accusationSpentByMe,
+      accusationPending: _rt.accusationAwaitingResolution,
       isEliminated: _isEliminatedSpectator,
       playerCount: _activeMatchPlayerCount,
     )) {
@@ -307,7 +315,8 @@ extension _GameMapAccusation on _GameMapScreenState {
           return;
         }
       }
-      _syncSetState(() => _rt.accusationSpentByMe = true);
+      // 消費確定は解決イベント到達時。送信直後は待機フラグのみ。
+      _syncSetState(() => _rt.accusationAwaitingResolution = true);
       if (_isHost) {
         _hostResolveAccusationAttempt(
           accuserUid: fs?.myUid ?? '',
@@ -315,7 +324,10 @@ extension _GameMapAccusation on _GameMapScreenState {
         );
       }
     } else {
-      _syncSetState(() => _rt.accusationSpentByMe = true);
+      _syncSetState(() {
+        _rt.accusationSpentByMe = true;
+        _rt.accusationAwaitingResolution = false;
+      });
       _resolveAccusationLocally(accuserUid: 'local', accusedUid: accusedUid);
     }
   }
@@ -325,40 +337,56 @@ extension _GameMapAccusation on _GameMapScreenState {
     required String accusedUid,
   }) {
     if (!_isHost || _gameState != GameState.running) return;
+    _markLocalAccusationResolvedIfAccuser(accuserUid);
     final assignments =
         _firestoreSession?.currentMatchStart?.assignments ?? {};
     final copy = _accusationCopy;
-    final success = isAccusationTargetHunter(
-      assignments: assignments,
-      accusedUid: accusedUid,
+    final kind = resolveAccusationOutcome(
+      targetIsHunter: isAccusationTargetHunter(
+        assignments: assignments,
+        accusedUid: accusedUid,
+      ),
+      weight: _accusationWeight,
     );
-    if (success) {
-      switch (_accusationWeight) {
-        case AccusationWeight.instantWin:
-          unawaited(WorldAudioDirector.instance.onAccusationSequence());
-          _endGame(
-            GameState.runnerWin,
-            '${MatchHudCopy.accusationSuccess} — ${copy.facilityName}',
-            endReason: MatchEndReason.accusationSuccess,
-          );
-        case AccusationWeight.eliminateOni:
-          unawaited(_publishParticipantEliminatedByHost(
-            uid: accusedUid,
-            cause: 'accusation_hunter',
-          ));
-          _notifyAccusationSuccess(
-            '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
-          );
-        case AccusationWeight.points:
-          _applyAccusationPointDelta(delta: 1);
-          _notifyAccusationSuccess(
-            '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
-          );
-      }
+    switch (kind) {
+      case AccusationResolutionKind.successInstantWin:
+        unawaited(WorldAudioDirector.instance.onAccusationSequence());
+        _endGame(
+          GameState.runnerWin,
+          '${MatchHudCopy.accusationSuccess} — ${copy.facilityName}',
+          endReason: MatchEndReason.accusationSuccess,
+        );
+      case AccusationResolutionKind.successEliminateOni:
+        unawaited(_publishParticipantEliminatedByHost(
+          uid: accusedUid,
+          cause: 'accusation_hunter',
+        ));
+        _notifyAccusationSuccess(
+          '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
+        );
+      case AccusationResolutionKind.successPoints:
+        _applyAccusationPointDelta(delta: 1);
+        _notifyAccusationSuccess(
+          '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
+        );
+      case AccusationResolutionKind.failure:
+        unawaited(_publishAccusationFailed(accuserUid: accuserUid));
+        _applyAccusationFailureToAccuser(accuserUid);
+    }
+  }
+
+  void _markLocalAccusationResolvedIfAccuser(String accuserUid) {
+    final myUid = _firestoreSession?.myUid ?? 'local';
+    if (accuserUid != myUid && accuserUid != 'local') return;
+    if (!mounted) {
+      _rt.accusationSpentByMe = true;
+      _rt.accusationAwaitingResolution = false;
       return;
     }
-    unawaited(_publishAccusationFailed(accuserUid: accuserUid));
-    _applyAccusationFailureToAccuser(accuserUid);
+    _syncSetState(() {
+      _rt.accusationSpentByMe = true;
+      _rt.accusationAwaitingResolution = false;
+    });
   }
 
   void _resolveAccusationLocally({
@@ -367,42 +395,44 @@ extension _GameMapAccusation on _GameMapScreenState {
   }) {
     final assignments =
         _firestoreSession?.currentMatchStart?.assignments ?? {};
-    if (isAccusationTargetHunter(
-      assignments: assignments,
-      accusedUid: accusedUid,
-    )) {
-      switch (_accusationWeight) {
-        case AccusationWeight.instantWin:
-          unawaited(WorldAudioDirector.instance.onAccusationSequence());
-          _endGame(
-            GameState.runnerWin,
-            '${MatchHudCopy.accusationSuccess}（ローカル）',
-            endReason: MatchEndReason.accusationSuccess,
-            skipFirestoreSync: true,
+    final kind = resolveAccusationOutcome(
+      targetIsHunter: isAccusationTargetHunter(
+        assignments: assignments,
+        accusedUid: accusedUid,
+      ),
+      weight: _accusationWeight,
+    );
+    switch (kind) {
+      case AccusationResolutionKind.successInstantWin:
+        unawaited(WorldAudioDirector.instance.onAccusationSequence());
+        _endGame(
+          GameState.runnerWin,
+          '${MatchHudCopy.accusationSuccess}（ローカル）',
+          endReason: MatchEndReason.accusationSuccess,
+          skipFirestoreSync: true,
+        );
+      case AccusationResolutionKind.successEliminateOni:
+        if (accusedUid == _firestoreSession?.myUid ||
+            accusedUid == 'local') {
+          _eliminateLocalParticipant(
+            '告発により脱落 — 復讐の鬼影として戦線に残る',
+            cause: 'accusation_hunter',
           );
-        case AccusationWeight.eliminateOni:
-          if (accusedUid == _firestoreSession?.myUid ||
-              accusedUid == 'local') {
-            _eliminateLocalParticipant(
-              '告発により脱落 — 復讐の鬼影として戦線に残る',
-              cause: 'accusation_hunter',
-            );
-          } else {
-            _eliminatedUids.add(accusedUid);
-            _rt.syncedEliminationCount += 1;
-          }
-          _notifyAccusationSuccess(
-            '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
-          );
-        case AccusationWeight.points:
-          _applyAccusationPointDelta(delta: 1);
-          _notifyAccusationSuccess(
-            '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
-          );
-      }
-      return;
+        } else {
+          _eliminatedUids.add(accusedUid);
+          _rt.syncedEliminationCount += 1;
+        }
+        _notifyAccusationSuccess(
+          '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
+        );
+      case AccusationResolutionKind.successPoints:
+        _applyAccusationPointDelta(delta: 1);
+        _notifyAccusationSuccess(
+          '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
+        );
+      case AccusationResolutionKind.failure:
+        _applyAccusationFailureToAccuser(accuserUid);
     }
-    _applyAccusationFailureToAccuser(accuserUid);
   }
 
   void _notifyAccusationSuccess(String message) {
@@ -502,6 +532,7 @@ extension _GameMapAccusation on _GameMapScreenState {
   void _applyAccusationFailureToAccuser(String accuserUid) {
     final myUid = _firestoreSession?.myUid ?? 'local';
     if (accuserUid != myUid && accuserUid != 'local') return;
+    _markLocalAccusationResolvedIfAccuser(accuserUid);
     if (_accusationWeight.eliminatesAccuserOnFailure) {
       _eliminateLocalParticipant(
         '${MatchHudCopy.accusationFailed} — ${GuideTerms.echoForm}として戦線に残る',
@@ -521,12 +552,44 @@ extension _GameMapAccusation on _GameMapScreenState {
     final fs = _firestoreSession;
     final sk = _matchEventSessionKey;
     if (fs == null || sk == null) return;
+    final payload = {'accuserUid': accuserUid};
     if (_isHost) {
       await fs.publishHostRoomEvent(
         type: RoomMatchEventTypes.accusationFailed,
-        payload: {'accuserUid': accuserUid},
+        payload: payload,
+        sessionKey: sk,
+      );
+    } else {
+      await fs.publishRoomEvent(
+        type: RoomMatchEventTypes.accusationFailed,
+        payload: payload,
         sessionKey: sk,
       );
     }
   }
+
+
+  bool _isAccusationSiteBlockedByLiveHunter(int siteIndex) {
+    if (!_rt.accusationUnlocked) return false;
+    if (siteIndex < 0 || siteIndex >= _rt.accusationFacilityPositions.length) {
+      return false;
+    }
+    final hunterUid = _hunterUidFromAssignments;
+    if (hunterUid == null) return false;
+    final facility = _rt.accusationFacilityPositions[siteIndex];
+    LatLng? hunterPos;
+    if (_localRole == PlayerRole.hunter) {
+      hunterPos = _currentPosition;
+    } else if (hunterUid == _firestoreSession?.myUid) {
+      hunterPos = _currentPosition;
+    } else {
+      hunterPos = _resolvedPerceivedOniPosition(hunterUid);
+    }
+    return AccusationBlockLogic.isHunterBlockingSite(
+      facilityPosition: facility,
+      hunterPosition: hunterPos,
+      hunterPositionKnown: hunterPos != null,
+    );
+  }
+
 }

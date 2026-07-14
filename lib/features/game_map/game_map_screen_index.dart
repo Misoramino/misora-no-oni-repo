@@ -1,28 +1,41 @@
-/// [GameMapScreen] の実装ファイル索引。
+/// [GameMapScreen] の実装ファイル索引（2026-07 整理完了ベースライン）。
 ///
-/// 画面本体は `lib/screens/game_map_screen.dart` にあり、
-/// ドメイン別ロジックは `part` + `extension` で分割されています。
-/// 機能を直すときは **下表の part を開く** のが最短です。
+/// 画面本体は `lib/screens/game_map_screen.dart`。
+/// ドメイン別ロジックは `part` + `extension`。直すときは **下表の part** を開く。
 ///
-/// ## ファイル一覧
+/// ルール数値・装備スキル文案の一次ソース:
+/// `lib/game/game_config.dart` / `lib/game/skill_reference.dart`
 ///
-/// | ファイル | 主な責務 | 代表メソッド |
-/// |---|---|---|
-/// | `game_map_screen.dart` | 状態フィールド・init/build・GPS・近接 | `build`, `_acceptPosition` |
-/// | `game_map_screen.online_sync.dart` | Firestore イベント受信 | `_onRemoteRoomMatchEvent` |
-/// | `game_map_screen.reveals_gimmicks.dart` | 暴露・ギミック取得 | `_emitIdentifiedReveal` |
-/// | `game_map_screen.hud_experience.dart` | HUD・プリセット・第二ゲーム導入 | `_recordMatchFeed` |
-/// | `game_map_screen.play_area.dart` | エリア編集・保存 | `_hostApplySelectedPlayArea` |
-/// | `game_map_screen.match_lifecycle.dart` | 試合開始/終了・ティック | `_startGame`, `_endGame` |
-/// | `game_map_screen.accusation.dart` | 告発 | `_hostResolveAccusationAttempt` |
-/// | `game_map_screen.second_game.dart` | 脱落後操作 | `_evaluateCameraJack` |
-/// | `game_map_screen.skills.dart` | スキル・体投げ・近接 | `_activateFakeSkill`, `_activateBodyThrow` |
-/// | `game_map_screen.overlay.dart` | 地図描画スナップショット | `_overlaySnapshot` |
+/// ## part 一覧（15 + 本体）
 ///
-/// ## 関連モジュール（part 外）
+/// | ファイル | 責務 |
+/// |---|---|
+/// | `game_map_screen.dart` | 状態フィールド（セクション分け済）・init/build・GPS |
+/// | `online_sync.dart` | Firestore **受信**ディスパッチ |
+/// | `match_events.dart` | 試合イベント **送信**・定期匿名・reveal/gimmick publish |
+/// | `reveals_gimmicks.dart` | 暴露・ギミックの**ローカル**判定 |
+/// | `hud_experience.dart` | HUD・トースト・条件文 |
+/// | `play_area.dart` | エリア編集・保存・開始時寄せ |
+/// | `match_lifecycle.dart` | 試合開始/終了・メインティック |
+/// | `accusation.dart` | 告発 UI・解禁・解決 |
+/// | `second_game.dart` | 残響体／鬼影 |
+/// | `skills.dart` | 装備スキル・体投げ・人狼・偽位置 |
+/// | `capture_zone.dart` | 捕獲結界の配置・bound |
+/// | `overlay.dart` | 地図オーバーレイ組み立て |
+/// | `host_light.dart` | ホスト不通時の救済 |
+/// | `prep_sync.dart` | 準備ロビー・再開オンボーディング |
+/// | `presentation.dart` | 開始演出 |
+/// | `rejoin.dart` | 進行中試合への再参加 |
 ///
-/// - 試合ランタイム状態: `match/match_runtime_state.dart`
-/// - 地図マーカー描画: `map/game_map_overlay_builder.dart`
-/// - カスタム設定 UI: `settings/game_custom_settings_sheet.dart`
-/// - 告発重み・プリセット: `lib/game/accusation_weight.dart`, `match_quick_preset.dart`
+/// ## 用語
+///
+/// - `lockZone*` … 接触拘束 or 捕獲結界（`lockZoneFromSkill`）
+/// - `capture_zone_*` … スキル結界の Firestore イベント
+/// - `hunter` / wire `oni`|`hunter` … `MemberRoleWire`
+///
+/// ## 意図的にこのベースラインで止めること
+///
+/// - `screens/` の物理移動（God State のラベル付け直しはしない）
+/// - `lockZone*` フィールドの大規模リネーム（ワイヤ互換のため）
+/// - 告発 publish の完全サービス化（分岐は `accusation_outcome` 済）
 library;

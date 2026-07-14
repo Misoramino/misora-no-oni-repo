@@ -1,9 +1,13 @@
 # 00_MasterIndex.md
 
-> この文書は「ONI PIN HowToPlay Ver2」設計書の一部です。
-> **2026-06 以降:** アプリ内の遊び方・チュートリアル・役職ダイアログの装備スキル文案は **`lib/game/skill_reference.dart`** が一次ソースです。本フォルダの文章は設計メモとして残しますが、数値・効果の矛盾がある場合はコードと `skill_reference.dart` を優先してください。
-> 実装前に `00_MasterIndex.md` から順番に、同フォルダ内の全ファイルを読んでください。
-> 途中のファイルだけを読んで実装しないでください。
+> ## アーカイブ（実装の根拠にしない）
+>
+> このフォルダは **HowToPlay Ver2 の UX 設計メモ**です。  
+> **ゲーム仕様・秒数・スキル効果の一次ソースではありません。**  
+> 矛盾がある場合は必ず `lib/game/skill_reference.dart` / `game_config.dart` と [PLAYER_REFERENCE.md](../PLAYER_REFERENCE.md) を優先してください。  
+> アプリ内ガイドの更新は `lib/features/how_to_play/` と `skill_reference.dart` を触ってください。
+>
+> この文書は「ONI PIN HowToPlay Ver2」設計書の一部です（歴史資料）。
 
 # ONI PIN HowToPlay Ver2 Master Index
 

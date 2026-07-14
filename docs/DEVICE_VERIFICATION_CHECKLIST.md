@@ -123,8 +123,12 @@
 - [ ] LINE 通話しながら ONI PIN 前面で GPS・捕獲が動く
 - [ ] 非ホストが 10 分通話（ホストは前面）— 時間切れ・脱落が破綻しない
 - [ ] ホストが 10 分通話（非ホスト救済）— 時間切れで試合が終わる
-- [ ] 鬼前面・逃走者 background で捕獲 → 逃走者復帰後に脱落が反映される
+- [ ] 鬼前面・逃走者 background で捕獲 → 逃走者復帰後に脱落が反映される（**拘束後のみ**至近捕獲）
 - [ ] ホスト background 中の時間切れ → 非ホストが終了できる
+- [ ] ホスト background 中の告発 → 解決される（成功／失敗。消費だけ残らない）
+- [ ] 告発解禁後、有効施設が **1 箇所以上** マップに出る（有効 0/N にならない）
+
+**Firestore:** `accusation_success` を match end rescue に追加した場合は `firebase deploy --only firestore:rules` を忘れない。
 
 詳細: [host_light_multiplayer.md](./host_light_multiplayer.md)
 

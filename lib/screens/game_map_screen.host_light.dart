@@ -46,7 +46,7 @@ extension _GameMapHostLight on _GameMapScreenState {
     _participantAccusationUnlockSent = true;
     final reason =
         _rt.syncedEliminationCount > 0 ? 'elimination' : 'time_ratio';
-    final active = _computeActiveAccusationIndices();
+    final active = _computeActiveAccusationIndices(treatAsUnlocked: true);
     unawaited(
       _publishAccusationUnlockRescue(
         idempotencyKey: key,
@@ -75,6 +75,95 @@ extension _GameMapHostLight on _GameMapScreenState {
     );
     if (err == null) _rememberHostLightRescueKey(idempotencyKey);
     if (err != null && mounted) _toast(err);
+  }
+
+  /// ホスト不通時に告発試行を解決する（ホスト引継ぎ優先、不可なら参加者救済）。
+  Future<void> _maybeParticipantResolveAccusationAttempt({
+    required String accuserUid,
+    required String accusedUid,
+    required String eventId,
+  }) async {
+    if (_isHost || !_isOnlineFirestore || _gameState != GameState.running) {
+      return;
+    }
+    if (!_hostUnavailableForRescue()) return;
+    final sk = _matchEventSessionKey;
+    final fs = _firestoreSession;
+    if (sk == null || fs == null) return;
+    final key = HostLightRescueKeys.accusationResolve(sk, eventId);
+    if (_hostLightRescueEmittedKeys.contains(key)) return;
+    _rememberHostLightRescueKey(key);
+
+    if (fs.isHostAbsent(DateTime.now().toUtc())) {
+      await _maybeAutoClaimHostIfAbsent();
+    }
+    if (!mounted || _gameState != GameState.running) return;
+    if (_isHost) {
+      _hostResolveAccusationAttempt(
+        accuserUid: accuserUid,
+        accusedUid: accusedUid,
+      );
+      return;
+    }
+
+    // ホストが background のまま引継ぎできない場合の参加者救済。
+    final assignments = fs.currentMatchStart?.assignments ?? {};
+    final kind = resolveAccusationOutcome(
+      targetIsHunter: isAccusationTargetHunter(
+        assignments: assignments,
+        accusedUid: accusedUid,
+      ),
+      weight: _accusationWeight,
+    );
+    switch (kind) {
+      case AccusationResolutionKind.successInstantWin:
+        final err = await fs.publishMatchEndRescue(
+          idempotencyKey: key,
+          outcome: GameState.runnerWin,
+          endReason: MatchEndReason.accusationSuccess,
+          message: MatchHudCopy.accusationSuccess,
+          sessionKey: sk,
+        );
+        if (err == null && mounted) {
+          _markLocalAccusationResolvedIfAccuser(accuserUid);
+          _endGame(
+            GameState.runnerWin,
+            MatchHudCopy.accusationSuccess,
+            endReason: MatchEndReason.accusationSuccess,
+            skipFirestoreSync: true,
+          );
+        }
+      case AccusationResolutionKind.successEliminateOni:
+        final elimKey = HostLightRescueKeys.disconnectElimination(
+          sk,
+          accusedUid,
+        );
+        final err = await fs.publishHostLightRescueEvent(
+          type: HostLightRescueEventTypes.playerEliminatedRescue,
+          idempotencyKey: elimKey,
+          payload: _eliminationPayloadForUid(
+            accusedUid,
+            cause: 'accusation_hunter',
+          ),
+          sessionKey: sk,
+        );
+        if (err == null) {
+          _rememberHostLightRescueKey(elimKey);
+          _markLocalAccusationResolvedIfAccuser(accuserUid);
+          _notifyAccusationSuccess(
+            '${MatchHudCopy.accusationSuccess} — ${GuideTerms.trueOni}を脱落（試合継続）',
+          );
+        }
+      case AccusationResolutionKind.successPoints:
+        _markLocalAccusationResolvedIfAccuser(accuserUid);
+        _applyAccusationPointDelta(delta: 1);
+        _notifyAccusationSuccess(
+          '${MatchHudCopy.accusationSuccess} — ポイント ${_rt.accusationPointsHuman}',
+        );
+      case AccusationResolutionKind.failure:
+        await _publishAccusationFailed(accuserUid: accuserUid);
+        _applyAccusationFailureToAccuser(accuserUid);
+    }
   }
 
   /// 切断脱落: ホスト不通時のみ非ホストが担う。
@@ -253,6 +342,8 @@ extension _GameMapHostLight on _GameMapScreenState {
   }
 
   /// 鬼が前面のとき、background 逃走者を Firestore イベントで捕獲できるようにする。
+  ///
+  /// 逃走者ローカルと同じく **拘束中かつ** GPS 12m / BLE contact が必要。
   void _maybeOniPublishProximityCaptures() {
     if (!_isOnlineFirestore || _appInBackground) return;
     if (_gameState != GameState.running) return;
@@ -287,34 +378,37 @@ extension _GameMapHostLight on _GameMapScreenState {
         continue;
       }
 
-      final bound = _globallyBoundRunnerUids.contains(member.uid);
-      final contact = member.proximityBand == ProximityBand.contact.name;
+      if (!_isGloballyBoundActive(member.uid)) continue;
 
-      var gpsCapture = false;
+      final band = member.proximityBand == ProximityBand.contact.name
+          ? ProximityBand.contact
+          : ProximityBand.none;
+      var gpsDistance = double.infinity;
       final remote = _remoteMembers[member.uid];
-      if (remote != null && remote.hasCoords) {
-        final d = Geolocator.distanceBetween(
+      if (remote != null &&
+          remote.hasCoords &&
+          _isRemoteMemberCoordFresh(remote)) {
+        gpsDistance = Geolocator.distanceBetween(
           _currentPosition.latitude,
           _currentPosition.longitude,
           remote.lat!,
           remote.lng!,
         );
-        gpsCapture = d <= GameConfig.captureDistanceMeters;
       }
 
-      if (!bound && !contact && !gpsCapture) continue;
-
-      if (contact && !gpsCapture && !bound) {
-        if (!WerewolfFactionLogic.proximityCapturePermittedForRunner(
-          gpsDistanceToHunterMeters: double.infinity,
+      final proximityOk = MatchGeoHelpers.isBoundProximityCapture(
+        proximityBand: band,
+        gpsDistanceToOniMeters: gpsDistance,
+        proximityCapturePermitted:
+            WerewolfFactionLogic.proximityCapturePermittedForRunner(
+          gpsDistanceToHunterMeters: gpsDistance,
           captureDistanceMeters: GameConfig.captureDistanceMeters,
-          bleContactBand: true,
+          bleContactBand: band == ProximityBand.contact,
           participants: participants,
           runnerUid: member.uid,
-        )) {
-          continue;
-        }
-      }
+        ),
+      );
+      if (!proximityOk) continue;
 
       final key = HostLightRescueKeys.oniCapture(sk, member.uid);
       if (_hostLightRescueEmittedKeys.contains(key)) continue;
@@ -344,10 +438,28 @@ extension _GameMapHostLight on _GameMapScreenState {
     }
   }
 
-  void _recordGloballyBoundTargets(List<dynamic> rawTargets) {
+  void _recordGloballyBoundTargets(
+    List<dynamic> rawTargets, {
+    required int durationSec,
+  }) {
+    final until = DateTime.now().add(Duration(seconds: durationSec));
     for (final t in rawTargets) {
       final uid = t.toString();
-      if (uid.isNotEmpty) _globallyBoundRunnerUids.add(uid);
+      if (uid.isEmpty) continue;
+      final prev = _globallyBoundUntil[uid];
+      if (prev == null || until.isAfter(prev)) {
+        _globallyBoundUntil[uid] = until;
+      }
     }
+  }
+
+  bool _isGloballyBoundActive(String uid) {
+    final until = _globallyBoundUntil[uid];
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      _globallyBoundUntil.remove(uid);
+      return false;
+    }
+    return true;
   }
 }

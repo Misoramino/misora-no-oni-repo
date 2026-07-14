@@ -2,7 +2,21 @@
 
 > **一次ソース（コード）:** `lib/game/skill_reference.dart`（装備スキル）, `lib/game/game_config.dart`（数値）, `lib/game/werewolf_forced_schedule.dart`（人狼タイマー）  
 > **アプリ内:** 遊び方シート「スキル」「役職」「詳細ルール」章  
-> **リリース:** v3.1.0（`pubspec.yaml` / `lib/app_version.dart` と同期）
+> **リリース:** v3.1.0（`pubspec.yaml` / `lib/app_version.dart` と同期）  
+> **読まない:** [how_to_play_v2/](./how_to_play_v2/) は UX 歴史メモ（仕様の根拠にしない）
+
+---
+
+## 用語の対応（内部名 ↔ プレイヤー表示）
+
+| 内部 / wire | プレイヤー向け |
+|-------------|----------------|
+| `infection` / panic | パニック |
+| `lockZone*`（`fromSkill: false`） | 接触拘束・拘束円 |
+| `lockZone*`（`fromSkill: true`） / `capture_zone_*` | 捕獲結界 |
+| `PlayerRole.hunter` / members `role: oni` | 鬼（本鬼） |
+| `anonymous_reveal` | 匿名痕跡 |
+| named reveal / `LocationRevealEvent` | 名前付き暴露 |
 
 ---
 

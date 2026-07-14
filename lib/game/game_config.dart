@@ -27,6 +27,8 @@ class GameConfig {
   static const double dangerDistanceMeters = 70;
 
   static const double playAreaRadiusMeters = 500;
+  /// 試合開始時: 円エリア外かつこの距離以上なら中心を現在地へ自動寄せる（m）。
+  static const double playAreaAutoAlignMinOverflowMeters = 80;
   static const int outsideAreaGraceSeconds = 8;
   static const double outsideAreaGraceMeters = 25;
   /// エリア外に留まり続ける場合の追加暴露間隔（秒）。

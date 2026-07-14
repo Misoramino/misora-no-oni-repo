@@ -137,13 +137,43 @@ abstract final class MatchGeoHelpers {
     if (!testMode && !oniKnown && !isHunterNow) return false;
     if (!lockZoneBoundIds.contains('self')) return false;
     if (!lockZoneCapturePermitted) return false;
+    return isBoundProximityCapture(
+      proximityBand: proximityBand,
+      gpsDistanceToOniMeters: gpsDistanceToOniMeters,
+      proximityCapturePermitted: proximityCapturePermitted,
+    );
+  }
+
+  /// 拘束中の至近捕獲（逃走者ローカル / 鬼側ホストライト共通）。
+  static bool isBoundProximityCapture({
+    required ProximityBand proximityBand,
+    required double gpsDistanceToOniMeters,
+    required bool proximityCapturePermitted,
+  }) {
     if (proximityBand == ProximityBand.contact) {
       return proximityCapturePermitted;
     }
-    // BLE オフ同士など: 拘束中は GPS でも捕獲可能（オンライン鬼位置同期と併用）
-    if (gpsDistanceToOniMeters <= GameConfig.captureDistanceMeters) {
-      return true;
+    return gpsDistanceToOniMeters <= GameConfig.captureDistanceMeters;
+  }
+
+  /// 捕獲結界の中心から、半径内の自分 (`self`) とリモート UID を集める。
+  static Set<String> captureZoneTargetIds({
+    required LatLng center,
+    required double selfDistanceMeters,
+    required double radiusMeters,
+    required Map<String, LatLng> remotePositions,
+  }) {
+    final ids = <String>{};
+    if (selfDistanceMeters <= radiusMeters) ids.add('self');
+    for (final e in remotePositions.entries) {
+      final d = Geolocator.distanceBetween(
+        e.value.latitude,
+        e.value.longitude,
+        center.latitude,
+        center.longitude,
+      );
+      if (d <= radiusMeters) ids.add(e.key);
     }
-    return false;
+    return ids;
   }
 }

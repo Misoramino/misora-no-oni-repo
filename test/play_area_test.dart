@@ -59,4 +59,42 @@ void main() {
     );
     expect(polygon.shapeSummary(), '多角形 · 3 頂点');
   });
+
+  test('alignedCircleToPositionIfFar recenters when far enough', () {
+    const area = PlayArea.circle(
+      center: LatLng(35.0, 139.0),
+      radiusMeters: 100,
+    );
+    // ~111m north → overflow ~11m (< 80) → no align
+    final near = area.alignedCircleToPositionIfFar(
+      const LatLng(35.001, 139.0),
+      minOverflowMeters: 80,
+    );
+    expect(near, isNull);
+
+    // Far position: overflow well over 80m
+    final farPos = const LatLng(35.01, 139.0);
+    final aligned = area.alignedCircleToPositionIfFar(
+      farPos,
+      minOverflowMeters: 80,
+    );
+    expect(aligned, isNotNull);
+    expect(aligned!.center.latitude, farPos.latitude);
+    expect(aligned.radiusMeters, 100);
+
+    final poly = PlayArea.polygon(
+      points: const [
+        LatLng(35.0, 139.0),
+        LatLng(35.0, 139.01),
+        LatLng(35.01, 139.01),
+      ],
+    );
+    expect(
+      poly.alignedCircleToPositionIfFar(
+        const LatLng(36, 140),
+        minOverflowMeters: 80,
+      ),
+      isNull,
+    );
+  });
 }

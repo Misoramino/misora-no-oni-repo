@@ -7,6 +7,7 @@ import '../game/match_record.dart';
 import '../game/play_area.dart';
 import '../game/trajectory_simplify.dart';
 import '../sync/inspector_feed_snapshot.dart';
+import '../sync/member_role_wire.dart';
 
 /// 観戦中にインスペクターフィード・暴露ログから試合記録を組み立てる。
 class SpectatorMatchRecorder {
@@ -109,11 +110,7 @@ class SpectatorMatchRecorder {
 
   static String _labelFor(InspectorFeedSnapshot snap) {
     final nick = snap.nickname.trim();
-    final role = switch (snap.role) {
-      'oni' || 'hunter' => '鬼',
-      'spectator' => '観戦',
-      _ => '逃走者',
-    };
+    final role = MemberRoleWire.displayLabel(snap.role);
     if (nick.isEmpty) return role;
     return '$nick（$role）';
   }

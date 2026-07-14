@@ -1,9 +1,9 @@
 part of 'game_map_screen.dart';
 
-/// 位置暴露（名前付き／匿名）の発行と、安全地帯・情報屋ギミックの取得判定。
+/// 位置暴露（名前付き／匿名）のローカル発行と、安全地帯・情報屋ギミック判定。
 ///
-/// `game_map_screen.dart` 本体（`_GameMapScreenState`）から物理的に切り出したもの。
-/// 挙動は本体にあった頃と完全に同一（同一ライブラリの extension）。
+/// Firestore の publish / 定期匿名 / `match_event` 送信は `game_map_screen.match_events.dart`。
+/// 受信は `game_map_screen.online_sync.dart`。
 extension _GameMapRevealsGimmicks on _GameMapScreenState {
   void _scheduleGimmickRelocate({
     required String kind,

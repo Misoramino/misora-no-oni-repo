@@ -297,6 +297,18 @@ class PlayArea {
     }
   }
 
+  /// 円エリアのみ: 現在地が外かつ [minOverflowMeters] 以上なら中心を寄せた新エリア。
+  /// 多角形や条件未満は null（変更なし）。
+  PlayArea? alignedCircleToPositionIfFar(
+    LatLng position, {
+    required double minOverflowMeters,
+  }) {
+    if (type != PlayAreaType.circle) return null;
+    if (contains(position)) return null;
+    if (overflowDistanceMeters(position) < minOverflowMeters) return null;
+    return PlayArea.circle(center: position, radiusMeters: radiusMeters);
+  }
+
   static bool _isInsidePolygon(LatLng p, List<LatLng> poly) {
     if (poly.length < 3) return false;
     var inside = false;

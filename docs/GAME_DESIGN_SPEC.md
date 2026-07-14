@@ -139,7 +139,7 @@
 
 | 項目 | 既定 |
 |------|------|
-| 試合時間 | **600秒（10分）**（デバッグ180秒） |
+| 試合時間 | **2700秒（45分）**（デバッグ180秒。準備で10〜90分可） |
 | 鬼勝ち | 全逃走者捕獲 |
 | 逃走者勝ち | 時間切れ / **告発成功** |
 
@@ -354,22 +354,23 @@
 | 脱落痕跡 `trace_drop` | ✅ | `match_event` 内同期 |
 | 結界 `fromSkill` | ✅ | `capture_zone_placed` payload → `lockZoneFromSkill` |
 
-**既知の限界:** ロビー参加前にホストが「適用」したエリアは、後から入った端末には届かない（再「適用」が必要）。他プレイヤーの脱落後ルールはローカル UI に出さない（自分の第二ゲームのみ操作）。
+**既知の限界:** 他プレイヤーの脱落後ルールはローカル UI に出さない（自分の第二ゲームのみ操作）。ロビー開始前に適用したエリアは room doc `lobbyPlayArea` と attach 時 fetch で同期される（旧「再適用必須」は解消）。
 
 ---
 
 ## Firestore
 
 - 試合: `player_eliminated`, `accusation_unlocked`, `accusation_attempt`, `accusation_failed`
-- 結界: `capture_zone_placed`（`fromSkill`）, `capture_zone_bound`, `capture_zone_ack`
+- 結界: `capture_zone_placed`（`fromSkill` / `capturePermitted`）, `capture_zone_bound`（同）, `capture_zone_ack`
 - 第二ゲーム: `camera_jack`, `spectral_territory`, `facility_sabotage`, `camera_shutdown`
-- ロビー: `lobby_play_area`（`sessionKey = 0`）
+- ロビー: `lobby_play_area`（`sessionKey = 0`）+ room doc `lobbyPlayArea*`
 - ルール変更後: `firebase deploy --only firestore:rules`
 
 ---
 
 ## 変更履歴
 
+- 2026-07: 告発解禁の有効施設 0 バグ修正、鬼側捕獲の拘束必須化、結界 `capturePermitted` 伝播、告発解決のホストライト、円エリア開始時 80m 自動寄せ実装
 - `lockZone*` / `fromSkill`、告発本鬼ブロック、鬼遅延軌跡10〜13分
 - 接近3系統の用語整理
 - 告発有効数 0→1、陣取り設計

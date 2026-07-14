@@ -28,6 +28,8 @@ class MatchRuntimeState {
   Set<int> activeAccusationSiteIndices;
   bool accusationUnlocked;
   bool accusationSpentByMe;
+  /// オンライン告発を送信したが解決イベント未到達。二重送信防止用（消費確定ではない）。
+  bool accusationAwaitingResolution;
   int accusationPointsHuman;
   int syncedEliminationCount;
   int accusationTerritoryBonus;
@@ -135,6 +137,7 @@ class MatchRuntimeState {
     Set<int>? activeAccusationSiteIndices,
     this.accusationUnlocked = false,
     this.accusationSpentByMe = false,
+    this.accusationAwaitingResolution = false,
     this.accusationPointsHuman = 0,
     this.syncedEliminationCount = 0,
     this.accusationTerritoryBonus = 0,
@@ -329,6 +332,7 @@ class MatchRuntimeState {
     lastDangerDistance = null;
     accusationUnlocked = false;
     accusationSpentByMe = false;
+    accusationAwaitingResolution = false;
     accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;
@@ -368,6 +372,7 @@ class MatchRuntimeState {
     cameraPositions = List<LatLng>.from(gimmicks.cameras);
     accusationUnlocked = false;
     accusationSpentByMe = false;
+    accusationAwaitingResolution = false;
     accusationPointsHuman = 0;
     syncedEliminationCount = 0;
     accusationTerritoryBonus = 0;

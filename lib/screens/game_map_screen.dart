@@ -108,6 +108,7 @@ import '../game/game_config.dart';
 import '../game/accusation_block_logic.dart';
 import '../game/accusation_intro_copy.dart';
 import '../game/accusation_logic.dart';
+import '../game/accusation_outcome.dart';
 import '../game/accusation_weight.dart';
 import '../game/oni_path_trail.dart';
 import '../game/werewolf_forced_schedule.dart';
@@ -147,6 +148,7 @@ import '../sync/firestore_room_session.dart';
 import '../sync/host_presence_status.dart';
 import '../sync/host_light_rescue.dart';
 import '../sync/match_elapsed_sync.dart';
+import '../sync/member_role_wire.dart';
 import '../sync/room_event_deduper.dart';
 import '../sync/inspector_feed_snapshot.dart';
 import '../sync/firestore_room_blueprint.dart';
@@ -217,6 +219,8 @@ part 'game_map_screen.match_lifecycle.dart';
 part 'game_map_screen.accusation.dart';
 part 'game_map_screen.second_game.dart';
 part 'game_map_screen.skills.dart';
+part 'game_map_screen.match_events.dart';
+part 'game_map_screen.capture_zone.dart';
 part 'game_map_screen.overlay.dart';
 part 'game_map_screen.rejoin.dart';
 part 'game_map_screen.presentation.dart';
@@ -391,7 +395,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   ProximityBand _latestProximityBand = ProximityBand.none;
   double _gimmickDensity = 1.0;
 
-  // --- Online sync (logic: game_map_screen.online_sync.dart) ---
+  // --- Online sync & host-light (online_sync / host_light / capture_zone) ---
   final Set<String> _abortVoteYesUids = {};
   String? _abortProposalInitiatorUid;
   DateTime? _abortProposalExpiresAt;
@@ -402,6 +406,7 @@ class _GameMapScreenState extends State<GameMapScreen>
       ResumeCrisisSummaryCollector();
   final Map<String, Set<String>> _captureAcksByPlace = {};
   final Map<String, List<String>> _capturePlacedTargetsByPlace = {};
+  final Map<String, bool> _capturePermittedByPlace = {};
   DateTime? _lastBodyThrowAreaToastAt;
   DateTime? _lastHunterPositionPublishAt;
   LatLng? _lastHunterPositionPublished;
@@ -412,7 +417,8 @@ class _GameMapScreenState extends State<GameMapScreen>
   bool _hostAccusationUnlockSent = false;
   bool _participantAccusationUnlockSent = false;
   final Set<String> _hostLightRescueEmittedKeys = {};
-  final Set<String> _globallyBoundRunnerUids = {};
+  /// スキル結界の拘束対象 UID → 期限（鬼側 host-light 捕獲用）。
+  final Map<String, DateTime> _globallyBoundUntil = {};
   bool _accusationPromptOpen = false;
   bool _syncInFlight = false;
   Map<String, RemoteMemberSnapshot> _remoteMembers = {};
@@ -438,13 +444,15 @@ class _GameMapScreenState extends State<GameMapScreen>
 
   /// オンラインで鬼役の位置が members に載っている。
   bool _remoteOniKnown = false;
+
+  // --- Operator prefs (alerts) ---
   bool _oniNotifyVibration = true;
   bool _oniNotifySound = true;
   bool _oniNotifyAggressive = false;
   bool _crisisNotifyVibration = true;
   bool _crisisNotifyLocal = true;
 
-  // --- Elimination & second game (logic: second_game, accusation parts) ---
+  // --- Elimination & second game (second_game / accusation) ---
   EliminationAftermathRule _eliminationAftermathRule =
       EliminationAftermathRule.spectralOperative;
   AccusationWeight _accusationWeight = AccusationWeight.instantWin;
@@ -454,6 +462,7 @@ class _GameMapScreenState extends State<GameMapScreen>
   final Map<String, DateTime> _absentSinceByUid = {};
   bool _abortMajorityFinalizeInFlight = false;
 
+  // --- Progression (post-match titles) ---
   bool _progressRecordedForMatch = false;
   PlayerProgress? _lastProgress;
   List<PlayerTitle> _lastNewlyUnlockedTitles = const [];
@@ -1125,7 +1134,7 @@ class _GameMapScreenState extends State<GameMapScreen>
     LatLng? resolved;
 
     for (final m in map.values) {
-      if ((m.role == 'oni' || m.role == 'hunter') && m.hasCoords) {
+      if (MemberRoleWire.isOniRole(m.role) && m.hasCoords) {
         resolved = LatLng(m.lat!, m.lng!);
         known = true;
         break;
@@ -2238,21 +2247,19 @@ class _GameMapScreenState extends State<GameMapScreen>
   }
 
   Set<String> _captureZoneTargetsAt(LatLng center, double selfDistance) {
-    final ids = <String>{};
-    if (selfDistance <= GameConfig.captureZoneRadiusMeters) ids.add('self');
+    final remote = <String, LatLng>{};
     for (final e in _remoteMembers.entries) {
       final lat = e.value.lat;
       final lng = e.value.lng;
       if (lat == null || lng == null) continue;
-      final d = Geolocator.distanceBetween(
-        lat,
-        lng,
-        center.latitude,
-        center.longitude,
-      );
-      if (d <= GameConfig.captureZoneRadiusMeters) ids.add(e.key);
+      remote[e.key] = LatLng(lat, lng);
     }
-    return ids;
+    return MatchGeoHelpers.captureZoneTargetIds(
+      center: center,
+      selfDistanceMeters: selfDistance,
+      radiusMeters: GameConfig.captureZoneRadiusMeters,
+      remotePositions: remote,
+    );
   }
 
   void _undoLastVertex() {
